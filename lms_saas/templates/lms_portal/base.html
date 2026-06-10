@@ -1,0 +1,58 @@
+{% extends "templates/web.html" %}
+
+{% block head_include %}
+{{ super() }}
+{% include "templates/lms_brand/favicon.html" %}
+<script>document.documentElement.setAttribute("data-lms-theme", {{ (lms_theme or "default") | tojson }});</script>
+{% if brand and brand.favicon_url %}
+<script>document.documentElement.setAttribute("data-lms-favicon", {{ brand.favicon_url | tojson }});</script>
+{% endif %}
+{% endblock %}
+
+{% block navbar %}{% endblock %}
+{% block footer %}{% endblock %}
+
+{% block page_content %}
+<div class="lms-portal-wrap">
+  <header class="lms-portal-header">
+    <div class="lms-portal-brand">
+      {% if brand and brand.logo_url %}
+      <div class="lms-portal-logo"><img src="{{ brand.logo_url }}" alt="Logo"></div>
+      {% else %}
+      <div class="lms-portal-logo">LMS</div>
+      {% endif %}
+      <div>
+        <h1 class="lms-portal-title">{{ brand.portal_title if brand else 'LMS Portal' }}</h1>
+        <p class="lms-portal-tagline">{{ brand.tagline if brand else 'Manage your loans securely' }}</p>
+      </div>
+    </div>
+    <nav class="lms-portal-nav" aria-label="Portal navigation">
+      <a href="/lms"{% if portal_nav_active == 'loans' %} class="is-active"{% endif %}>My Loans</a>
+      {% if frappe.session.user != 'Guest' %}
+      <a href="/lms/account"{% if portal_nav_active == 'account' %} class="is-active"{% endif %}>My Account</a>
+      {% if show_staff_desk %}
+      <a href="/app/loans">Staff desk</a>
+      {% endif %}
+      <a href="/?cmd=web_logout">Log out</a>
+      {% else %}
+      <a href="/login?redirect-to=/lms">Log in</a>
+      {% endif %}
+    </nav>
+  </header>
+  {% if lms_risk_disclosure %}
+  <aside class="lms-risk-strip" role="note" aria-label="Risk disclosure">
+    <p>{{ lms_risk_disclosure }}</p>
+  </aside>
+  {% endif %}
+  <main class="lms-portal-board">
+    {% block lms_content %}{% endblock %}
+  </main>
+  <footer class="lms-portal-footer">
+    {{ brand.footer_text if brand else 'Powered by LMS SaaS' }}
+    {% if brand and brand.support_email %} · <a href="mailto:{{ brand.support_email }}">Support</a>{% endif %}
+  </footer>
+</div>
+<script>document.body.classList.add('lms-portal', 'lms-themed');</script>
+{% endblock %}
+
+{% block script %}{% endblock %}

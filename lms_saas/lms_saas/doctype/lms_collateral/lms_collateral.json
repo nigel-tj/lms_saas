@@ -1,0 +1,201 @@
+{
+  "doctype": "DocType",
+  "name": "LMS Collateral",
+  "module": "Lms Saas",
+  "custom": 0,
+  "is_submittable": 1,
+  "track_changes": 1,
+  "autoname": "format:COL-{#####}",
+  "title_field": "collateral_title",
+  "fields": [
+    {
+      "fieldname": "asset_section",
+      "fieldtype": "Section Break",
+      "label": "Asset"
+    },
+    {
+      "fieldname": "collateral_title",
+      "fieldtype": "Data",
+      "label": "Collateral Title",
+      "in_list_view": 1,
+      "reqd": 1,
+      "description": "Short identifier, e.g. 'Toyota Hilux 2019 ABC123'"
+    },
+    {
+      "fieldname": "collateral_type",
+      "fieldtype": "Select",
+      "label": "Collateral Type",
+      "in_list_view": 1,
+      "reqd": 1,
+      "options": "Vehicle\nReal Estate / Property\nEquipment / Machinery\nInventory / Stock\nCash Deposit / Lien\nSecurities / Shares\nThird-Party Guarantee\nOther"
+    },
+    {
+      "fieldname": "owner_customer",
+      "fieldtype": "Link",
+      "label": "Pledged By (Customer)",
+      "options": "Customer",
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "label": "Company",
+      "options": "Company",
+      "reqd": 1
+    },
+    {
+      "fieldname": "branch",
+      "fieldtype": "Link",
+      "label": "Branch",
+      "options": "Cost Center"
+    },
+    {
+      "fieldname": "status",
+      "fieldtype": "Select",
+      "label": "Status",
+      "in_list_view": 1,
+      "options": "Pledged\nPartially Released\nReleased\nLiquidated\nSubstituted",
+      "default": "Pledged",
+      "allow_on_submit": 1,
+      "search_index": 1
+    },
+    {
+      "fieldname": "column_break_asset",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "reference_no",
+      "fieldtype": "Data",
+      "label": "Registration / Serial No"
+    },
+    {
+      "fieldname": "location",
+      "fieldtype": "Data",
+      "label": "Location"
+    },
+    {
+      "fieldname": "ownership_document",
+      "fieldtype": "Attach",
+      "label": "Ownership / Title Document"
+    },
+    {
+      "fieldname": "valuation_section",
+      "fieldtype": "Section Break",
+      "label": "Valuation"
+    },
+    {
+      "fieldname": "market_value",
+      "fieldtype": "Currency",
+      "label": "Market Value",
+      "in_list_view": 1,
+      "reqd": 1
+    },
+    {
+      "fieldname": "haircut_percent",
+      "fieldtype": "Percent",
+      "label": "Haircut %",
+      "description": "Risk discount applied to market value when no forced-sale value is given."
+    },
+    {
+      "fieldname": "forced_sale_value",
+      "fieldtype": "Currency",
+      "label": "Forced Sale Value",
+      "description": "Independent realizable estimate. Overrides the haircut calculation when set."
+    },
+    {
+      "fieldname": "net_realizable_value",
+      "fieldtype": "Currency",
+      "label": "Net Realizable Value",
+      "in_list_view": 1,
+      "read_only": 1,
+      "allow_on_submit": 1
+    },
+    {
+      "fieldname": "column_break_valuation",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "valuation_date",
+      "fieldtype": "Date",
+      "label": "Valuation Date"
+    },
+    {
+      "fieldname": "valuer_name",
+      "fieldtype": "Data",
+      "label": "Valuer"
+    },
+    {
+      "fieldname": "next_revaluation_date",
+      "fieldtype": "Date",
+      "label": "Next Revaluation Date"
+    },
+    {
+      "fieldname": "linkage_section",
+      "fieldtype": "Section Break",
+      "label": "Linkage"
+    },
+    {
+      "fieldname": "loan_application",
+      "fieldtype": "Link",
+      "label": "Loan Application",
+      "options": "Loan Application"
+    },
+    {
+      "fieldname": "loan",
+      "fieldtype": "Link",
+      "label": "Loan",
+      "options": "Loan"
+    },
+    {
+      "fieldname": "column_break_linkage",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "notes",
+      "fieldtype": "Text",
+      "label": "Notes"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "System Manager",
+      "read": 1,
+      "write": 1,
+      "create": 1,
+      "delete": 1,
+      "submit": 1,
+      "cancel": 1,
+      "amend": 1,
+      "report": 1,
+      "export": 1
+    },
+    {
+      "role": "LMS Admin",
+      "read": 1,
+      "write": 1,
+      "create": 1,
+      "submit": 1,
+      "cancel": 1,
+      "amend": 1,
+      "report": 1,
+      "export": 1
+    },
+    {
+      "role": "LMS Branch Manager",
+      "read": 1,
+      "write": 1,
+      "create": 1,
+      "submit": 1,
+      "report": 1,
+      "export": 1
+    },
+    {
+      "role": "LMS Loan Officer",
+      "read": 1,
+      "write": 1,
+      "create": 1,
+      "report": 1,
+      "export": 1
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "name": "LMS Field Collection",
+  "short_name": "LMS Collect",
+  "start_url": "/lms/collect",
+  "display": "standalone",
+  "background_color": "#0f4c5c",
+  "theme_color": "#0f4c5c",
+  "icons": [
+    {
+      "src": "/assets/lms_saas/images/lms-favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

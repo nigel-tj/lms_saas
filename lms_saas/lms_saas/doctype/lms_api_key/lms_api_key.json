@@ -1,0 +1,18 @@
+{
+  "doctype": "DocType",
+  "name": "LMS API Key",
+  "module": "Lms Saas",
+  "custom": 0,
+  "autoname": "format:KEY-{#####}",
+  "fields": [
+    {"fieldname": "key_name", "fieldtype": "Data", "label": "Key Name", "reqd": 1},
+    {"fieldname": "api_key", "fieldtype": "Data", "label": "API Key", "read_only": 1, "unique": 1},
+    {"fieldname": "api_secret", "fieldtype": "Password", "label": "API Secret"},
+    {"fieldname": "enabled", "fieldtype": "Check", "label": "Enabled", "default": "1"},
+    {"fieldname": "user", "fieldtype": "Link", "label": "Linked User", "options": "User", "description": "API calls run as this user for permissions."}
+  ],
+  "permissions": [
+    {"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1},
+    {"role": "LMS Admin", "read": 1, "write": 1, "create": 1}
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "doctype": "DocType",
+  "name": "LMS Credit Policy",
+  "module": "Lms Saas",
+  "custom": 0,
+  "autoname": "field:policy_name",
+  "fields": [
+    {"fieldname": "policy_name", "fieldtype": "Data", "label": "Policy Name", "reqd": 1, "unique": 1},
+    {"fieldname": "loan_product", "fieldtype": "Link", "label": "Loan Product", "options": "Loan Product"},
+    {"fieldname": "enabled", "fieldtype": "Check", "label": "Enabled", "default": "1"},
+    {"fieldname": "rules", "fieldtype": "Table", "label": "Rules", "options": "LMS Credit Rule"}
+  ],
+  "permissions": [
+    {"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1},
+    {"role": "LMS Admin", "read": 1, "write": 1, "create": 1},
+    {"role": "LMS Branch Manager", "read": 1}
+  ]
+}

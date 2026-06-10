@@ -1,0 +1,22 @@
+{
+  "doctype": "DocType",
+  "name": "LMS Audit Event",
+  "module": "Lms Saas",
+  "custom": 0,
+  "autoname": "hash",
+  "track_changes": 0,
+  "fields": [
+    {"fieldname": "event_time", "fieldtype": "Datetime", "label": "Event Time", "in_list_view": 1, "reqd": 1},
+    {"fieldname": "event_type", "fieldtype": "Data", "label": "Event Type", "in_list_view": 1, "reqd": 1},
+    {"fieldname": "event_user", "fieldtype": "Data", "label": "User", "in_list_view": 1},
+    {"fieldname": "reference_doctype", "fieldtype": "Link", "label": "Reference DocType", "options": "DocType"},
+    {"fieldname": "reference_name", "fieldtype": "Data", "label": "Reference Name", "in_list_view": 1},
+    {"fieldname": "amount", "fieldtype": "Currency", "label": "Amount"},
+    {"fieldname": "company", "fieldtype": "Link", "label": "Company", "options": "Company"},
+    {"fieldname": "details", "fieldtype": "Small Text", "label": "Details"}
+  ],
+  "permissions": [
+    {"role": "System Manager", "read": 1, "create": 1, "export": 1, "report": 1},
+    {"role": "LMS Admin", "read": 1, "report": 1, "export": 1}
+  ]
+}

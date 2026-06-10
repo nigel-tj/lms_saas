@@ -1,0 +1,79 @@
+/* LMS theme: midnight (deep navy — swap via site_config lms_theme: midnight) */
+[data-lms-theme="midnight"] {
+	--theme-primary: #e2e8f0;
+	--theme-primary-light: #f8fafc;
+	--theme-accent: #38bdf8;
+	--theme-accent-muted: #7dd3fc;
+	--theme-focus: #38bdf8;
+
+	--theme-canvas: #0b1220;
+	--theme-surface: #111827;
+	--theme-surface-alt: #1e293b;
+	--theme-surface-elevated: #1f2937;
+	--theme-border: #334155;
+
+	--theme-text: #f1f5f9;
+	--theme-text-muted: #94a3b8;
+	--theme-success: #34d399;
+	--theme-warning: #fbbf24;
+	--theme-danger: #f87171;
+
+	--theme-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+	--theme-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+	--theme-shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.45);
+	--theme-shadow-panel: 0 8px 30px rgba(0, 0, 0, 0.35);
+
+	--theme-hero-border: rgba(56, 189, 248, 0.2);
+	--theme-hero-bg: linear-gradient(120deg, rgba(56, 189, 248, 0.1) 0%, rgba(15, 23, 42, 0.4) 45%, #111827 78%);
+	--theme-hero-glow: rgba(56, 189, 248, 0.15);
+	--theme-hero-accent: linear-gradient(180deg, #38bdf8 0%, #818cf8 100%);
+
+	--theme-nav-active-bg: rgba(56, 189, 248, 0.12);
+	--theme-nav-active-text: #e2e8f0;
+	--theme-sidebar-section-text: #64748b;
+	--theme-sidebar-hover-bg: rgba(56, 189, 248, 0.08);
+	--theme-sidebar-active-bg: rgba(56, 189, 248, 0.14);
+	--theme-sidebar-active-text: #f1f5f9;
+	--theme-sidebar-active-accent: #38bdf8;
+	--theme-sidebar-icon-bg: rgba(56, 189, 248, 0.12);
+	--theme-sidebar-icon-text: #e2e8f0;
+	--theme-sidebar-icon-active-bg: #38bdf8;
+	--theme-sidebar-icon-active-text: #0b1220;
+	--theme-sidebar-child-border: rgba(56, 189, 248, 0.2);
+	--theme-chip-bg: rgba(56, 189, 248, 0.12);
+	--theme-chip-text: #e2e8f0;
+	--theme-pill-bg: rgba(56, 189, 248, 0.12);
+	--theme-pill-text: #e2e8f0;
+
+	--theme-tile-bg: #1e293b;
+	--theme-tile-border: #334155;
+	--theme-tile-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+	--theme-tile-shadow-hover: 0 12px 28px rgba(0, 0, 0, 0.4);
+	--theme-tile-border-hover: rgba(56, 189, 248, 0.35);
+	--theme-tile-icon-bg: rgba(56, 189, 248, 0.12);
+	--theme-tile-icon-text: #e2e8f0;
+	--theme-tile-footer-border: rgba(51, 65, 85, 0.9);
+	--theme-tile-count-bg: rgba(56, 189, 248, 0.12);
+	--theme-tile-count-text: #e2e8f0;
+	--theme-tile-count-muted-bg: rgba(148, 163, 184, 0.15);
+	--theme-tile-count-muted-text: #94a3b8;
+	--theme-tile-action-text: #7dd3fc;
+
+	--theme-tone-cyan: linear-gradient(90deg, #0891b2, #22d3ee);
+	--theme-tone-blue: linear-gradient(90deg, #2563eb, #60a5fa);
+	--theme-tone-green: linear-gradient(90deg, #059669, #34d399);
+	--theme-tone-orange: linear-gradient(90deg, #d97706, #fbbf24);
+	--theme-tone-red: linear-gradient(90deg, #dc2626, #f87171);
+	--theme-tone-purple: linear-gradient(90deg, #7c3aed, #a78bfa);
+	--theme-tone-grey: linear-gradient(90deg, #64748b, #94a3b8);
+}
+
+/* Midnight desk shell overrides */
+[data-lms-theme="midnight"] body.lms-desk-enhanced .navbar {
+	background: var(--theme-surface);
+	box-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
+}
+
+[data-lms-theme="midnight"] body.lms-desk-enhanced .desk-sidebar {
+	background: var(--theme-surface);
+}

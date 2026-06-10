@@ -1,0 +1,21 @@
+{% extends "templates/lms_portal/base.html" %}
+
+{% block title %}Field Collection{% endblock %}
+
+{% block lms_content %}
+<section class="lms-hero lms-home-hero">
+  <h2 class="lms-hero__title">Collection Run</h2>
+  <p class="lms-hero__subtitle">Today's dues — works offline and syncs when connected.</p>
+</section>
+<div id="lms-collect-root" aria-live="polite"></div>
+{% endblock %}
+
+{% block script %}
+<script>
+frappe.ready(function() {
+  if (typeof lms_collect !== 'undefined') {
+    lms_collect.init();
+  }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,42 @@
+{% extends "templates/lms_portal/base.html" %}
+
+{% block title %}My Loans{% endblock %}
+
+{% block lms_content %}
+<section class="lms-hero lms-home-hero">
+  <h2 class="lms-hero__title">Portfolio Dashboard</h2>
+  <p class="lms-hero__subtitle">Track obligations, payment momentum, and account health from one board.</p>
+</section>
+
+<div id="lms-portal-summary" aria-live="polite"></div>
+
+<section class="lms-home-grid" aria-label="Dashboard analytics">
+  <article class="lms-home-panel lms-panel">
+    <h3><span class="lms-section-pill">Risk mix</span></h3>
+    <div id="lms-portal-risk" aria-live="polite"></div>
+  </article>
+  <article class="lms-home-panel lms-panel">
+    <h3><span class="lms-section-pill">Loan mix</span></h3>
+    <div id="lms-portal-loan-mix" aria-live="polite"></div>
+  </article>
+  <article class="lms-home-panel lms-panel">
+    <h3><span class="lms-section-pill">Upcoming due</span></h3>
+    <div id="lms-portal-upcoming" aria-live="polite"></div>
+  </article>
+</section>
+
+<section class="lms-home-panel lms-panel">
+  <h3><span class="lms-section-pill">Loan board</span></h3>
+  <div id="lms-portal-loans" aria-live="polite"></div>
+</section>
+{% endblock %}
+
+{% block script %}
+<script>
+frappe.ready(function() {
+  if (typeof lms_portal !== 'undefined') {
+    lms_portal.initLoansPage();
+  }
+});
+</script>
+{% endblock %}

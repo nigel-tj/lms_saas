@@ -1,0 +1,6 @@
+<p style="margin:0 0 12px;">{{ _("Hello") }}{% if customer_name %}, <strong>{{ customer_name }}</strong>{% endif %},</p>
+<p style="margin:0 0 12px;">{{ message }}</p>
+{% if loan_name %}
+<p style="margin:0 0 12px;">{{ _("Loan reference") }}: <strong>{{ loan_name }}</strong></p>
+{% endif %}
+<p style="margin:0;">{{ _("Please ensure funds are available before the due date.") }}</p>

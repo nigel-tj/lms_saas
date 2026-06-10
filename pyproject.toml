@@ -1,0 +1,9 @@
+[project]
+name = "lms_saas"
+version = "0.0.1"
+description = "Enterprise Loan Management SaaS System"
+requires-python = ">=3.10"
+dependencies = [
+    "requests",
+    "docxtpl",
+]

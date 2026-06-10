@@ -1,0 +1,185 @@
+[
+  {
+    "doctype": "Custom Field",
+    "name": "Loan-custom_days_past_due",
+    "dt": "Loan",
+    "fieldname": "custom_days_past_due",
+    "fieldtype": "Int",
+    "label": "Days Past Due (LMS)",
+    "insert_after": "days_past_due",
+    "read_only": 1,
+    "allow_on_submit": 1,
+    "search_index": 1
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "Loan-custom_asset_classification",
+    "dt": "Loan",
+    "fieldname": "custom_asset_classification",
+    "fieldtype": "Select",
+    "label": "Asset Classification (LMS)",
+    "insert_after": "custom_days_past_due",
+    "options": "\nSub-Standard/Watchlist\nNon-Performing Asset (NPA)",
+    "allow_on_submit": 1
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "Loan-custom_lms_branch",
+    "dt": "Loan",
+    "fieldname": "custom_lms_branch",
+    "fieldtype": "Link",
+    "label": "Branch",
+    "options": "Cost Center",
+    "insert_after": "cost_center",
+    "search_index": 1
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "Loan Application-custom_lms_branch",
+    "dt": "Loan Application",
+    "fieldname": "custom_lms_branch",
+    "fieldtype": "Link",
+    "label": "Branch",
+    "options": "Cost Center",
+    "insert_after": "company"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "Loan-custom_loan_officer",
+    "dt": "Loan",
+    "fieldname": "custom_loan_officer",
+    "fieldtype": "Link",
+    "label": "Loan Officer",
+    "options": "Employee",
+    "insert_after": "custom_lms_branch",
+    "search_index": 1
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "Loan Application-custom_loan_officer",
+    "dt": "Loan Application",
+    "fieldname": "custom_loan_officer",
+    "fieldtype": "Link",
+    "label": "Loan Officer",
+    "options": "Employee",
+    "insert_after": "custom_lms_branch"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "Customer-custom_lms_branch",
+    "dt": "Customer",
+    "fieldname": "custom_lms_branch",
+    "fieldtype": "Link",
+    "label": "Branch",
+    "options": "Cost Center",
+    "insert_after": "customer_group"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "Loan Application-custom_collateral_section",
+    "dt": "Loan Application",
+    "fieldname": "custom_collateral_section",
+    "fieldtype": "Section Break",
+    "label": "Collateral / Security",
+    "insert_after": "custom_loan_officer"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "Loan Application-custom_collateral",
+    "dt": "Loan Application",
+    "fieldname": "custom_collateral",
+    "fieldtype": "Table",
+    "label": "Collateral",
+    "options": "LMS Loan Collateral",
+    "insert_after": "custom_collateral_section"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "Loan-custom_collateral_section",
+    "dt": "Loan",
+    "fieldname": "custom_collateral_section",
+    "fieldtype": "Section Break",
+    "label": "Collateral / Security",
+    "insert_after": "custom_loan_officer"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "Loan-custom_collateral",
+    "dt": "Loan",
+    "fieldname": "custom_collateral",
+    "fieldtype": "Table",
+    "label": "Collateral",
+    "options": "LMS Loan Collateral",
+    "insert_after": "custom_collateral_section",
+    "allow_on_submit": 1
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "Lead-custom_lms_branch",
+    "dt": "Lead",
+    "fieldname": "custom_lms_branch",
+    "fieldtype": "Link",
+    "label": "Branch",
+    "options": "Cost Center",
+    "insert_after": "mobile_no"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "Lead-custom_loan_officer",
+    "dt": "Lead",
+    "fieldname": "custom_loan_officer",
+    "fieldtype": "Link",
+    "label": "Loan Officer",
+    "options": "Employee",
+    "insert_after": "custom_lms_branch"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "Lead-custom_national_id_number",
+    "dt": "Lead",
+    "fieldname": "custom_national_id_number",
+    "fieldtype": "Data",
+    "label": "National ID Number",
+    "insert_after": "custom_loan_officer"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "Lead-custom_consent_given",
+    "dt": "Lead",
+    "fieldname": "custom_consent_given",
+    "fieldtype": "Check",
+    "label": "Customer Consent Given",
+    "description": "Prospect consented to be contacted and received product risk disclosure.",
+    "insert_after": "custom_national_id_number"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "Lead-custom_consent_date",
+    "dt": "Lead",
+    "fieldname": "custom_consent_date",
+    "fieldtype": "Datetime",
+    "label": "Consent Date",
+    "depends_on": "custom_consent_given",
+    "insert_after": "custom_consent_given"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "Opportunity-custom_lms_branch",
+    "dt": "Opportunity",
+    "fieldname": "custom_lms_branch",
+    "fieldtype": "Link",
+    "label": "Branch",
+    "options": "Cost Center",
+    "insert_after": "company"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "Loan Application-custom_lending_group",
+    "dt": "Loan Application",
+    "fieldname": "custom_lending_group",
+    "fieldtype": "Link",
+    "label": "Lending Group",
+    "options": "LMS Lending Group",
+    "insert_after": "applicant"
+  }
+]

@@ -1,0 +1,26 @@
+{
+  "doctype": "DocType",
+  "name": "LMS Payment Intent",
+  "module": "Lms Saas",
+  "custom": 0,
+  "autoname": "format:PAY-{#####}",
+  "fields": [
+    {"fieldname": "loan", "fieldtype": "Link", "label": "Loan", "options": "Loan", "reqd": 1, "in_list_view": 1},
+    {"fieldname": "customer", "fieldtype": "Link", "label": "Customer", "options": "Customer", "reqd": 1},
+    {"fieldname": "company", "fieldtype": "Link", "label": "Company", "options": "Company"},
+    {"fieldname": "amount", "fieldtype": "Currency", "label": "Amount", "reqd": 1, "in_list_view": 1},
+    {"fieldname": "provider_code", "fieldtype": "Data", "label": "Provider Code", "in_list_view": 1},
+    {"fieldname": "external_ref", "fieldtype": "Data", "label": "External Reference", "unique": 1, "search_index": 1},
+    {"fieldname": "status", "fieldtype": "Select", "label": "Status", "options": "Pending\nConfirmed\nFailed\nCancelled", "default": "Pending", "in_list_view": 1},
+    {"fieldname": "redirect_url", "fieldtype": "Data", "label": "Redirect URL"},
+    {"fieldname": "provider_payload", "fieldtype": "Code", "label": "Provider Payload", "options": "JSON"},
+    {"fieldname": "loan_repayment", "fieldtype": "Link", "label": "Loan Repayment", "options": "Loan Repayment", "read_only": 1},
+    {"fieldname": "confirmed_at", "fieldtype": "Datetime", "label": "Confirmed At", "read_only": 1}
+  ],
+  "permissions": [
+    {"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1},
+    {"role": "LMS Admin", "read": 1, "write": 1, "create": 1},
+    {"role": "LMS Loan Officer", "read": 1, "create": 1},
+    {"role": "Customer", "read": 1, "create": 1}
+  ]
+}

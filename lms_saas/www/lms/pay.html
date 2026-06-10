@@ -1,0 +1,21 @@
+{% extends "templates/lms_portal/base.html" %}
+
+{% block title %}Make Payment{% endblock %}
+
+{% block lms_content %}
+<section class="lms-hero lms-home-hero">
+  <h2 class="lms-hero__title">Make a Payment</h2>
+  <p class="lms-hero__subtitle">Pay your loan via EcoCash, OneMoney, or bank transfer.</p>
+</section>
+<div id="lms-pay-root" aria-live="polite"></div>
+{% endblock %}
+
+{% block script %}
+<script>
+frappe.ready(function() {
+  if (typeof lms_portal !== 'undefined') {
+    lms_portal.initPayPage();
+  }
+});
+</script>
+{% endblock %}

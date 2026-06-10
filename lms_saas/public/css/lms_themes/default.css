@@ -1,0 +1,70 @@
+/* LMS theme: default (teal fintech — current production look) */
+:root,
+[data-lms-theme="default"] {
+	--theme-primary: #0f4c5c;
+	--theme-primary-light: #1a6b7d;
+	--theme-accent: #2dd4bf;
+	--theme-accent-muted: #99f6e4;
+	--theme-focus: #2dd4bf;
+
+	--theme-canvas: #eef2f6;
+	--theme-surface: #ffffff;
+	--theme-surface-alt: #f8fafc;
+	--theme-surface-elevated: #ffffff;
+	--theme-border: #e2e8f0;
+
+	--theme-text: #0f172a;
+	--theme-text-muted: #64748b;
+	--theme-success: #059669;
+	--theme-warning: #d97706;
+	--theme-danger: #dc2626;
+
+	--theme-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
+	--theme-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
+	--theme-shadow-lg: 0 12px 32px rgba(15, 23, 42, 0.12);
+	--theme-shadow-panel: 0 8px 30px rgba(15, 23, 42, 0.06);
+
+	--theme-hero-border: rgba(15, 76, 92, 0.12);
+	--theme-hero-bg: linear-gradient(120deg, rgba(15, 76, 92, 0.07) 0%, rgba(45, 212, 191, 0.06) 45%, #fff 78%);
+	--theme-hero-glow: rgba(45, 212, 191, 0.18);
+	--theme-hero-accent: linear-gradient(180deg, #0f4c5c 0%, #2dd4bf 100%);
+
+	--theme-nav-active-bg: rgba(15, 76, 92, 0.08);
+	--theme-nav-active-text: #0f4c5c;
+	--theme-sidebar-section-text: #94a3b8;
+	--theme-sidebar-hover-bg: rgba(15, 76, 92, 0.06);
+	--theme-sidebar-active-bg: rgba(15, 76, 92, 0.1);
+	--theme-sidebar-active-text: #0f4c5c;
+	--theme-sidebar-active-accent: #2dd4bf;
+	--theme-sidebar-icon-bg: rgba(15, 76, 92, 0.08);
+	--theme-sidebar-icon-text: #0f4c5c;
+	--theme-sidebar-icon-active-bg: #0f4c5c;
+	--theme-sidebar-icon-active-text: #ffffff;
+	--theme-sidebar-child-border: rgba(15, 76, 92, 0.14);
+	--theme-chip-bg: rgba(15, 76, 92, 0.07);
+	--theme-chip-text: #0f4c5c;
+	--theme-pill-bg: rgba(15, 76, 92, 0.07);
+	--theme-pill-text: #0f4c5c;
+
+	--theme-tile-bg: #ffffff;
+	--theme-tile-border: #e2e8f0;
+	--theme-tile-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+	--theme-tile-shadow-hover: 0 12px 28px rgba(15, 76, 92, 0.12);
+	--theme-tile-border-hover: rgba(15, 76, 92, 0.22);
+	--theme-tile-icon-bg: rgba(15, 76, 92, 0.08);
+	--theme-tile-icon-text: #0f4c5c;
+	--theme-tile-footer-border: rgba(226, 232, 240, 0.9);
+	--theme-tile-count-bg: rgba(15, 76, 92, 0.08);
+	--theme-tile-count-text: #0f4c5c;
+	--theme-tile-count-muted-bg: rgba(100, 116, 139, 0.1);
+	--theme-tile-count-muted-text: #64748b;
+	--theme-tile-action-text: #1a6b7d;
+
+	--theme-tone-cyan: linear-gradient(90deg, #0891b2, #22d3ee);
+	--theme-tone-blue: linear-gradient(90deg, #2563eb, #60a5fa);
+	--theme-tone-green: linear-gradient(90deg, #059669, #34d399);
+	--theme-tone-orange: linear-gradient(90deg, #d97706, #fbbf24);
+	--theme-tone-red: linear-gradient(90deg, #dc2626, #f87171);
+	--theme-tone-purple: linear-gradient(90deg, #7c3aed, #a78bfa);
+	--theme-tone-grey: linear-gradient(90deg, #64748b, #94a3b8);
+}
