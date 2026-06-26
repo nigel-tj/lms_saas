@@ -504,7 +504,8 @@ body.lms-desk-enhanced.lms-nav-screen .page-head .page-title,
 body.lms-desk-enhanced.lms-nav-dashboard #page-dashboard-view .page-head .page-title,
 body.lms-desk-enhanced.lms-nav-crm-dashboard #page-dashboard-view .page-head .page-title,
 body.lms-desk-enhanced.lms-nav-company #page-Company .page-head .page-title,
-body.lms-desk-enhanced.lms-nav-lending-form .page-head .page-title {
+body.lms-desk-enhanced.lms-nav-lending-form .page-head .page-title,
+body.lms-desk-enhanced.lms-nav-report .page-head .page-title {
 	display: none !important;
 }
 
@@ -512,7 +513,8 @@ body.lms-desk-enhanced.lms-nav-screen .page-head .page-head-content,
 body.lms-desk-enhanced.lms-nav-dashboard #page-dashboard-view .page-head .page-head-content,
 body.lms-desk-enhanced.lms-nav-crm-dashboard #page-dashboard-view .page-head .page-head-content,
 body.lms-desk-enhanced.lms-nav-company #page-Company .page-head .page-head-content,
-body.lms-desk-enhanced.lms-nav-lending-form .page-head .page-head-content {
+body.lms-desk-enhanced.lms-nav-lending-form .page-head .page-head-content,
+body.lms-desk-enhanced.lms-nav-report .page-head .page-head-content {
 	justify-content: flex-end;
 }
 
@@ -521,7 +523,8 @@ body.lms-desk-enhanced.lms-nav-screen .page-head.flex:not(:has(.page-actions .bt
 body.lms-desk-enhanced.lms-nav-dashboard #page-dashboard-view .page-head.flex:not(:has(.page-actions .btn:not(.hide))),
 body.lms-desk-enhanced.lms-nav-crm-dashboard #page-dashboard-view .page-head.flex:not(:has(.page-actions .btn:not(.hide))),
 body.lms-desk-enhanced.lms-nav-company #page-Company .page-head.flex:not(:has(.page-actions .btn:not(.hide))),
-body.lms-desk-enhanced.lms-nav-lending-form .page-head.flex:not(:has(.page-actions .btn:not(.hide))) {
+body.lms-desk-enhanced.lms-nav-lending-form .page-head.flex:not(:has(.page-actions .btn:not(.hide))),
+body.lms-desk-enhanced.lms-nav-report .page-head.flex:not(:has(.page-actions .btn:not(.hide))) {
 	display: none !important;
 }
 
@@ -947,7 +950,9 @@ body.lms-desk-enhanced.lms-nav-lending-form .layout-main-section {
 }
 
 body.lms-desk-enhanced.lms-nav-loan-application .page-head .breadcrumb,
-body.lms-desk-enhanced.lms-nav-loan-application .form-page > .breadcrumb {
+body.lms-desk-enhanced.lms-nav-loan-application .form-page > .breadcrumb,
+body.lms-desk-enhanced.lms-nav-lending-form .page-head .breadcrumb,
+body.lms-desk-enhanced.lms-nav-lending-form .form-page > .breadcrumb {
 	display: none !important;
 }
 
@@ -992,5 +997,85 @@ body.lms-desk-enhanced.lms-nav-lending-form .form-page {
 	border: 1px solid var(--lms-border);
 	border-radius: var(--lms-radius);
 	box-shadow: var(--lms-shadow-sm);
+}
+
+/* Shared doctype / report hero chrome */
+body.lms-desk-enhanced.lms-nav-lending-form .lms-doctype-hero,
+body.lms-desk-enhanced.lms-nav-lending-form .lms-loan-application-hero,
+body.lms-desk-enhanced.lms-nav-report .lms-report-hero {
+	margin-top: clamp(0.5rem, 1vw, 1rem) !important;
+	margin-bottom: clamp(0.85rem, 1.5vw, 1.25rem) !important;
+	margin-left: 0 !important;
+	margin-right: 0 !important;
+	width: 100% !important;
+	max-width: 100% !important;
+	box-sizing: border-box;
+}
+
+body.lms-desk-enhanced.lms-nav-lending-form .lms-doctype-hero.lms-hero,
+body.lms-desk-enhanced.lms-nav-lending-form .lms-loan-application-hero.lms-hero,
+body.lms-desk-enhanced.lms-nav-report .lms-report-hero.lms-hero {
+	--lms-hero-pad-left: calc(var(--lms-hero-stripe) + var(--lms-hero-stripe-gap) + 0.25rem);
+}
+
+body.lms-desk-enhanced.lms-nav-lending-form .lms-doctype-hero .lms-hero__inner,
+body.lms-desk-enhanced.lms-nav-lending-form .lms-loan-application-hero .lms-hero__inner,
+body.lms-desk-enhanced.lms-nav-report .lms-report-hero .lms-hero__inner {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: flex-end;
+	justify-content: space-between;
+	gap: 0.75rem 1rem;
+}
+
+body.lms-desk-enhanced.lms-nav-lending-form .lms-doctype-hero .lms-hero__actions,
+body.lms-desk-enhanced.lms-nav-lending-form .lms-loan-application-hero .lms-hero__actions,
+body.lms-desk-enhanced.lms-nav-report .lms-report-hero .lms-hero__actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+}
+
+/* Query / script reports — canvas shell */
+body.lms-desk-enhanced.lms-nav-report .page-content {
+	box-sizing: border-box;
+}
+
+body.lms-desk-enhanced.lms-nav-report .layout-main-section-wrapper {
+	background: var(--lms-canvas);
+}
+
+body.lms-desk-enhanced.lms-nav-report .layout-main-section {
+	padding-top: 0.25rem;
+}
+
+body.lms-desk-enhanced.lms-nav-report .query-report-area,
+body.lms-desk-enhanced.lms-nav-report .report-wrapper {
+	background: var(--lms-surface);
+	border: 1px solid var(--lms-border);
+	border-radius: var(--lms-radius);
+	box-shadow: var(--lms-shadow-sm);
+	padding: clamp(0.75rem, 1.5vw, 1.25rem);
+}
+
+body.lms-desk-enhanced.lms-nav-report .layout-main-section > .report-summary {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.75rem;
+	margin-bottom: clamp(0.75rem, 1.5vw, 1rem);
+}
+
+body.lms-desk-enhanced.lms-nav-report .report-summary .summary-item {
+	border-radius: var(--lms-radius);
+	border: 1px solid var(--lms-border);
+	box-shadow: var(--lms-shadow-sm);
+	background: var(--lms-surface);
+	padding: 0.65rem 0.85rem;
+	min-width: 8rem;
+}
+
+body.lms-desk-enhanced.lms-nav-report .report-wrapper .chart-container,
+body.lms-desk-enhanced.lms-nav-report .report-wrapper .dt-scrollable {
+	border-radius: calc(var(--lms-radius) - 2px);
 }
 

@@ -3,7 +3,7 @@
 ## Prerequisites
 
 - [Frappe Cloud](https://frappecloud.com) account with **payment method** (private bench required for custom apps)
-- GitHub repo: **`lms_saas`** app at repository root (see publish script below)
+- GitHub repo: `**lms_saas`** app at repository root (see publish script below)
 - Stack apps on **Frappe v15**: ERPNext, Lending, HRMS, LMS SaaS
 
 ## 1. Publish app to GitHub (one-time)
@@ -11,7 +11,7 @@
 From the monorepo:
 
 ```bash
-./scripts/publish-lms-saas-app.sh
+./scripts/publish-lms-saas-app.shhttps://cloud.frappe.io/https://cloud.frappe.io/
 ./scripts/validate-frappe-cloud-app.sh dist/lms_saas-publish
 ```
 
@@ -35,14 +35,16 @@ git push -u origin main
 2. Framework: **v15**
 3. **Apps** → Add from marketplace/GitHub:
 
-| App | Source |
-|-----|--------|
-| erpnext | Frappe Cloud / `version-15` |
-| lending | GitHub `frappe/lending` branch `version-15` |
-| hrms | GitHub `frappe/hrms` branch `version-15` |
-| lms_saas | GitHub `nigel-tj/lms_saas` branch `main` |
 
-4. **Validate** each custom app → **Deploy** bench group
+| App      | Source                                      |
+| -------- | ------------------------------------------- |
+| erpnext  | Frappe Cloud / `version-15`                 |
+| lending  | GitHub `frappe/lending` branch `version-15` |
+| hrms     | GitHub `frappe/hrms` branch `version-15`    |
+| lms_saas | GitHub `nigel-tj/lms_saas` branch `main`    |
+
+
+1. **Validate** each custom app → **Deploy** bench group
 
 ## 3. Create site
 
@@ -64,7 +66,7 @@ bench --site <site> execute lms_saas.setup.verify_spec.run_all_checks
 
 ## 5. Site configuration
 
-Merge keys from [`site_config.example.json`](../site_config.example.json) in **Site → Configuration**. Add integration URLs/secrets only in cloud UI, never in git.
+Merge keys from `[site_config.example.json](../site_config.example.json)` in **Site → Configuration**. Add integration URLs/secrets only in cloud UI, never in git.
 
 ## 6. DNS & SSL
 
@@ -88,11 +90,13 @@ lms_saas
 
 ## Troubleshooting
 
-| Issue | Fix |
-|-------|-----|
-| `required_apps` error | Install lending + hrms before lms_saas |
-| verify_spec fails | Run `after_install`; enable scheduler |
-| Portal 404 | `bench build --app lms_saas`; clear-cache |
-| Payments/AML | Enable in site_config + provider credentials |
+
+| Issue                 | Fix                                          |
+| --------------------- | -------------------------------------------- |
+| `required_apps` error | Install lending + hrms before lms_saas       |
+| verify_spec fails     | Run `after_install`; enable scheduler        |
+| Portal 404            | `bench build --app lms_saas`; clear-cache    |
+| Payments/AML          | Enable in site_config + provider credentials |
+
 
 See also: [SYSADMIN_GUIDE.md](SYSADMIN_GUIDE.md), [ONBOARDING.md](ONBOARDING.md)

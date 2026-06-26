@@ -56,6 +56,8 @@ CSS_MARKERS = (
     ("lms_desk.css", r"lms-nav-company #page-Company \.page-head \.page-title"),
     ("lms_desk.css", r"\.lms-nav-lending-form \.layout-main-section-wrapper"),
     ("lms_desk.css", r"\.lms-loan-application-hero"),
+    ("lms_desk.css", r"\.lms-doctype-hero"),
+    ("lms_desk.css", r"\.lms-nav-report \.(query-report-area|report-wrapper)"),
     ("lms_desk.css", r":has\(\.page-actions"),
     ("lms_desk.css", r"\.lms-nav-crm"),
     ("lms_components.css", r"\.lms-hero"),

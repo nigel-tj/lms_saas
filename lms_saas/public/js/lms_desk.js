@@ -18,11 +18,60 @@
 	var SIDEBAR_AUTO_MAX_WIDTH = 1366;
 	var LOAN_DASHBOARD_NAME = "Loan Dashboard";
 	var CRM_DASHBOARD_NAME = "CRM";
-	var LENDING_DOCTYPES = {
+	/* Desk form/list routes that receive LMS canvas + hero chrome (see install._lms_doctypes). */
+	var LMS_FORM_DOCTYPES = {
 		"Loan Application": 1,
 		Loan: 1,
 		"Loan Disbursement": 1,
 		"Loan Repayment": 1,
+		"Loan Product": 1,
+		Customer: 1,
+		Lead: 1,
+		Opportunity: 1,
+		Communication: 1,
+		"LMS Borrower Compliance": 1,
+		"LMS Collateral": 1,
+		"LMS Investor": 1,
+		"LMS Investor Transaction": 1,
+		"LMS Incident Log": 1,
+		"LMS Audit Event": 1,
+		"LMS Notification Log": 1,
+		"LMS Payment Intent": 1,
+		"LMS Payment Provider": 1,
+		"LMS Payment Reconciliation": 1,
+		"LMS Credit Policy": 1,
+		"LMS Lending Group": 1,
+		"LMS Group Meeting": 1,
+		"LMS Center": 1,
+		"LMS Savings Account": 1,
+		"LMS Savings Transaction": 1,
+	};
+
+	var DOCTYPE_HERO = {
+		Loan: { listTitle: "Loans", desc: "Live loan book — balances and schedules" },
+		"Loan Disbursement": { listTitle: "Disbursements", desc: "Pending and posted disbursements" },
+		"Loan Repayment": { listTitle: "Repayments", desc: "Collections ledger and allocation history" },
+		"Loan Product": { listTitle: "Loan products", desc: "Product terms, rates, and GL mapping" },
+		Customer: { listTitle: "Borrowers", desc: "Customer records and KYC status" },
+		Lead: { listTitle: "Leads", desc: "Prospect pipeline and new inquiries" },
+		Opportunity: { listTitle: "Opportunities", desc: "Qualified deals and conversion stage" },
+		Communication: { listTitle: "Communications", desc: "Borrower and prospect correspondence" },
+		"LMS Borrower Compliance": { listTitle: "Compliance queue", desc: "Pending AML / KYC approvals" },
+		"LMS Collateral": { listTitle: "Collateral register", desc: "Pledged assets and valuations" },
+		"LMS Investor": { listTitle: "Investor book", desc: "Registered investors and balances" },
+		"LMS Investor Transaction": { listTitle: "Investor transactions", desc: "Capital calls and distributions" },
+		"LMS Incident Log": { listTitle: "Incident register", desc: "Operational and cyber incidents" },
+		"LMS Audit Event": { listTitle: "Audit trail", desc: "Immutable money-movement log" },
+		"LMS Notification Log": { listTitle: "Notification log", desc: "SMS and email delivery history" },
+		"LMS Payment Intent": { listTitle: "Payment intents", desc: "Borrower payment requests and status" },
+		"LMS Payment Provider": { listTitle: "Payment providers", desc: "EcoCash, OneMoney, and bank rails" },
+		"LMS Payment Reconciliation": { listTitle: "Payment reconciliation", desc: "Match inbound payments to loans" },
+		"LMS Credit Policy": { listTitle: "Credit policies", desc: "Scorecards and approval rules" },
+		"LMS Lending Group": { listTitle: "Lending groups", desc: "Group lending structures and members" },
+		"LMS Group Meeting": { listTitle: "Group meetings", desc: "Meeting records and attendance" },
+		"LMS Center": { listTitle: "Centers", desc: "Branch and field office locations" },
+		"LMS Savings Account": { listTitle: "Savings accounts", desc: "Member savings balances" },
+		"LMS Savings Transaction": { listTitle: "Savings transactions", desc: "Deposits and withdrawals" },
 	};
 	var SYNC_DEBOUNCE_MS = 80;
 	var SYNC_FOLLOWUP_MS = 450;
@@ -242,6 +291,22 @@
 	function lending_home_url() {
 		var nav = frappe.boot && frappe.boot.lms_desk_nav;
 		return (nav && nav.home_url) || "/app/loans";
+	}
+
+	function doctype_slug(doctype) {
+		if (frappe.router && frappe.router.slug) {
+			return frappe.router.slug(doctype);
+		}
+		if (frappe.utils && frappe.utils.slug) {
+			return frappe.utils.slug(doctype);
+		}
+		return String(doctype || "")
+			.toLowerCase()
+			.replace(/\s+/g, "-");
+	}
+
+	function doctype_new_url(doctype) {
+		return "/app/" + doctype_slug(doctype) + "/new";
 	}
 
 	function apply_loan_dashboard_hero_layout(hero) {
@@ -554,19 +619,19 @@
 		}
 	}
 
-	function get_lending_doctype_route() {
+	function get_lms_form_doctype_route() {
 		if (!window.frappe) return null;
 		var route = (frappe.get_route && frappe.get_route()) || [];
-		if (route[0] === "Form" && LENDING_DOCTYPES[route[1]]) {
+		if (route[0] === "Form" && LMS_FORM_DOCTYPES[route[1]]) {
 			return { doctype: route[1], mode: "form", docname: route[2] || null };
 		}
-		if (route[0] === "List" && LENDING_DOCTYPES[route[1]]) {
+		if (route[0] === "List" && LMS_FORM_DOCTYPES[route[1]]) {
 			return { doctype: route[1], mode: "list" };
 		}
 		var dataRoute = document.body.getAttribute("data-route") || "";
 		if (dataRoute.indexOf("Form/") === 0) {
 			var formParts = dataRoute.split("/");
-			if (formParts.length >= 2 && LENDING_DOCTYPES[formParts[1]]) {
+			if (formParts.length >= 2 && LMS_FORM_DOCTYPES[formParts[1]]) {
 				return {
 					doctype: formParts[1],
 					mode: "form",
@@ -576,19 +641,155 @@
 		}
 		if (dataRoute.indexOf("List/") === 0) {
 			var listParts = dataRoute.split("/");
-			if (listParts.length >= 2 && LENDING_DOCTYPES[listParts[1]]) {
+			if (listParts.length >= 2 && LMS_FORM_DOCTYPES[listParts[1]]) {
 				return { doctype: listParts[1], mode: "list" };
 			}
 		}
 		return null;
 	}
 
+	function get_query_report_route() {
+		if (!window.frappe) return null;
+		var route = (frappe.get_route && frappe.get_route()) || [];
+		if (route[0] === "query-report" && route[1]) {
+			return { report: route[1], mode: "query-report" };
+		}
+		var dataRoute = document.body.getAttribute("data-route") || "";
+		if (dataRoute.indexOf("query-report/") === 0) {
+			return { report: decodeURIComponent(dataRoute.slice("query-report/".length)), mode: "query-report" };
+		}
+		return null;
+	}
+
 	function is_loan_application_route() {
-		var ctx = get_lending_doctype_route();
+		var ctx = get_lms_form_doctype_route();
 		return !!(ctx && ctx.doctype === "Loan Application");
 	}
 
-	function get_lending_doctype_page(ctx) {
+	function doctype_hero_meta(doctype) {
+		var hero = DOCTYPE_HERO[doctype] || {};
+		var tile = TILE_COPY[doctype] || {};
+		return {
+			listTitle: hero.listTitle || doctype,
+			desc: hero.desc || tile.desc || "",
+		};
+	}
+
+	function inject_lms_doctype_hero() {
+		if (!user_is_lms_staff()) return;
+
+		var ctx = get_lms_form_doctype_route();
+		if (!ctx || ctx.doctype === "Loan Application") return;
+
+		var page = get_lms_form_doctype_page(ctx);
+		if (!page) return;
+
+		var pageContent = page.querySelector(".page-content");
+		if (!pageContent) return;
+
+		var meta = doctype_hero_meta(ctx.doctype);
+		var heroKey = ctx.mode + ":" + ctx.doctype;
+		var existing = page.querySelector('[data-lms-doctype-hero="' + heroKey + '"]');
+		var title =
+			ctx.mode === "list"
+				? meta.listTitle
+				: ctx.docname || ctx.doctype;
+
+		if (existing) {
+			var titleEl = existing.querySelector(".lms-hero__title");
+			if (titleEl && titleEl.textContent !== title) {
+				titleEl.textContent = title;
+			}
+			return;
+		}
+
+		var hero = document.createElement("div");
+		hero.className = "lms-doctype-hero lms-hero lms-hero--inner-shell";
+		hero.setAttribute("data-lms-doctype-hero", heroKey);
+		hero.innerHTML =
+			'<div class="lms-hero__inner">' +
+			'<div class="lms-hero__copy">' +
+			'<h1 class="lms-hero__title">' +
+			title +
+			"</h1>" +
+			(meta.desc ? '<p class="lms-hero__subtitle">' + meta.desc + "</p>" : "") +
+			"</div>" +
+			'<div class="lms-hero__actions">' +
+			'<a class="btn btn-default btn-sm" href="' +
+			lending_home_url() +
+			'">← Back to Lending menu</a>' +
+			(ctx.mode === "list"
+				? '<a class="btn btn-primary btn-sm lms-hero__cta" href="' +
+				  doctype_new_url(ctx.doctype) +
+				  '">New</a>'
+				: "") +
+			"</div>" +
+			"</div>";
+
+		apply_loan_dashboard_hero_layout(hero);
+		with_lms_dom_pause(function () {
+			var layoutMain = pageContent.querySelector(".layout-main");
+			if (layoutMain) {
+				pageContent.insertBefore(hero, layoutMain);
+			} else {
+				pageContent.insertBefore(hero, pageContent.firstChild);
+			}
+		});
+	}
+
+	function inject_query_report_hero() {
+		if (!user_is_lms_staff()) return;
+
+		var ctx = get_query_report_route();
+		if (!ctx) return;
+
+		var page = document.getElementById("page-query-report");
+		if (!page) return;
+
+		var pageContent = page.querySelector(".page-content");
+		if (!pageContent) return;
+
+		var reportName = ctx.report;
+		var existing = page.querySelector("[data-lms-report-hero]");
+		if (existing) {
+			var titleEl = existing.querySelector(".lms-hero__title");
+			if (titleEl && titleEl.textContent !== reportName) {
+				titleEl.textContent = reportName;
+			}
+			return;
+		}
+
+		var tile = TILE_COPY[reportName] || {};
+		var hero = document.createElement("div");
+		hero.className = "lms-report-hero lms-hero lms-hero--inner-shell";
+		hero.setAttribute("data-lms-report-hero", "1");
+		hero.innerHTML =
+			'<div class="lms-hero__inner">' +
+			'<div class="lms-hero__copy">' +
+			'<h1 class="lms-hero__title">' +
+			reportName +
+			"</h1>" +
+			(tile.desc ? '<p class="lms-hero__subtitle">' + tile.desc + "</p>" : "") +
+			"</div>" +
+			'<div class="lms-hero__actions">' +
+			'<a class="btn btn-default btn-sm" href="' +
+			lending_home_url() +
+			'">← Back to Lending menu</a>' +
+			"</div>" +
+			"</div>";
+
+		apply_loan_dashboard_hero_layout(hero);
+		with_lms_dom_pause(function () {
+			var layoutMain = pageContent.querySelector(".layout-main");
+			if (layoutMain) {
+				pageContent.insertBefore(hero, layoutMain);
+			} else {
+				pageContent.insertBefore(hero, pageContent.firstChild);
+			}
+		});
+	}
+
+	function get_lms_form_doctype_page(ctx) {
 		if (!ctx) return null;
 		if (ctx.mode === "form") {
 			return document.getElementById("page-" + ctx.doctype);
@@ -599,10 +800,10 @@
 	function inject_loan_application_form_hero() {
 		if (!user_is_lms_staff()) return;
 
-		var ctx = get_lending_doctype_route();
+		var ctx = get_lms_form_doctype_route();
 		if (!ctx || ctx.doctype !== "Loan Application" || ctx.mode !== "form") return;
 
-		var page = get_lending_doctype_page(ctx);
+		var page = get_lms_form_doctype_page(ctx);
 		if (!page) return;
 
 		var pageContent = page.querySelector(".page-content");
@@ -654,10 +855,10 @@
 	function inject_loan_application_list_hero() {
 		if (!user_is_lms_staff()) return;
 
-		var ctx = get_lending_doctype_route();
+		var ctx = get_lms_form_doctype_route();
 		if (!ctx || ctx.doctype !== "Loan Application" || ctx.mode !== "list") return;
 
-		var page = get_lending_doctype_page(ctx);
+		var page = get_lms_form_doctype_page(ctx);
 		if (!page) return;
 
 		var pageContent = page.querySelector(".page-content");
@@ -693,9 +894,9 @@
 		});
 	}
 
-	function sync_lending_doctype_flag() {
+	function sync_lms_form_doctype_flag() {
 		if (!document.body.classList.contains("lms-desk-enhanced")) return;
-		var ctx = get_lending_doctype_route();
+		var ctx = get_lms_form_doctype_route();
 		var active = !!ctx;
 		document.body.classList.toggle("lms-nav-lending-form", active);
 		document.body.classList.toggle("lms-nav-loan-application", !!(ctx && ctx.doctype === "Loan Application"));
@@ -705,6 +906,17 @@
 			} else {
 				inject_loan_application_list_hero();
 			}
+		} else if (ctx) {
+			inject_lms_doctype_hero();
+		}
+	}
+
+	function sync_query_report_flag() {
+		if (!document.body.classList.contains("lms-desk-enhanced")) return;
+		var active = !!get_query_report_route();
+		document.body.classList.toggle("lms-nav-report", active);
+		if (active) {
+			inject_query_report_hero();
 		}
 	}
 
@@ -1370,12 +1582,13 @@
 			bind_lending_doctype_hero_hooks();
 			sync_lms_workspace_flag();
 			sync_company_form_flag();
-			sync_lending_doctype_flag();
+			sync_lms_form_doctype_flag();
+			sync_query_report_flag();
 			sync_lms_app_nav();
 			inject_dashboard_hero();
 			inject_company_form_hero();
 			if (is_loan_application_route()) {
-				var laCtx = get_lending_doctype_route();
+				var laCtx = get_lms_form_doctype_route();
 				if (laCtx && laCtx.mode === "form") {
 					inject_loan_application_form_hero();
 				} else if (laCtx && laCtx.mode === "list") {
