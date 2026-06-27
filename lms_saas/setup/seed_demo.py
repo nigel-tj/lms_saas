@@ -7,7 +7,7 @@ Bulk feasibility data:
 from unittest.mock import MagicMock, patch
 
 import frappe
-from frappe.utils import add_days, add_months, flt, today
+from frappe.utils import add_days, add_months, flt, now_datetime, today
 
 
 def run():
@@ -76,13 +76,7 @@ def _ensure_compliance(customer):
         frappe.db.set_value(
             "LMS Borrower Compliance",
             name,
-            {
-                "kyc_status": "Approved",
-                "id_document_proof": frappe.db.get_value("LMS Borrower Compliance", name, "id_document_proof")
-                or "/files/demo_id_proof.txt",
-                "proof_of_address": frappe.db.get_value("LMS Borrower Compliance", name, "proof_of_address")
-                or "/files/demo_address_proof.txt",
-            },
+            _demo_compliance_fields(name),
         )
         return name
 
@@ -95,11 +89,26 @@ def _ensure_compliance(customer):
             "credit_score": 720,
             "id_document_proof": "/files/demo_id_proof.txt",
             "proof_of_address": "/files/demo_address_proof.txt",
+            "consent_given": 1,
+            "consent_date": now_datetime(),
         }
     )
     doc.flags.ignore_mandatory = True
     doc.insert(ignore_permissions=True)
     return doc.name
+
+
+def _demo_compliance_fields(compliance_name):
+    """KYC + consent fields so cloud seed works with lms_require_consent enabled."""
+    return {
+        "kyc_status": "Approved",
+        "consent_given": 1,
+        "consent_date": now_datetime(),
+        "id_document_proof": frappe.db.get_value("LMS Borrower Compliance", compliance_name, "id_document_proof")
+        or "/files/demo_id_proof.txt",
+        "proof_of_address": frappe.db.get_value("LMS Borrower Compliance", compliance_name, "proof_of_address")
+        or "/files/demo_address_proof.txt",
+    }
 
 
 def _create_loan_application(customer, company, product, compliance, collateral=None):

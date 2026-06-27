@@ -90,6 +90,24 @@ Merge keys from `[site_config.example.json](../site_config.example.json)` in **S
 
 Point your domain A/CNAME per Frappe Cloud dashboard → enable SSL.
 
+## 7. Demo data (SSH)
+
+After migrate/build, seed a portfolio like local dev (sets borrower consent on compliance records):
+
+```bash
+export FC_SITE=lms-saas.frappe.cloud
+bash apps/lms_saas/scripts/frappe-cloud-seed-demo.sh
+```
+
+Requires the **bench SSH private key** from Frappe Cloud (Dashboard → Bench → SSH). Save as `~/.ssh/frappe-cloud.pem` (`chmod 600`) and connect:
+
+```bash
+ssh -i ~/.ssh/frappe-cloud.pem -o IdentitiesOnly=yes -p 2222 \
+  bench-42841-000002-f20nm@n1-mumbai-frappe.frappe.cloud
+```
+
+Local `~/.ssh/id_rsa` will **not** work unless that public key is registered on the bench in FC.
+
 ## 7. Updates
 
 ### Local monorepo (symlinked bench)
