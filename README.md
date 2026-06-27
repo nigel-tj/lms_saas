@@ -6,10 +6,12 @@ Enterprise loan management for microfinance — RBZ sandbox compliance, borrower
 
 | App | Branch |
 |-----|--------|
-| [Frappe](https://github.com/frappe/frappe) | version-15 |
-| [ERPNext](https://github.com/frappe/erpnext) | version-15 |
-| [Lending](https://github.com/frappe/lending) | version-15 |
-| [HRMS](https://github.com/frappe/hrms) | version-15 |
+| [Frappe](https://github.com/frappe/frappe) | version-16 (v15 supported) |
+| [ERPNext](https://github.com/frappe/erpnext) | version-16 |
+| [Lending](https://github.com/frappe/lending) | version-16-beta or version-16 |
+| [HRMS](https://github.com/frappe/hrms) | version-16 |
+
+Frappe v16 uses `/desk/…` routes (v15 uses `/app/…`). This app detects the major version and builds URLs accordingly.
 
 Install order: `erpnext` → `lending` → `hrms` → `lms_saas`
 

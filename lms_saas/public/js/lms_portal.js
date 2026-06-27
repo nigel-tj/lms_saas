@@ -437,7 +437,7 @@ lms_portal.renderPortalHeader = function (shell) {
 		'<a href="/lms"' + (navActive === "loans" ? ' class="is-active"' : "") + ">My Loans</a>" +
 		'<a href="/lms/account"' + (navActive === "account" ? ' class="is-active"' : "") + ">My Account</a>";
 	if (showStaff) {
-		nav += '<a href="/app/loans">Staff desk</a>';
+		nav += '<a href="' + (window.__lms_desk_home || "/app/loans") + '">Staff desk</a>';
 	}
 	nav += '<a href="/?cmd=web_logout">Log out</a>';
 

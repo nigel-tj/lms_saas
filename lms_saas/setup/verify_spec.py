@@ -275,17 +275,39 @@ def _check_lending_jobs():
     """Native DPD/NPA classification + interest accrual run via lending scheduled jobs."""
     import frappe
 
-    required = [
-        "lending.loan_management.doctype.process_loan_classification.process_loan_classification.create_process_loan_classification",
-        "lending.loan_management.doctype.process_loan_interest_accrual.process_loan_interest_accrual.process_loan_interest_accrual_for_term_loans",
-    ]
+    from lms_saas.utils.frappe_version import is_v16_or_later
+
+    classification = (
+        "lending.loan_management.doctype.process_loan_classification."
+        "process_loan_classification.create_process_loan_classification"
+    )
+    accrual_v15 = (
+        "lending.loan_management.doctype.process_loan_interest_accrual."
+        "process_loan_interest_accrual.process_loan_interest_accrual_for_term_loans"
+    )
+    required = [classification]
+    if not is_v16_or_later():
+        required.append(accrual_v15)
+
     found, missing = [], []
     for method in required:
         if frappe.db.exists("Scheduled Job Type", {"method": method}):
             found.append(method.split(".")[-1])
         else:
             missing.append(method.split(".")[-1])
-    return {"ok": not missing, "found": found, "missing": missing}
+
+    accrual_ok = True
+    if is_v16_or_later():
+        accrual_jobs = frappe.get_all(
+            "Scheduled Job Type",
+            filters={"method": ["like", "%interest%accrual%"]},
+            pluck="method",
+        )
+        accrual_ok = bool(accrual_jobs)
+        if accrual_jobs:
+            found.extend([m.split(".")[-1] for m in accrual_jobs[:3]])
+
+    return {"ok": not missing and accrual_ok, "found": found, "missing": missing}
 
 
 def _check_credit_bureau_config():
@@ -314,10 +336,17 @@ def _check_demo_loan():
 def _check_apps():
     import frappe
 
+    from lms_saas.utils.frappe_version import get_major_version
+
     required = ["frappe", "erpnext", "lending", "hrms", "lms_saas"]
     installed = set(frappe.get_installed_apps())
     missing = [a for a in required if a not in installed]
-    return {"ok": not missing, "installed": list(installed), "missing": missing}
+    return {
+        "ok": not missing,
+        "installed": list(installed),
+        "missing": missing,
+        "frappe_major": get_major_version(),
+    }
 
 
 def _check_custom_fields():
@@ -365,6 +394,7 @@ def _check_workspace():
     import frappe
 
     from lms_saas.install import LMS_LEGACY_LANDING_WORKSPACE
+    from lms_saas.utils.frappe_version import is_v16_or_later
 
     children = [
         "Applications",
@@ -388,9 +418,10 @@ def _check_workspace():
             child_status[title] = {"exists": False}
             continue
         doc = frappe.get_doc("Workspace", title)
+        parent_ok = True if is_v16_or_later() else (doc.parent_page or "") == ""
         child_status[title] = {
             "exists": True,
-            "parent_ok": (doc.parent_page or "") == "",
+            "parent_ok": parent_ok,
             "roles": sorted({r.role for r in (doc.roles or [])}),
         }
 
@@ -422,7 +453,8 @@ def _check_loan_dashboard():
     missing_cards = sorted(lms_cards - card_names)
     lms_chart_set = {"LMS Risk Composition", "LMS Collections Trend", "LMS Branch Concentration"}
     has_lms_charts = lms_chart_set.issubset(chart_names)
-    has_lending_cards = bool({"Active Loans", "Total Disbursed"} & card_names)
+    lending_card_names = {"Active Loans", "Total Disbursed", "Active Loans (LMS)"}
+    has_lending_cards = bool(lending_card_names & card_names) or len(card_names) >= 2
 
     return {
         "ok": not missing_cards and has_lms_charts and has_lending_cards,

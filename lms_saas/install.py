@@ -790,7 +790,12 @@ def _upsert_workspace(spec):
     for sc in spec.get("shortcuts", ()):  # big clickable tiles (1-click to screen)
         if sc.get("type") == "Report" and not frappe.db.exists("Report", sc.get("link_to")):
             continue
-        ws.append("shortcuts", dict(sc))
+        row = dict(sc)
+        if row.get("url"):
+            from lms_saas.utils.frappe_version import rewrite_desk_path
+
+            row["url"] = rewrite_desk_path(row["url"])
+        ws.append("shortcuts", row)
 
     ws.links = []
     for card in spec.get("cards", ()):  # link-card menus
@@ -810,7 +815,7 @@ def _upsert_workspace(spec):
 
 
 def _ws_content_blocks(spec):
-    """Build the v15 workspace content layout for one spec entry."""
+    """Build workspace content layout blocks (Frappe v15/v16 compatible)."""
     key = spec["key"]
     blocks = [
         {
@@ -1179,13 +1184,22 @@ def _ensure_customer_portal_role():
 # Desk lockdown + branding (upgrade-safe: only our own / config records)
 # ---------------------------------------------------------------------------
 def _all_module_names():
-    from frappe.config import get_modules_from_all_apps
+    from frappe.utils.modules import get_modules_from_all_apps
 
     return sorted({m.get("module_name") for m in get_modules_from_all_apps() if m.get("module_name")})
 
 
 def _blocked_modules():
     return [m for m in _all_module_names() if m not in ALLOWED_MODULES]
+
+
+def _clear_doc_lock(doc):
+    from frappe.utils import file_lock
+
+    try:
+        file_lock.delete_lock(doc.get_signature())
+    except Exception:
+        pass
 
 
 def _setup_module_lockdown():
@@ -1210,6 +1224,7 @@ def _setup_module_lockdown():
     for module in blocked:
         profile.append("block_modules", {"module": module})
     profile.flags.ignore_permissions = True
+    _clear_doc_lock(profile)
     profile.save(ignore_permissions=True)
 
     for user in _lms_staff_users():

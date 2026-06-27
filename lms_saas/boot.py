@@ -3,6 +3,7 @@ import frappe
 from lms_saas.utils.brand import get_brand_favicon_url, get_brand_splash_url, get_lms_theme
 from lms_saas.install import LOAN_DASHBOARD_NAME
 from lms_saas.utils.desk_nav import get_lms_desk_nav
+from lms_saas.utils.frappe_version import desk_prefix, get_major_version
 from lms_saas.utils.help import get_lms_help_menu
 
 LMS_DESK_ROLES = {"LMS Admin", "LMS Branch Manager", "LMS Loan Officer", "LMS Collector"}
@@ -12,6 +13,8 @@ LOAN_DASHBOARD_ROUTE = f"dashboard-view/{LOAN_DASHBOARD_NAME}"
 def apply_default_route(bootinfo):
     """Route LMS staff to Lending home (sidebar); Loan Dashboard is linked from the workspace."""
     bootinfo.lms_theme = get_lms_theme()
+    bootinfo.lms_desk_prefix = desk_prefix()
+    bootinfo.lms_frappe_major = get_major_version()
     favicon = get_brand_favicon_url()
     bootinfo.lms_favicon_url = favicon
     bootinfo.favicon = favicon

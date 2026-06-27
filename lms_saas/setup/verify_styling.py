@@ -12,36 +12,75 @@ import re
 import frappe
 
 from lms_saas.install import LMS_NAV_SPEC
+from lms_saas.utils.frappe_version import desk_url, get_major_version
 
 APP_PATH = frappe.get_app_path("lms_saas")
 
-DESK_ROUTES = (
-    {"path": "/app/loans", "body_classes": ("lms-desk-enhanced", "lms-nav-lending-home", "lms-nav-screen")},
-    {"path": "/app/crm", "body_classes": ("lms-desk-enhanced", "lms-nav-crm", "lms-nav-screen")},
-    {"path": "/app/applications", "body_classes": ("lms-desk-enhanced", "lms-nav-screen")},
-    {"path": "/app/collections", "body_classes": ("lms-desk-enhanced", "lms-nav-screen")},
-    {"path": "/app/reports", "body_classes": ("lms-desk-enhanced", "lms-nav-screen")},
-    {
-        "path": "/app/dashboard-view/Loan%20Dashboard",
-        "body_classes": ("lms-desk-enhanced", "lms-nav-dashboard"),
-    },
-    {
-        "path": "/app/dashboard-view/CRM",
-        "body_classes": ("lms-desk-enhanced", "lms-nav-crm-dashboard"),
-    },
-    {
-        "path": "/app/company/LMS%20Demo%20Co",
-        "body_classes": ("lms-desk-enhanced", "lms-nav-company"),
-    },
-    {
-        "path": "/app/loan-application/view/list",
-        "body_classes": ("lms-desk-enhanced", "lms-nav-lending-form", "lms-nav-loan-application"),
-    },
-    {
-        "path": "/app/loan-application/ACC-LOAP-2026-00018",
-        "body_classes": ("lms-desk-enhanced", "lms-nav-lending-form", "lms-nav-loan-application"),
-    },
-)
+
+def _desk_routes():
+    return (
+        {"path": desk_url("loans"), "body_classes": ("lms-desk-enhanced", "lms-nav-lending-home", "lms-nav-screen")},
+        {"path": desk_url("crm"), "body_classes": ("lms-desk-enhanced", "lms-nav-crm", "lms-nav-screen")},
+        {"path": desk_url("applications"), "body_classes": ("lms-desk-enhanced", "lms-nav-screen")},
+        {"path": desk_url("collections"), "body_classes": ("lms-desk-enhanced", "lms-nav-screen")},
+        {"path": desk_url("reports"), "body_classes": ("lms-desk-enhanced", "lms-nav-screen")},
+        {
+            "path": desk_url("dashboard-view/Loan%20Dashboard"),
+            "body_classes": ("lms-desk-enhanced", "lms-nav-dashboard"),
+        },
+        {
+            "path": desk_url("dashboard-view/CRM"),
+            "body_classes": ("lms-desk-enhanced", "lms-nav-crm-dashboard"),
+        },
+        {
+            "path": desk_url("company/LMS%20Demo%20Co"),
+            "body_classes": ("lms-desk-enhanced", "lms-nav-company"),
+        },
+        {
+            "path": desk_url("loan-application/view/list"),
+            "body_classes": ("lms-desk-enhanced", "lms-nav-lending-form", "lms-nav-loan-application"),
+        },
+        {
+            "path": desk_url("loan-application/ACC-LOAP-2026-00018"),
+            "body_classes": ("lms-desk-enhanced", "lms-nav-lending-form", "lms-nav-loan-application"),
+        },
+    )
+
+
+def _browser_qa_routes():
+    return (
+        {"url": desk_url("loans"), "expect_class": "lms-nav-lending-home", "expect_hero": "lms-lending-hero"},
+        {"url": desk_url("crm"), "expect_class": "lms-nav-crm", "expect_hero": "lms-crm-hero"},
+        {"url": desk_url("applications"), "expect_class": "lms-nav-screen", "expect_hero": "lms-workspace-hero"},
+        {"url": desk_url("reports"), "expect_class": "lms-nav-screen", "expect_hero": "lms-workspace-hero"},
+        {
+            "url": desk_url("dashboard-view/Loan%20Dashboard"),
+            "expect_class": "lms-nav-dashboard",
+            "expect_hero": "lms-loan-dashboard-hero",
+        },
+        {
+            "url": desk_url("dashboard-view/CRM"),
+            "expect_class": "lms-nav-crm-dashboard",
+            "expect_hero": "lms-crm-dashboard-hero",
+        },
+        {
+            "url": desk_url("company/LMS%20Demo%20Co"),
+            "expect_class": "lms-nav-company",
+            "expect_hero": "lms-company-hero",
+        },
+        {
+            "url": desk_url("loan-application/view/list"),
+            "expect_class": "lms-nav-loan-application",
+            "expect_hero": "lms-loan-application-hero",
+        },
+        {
+            "url": desk_url("loan-application/ACC-LOAP-2026-00018"),
+            "expect_class": "lms-nav-loan-application",
+            "expect_hero": "lms-loan-application-hero",
+        },
+        {"url": "/lms", "expect_class": "lms-portal", "expect_hero": None},
+        {"url": "/login", "expect_class": "lms-login-page", "expect_hero": None},
+    )
 
 CSS_FILES = (
     "public/css/lms_tokens.css",
@@ -68,39 +107,6 @@ CSS_MARKERS = (
 
 
 # Manual browser QA matrix (see STAFF_GUIDE). Automated checks cover assets/hooks only.
-BROWSER_QA_ROUTES = (
-    {"url": "/app/loans", "expect_class": "lms-nav-lending-home", "expect_hero": "lms-lending-hero"},
-    {"url": "/app/crm", "expect_class": "lms-nav-crm", "expect_hero": "lms-crm-hero"},
-    {"url": "/app/applications", "expect_class": "lms-nav-screen", "expect_hero": "lms-workspace-hero"},
-    {"url": "/app/reports", "expect_class": "lms-nav-screen", "expect_hero": "lms-workspace-hero"},
-    {
-        "url": "/app/dashboard-view/Loan%20Dashboard",
-        "expect_class": "lms-nav-dashboard",
-        "expect_hero": "lms-loan-dashboard-hero",
-    },
-    {
-        "url": "/app/dashboard-view/CRM",
-        "expect_class": "lms-nav-crm-dashboard",
-        "expect_hero": "lms-crm-dashboard-hero",
-    },
-    {
-        "url": "/app/company/LMS%20Demo%20Co",
-        "expect_class": "lms-nav-company",
-        "expect_hero": "lms-company-hero",
-    },
-    {
-        "url": "/app/loan-application/view/list",
-        "expect_class": "lms-nav-loan-application",
-        "expect_hero": "lms-loan-application-hero",
-    },
-    {
-        "url": "/app/loan-application/ACC-LOAP-2026-00018",
-        "expect_class": "lms-nav-loan-application",
-        "expect_hero": "lms-loan-application-hero",
-    },
-    {"url": "/lms", "expect_class": "lms-portal", "expect_hero": None},
-    {"url": "/login", "expect_class": "lms-login-page", "expect_hero": None},
-)
 
 
 def run_all():
@@ -175,7 +181,7 @@ def _check_help_markdown():
 
 
 def _check_browser_qa_matrix():
-    return {"ok": True, "routes": BROWSER_QA_ROUTES, "note": "Run in browser while logged in as LMS staff"}
+    return {"ok": True, "routes": _browser_qa_routes(), "note": "Run in browser while logged in as LMS staff", "frappe_major": get_major_version()}
 
 
 def _check_assets():
@@ -242,7 +248,7 @@ def _check_crm_workspace():
 
 def _check_route_expectations():
     """Document expected body classes per route (for manual / browser QA)."""
-    return {"ok": True, "routes": DESK_ROUTES}
+    return {"ok": True, "routes": _desk_routes(), "frappe_major": get_major_version()}
 
 
 _WHITE_LABEL_LEAK_PATTERNS = (

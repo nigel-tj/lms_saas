@@ -3,6 +3,8 @@ name = "lms_saas"
 version = "0.0.1"
 description = "Enterprise Loan Management SaaS System"
 requires-python = ">=3.10"
+# Frappe Cloud production target: v16 (Python 3.14+, Node 24+ on bench).
+# Local dev may remain on v15; desk URLs auto-switch via lms_saas.utils.frappe_version.
 dependencies = [
     "requests",
     "docxtpl",

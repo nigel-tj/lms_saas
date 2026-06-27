@@ -27,6 +27,15 @@ splash_image = "/assets/lms_saas/images/lms-favicon.svg"
 
 required_apps = ["erpnext", "lending", "hrms"]
 
+add_to_apps_screen = [
+	{
+		"name": app_name,
+		"logo": "/assets/lms_saas/images/lms-logo.svg",
+		"title": app_title,
+		"route": "/app/loans",
+	},
+]
+
 fixtures = [
     {
         "dt": "Custom Field",

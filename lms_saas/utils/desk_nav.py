@@ -6,12 +6,13 @@ import frappe
 from frappe.desk.utils import slug
 
 from lms_saas.install import ALL_LMS_ROLES, LMS_NAV_SPEC, _resolve_workspace_spec
+from lms_saas.utils.frappe_version import desk_url
 
 LMS_DESK_ROLES = frozenset((*ALL_LMS_ROLES, "System Manager"))
 
 
 def workspace_url(title: str) -> str:
-	return f"/app/{slug(title)}"
+	return desk_url(slug(title))
 
 
 def _roles_overlap(user_roles: set[str], required: tuple[str, ...]) -> bool:
@@ -102,7 +103,7 @@ def get_lms_desk_nav(user: str | None = None) -> dict:
 	return {
 		"enabled": True,
 		"use_native_lending": True,
-		"home_url": "/app/loans",
+		"home_url": desk_url("loans"),
 		"items": items,
 		"route_map": route_map,
 	}

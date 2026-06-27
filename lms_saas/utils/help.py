@@ -217,6 +217,7 @@ def apply_help_page_context(context, slug: str) -> dict:
 	body_html = rewrite_help_links(markdown_to_html(raw), site_url)
 
 	from lms_saas.utils.brand import apply_favicon_context, get_portal_brand
+	from lms_saas.utils.frappe_version import desk_url
 
 	brand = get_portal_brand()
 	pages = pages_for_user()
@@ -239,6 +240,7 @@ def apply_help_page_context(context, slug: str) -> dict:
 	context.help_nav = nav
 	context.brand = brand
 	apply_favicon_context(context)
+	context.lms_desk_home = desk_url("loans")
 	context.lms_theme = frappe.get_attr("lms_saas.utils.brand.get_lms_theme")()
 	context.show_staff_desk = frappe.get_attr("lms_saas.utils.portal.show_staff_desk_link")()
 	context.body_class = "lms-help-page lms-themed"

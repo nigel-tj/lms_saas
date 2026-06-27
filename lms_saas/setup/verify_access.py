@@ -80,6 +80,9 @@ def audit_crm_role_permissions():
 		checks = {}
 		role_ok = True
 		for doctype, fields in expectations.items():
+			if not frappe.db.exists("DocType", doctype):
+				checks[doctype] = {"ok": True, "skipped": True, "detail": f"{doctype} not in this ERPNext version"}
+				continue
 			if fields.get("read") == 0:
 				ok, detail = _cannot_read_doctype(email, doctype)
 				checks[doctype] = {"ok": ok, "expect": "no read", "detail": detail}
@@ -138,6 +141,15 @@ def _cannot_read_doctype(user: str, doctype: str):
 
 def audit_desk_api():
 	"""Exercise Frappe desk sidebar + workspace load APIs as each demo user."""
+	from lms_saas.utils.frappe_version import is_v16_or_later
+
+	if is_v16_or_later():
+		return {
+			"ok": True,
+			"skipped": True,
+			"reason": "Frappe v16 uses Workspace Sidebar; v15 desk sidebar API audit skipped",
+		}
+
 	from frappe.desk.desktop import Workspace, get_workspace_sidebar_items
 
 	results = {"ok": True, "users": {}}
@@ -278,8 +290,10 @@ def _visible_workspaces(user_roles: set[str]) -> set[str]:
 def _workspace_route(title: str) -> str | None:
 	if not frappe.db.exists("Workspace", title):
 		return None
+	from lms_saas.utils.frappe_version import desk_url
+
 	page = frappe.db.get_value("Workspace", title, "name")
-	return f"/app/{frappe.scrub(page)}"
+	return desk_url(frappe.scrub(page))
 
 
 def _can_read_workspace_page(user: str, workspace_title: str):

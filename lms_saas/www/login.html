@@ -99,7 +99,7 @@
 			</ul>
 
 			<div class="lms-login-brand__routes">
-				<a class="lms-login-route-card" href="/app/loans">
+				<a class="lms-login-route-card" href="{{ lms_login.staff_url if lms_login and lms_login.staff_url else lms_desk_home }}">
 					<span class="lms-login-route-card__label">{{ lms_login.staff_label if lms_login else _("Staff desk") }}</span>
 					<span class="lms-login-route-card__hint">{{ lms_login.staff_hint if lms_login else _("Operations & compliance") }}</span>
 				</a>

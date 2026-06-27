@@ -1,5 +1,7 @@
 """Portal branding defaults and context helpers."""
 
+from lms_saas.utils.frappe_version import desk_url
+
 BRAND_LOGO_PATH = "/assets/lms_saas/images/lms-logo.svg"
 BRAND_FAVICON_PATH = "/assets/lms_saas/images/lms-favicon.svg"
 
@@ -116,6 +118,7 @@ def apply_portal_context(context, nav_active="loans"):
 	context.lms_primary_color = brand.get("primary_color")
 	context.portal_nav_active = nav_active
 	context.show_staff_desk = show_staff_desk_link()
+	context.lms_desk_home = desk_url("loans")
 	context.lms_risk_disclosure = (
 		frappe.conf.get("lms_risk_disclosure")
 		or frappe.conf.get("lms_email_legal_footer")
@@ -136,6 +139,7 @@ def update_website_context(context):
 	apply_borrower_web_context(context)
 	apply_favicon_context(context)
 	context.show_staff_desk = show_staff_desk_link()
+	context.lms_desk_home = desk_url("loans")
 
 
 def apply_login_context(context):
@@ -148,12 +152,14 @@ def apply_login_context(context):
 	apply_favicon_context(context)
 	context.lms_theme = get_lms_theme()
 	context.lms_primary_color = brand.get("primary_color")
+	context.lms_desk_home = desk_url("loans")
 	company = brand.get("portal_title") or "LMS"
 	context.lms_login = {
 		"headline": frappe._("Sign in to {0}").format(company),
 		"subtitle": brand.get("tagline") or frappe._("Loan management platform"),
 		"staff_label": frappe._("Staff desk"),
 		"staff_hint": frappe._("Loan officers, collections, and compliance teams"),
+		"staff_url": desk_url("loans"),
 		"borrower_label": frappe._("Borrower portal"),
 		"borrower_hint": frappe._("View balances, schedules, and account details"),
 		"features": [

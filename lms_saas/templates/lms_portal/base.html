@@ -7,6 +7,7 @@
 {% if brand and brand.favicon_url %}
 <script>document.documentElement.setAttribute("data-lms-favicon", {{ brand.favicon_url | tojson }});</script>
 {% endif %}
+<script>window.__lms_desk_home = {{ (lms_desk_home or "/app/loans") | tojson }};</script>
 {% endblock %}
 
 {% block navbar %}{% endblock %}
@@ -31,7 +32,7 @@
       {% if frappe.session.user != 'Guest' %}
       <a href="/lms/account"{% if portal_nav_active == 'account' %} class="is-active"{% endif %}>My Account</a>
       {% if show_staff_desk %}
-      <a href="/app/loans">Staff desk</a>
+      <a href="{{ lms_desk_home }}">Staff desk</a>
       {% endif %}
       <a href="/?cmd=web_logout">Log out</a>
       {% else %}

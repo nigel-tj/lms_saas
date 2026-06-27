@@ -79,6 +79,21 @@
 	var MODULE_HOME_HERO_RETRY_MS = 48;
 	var MODULE_HOME_HERO_RETRY_MAX = 14;
 
+	function desk_prefix() {
+		return (window.frappe && frappe.boot && frappe.boot.lms_desk_prefix) || "/app";
+	}
+
+	function desk_url(path) {
+		var p = (path || "").replace(/^\//, "");
+		return p ? desk_prefix() + "/" + p : desk_prefix();
+	}
+
+	function path_ends_with(path, suffix) {
+		var normalized = (path || "").replace(/\/$/, "");
+		var target = desk_prefix() + suffix;
+		return normalized === target || normalized.slice(-target.length) === target;
+	}
+
 	var TILE_COPY = {
 		Company: { desc: "Company profile and accounting defaults", icon: "es-line-building", tone: "grey", countLabel: "set up" },
 		"Loan Application": {
@@ -172,7 +187,7 @@
 			homeLink.setAttribute("title", brandName + " LMS");
 			if (user_is_lms_staff()) {
 				var nav = frappe.boot && frappe.boot.lms_desk_nav;
-				homeLink.setAttribute("href", (nav && nav.home_url) || "/app/loans");
+				homeLink.setAttribute("href", (nav && nav.home_url) || desk_url("loans"));
 			}
 		}
 
@@ -290,7 +305,7 @@
 
 	function lending_home_url() {
 		var nav = frappe.boot && frappe.boot.lms_desk_nav;
-		return (nav && nav.home_url) || "/app/loans";
+		return (nav && nav.home_url) || desk_url("loans");
 	}
 
 	function doctype_slug(doctype) {
@@ -306,7 +321,7 @@
 	}
 
 	function doctype_new_url(doctype) {
-		return "/app/" + doctype_slug(doctype) + "/new";
+		return desk_url(doctype_slug(doctype) + "/new");
 	}
 
 	function apply_loan_dashboard_hero_layout(hero) {
@@ -407,7 +422,7 @@
 				className: "lms-crm-dashboard-hero",
 				title: brand + " CRM",
 				subtitle: "Lead pipeline, opportunities, and conversion metrics for prospect origination.",
-				backUrl: "/app/crm",
+				backUrl: desk_url("crm"),
 				backLabel: "← Back to CRM workspace",
 			};
 		}
@@ -595,7 +610,7 @@
 			'<a class="btn btn-default btn-sm" href="' +
 			lending_home_url() +
 			'">← Back to Lending menu</a>' +
-			'<a class="btn btn-default btn-sm" href="/app/website-settings">Website branding</a>' +
+			'<a class="btn btn-default btn-sm" href="' + desk_url("website-settings") + '">Website branding</a>' +
 			"</div>" +
 			"</div>";
 
@@ -837,7 +852,7 @@
 			'<a class="btn btn-default btn-sm" href="' +
 			lending_home_url() +
 			'">← Back to Lending menu</a>' +
-			'<a class="btn btn-default btn-sm" href="/app/loan-application/view/list">All applications</a>' +
+			'<a class="btn btn-default btn-sm" href="' + desk_url("loan-application/view/list") + '">All applications</a>' +
 			"</div>" +
 			"</div>";
 
@@ -876,7 +891,7 @@
 			'<p class="lms-hero__subtitle">Origination pipeline — review, approve, and convert requests into loans.</p>' +
 			"</div>" +
 			'<div class="lms-hero__actions">' +
-			'<a class="btn btn-primary btn-sm lms-hero__cta" href="/app/loan-application/new">New application</a>' +
+			'<a class="btn btn-primary btn-sm lms-hero__cta" href="' + desk_url("loan-application/new") + '">New application</a>' +
 			'<a class="btn btn-default btn-sm" href="' +
 			lending_home_url() +
 			'">← Back to Lending menu</a>' +
@@ -963,13 +978,13 @@
 			return "Loans";
 		}
 		var path = (window.location.pathname || "").replace(/\/$/, "");
-		if (path === "/app/loans" || path.slice(-10) === "/app/loans") {
+		if (path_ends_with(path, "/loans")) {
 			return "Loans";
 		}
 		if (dataRoute === "Workspaces/CRM" || dataRoute.indexOf("Workspaces/CRM") === 0) {
 			return "CRM";
 		}
-		if (path === "/app/crm" || path.slice(-8) === "/app/crm") {
+		if (path_ends_with(path, "/crm")) {
 			return "CRM";
 		}
 		return null;
@@ -1368,8 +1383,8 @@
 			'<p class="lms-hero__subtitle">Applications, disbursements, collections, and portfolio analytics in one place.</p>' +
 			"</div>" +
 			'<div class="lms-hero__actions">' +
-			'<a class="btn btn-primary btn-sm lms-hero__cta" href="/app/dashboard-view/Loan%20Dashboard">Open Loan Dashboard</a>' +
-			'<a class="btn btn-default btn-sm" href="/app/loan-application">Loan applications</a>' +
+			'<a class="btn btn-primary btn-sm lms-hero__cta" href="' + desk_url("dashboard-view/Loan%20Dashboard") + '">Open Loan Dashboard</a>' +
+			'<a class="btn btn-default btn-sm" href="' + desk_url("loan-application") + '">Loan applications</a>' +
 			"</div>" +
 			"</div>";
 		redactor.insertBefore(hero, redactor.firstChild);
@@ -1393,9 +1408,9 @@
 			'<p class="lms-hero__subtitle">Capture leads, track opportunities, and convert prospects into borrowers.</p>' +
 			"</div>" +
 			'<div class="lms-hero__actions">' +
-			'<a class="btn btn-primary btn-sm lms-hero__cta" href="/app/lead/new">New lead</a>' +
-			'<a class="btn btn-default btn-sm" href="/app/lead">Lead pipeline</a>' +
-			'<a class="btn btn-default btn-sm" href="/app/loans">Lending menu</a>' +
+			'<a class="btn btn-primary btn-sm lms-hero__cta" href="' + desk_url("lead/new") + '">New lead</a>' +
+			'<a class="btn btn-default btn-sm" href="' + desk_url("lead") + '">Lead pipeline</a>' +
+			'<a class="btn btn-default btn-sm" href="' + desk_url("loans") + '">Lending menu</a>' +
 			"</div>" +
 			"</div>";
 		redactor.insertBefore(hero, redactor.firstChild);
