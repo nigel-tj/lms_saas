@@ -1,5 +1,5 @@
 {% include "templates/print/lms_print_base.html" %}
-{% set lms_company = frappe.db.get_single_value("Global Defaults", "default_company") or "LMS" %}
+{% set lms_company = frappe.db.get_single_value("Global Defaults", "default_company") or "Kesari" %}
 <div class="lms-print-header">
   <h1>Loan Agreement</h1>
   <p>Terms and conditions of facility {{ doc.name }}</p>

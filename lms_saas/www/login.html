@@ -1,6 +1,6 @@
 {% extends "templates/web.html" %}
 
-{% macro email_login_body() -%}
+{% macro email_login_fields() -%}
 {% if not disable_user_pass_login or (ldap_settings and ldap_settings.enabled) %}
 <div class="page-card-body">
 	<div class="form-group">
@@ -36,6 +36,9 @@
 	{% endif %}
 </div>
 {% endif %}
+{%- endmacro %}
+
+{% macro email_login_actions() -%}
 <div class="page-card-actions">
 	{% if not disable_user_pass_login %}
 	<button class="btn btn-sm btn-primary btn-block btn-login" type="submit">
@@ -48,6 +51,11 @@
 	</button>
 	{% endif %}
 </div>
+{%- endmacro %}
+
+{% macro email_login_body() -%}
+{{ email_login_fields() }}
+{{ email_login_actions() }}
 {%- endmacro %}
 
 {% block navbar %}{% endblock %}
@@ -65,12 +73,12 @@
 {% macro logo_section(title=null) %}
 <div class="page-card-head lms-login-card-head">
 	{% if logo %}
-	<img class="app-logo" src="{{ logo }}" alt="{{ app_name or brand.portal_title if brand else 'LMS' }}">
+	<img class="app-logo lms-login-lockup__mark" src="{{ logo }}" alt="{{ app_name or brand.portal_title if brand else 'Kesari' }}">
 	{% endif %}
 	{% if title %}
 	<h4 class="lms-login-card-title">{{ _(title) }}</h4>
 	{% else %}
-	<h4 class="lms-login-card-title">{{ lms_login.headline if lms_login else _('Login to {0}').format(app_name or _("LMS")) }}</h4>
+	<h4 class="lms-login-card-title">{{ lms_login.headline if lms_login else _('Login to {0}').format(app_name or _("Kesari")) }}</h4>
 	{% endif %}
 	{% if not title and lms_login and lms_login.subtitle %}
 	<p class="lms-login-card-subtitle">{{ lms_login.subtitle }}</p>
@@ -82,15 +90,15 @@
 <div class="lms-login-shell">
 	<aside class="lms-login-brand" aria-hidden="false">
 		<div class="lms-login-brand__inner">
-			<div class="lms-login-brand__logo">
+			<div class="lms-login-brand__lockup">
 				{% if brand and brand.logo_url %}
-				<img src="{{ brand.logo_url }}" alt="{{ brand.portal_title }}">
+				<img class="lms-login-lockup__mark" src="{{ brand.logo_url }}" alt="">
 				{% else %}
-				<img src="/assets/lms_saas/images/lms-logo.svg" alt="{{ brand.portal_title if brand else 'LMS' }}">
+				<img class="lms-login-lockup__mark" src="/assets/lms_saas/images/lms-logo.svg" alt="">
 				{% endif %}
+				<h1 class="lms-login-lockup__wordmark">{{ brand.portal_title if brand else app_name or "Kesari" }}</h1>
 			</div>
-			<h1 class="lms-login-brand__title">{{ brand.portal_title if brand else app_name or "LMS" }}</h1>
-			<p class="lms-login-brand__tagline">{{ lms_login.subtitle if lms_login else _("Loan management platform") }}</p>
+			<p class="lms-login-brand__tagline">{{ brand.tagline if brand else _("Stewardship in every repayment") }}</p>
 
 			<ul class="lms-login-brand__features">
 				{% for feature in (lms_login.features if lms_login else []) %}
@@ -137,11 +145,9 @@
 				<div class="login-content page-card lms-login-card">
 					<form class="form-signin form-login" role="form">
 						{%- if social_login or login_with_email_link -%}
-						<div class="page-card-body">
-							<form class="form-signin form-login" role="form">
-								{{ email_login_body() }}
-							</form>
-							<div class="social-logins text-center">
+						{{ email_login_fields() }}
+						{{ email_login_actions() }}
+						<div class="social-logins text-center">
 								{% if not disable_user_pass_login or (ldap_settings and ldap_settings.enabled) %}
 								<p class="text-muted login-divider">{{ _("or") }}</p>
 								{% endif %}
@@ -179,7 +185,6 @@
 								</div>
 								{% endif %}
 							</div>
-						</div>
 						{% else %}
 						{{ email_login_body() }}
 						{%- endif -%}
@@ -211,7 +216,7 @@
 			{%- endif -%}
 
 			<section class="for-signup {{ 'signup-disabled' if disable_signup else '' }}">
-				{{ logo_section(_('Create a {0} Account').format(app_name or _("LMS"))) }}
+				{{ logo_section(_('Create a {0} Account').format(app_name or _("Kesari"))) }}
 				<div class="login-content page-card lms-login-card">
 					{%- if not disable_signup -%}
 					{{ signup_form_template }}
@@ -275,7 +280,7 @@
 		</div>
 
 		<footer class="lms-login-footer">
-			{{ brand.footer_text if brand else _("Powered by LMS SaaS") }}
+			{{ brand.footer_text if brand else _("Powered by Kesari") }}
 			{% if brand and brand.support_email %}
 			· <a href="mailto:{{ brand.support_email }}">{{ _("Support") }}</a>
 			{% endif %}

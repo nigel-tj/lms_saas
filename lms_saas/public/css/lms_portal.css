@@ -44,7 +44,7 @@ body.lms-portal .page_content {
 	height: 52px;
 	flex-shrink: 0;
 	border-radius: var(--lms-radius);
-	background: linear-gradient(135deg, var(--lms-primary), var(--lms-primary-light));
+	background: var(--lms-primary);
 	color: #fff;
 	display: flex;
 	align-items: center;
@@ -161,7 +161,7 @@ body.lms-portal .page_content {
 .lms-mini-track span {
 	display: block;
 	height: 100%;
-	background: linear-gradient(90deg, var(--lms-primary), var(--lms-accent));
+	background: var(--lms-primary);
 }
 
 /* Account summary strip */
@@ -309,7 +309,7 @@ body.lms-portal .page_content {
 
 .lms-stat--highlight {
 	border-color: var(--lms-tile-border-hover);
-	background: linear-gradient(180deg, var(--lms-surface) 0%, var(--lms-surface-alt) 100%);
+	background: var(--lms-surface-alt);
 }
 
 .lms-stat-label {
@@ -607,7 +607,7 @@ body.lms-portal .page_content {
 	height: 52px;
 	flex-shrink: 0;
 	border-radius: 50%;
-	background: linear-gradient(135deg, var(--lms-primary), var(--lms-primary-light));
+	background: var(--lms-primary);
 	color: #fff;
 	display: flex;
 	align-items: center;

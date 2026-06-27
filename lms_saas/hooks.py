@@ -14,9 +14,9 @@ def _versioned_asset(public_path: str, assets_path: str) -> str:
 
 
 app_name = "lms_saas"
-app_title = "Lms Saas"
+app_title = "Kesari"
 app_publisher = "Nigel Tsungai Jena"
-app_description = "Enterprise Loan Management SaaS System"
+app_description = "Kesari — loan management with stewardship and accountability"
 app_email = "admin@3dprintingvillage.co.za"
 app_license = "mit"
 

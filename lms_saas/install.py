@@ -1266,11 +1266,11 @@ def _setup_navbar_branding():
     Navbar Settings and Website Settings are config Singles intended for
     customization, so this is upgrade-safe.
     """
-    from lms_saas.utils.brand import BRAND_FAVICON_PATH, BRAND_LOGO_PATH
+    from lms_saas.utils.brand import BRAND_FAVICON_PATH, BRAND_LOGO_PATH, DEFAULT_BRAND
 
     logo = BRAND_LOGO_PATH
     favicon = BRAND_FAVICON_PATH
-    brand_name = _default_company() or "LMS"
+    brand_name = frappe.conf.get("lms_brand_portal_title") or DEFAULT_BRAND["portal_title"]
 
     if frappe.db.exists("DocType", "Navbar Settings"):
         navbar = frappe.get_single("Navbar Settings")
@@ -1296,7 +1296,7 @@ def _setup_navbar_branding():
         frappe.log_error(title="LMS branding (Website Settings)", message=frappe.get_traceback())
 
     try:
-        frappe.db.set_single_value("System Settings", "app_name", f"{brand_name} LMS")
+        frappe.db.set_single_value("System Settings", "app_name", brand_name)
     except Exception:
         pass
 

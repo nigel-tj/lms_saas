@@ -178,9 +178,13 @@
 	}
 
 	function get_company_brand_name() {
-		var sys = (frappe.boot && frappe.boot.sysdefaults) || {};
-		var raw = sys.company || frappe.boot.default_company || frappe.boot.company || "";
-		return raw ? String(raw).trim() : "LMS";
+		var boot = frappe.boot || {};
+		if (boot.lms_portal_title) {
+			return String(boot.lms_portal_title).trim();
+		}
+		var sys = boot.sysdefaults || {};
+		var raw = sys.app_name || boot.app_name || "";
+		return raw ? String(raw).trim() : "Kesari";
 	}
 
 	function get_brand_logo_url() {
@@ -201,15 +205,15 @@
 		if (document.title) {
 			document.title = document.title.replace(/frappe/gi, "").replace(/\s+-\s+$/, "").trim();
 			if (!document.title || /erpnext/i.test(document.title)) {
-				document.title = brandName + " LMS";
+				document.title = brandName;
 			}
 		}
 
 		var homeLink = document.querySelector(".navbar-home");
 		if (homeLink) {
 			homeLink.classList.add("lms-navbar-brand");
-			homeLink.setAttribute("aria-label", brandName + " LMS");
-			homeLink.setAttribute("title", brandName + " LMS");
+			homeLink.setAttribute("aria-label", brandName);
+			homeLink.setAttribute("title", brandName);
 			if (user_is_lms_staff()) {
 				var homeUrl = lending_home_url();
 				if (homeLink.tagName === "A") {
@@ -233,7 +237,7 @@
 		var logoImg = document.querySelector(".navbar-home img") || document.getElementById("brand-logo");
 		if (logoImg) {
 			if (logoUrl) logoImg.setAttribute("src", logoUrl);
-			logoImg.setAttribute("alt", brandName + " LMS");
+			logoImg.setAttribute("alt", brandName);
 		}
 	}
 

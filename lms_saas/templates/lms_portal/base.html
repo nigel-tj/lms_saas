@@ -20,11 +20,11 @@
       {% if brand and brand.logo_url %}
       <div class="lms-portal-logo"><img src="{{ brand.logo_url }}" alt="Logo"></div>
       {% else %}
-      <div class="lms-portal-logo">LMS</div>
+      <div class="lms-portal-logo">K</div>
       {% endif %}
       <div>
-        <h1 class="lms-portal-title">{{ brand.portal_title if brand else 'LMS Portal' }}</h1>
-        <p class="lms-portal-tagline">{{ brand.tagline if brand else 'Manage your loans securely' }}</p>
+        <h1 class="lms-portal-title">{{ brand.portal_title if brand else 'Kesari' }}</h1>
+        <p class="lms-portal-tagline">{{ brand.tagline if brand else 'Stewardship in every repayment' }}</p>
       </div>
     </div>
     <nav class="lms-portal-nav" aria-label="Portal navigation">
@@ -49,7 +49,7 @@
     {% block lms_content %}{% endblock %}
   </main>
   <footer class="lms-portal-footer">
-    {{ brand.footer_text if brand else 'Powered by LMS SaaS' }}
+    {{ brand.footer_text if brand else 'Powered by Kesari' }}
     {% if brand and brand.support_email %} · <a href="mailto:{{ brand.support_email }}">Support</a>{% endif %}
   </footer>
 </div>

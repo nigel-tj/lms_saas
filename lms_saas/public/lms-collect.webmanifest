@@ -1,6 +1,6 @@
 {
-  "name": "LMS Field Collection",
-  "short_name": "LMS Collect",
+  "name": "Kesari Field Collection",
+  "short_name": "Kesari Collect",
   "start_url": "/lms/collect",
   "display": "standalone",
   "background_color": "#0f4c5c",

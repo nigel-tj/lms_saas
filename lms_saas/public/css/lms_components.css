@@ -90,14 +90,7 @@ body.lms-desk-enhanced.lms-nav-screen .lms-workspace-hero::before {
 .lms-hero::after,
 body.lms-desk-enhanced.lms-nav-screen .layout-main-section .ce-block:first-child .ce-header::after,
 body.lms-desk-enhanced.lms-nav-screen .lms-workspace-hero::after {
-	content: "";
-	position: absolute;
-	right: -30px;
-	top: -40px;
-	width: 180px;
-	height: 180px;
-	background: radial-gradient(circle, var(--lms-hero-glow) 0%, transparent 68%);
-	pointer-events: none;
+	display: none;
 }
 
 .lms-hero__title,
@@ -191,7 +184,7 @@ body.lms-desk-enhanced.lms-nav-screen .widget.shortcut-widget-box::before {
 	inset: 0 auto auto 0;
 	width: 100%;
 	height: 3px;
-	background: var(--lms-tile-accent, linear-gradient(90deg, var(--lms-primary), var(--lms-accent)));
+	background: var(--lms-tile-accent, var(--lms-primary));
 	opacity: 0.85;
 }
 
@@ -367,7 +360,7 @@ body.lms-desk-enhanced.lms-nav-screen .widget.shortcut-widget-box .widget-subtit
 }
 
 .lms-mini-track span {
-	background: linear-gradient(90deg, var(--lms-primary), var(--lms-accent));
+	background: var(--lms-primary);
 }
 
 /* ------------------------------------------------------------------ */

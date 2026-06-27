@@ -6,12 +6,13 @@ BRAND_LOGO_PATH = "/assets/lms_saas/images/lms-logo.svg"
 BRAND_FAVICON_PATH = "/assets/lms_saas/images/lms-favicon.svg"
 
 DEFAULT_BRAND = {
-	"portal_title": "LMS Portal",
-	"tagline": "Manage your loans securely",
+	"portal_title": "Kesari",
+	"tagline": "Stewardship in every repayment",
+	"product_subtitle": "Loan management with accountability",
 	"primary_color": "#0f4c5c",
 	"theme_id": "default",
 	"support_email": "",
-	"footer_text": "Powered by LMS SaaS",
+	"footer_text": "Powered by Kesari",
 	"logo_url": None,
 	"favicon_url": None,
 }
@@ -75,9 +76,11 @@ def enrich_brand(brand: dict | None = None) -> dict:
 
 	company = frappe.db.get_single_value("Global Defaults", "default_company")
 	if company:
-		merged["portal_title"] = company
+		merged["company_name"] = company
 	for key, conf_key in (
+		("portal_title", "lms_brand_portal_title"),
 		("tagline", "lms_brand_tagline"),
+		("product_subtitle", "lms_brand_product_subtitle"),
 		("footer_text", "lms_brand_footer_text"),
 		("primary_color", "lms_brand_primary_color"),
 	):
@@ -153,10 +156,10 @@ def apply_login_context(context):
 	context.lms_theme = get_lms_theme()
 	context.lms_primary_color = brand.get("primary_color")
 	context.lms_desk_home = lending_home_url()
-	company = brand.get("portal_title") or "LMS"
+	product = brand.get("portal_title") or "Kesari"
 	context.lms_login = {
-		"headline": frappe._("Sign in to {0}").format(company),
-		"subtitle": brand.get("tagline") or frappe._("Loan management platform"),
+		"headline": frappe._("Sign in to {0}").format(product),
+		"subtitle": brand.get("product_subtitle") or frappe._("Loan management with accountability"),
 		"staff_label": frappe._("Staff desk"),
 		"staff_hint": frappe._("Loan officers, collections, and compliance teams"),
 		"staff_url": lending_home_url(),

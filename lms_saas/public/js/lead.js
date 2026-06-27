@@ -4,7 +4,7 @@ frappe.ui.form.on("Lead", {
 		if (frm.is_new()) {
 			return;
 		}
-		frm.add_custom_button(__("Convert to Borrower"), () => convert_to_borrower(frm), __("LMS"));
+		frm.add_custom_button(__("Convert to Borrower"), () => convert_to_borrower(frm), __("Kesari"));
 	},
 });
 

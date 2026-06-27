@@ -427,11 +427,11 @@ lms_portal.renderPortalHeader = function (shell) {
 	const brand = (shell && shell.brand) || {};
 	const navActive = (shell && shell.nav_active) || "account";
 	const showStaff = shell && shell.show_staff_desk;
-	const title = lms_portal.escape(brand.portal_title || "LMS Portal");
-	const tagline = lms_portal.escape(brand.tagline || "Manage your loans securely");
+	const title = lms_portal.escape(brand.portal_title || "Kesari");
+	const tagline = lms_portal.escape(brand.tagline || "Stewardship in every repayment");
 	const logo = brand.logo_url
 		? '<div class="lms-portal-logo"><img src="' + lms_portal.escape(brand.logo_url) + '" alt="Logo"></div>'
-		: '<div class="lms-portal-logo">LMS</div>';
+		: '<div class="lms-portal-logo">K</div>';
 
 	let nav =
 		'<a href="/lms"' + (navActive === "loans" ? ' class="is-active"' : "") + ">My Loans</a>" +
@@ -478,7 +478,7 @@ lms_portal.mountLegacyChrome = function () {
 
 			const footer = document.createElement("footer");
 			footer.className = "lms-portal-footer";
-			footer.textContent = (shell.brand && shell.brand.footer_text) || "Powered by LMS SaaS";
+			footer.textContent = (shell.brand && shell.brand.footer_text) || "Powered by Kesari";
 			document.body.appendChild(footer);
 		},
 	});

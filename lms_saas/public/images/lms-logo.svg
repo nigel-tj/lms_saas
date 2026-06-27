@@ -1,13 +1,13 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 32 32" role="img" aria-label="LMS mark">
-  <defs>
-    <linearGradient id="lmsLogoMark" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#0f4c5c"/>
-      <stop offset="1" stop-color="#1a6b7d"/>
-    </linearGradient>
-  </defs>
-  <rect x="2" y="2" width="28" height="28" rx="8" fill="url(#lmsLogoMark)"/>
-  <g fill="none" stroke="#2dd4bf" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M8 22 L12 17 L15.5 19.5 L22 11"/>
-    <path d="M19 11 L22 11 L22 14"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 32 32" role="img" aria-label="Kesari mark">
+  <rect x="2" y="2" width="28" height="28" rx="8" fill="#0f4c5c"/>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M8.5 13.5 L10.5 9.5 L16 11.5 L21.5 9.5 L23.5 13.5" stroke="#c9a227" stroke-width="1.5"/>
+    <path d="M8.5 13.5 H23.5" stroke="#c9a227" stroke-width="1.5"/>
+    <path d="M16 13.5 V17.5" stroke="#d1eae6" stroke-width="1.4"/>
+    <path d="M9 17.5 H23" stroke="#d1eae6" stroke-width="1.6"/>
+    <path d="M9 17.5 L7 21" stroke="#d1eae6" stroke-width="1.2"/>
+    <path d="M23 17.5 L25 21" stroke="#d1eae6" stroke-width="1.2"/>
+    <path d="M6.5 21 Q9 23 11.5 21" stroke="#d1eae6" stroke-width="1.2"/>
+    <path d="M20.5 21 Q23 23 25.5 21" stroke="#d1eae6" stroke-width="1.2"/>
   </g>
 </svg>

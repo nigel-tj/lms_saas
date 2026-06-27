@@ -28,7 +28,7 @@ EMAIL_TEMPLATE_NAMES = {
 def get_email_brand_context() -> dict:
 	"""Brand tokens for email templates (logo URL must be absolute for clients)."""
 	brand = enrich_brand()
-	company = brand.get("portal_title") or "LMS"
+	company = brand.get("company_name") or brand.get("portal_title") or "Kesari"
 	site = get_url()
 	logo = brand.get("logo_url") or get_brand_logo_url()
 	if logo and logo.startswith("/"):
@@ -40,7 +40,7 @@ def get_email_brand_context() -> dict:
 	legal = frappe.conf.get("lms_email_legal_footer") or _(
 		"Sandbox notice: loan terms and risk disclosures apply. Do not reply with passwords or card numbers."
 	)
-	footer = brand.get("footer_text") or _("Powered by LMS SaaS")
+	footer = brand.get("footer_text") or _("Powered by Kesari")
 	support = brand.get("support_email") or ""
 	try:
 		support = support or frappe.db.get_single_value("Website Settings", "support_email") or ""
@@ -49,7 +49,7 @@ def get_email_brand_context() -> dict:
 
 	return {
 		"company_name": company,
-		"tagline": brand.get("tagline") or _("Loan management platform"),
+		"tagline": brand.get("tagline") or _("Stewardship in every repayment"),
 		"primary_color": brand.get("primary_color") or "#0f4c5c",
 		"logo_url": logo,
 		"favicon_url": favicon,
