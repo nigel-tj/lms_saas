@@ -1,5 +1,7 @@
 import os
 
+from lms_saas.utils.frappe_version import lending_home_url
+
 _APP_ROOT = os.path.dirname(os.path.abspath(__file__))
 _PUBLIC_ROOT = os.path.join(_APP_ROOT, "public")
 
@@ -32,7 +34,7 @@ add_to_apps_screen = [
 		"name": app_name,
 		"logo": "/assets/lms_saas/images/lms-logo.svg",
 		"title": app_title,
-		"route": "/app/loans",
+		"route": lending_home_url(),
 	},
 ]
 

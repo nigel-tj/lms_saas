@@ -39,3 +39,12 @@ def desk_url(path: str = "") -> str:
 def rewrite_desk_path(path: str) -> str:
 	"""Normalize legacy /app/… or bare paths to the current desk prefix."""
 	return desk_url(path)
+
+
+# Native Frappe Lending module workspace (slug "lending", not "loans").
+LENDING_HOME_SLUG = "lending"
+
+
+def lending_home_url() -> str:
+	"""Staff desk home — native Lending workspace."""
+	return desk_url(LENDING_HOME_SLUG)

@@ -6,7 +6,7 @@ import frappe
 from frappe.desk.utils import slug
 
 from lms_saas.install import ALL_LMS_ROLES, LMS_NAV_SPEC, _resolve_workspace_spec
-from lms_saas.utils.frappe_version import desk_url
+from lms_saas.utils.frappe_version import desk_url, lending_home_url
 
 LMS_DESK_ROLES = frozenset((*ALL_LMS_ROLES, "System Manager"))
 
@@ -103,7 +103,7 @@ def get_lms_desk_nav(user: str | None = None) -> dict:
 	return {
 		"enabled": True,
 		"use_native_lending": True,
-		"home_url": desk_url("loans"),
+		"home_url": lending_home_url(),
 		"items": items,
 		"route_map": route_map,
 	}

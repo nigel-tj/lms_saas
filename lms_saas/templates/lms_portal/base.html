@@ -7,7 +7,7 @@
 {% if brand and brand.favicon_url %}
 <script>document.documentElement.setAttribute("data-lms-favicon", {{ brand.favicon_url | tojson }});</script>
 {% endif %}
-<script>window.__lms_desk_home = {{ (lms_desk_home or "/app/loans") | tojson }};</script>
+<script>window.__lms_desk_home = {{ (lms_desk_home or "/desk/lending") | tojson }};</script>
 {% endblock %}
 
 {% block navbar %}{% endblock %}

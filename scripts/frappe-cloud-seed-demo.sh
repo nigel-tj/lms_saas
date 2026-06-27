@@ -5,8 +5,14 @@
 #   export FC_SITE=lms-saas.frappe.cloud
 #   bash apps/lms_saas/scripts/frappe-cloud-seed-demo.sh
 #
-# From laptop (requires FC SSH private key from dashboard → Bench → SSH):
-#   ssh -i ~/.ssh/frappe-cloud.pem -p 2222 bench-42841-000002-f20nm@n1-mumbai-frappe.frappe.cloud \
+# From laptop (user cert — re-issue from FC Bench → SSH Access if expired):
+#   ssh -o IdentitiesOnly=yes -i ~/.ssh/id_rsa -p 2222 \
+#     bench-42841-000002-f20nm@n1-mumbai-frappe.frappe.cloud \
+#     'bash -s' < apps/lms_saas/scripts/frappe-cloud-seed-demo.sh
+#
+# Or bench PEM from dashboard → Bench → SSH:
+#   ssh -o IdentitiesOnly=yes -i ~/.ssh/frappe-cloud.pem -p 2222 \
+#     bench-42841-000002-f20nm@n1-mumbai-frappe.frappe.cloud \
 #     'bash -s' < apps/lms_saas/scripts/frappe-cloud-seed-demo.sh
 
 set -euo pipefail

@@ -12,14 +12,14 @@ import re
 import frappe
 
 from lms_saas.install import LMS_NAV_SPEC
-from lms_saas.utils.frappe_version import desk_url, get_major_version
+from lms_saas.utils.frappe_version import desk_url, get_major_version, lending_home_url
 
 APP_PATH = frappe.get_app_path("lms_saas")
 
 
 def _desk_routes():
     return (
-        {"path": desk_url("loans"), "body_classes": ("lms-desk-enhanced", "lms-nav-lending-home", "lms-nav-screen")},
+        {"path": lending_home_url(), "body_classes": ("lms-desk-enhanced", "lms-nav-lending-home", "lms-nav-screen")},
         {"path": desk_url("crm"), "body_classes": ("lms-desk-enhanced", "lms-nav-crm", "lms-nav-screen")},
         {"path": desk_url("applications"), "body_classes": ("lms-desk-enhanced", "lms-nav-screen")},
         {"path": desk_url("collections"), "body_classes": ("lms-desk-enhanced", "lms-nav-screen")},
@@ -49,7 +49,7 @@ def _desk_routes():
 
 def _browser_qa_routes():
     return (
-        {"url": desk_url("loans"), "expect_class": "lms-nav-lending-home", "expect_hero": "lms-lending-hero"},
+        {"url": lending_home_url(), "expect_class": "lms-nav-lending-home", "expect_hero": "lms-lending-hero"},
         {"url": desk_url("crm"), "expect_class": "lms-nav-crm", "expect_hero": "lms-crm-hero"},
         {"url": desk_url("applications"), "expect_class": "lms-nav-screen", "expect_hero": "lms-workspace-hero"},
         {"url": desk_url("reports"), "expect_class": "lms-nav-screen", "expect_hero": "lms-workspace-hero"},
@@ -98,6 +98,8 @@ CSS_MARKERS = (
     ("lms_desk.css", r"\.lms-doctype-hero"),
     ("lms_desk.css", r"\.lms-nav-report \.(query-report-area|report-wrapper)"),
     ("lms_desk.css", r":has\(\.page-actions"),
+    ("lms_desk.css", r":is\(\.desk-sidebar, \.body-sidebar\)"),
+    ("lms_desk.css", r":is\(\.desk-sidebar-item, \.standard-sidebar-item\)"),
     ("lms_desk.css", r"\.lms-nav-crm"),
     ("lms_components.css", r"\.lms-hero"),
     ("lms_components.css", r"\.lms-action-tile"),
@@ -129,6 +131,7 @@ def run_all():
     check("crm_workspace", _check_crm_workspace)
     check("route_expectations", _check_route_expectations)
     check("boot_nav", _check_boot_nav)
+    check("v16_dom_compat", _check_v16_dom_compat)
     check("browser_qa_matrix", _check_browser_qa_matrix)
     check("white_label_leaks", _check_white_label_leaks)
     check("navbar_branding", _check_navbar_branding)
@@ -300,6 +303,28 @@ def _check_navbar_branding():
         "website_favicon": favicon,
         "logo_ok": logo_ok,
         "favicon_ok": favicon_ok,
+    }
+
+
+def run_all_checks():
+    """Alias for bench execute lms_saas.setup.verify_styling.run_all_checks."""
+    return run_all()
+
+
+def _check_v16_dom_compat():
+    """Desk CSS/JS must target Frappe v16 body-sidebar as well as v15 desk-sidebar."""
+    js_path = os.path.join(APP_PATH, "public/js/lms_desk.js")
+    css_path = os.path.join(APP_PATH, "public/css/lms_desk.css")
+    js = open(js_path, encoding="utf-8").read()
+    css = open(css_path, encoding="utf-8").read()
+    js_ok = "get_desk_sidebar" in js and ".body-sidebar" in js
+    css_ok = ":is(.desk-sidebar, .body-sidebar)" in css and ":is(.desk-sidebar-item, .standard-sidebar-item)" in css
+    major = get_major_version()
+    return {
+        "ok": js_ok and css_ok,
+        "frappe_major": major,
+        "js_body_sidebar": js_ok,
+        "css_body_sidebar": css_ok,
     }
 
 

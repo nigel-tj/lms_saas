@@ -18,6 +18,7 @@
 	var SIDEBAR_AUTO_MAX_WIDTH = 1366;
 	var LOAN_DASHBOARD_NAME = "Loan Dashboard";
 	var CRM_DASHBOARD_NAME = "CRM";
+	var LENDING_HOME_SLUG = "lending";
 	/* Desk form/list routes that receive LMS canvas + hero chrome (see install._lms_doctypes). */
 	var LMS_FORM_DOCTYPES = {
 		"Loan Application": 1,
@@ -81,6 +82,30 @@
 
 	function desk_prefix() {
 		return (window.frappe && frappe.boot && frappe.boot.lms_desk_prefix) || "/app";
+	}
+
+	function frappe_major() {
+		var boot = (window.frappe && frappe.boot) || {};
+		if (boot.lms_frappe_major) return boot.lms_frappe_major;
+		var version = boot.version || (frappe && frappe.version) || "";
+		var major = parseInt(String(version).split(".")[0], 10);
+		return isNaN(major) ? 0 : major;
+	}
+
+	function is_desk_v16() {
+		return frappe_major() >= 16;
+	}
+
+	function get_desk_sidebar() {
+		return document.querySelector(".body-sidebar") || document.querySelector(".desk-sidebar");
+	}
+
+	function get_desk_navbar() {
+		return (
+			document.querySelector("header.desktop-navbar") ||
+			document.querySelector("header.navbar") ||
+			document.querySelector(".navbar")
+		);
 	}
 
 	function desk_url(path) {
@@ -186,12 +211,26 @@
 			homeLink.setAttribute("aria-label", brandName + " LMS");
 			homeLink.setAttribute("title", brandName + " LMS");
 			if (user_is_lms_staff()) {
-				var nav = frappe.boot && frappe.boot.lms_desk_nav;
-				homeLink.setAttribute("href", (nav && nav.home_url) || desk_url("loans"));
+				var homeUrl = lending_home_url();
+				if (homeLink.tagName === "A") {
+					homeLink.setAttribute("href", homeUrl);
+				} else if (!homeLink.__lms_home_bound) {
+					homeLink.__lms_home_bound = true;
+					homeLink.setAttribute("role", "link");
+					homeLink.style.cursor = "pointer";
+					homeLink.addEventListener("click", function (e) {
+						e.preventDefault();
+						if (window.frappe && frappe.set_route) {
+							frappe.set_route(LENDING_HOME_SLUG);
+						} else {
+							window.location.href = homeUrl;
+						}
+					});
+				}
 			}
 		}
 
-		var logoImg = document.querySelector(".navbar-home img");
+		var logoImg = document.querySelector(".navbar-home img") || document.getElementById("brand-logo");
 		if (logoImg) {
 			if (logoUrl) logoImg.setAttribute("src", logoUrl);
 			logoImg.setAttribute("alt", brandName + " LMS");
@@ -305,7 +344,7 @@
 
 	function lending_home_url() {
 		var nav = frappe.boot && frappe.boot.lms_desk_nav;
-		return (nav && nav.home_url) || desk_url("loans");
+		return (nav && nav.home_url) || desk_url(LENDING_HOME_SLUG);
 	}
 
 	function doctype_slug(doctype) {
@@ -494,7 +533,7 @@
 				'<div class="lms-desk-app-nav__items" role="list"></div>' +
 				"</div>";
 
-			var navbar = document.querySelector("header.navbar") || document.querySelector(".navbar");
+			var navbar = get_desk_navbar();
 			if (navbar && navbar.parentNode) {
 				navbar.parentNode.insertBefore(bar, navbar.nextSibling);
 			} else {
@@ -977,8 +1016,11 @@
 		if (dataRoute === "Workspaces/Loans" || dataRoute.indexOf("Workspaces/Loans") === 0) {
 			return "Loans";
 		}
+		if (dataRoute === "Workspaces/Lending" || dataRoute.indexOf("Workspaces/Lending") === 0) {
+			return "Loans";
+		}
 		var path = (window.location.pathname || "").replace(/\/$/, "");
-		if (path_ends_with(path, "/loans")) {
+		if (path_ends_with(path, "/loans") || path_ends_with(path, "/lending")) {
 			return "Loans";
 		}
 		if (dataRoute === "Workspaces/CRM" || dataRoute.indexOf("Workspaces/CRM") === 0) {
@@ -1020,7 +1062,7 @@
 	}
 
 	function tag_sidebar_items() {
-		var sidebar = document.querySelector(".desk-sidebar");
+		var sidebar = get_desk_sidebar();
 		if (sidebar) sidebar.classList.add("lms-desk-sidebar");
 
 		setup_sidebar_toolbar(sidebar);
@@ -1031,15 +1073,17 @@
 		if (!sidebar) return;
 
 		sidebar.querySelectorAll(".sidebar-item-container").forEach(function (container) {
-			var name = container.getAttribute("item-name");
+			var name = container.getAttribute("item-name") || container.getAttribute("data-id");
 			if (!name || !LMS_WS_TITLES[name]) return;
 
+			var row = container.querySelector(".standard-sidebar-item, .desk-sidebar-item");
 			var parent = container.getAttribute("item-parent");
+			var isChild = !!parent || !!(row && row.classList.contains("indent"));
 			var label = container.querySelector(".sidebar-item-label");
 
 			container.classList.add("lms-sidebar-item");
-			container.classList.toggle("lms-sidebar-root", !parent);
-			container.classList.toggle("lms-sidebar-child", !!parent);
+			container.classList.toggle("lms-sidebar-root", !isChild);
+			container.classList.toggle("lms-sidebar-child", isChild);
 			container.classList.toggle("is-active", name === screen);
 
 			var clean = "";
@@ -1215,7 +1259,17 @@
 			'<button type="button" class="lms-sidebar-collapse-btn" aria-expanded="true" aria-label="Collapse sidebar" title="Collapse sidebar (Ctrl+Shift+M)">' +
 			'<svg class="icon icon-sm" aria-hidden="true"><use href="#icon-sidebar-collapse"></use></svg>' +
 			"</button>";
-		sidebar.insertBefore(toolbar, sidebar.firstChild);
+		var anchor =
+			sidebar.querySelector(".body-sidebar-top") ||
+			sidebar.querySelector(".sidebar-items") ||
+			sidebar.firstChild;
+		if (anchor && anchor.parentNode === sidebar) {
+			sidebar.insertBefore(toolbar, anchor);
+		} else if (anchor && anchor.parentNode) {
+			anchor.parentNode.insertBefore(toolbar, anchor);
+		} else {
+			sidebar.insertBefore(toolbar, sidebar.firstChild);
+		}
 		toolbar.querySelector(".lms-sidebar-collapse-btn").addEventListener("click", toggle_sidebar_collapsed);
 
 		if (sidebar_is_collapsed()) {
@@ -1232,7 +1286,7 @@
 	function bind_help_dropdown_observer() {
 		if (window.__lms_help_obs_bound) return;
 		window.__lms_help_obs_bound = true;
-		var root = document.querySelector("header.navbar") || document.querySelector(".navbar");
+		var root = get_desk_navbar();
 		if (!root) return;
 		new MutationObserver(function () {
 			debounce_lms("help_dropdown", sync_help_dropdown_branding, OBS_DEBOUNCE_MS);
@@ -1410,7 +1464,7 @@
 			'<div class="lms-hero__actions">' +
 			'<a class="btn btn-primary btn-sm lms-hero__cta" href="' + desk_url("lead/new") + '">New lead</a>' +
 			'<a class="btn btn-default btn-sm" href="' + desk_url("lead") + '">Lead pipeline</a>' +
-			'<a class="btn btn-default btn-sm" href="' + desk_url("loans") + '">Lending menu</a>' +
+			'<a class="btn btn-default btn-sm" href="' + lending_home_url() + '">Lending menu</a>' +
 			"</div>" +
 			"</div>";
 		redactor.insertBefore(hero, redactor.firstChild);
@@ -1633,6 +1687,9 @@
 			lms_theme.apply(frappe.boot && frappe.boot.lms_theme);
 		}
 		document.body.classList.add("lms-desk-enhanced");
+		if (is_desk_v16()) {
+			document.body.classList.add("lms-desk-v16");
+		}
 		bind_loan_dashboard_hero_hooks();
 		bind_company_form_hero_hooks();
 		bind_lending_doctype_hero_hooks();

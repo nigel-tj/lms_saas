@@ -1,6 +1,7 @@
 /* LMS Desk — layout shell (theme + components handle look) */
 
 body.lms-desk-enhanced[data-route="Workspaces/Loans"],
+body.lms-desk-enhanced[data-route="Workspaces/Lending"],
 body.lms-desk-enhanced[data-route="Workspaces/Loan Management"],
 body.lms-desk-enhanced[data-route="Workspaces/Applications"],
 body.lms-desk-enhanced[data-route="Workspaces/Loans & Disbursements"],
@@ -20,6 +21,7 @@ body.lms-desk-enhanced.lms-nav-loan-application {
 }
 
 body.lms-desk-enhanced {
+	--navbar-height: var(--desktop-navbar-height, var(--navbar-h, 60px));
 	font-family: var(--lms-font);
 	background: var(--lms-canvas);
 	color: var(--lms-text);
@@ -56,11 +58,13 @@ body.lms-desk-enhanced .query-report-area {
 }
 
 body.lms-desk-enhanced .navbar,
-body.lms-desk-enhanced .desk-sidebar {
+body.lms-desk-enhanced .desktop-navbar,
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) {
 	--primary: var(--lms-primary) !important;
 }
 
-body.lms-desk-enhanced .navbar {
+body.lms-desk-enhanced .navbar,
+body.lms-desk-enhanced .desktop-navbar {
 	box-shadow: 0 1px 0 var(--lms-hero-border);
 	background: var(--lms-surface);
 }
@@ -101,7 +105,8 @@ body.lms-desk-enhanced a.navbar-brand.navbar-home:active {
 }
 
 body.lms-desk-enhanced .lms-navbar-brand img,
-body.lms-desk-enhanced a.navbar-brand.navbar-home img {
+body.lms-desk-enhanced a.navbar-brand.navbar-home img,
+body.lms-desk-enhanced #brand-logo {
 	width: 1.75rem;
 	height: 1.75rem;
 	object-fit: contain;
@@ -109,7 +114,8 @@ body.lms-desk-enhanced a.navbar-brand.navbar-home img {
 }
 
 body.lms-desk-enhanced .lms-navbar-brand:hover img,
-body.lms-desk-enhanced a.navbar-brand.navbar-home:hover img {
+body.lms-desk-enhanced a.navbar-brand.navbar-home:hover img,
+body.lms-desk-enhanced .lms-navbar-brand:hover #brand-logo {
 	opacity: 0.88;
 }
 
@@ -137,13 +143,13 @@ body.lms-desk-enhanced.lms-sidebar-collapsed {
 }
 
 body.lms-desk-enhanced .layout-side-section .list-sidebar,
-body.lms-desk-enhanced .layout-side-section .desk-sidebar {
+body.lms-desk-enhanced .layout-side-section :is(.desk-sidebar, .body-sidebar) {
 	width: 100% !important;
 	min-width: 0 !important;
 	max-width: none !important;
 }
 
-body.lms-desk-enhanced .desk-sidebar {
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) {
 	width: 100%;
 	min-width: 0;
 	background: var(--lms-surface);
@@ -153,7 +159,7 @@ body.lms-desk-enhanced .desk-sidebar {
 	z-index: 4;
 }
 
-body.lms-desk-enhanced .desk-sidebar .lms-sidebar-toolbar {
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .lms-sidebar-toolbar {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
@@ -163,7 +169,7 @@ body.lms-desk-enhanced .desk-sidebar .lms-sidebar-toolbar {
 	min-height: 1.5rem;
 }
 
-body.lms-desk-enhanced .desk-sidebar .lms-sidebar-collapse-btn {
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .lms-sidebar-collapse-btn {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
@@ -183,13 +189,13 @@ body.lms-desk-enhanced .desk-sidebar .lms-sidebar-collapse-btn {
 		border-color var(--lms-transition);
 }
 
-body.lms-desk-enhanced .desk-sidebar .lms-sidebar-collapse-btn:hover {
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .lms-sidebar-collapse-btn:hover {
 	background: var(--lms-sidebar-hover-bg);
 	color: var(--lms-sidebar-active-text);
 	border-color: var(--lms-sidebar-active-accent);
 }
 
-body.lms-desk-enhanced .desk-sidebar .lms-sidebar-collapse-btn svg {
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .lms-sidebar-collapse-btn svg {
 	width: 0.875rem;
 	height: 0.875rem;
 	--icon-stroke: currentColor;
@@ -197,24 +203,24 @@ body.lms-desk-enhanced .desk-sidebar .lms-sidebar-collapse-btn svg {
 	fill: none;
 }
 
-body.lms-desk-enhanced.lms-sidebar-collapsed .desk-sidebar .lms-sidebar-toolbar {
+body.lms-desk-enhanced.lms-sidebar-collapsed :is(.desk-sidebar, .body-sidebar) .lms-sidebar-toolbar {
 	justify-content: center;
 	margin: 0 0.25rem 0.35rem;
 }
 
-body.lms-desk-enhanced.lms-sidebar-collapsed .desk-sidebar .lms-sidebar-toolbar-label {
+body.lms-desk-enhanced.lms-sidebar-collapsed :is(.desk-sidebar, .body-sidebar) .lms-sidebar-toolbar-label {
 	display: none;
 }
 
 /* Reset Frappe sidebar row chrome — we style .item-anchor only */
-body.lms-desk-enhanced .desk-sidebar .standard-sidebar-item,
-body.lms-desk-enhanced .desk-sidebar .desk-sidebar-item,
-body.lms-desk-enhanced .desk-sidebar .standard-sidebar-item.selected,
-body.lms-desk-enhanced .desk-sidebar .desk-sidebar-item.selected,
-body.lms-desk-enhanced .desk-sidebar .standard-sidebar-item:hover,
-body.lms-desk-enhanced .desk-sidebar .desk-sidebar-item:hover,
-body.lms-desk-enhanced .desk-sidebar .standard-sidebar-item:focus-within,
-body.lms-desk-enhanced .desk-sidebar .desk-sidebar-item:focus-within {
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .standard-sidebar-item,
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) :is(.desk-sidebar-item, .standard-sidebar-item),
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .standard-sidebar-item.selected,
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) :is(.desk-sidebar-item, .standard-sidebar-item).selected,
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .standard-sidebar-item:hover,
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) :is(.desk-sidebar-item, .standard-sidebar-item):hover,
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .standard-sidebar-item:focus-within,
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) :is(.desk-sidebar-item, .standard-sidebar-item):focus-within {
 	background: transparent !important;
 	box-shadow: none !important;
 	border: none !important;
@@ -222,12 +228,12 @@ body.lms-desk-enhanced .desk-sidebar .desk-sidebar-item:focus-within {
 }
 
 /* Hide empty Personal section; keep LMS tree under Public only */
-body.lms-desk-enhanced .desk-sidebar .standard-sidebar-section.hidden,
-body.lms-desk-enhanced .desk-sidebar .standard-sidebar-section.nested-container.hidden {
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .standard-sidebar-section.hidden,
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .standard-sidebar-section.nested-container.hidden {
 	display: none !important;
 }
 
-body.lms-desk-enhanced .desk-sidebar.lms-desk-sidebar .standard-sidebar-label {
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar).lms-desk-sidebar .standard-sidebar-label {
 	display: flex;
 	align-items: center;
 	flex: 1 1 auto;
@@ -241,7 +247,7 @@ body.lms-desk-enhanced .desk-sidebar.lms-desk-sidebar .standard-sidebar-label {
 	pointer-events: none;
 }
 
-body.lms-desk-enhanced .desk-sidebar.lms-desk-sidebar .standard-sidebar-label .section-title {
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar).lms-desk-sidebar .standard-sidebar-label .section-title {
 	font-size: 0.625rem;
 	font-weight: 700;
 	letter-spacing: 0.12em;
@@ -249,28 +255,28 @@ body.lms-desk-enhanced .desk-sidebar.lms-desk-sidebar .standard-sidebar-label .s
 	color: var(--lms-sidebar-section-text);
 }
 
-body.lms-desk-enhanced .desk-sidebar.lms-desk-sidebar .standard-sidebar-label svg,
-body.lms-desk-enhanced .desk-sidebar.lms-desk-sidebar .standard-sidebar-label .collapse-icon {
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar).lms-desk-sidebar .standard-sidebar-label svg,
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar).lms-desk-sidebar .standard-sidebar-label .collapse-icon {
 	display: none;
 }
 
-body.lms-desk-enhanced .desk-sidebar .sidebar-item-container.lms-sidebar-item {
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item {
 	margin: 0.0625rem 0.35rem;
 	padding: 0;
 	background: transparent;
 	border-radius: 0;
 }
 
-body.lms-desk-enhanced .desk-sidebar .sidebar-item-container.lms-sidebar-item,
-body.lms-desk-enhanced .desk-sidebar .sidebar-item-container.lms-sidebar-item .desk-sidebar-item {
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item,
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item :is(.desk-sidebar-item, .standard-sidebar-item) {
 	margin-left: 0 !important;
 }
 
-body.lms-desk-enhanced .desk-sidebar .sidebar-item-container.lms-sidebar-item.lms-sidebar-child {
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item.lms-sidebar-child {
 	padding-left: 0.35rem;
 }
 
-body.lms-desk-enhanced .desk-sidebar .sidebar-item-container.lms-sidebar-item .desk-sidebar-item {
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item :is(.desk-sidebar-item, .standard-sidebar-item) {
 	margin: 0;
 	overflow: visible !important;
 	display: flex;
@@ -278,7 +284,7 @@ body.lms-desk-enhanced .desk-sidebar .sidebar-item-container.lms-sidebar-item .d
 	width: 100%;
 }
 
-body.lms-desk-enhanced .desk-sidebar .sidebar-item-container.lms-sidebar-item .item-anchor {
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item .item-anchor {
 	display: flex;
 	align-items: center;
 	gap: 0.625rem;
@@ -297,28 +303,28 @@ body.lms-desk-enhanced .desk-sidebar .sidebar-item-container.lms-sidebar-item .i
 	transition: background var(--lms-transition), color var(--lms-transition);
 }
 
-body.lms-desk-enhanced .desk-sidebar .sidebar-item-container.lms-sidebar-item .item-anchor:hover {
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item .item-anchor:hover {
 	background: var(--lms-sidebar-hover-bg);
 	color: var(--lms-sidebar-active-text);
 }
 
-body.lms-desk-enhanced .desk-sidebar .sidebar-item-container.lms-sidebar-item:not(.is-active) > .desk-sidebar-item .item-anchor:hover .sidebar-item-icon {
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item:not(.is-active) > :is(.desk-sidebar-item, .standard-sidebar-item) .item-anchor:hover .sidebar-item-icon {
 	--icon-stroke: var(--lms-sidebar-active-text);
 }
 
-body.lms-desk-enhanced .desk-sidebar .sidebar-item-container.lms-sidebar-item:not(.is-active) > .desk-sidebar-item .item-anchor:hover .sidebar-item-icon svg,
-body.lms-desk-enhanced .desk-sidebar .sidebar-item-container.lms-sidebar-item:not(.is-active) > .desk-sidebar-item .item-anchor:hover .sidebar-item-icon svg use {
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item:not(.is-active) > :is(.desk-sidebar-item, .standard-sidebar-item) .item-anchor:hover .sidebar-item-icon svg,
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item:not(.is-active) > :is(.desk-sidebar-item, .standard-sidebar-item) .item-anchor:hover .sidebar-item-icon svg use {
 	stroke: var(--lms-sidebar-active-text);
 }
 
 /* Active route — only .is-active (not Frappe parent .selected) */
-body.lms-desk-enhanced .desk-sidebar .sidebar-item-container.lms-sidebar-item.is-active > .desk-sidebar-item .item-anchor {
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item.is-active > :is(.desk-sidebar-item, .standard-sidebar-item) .item-anchor {
 	background: var(--lms-sidebar-active-bg);
 	color: var(--lms-sidebar-active-text);
 	font-weight: 600;
 }
 
-body.lms-desk-enhanced .desk-sidebar .sidebar-item-container.lms-sidebar-item.is-active > .desk-sidebar-item .item-anchor::before {
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item.is-active > :is(.desk-sidebar-item, .standard-sidebar-item) .item-anchor::before {
 	content: "";
 	position: absolute;
 	left: 0;
@@ -329,18 +335,18 @@ body.lms-desk-enhanced .desk-sidebar .sidebar-item-container.lms-sidebar-item.is
 	background: var(--lms-sidebar-active-accent);
 }
 
-body.lms-desk-enhanced .desk-sidebar .lms-sidebar-root > .desk-sidebar-item .item-anchor {
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .lms-sidebar-root > :is(.desk-sidebar-item, .standard-sidebar-item) .item-anchor {
 	font-size: 0.8125rem;
 	font-weight: 600;
 }
 
-body.lms-desk-enhanced .desk-sidebar .lms-sidebar-child > .desk-sidebar-item .item-anchor {
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .lms-sidebar-child > :is(.desk-sidebar-item, .standard-sidebar-item) .item-anchor {
 	padding-left: 0.65rem;
 	font-size: 0.78125rem;
 	font-weight: 500;
 }
 
-body.lms-desk-enhanced .desk-sidebar .sidebar-item-label {
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .sidebar-item-label {
 	flex: 1 1 auto;
 	min-width: 0;
 	align-self: center;
@@ -353,13 +359,13 @@ body.lms-desk-enhanced .desk-sidebar .sidebar-item-label {
 	word-break: break-word;
 }
 
-body.lms-desk-enhanced .desk-sidebar .sidebar-item-label .ellipsis {
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .sidebar-item-label .ellipsis {
 	white-space: normal !important;
 	overflow: visible !important;
 	text-overflow: unset !important;
 }
 
-body.lms-desk-enhanced .desk-sidebar .sidebar-item-container.lms-sidebar-item > .desk-sidebar-item .sidebar-item-icon {
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item > :is(.desk-sidebar-item, .standard-sidebar-item) .sidebar-item-icon {
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -375,13 +381,13 @@ body.lms-desk-enhanced .desk-sidebar .sidebar-item-container.lms-sidebar-item > 
 	transition: background var(--lms-transition), color var(--lms-transition);
 }
 
-body.lms-desk-enhanced .desk-sidebar .sidebar-item-container.lms-sidebar-item > .desk-sidebar-item .sidebar-item-icon:empty {
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item > :is(.desk-sidebar-item, .standard-sidebar-item) .sidebar-item-icon:empty {
 	display: none;
 }
 
-body.lms-desk-enhanced .desk-sidebar .sidebar-item-container.lms-sidebar-item > .desk-sidebar-item .sidebar-item-icon .icon,
-body.lms-desk-enhanced .desk-sidebar .sidebar-item-container.lms-sidebar-item > .desk-sidebar-item .sidebar-item-icon svg,
-body.lms-desk-enhanced .desk-sidebar .sidebar-item-container.lms-sidebar-item > .desk-sidebar-item .sidebar-item-icon svg use {
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item > :is(.desk-sidebar-item, .standard-sidebar-item) .sidebar-item-icon .icon,
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item > :is(.desk-sidebar-item, .standard-sidebar-item) .sidebar-item-icon svg,
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item > :is(.desk-sidebar-item, .standard-sidebar-item) .sidebar-item-icon svg use {
 	width: 1.125rem !important;
 	height: 1.125rem !important;
 	margin: 0 !important;
@@ -392,66 +398,66 @@ body.lms-desk-enhanced .desk-sidebar .sidebar-item-container.lms-sidebar-item > 
 	fill: none;
 }
 
-body.lms-desk-enhanced .desk-sidebar .sidebar-item-container.lms-sidebar-item.is-active > .desk-sidebar-item .sidebar-item-icon {
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item.is-active > :is(.desk-sidebar-item, .standard-sidebar-item) .sidebar-item-icon {
 	background: var(--lms-sidebar-icon-active-bg);
 	color: var(--lms-sidebar-icon-active-text);
 	--icon-stroke: var(--lms-sidebar-icon-active-text);
 }
 
-body.lms-desk-enhanced .desk-sidebar .sidebar-item-container.lms-sidebar-item.is-active > .desk-sidebar-item .sidebar-item-icon .icon,
-body.lms-desk-enhanced .desk-sidebar .sidebar-item-container.lms-sidebar-item.is-active > .desk-sidebar-item .sidebar-item-icon svg,
-body.lms-desk-enhanced .desk-sidebar .sidebar-item-container.lms-sidebar-item.is-active > .desk-sidebar-item .sidebar-item-icon svg use {
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item.is-active > :is(.desk-sidebar-item, .standard-sidebar-item) .sidebar-item-icon .icon,
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item.is-active > :is(.desk-sidebar-item, .standard-sidebar-item) .sidebar-item-icon svg,
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item.is-active > :is(.desk-sidebar-item, .standard-sidebar-item) .sidebar-item-icon svg use {
 	--icon-stroke: var(--lms-sidebar-icon-active-text) !important;
 	stroke: var(--lms-sidebar-icon-active-text) !important;
 	fill: none !important;
 }
 
 /* Frappe .selected is route-based; LMS highlight uses .is-active on the direct container only */
-body.lms-desk-enhanced .desk-sidebar .sidebar-item-container.lms-sidebar-item:not(.is-active) > .desk-sidebar-item.selected .item-anchor {
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item:not(.is-active) > :is(.desk-sidebar-item, .standard-sidebar-item).selected .item-anchor {
 	background: transparent !important;
 	color: var(--lms-text) !important;
 	font-weight: inherit !important;
 }
 
-body.lms-desk-enhanced .desk-sidebar .sidebar-item-container.lms-sidebar-item:not(.is-active) > .desk-sidebar-item.selected .item-anchor::before {
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item:not(.is-active) > :is(.desk-sidebar-item, .standard-sidebar-item).selected .item-anchor::before {
 	display: none;
 }
 
-body.lms-desk-enhanced .desk-sidebar .sidebar-item-container.lms-sidebar-item:not(.is-active) > .desk-sidebar-item.selected .sidebar-item-icon {
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item:not(.is-active) > :is(.desk-sidebar-item, .standard-sidebar-item).selected .sidebar-item-icon {
 	background: var(--lms-sidebar-icon-bg) !important;
 	color: var(--lms-sidebar-icon-text) !important;
 	--icon-stroke: var(--lms-sidebar-icon-text) !important;
 }
 
-body.lms-desk-enhanced .desk-sidebar .sidebar-item-container.lms-sidebar-item:not(.is-active) > .desk-sidebar-item.selected .sidebar-item-icon svg,
-body.lms-desk-enhanced .desk-sidebar .sidebar-item-container.lms-sidebar-item:not(.is-active) > .desk-sidebar-item.selected .sidebar-item-icon svg use {
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item:not(.is-active) > :is(.desk-sidebar-item, .standard-sidebar-item).selected .sidebar-item-icon svg,
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item:not(.is-active) > :is(.desk-sidebar-item, .standard-sidebar-item).selected .sidebar-item-icon svg use {
 	--icon-stroke: var(--lms-sidebar-icon-text) !important;
 	stroke: var(--lms-sidebar-icon-text) !important;
 }
 
-body.lms-desk-enhanced[data-lms-can-manage="0"] .desk-sidebar .lms-sidebar-item .sidebar-item-control {
+body.lms-desk-enhanced[data-lms-can-manage="0"] :is(.desk-sidebar, .body-sidebar) .lms-sidebar-item .sidebar-item-control {
 	display: none !important;
 }
 
-body.lms-desk-enhanced .desk-sidebar .sidebar-item-container.lms-sidebar-item.is-active > .desk-sidebar-item .item-anchor:hover {
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item.is-active > :is(.desk-sidebar-item, .standard-sidebar-item) .item-anchor:hover {
 	background: var(--lms-sidebar-active-bg);
 }
 
-body.lms-desk-enhanced .desk-sidebar .sidebar-item-container.lms-sidebar-item.is-active > .desk-sidebar-item .item-anchor:hover .sidebar-item-icon {
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item.is-active > :is(.desk-sidebar-item, .standard-sidebar-item) .item-anchor:hover .sidebar-item-icon {
 	--icon-stroke: var(--lms-sidebar-icon-active-text);
 }
 
-body.lms-desk-enhanced .desk-sidebar .sidebar-item-container.lms-sidebar-item.is-active > .desk-sidebar-item .item-anchor:hover .sidebar-item-icon .icon,
-body.lms-desk-enhanced .desk-sidebar .sidebar-item-container.lms-sidebar-item.is-active > .desk-sidebar-item .item-anchor:hover .sidebar-item-icon svg,
-body.lms-desk-enhanced .desk-sidebar .sidebar-item-container.lms-sidebar-item.is-active > .desk-sidebar-item .item-anchor:hover .sidebar-item-icon svg use {
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item.is-active > :is(.desk-sidebar-item, .standard-sidebar-item) .item-anchor:hover .sidebar-item-icon .icon,
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item.is-active > :is(.desk-sidebar-item, .standard-sidebar-item) .item-anchor:hover .sidebar-item-icon svg,
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item.is-active > :is(.desk-sidebar-item, .standard-sidebar-item) .item-anchor:hover .sidebar-item-icon svg use {
 	stroke: var(--lms-sidebar-icon-active-text);
 }
 
-body.lms-desk-enhanced .desk-sidebar.lms-desk-sidebar > .standard-sidebar-section > .standard-sidebar-label {
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar).lms-desk-sidebar > .standard-sidebar-section > .standard-sidebar-label {
 	display: none;
 }
 
-body.lms-desk-enhanced .desk-sidebar.lms-desk-sidebar .lms-sidebar-toolbar-label.section-title {
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar).lms-desk-sidebar .lms-sidebar-toolbar-label.section-title {
 	font-size: 0.625rem;
 	font-weight: 700;
 	letter-spacing: 0.12em;
@@ -459,43 +465,43 @@ body.lms-desk-enhanced .desk-sidebar.lms-desk-sidebar .lms-sidebar-toolbar-label
 	color: var(--lms-sidebar-section-text);
 }
 
-body.lms-desk-enhanced .desk-sidebar .lms-sidebar-root .sidebar-item-control {
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .lms-sidebar-root .sidebar-item-control {
 	margin-left: auto;
 	opacity: 0.45;
 }
 
-body.lms-desk-enhanced .desk-sidebar .lms-sidebar-root .sidebar-item-control .drop-icon {
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .lms-sidebar-root .sidebar-item-control .drop-icon {
 	padding: 0 0.25rem;
 }
 
 /* Collapsed rail — icons only */
-body.lms-desk-enhanced.lms-sidebar-collapsed .desk-sidebar.lms-desk-sidebar .standard-sidebar-label {
+body.lms-desk-enhanced.lms-sidebar-collapsed :is(.desk-sidebar, .body-sidebar).lms-desk-sidebar .standard-sidebar-label {
 	display: none;
 }
 
-body.lms-desk-enhanced.lms-sidebar-collapsed .desk-sidebar .sidebar-item-container.lms-sidebar-item,
-body.lms-desk-enhanced.lms-sidebar-collapsed .desk-sidebar .sidebar-item-container.lms-sidebar-item.lms-sidebar-child {
+body.lms-desk-enhanced.lms-sidebar-collapsed :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item,
+body.lms-desk-enhanced.lms-sidebar-collapsed :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item.lms-sidebar-child {
 	margin-left: 0.25rem;
 	margin-right: 0.25rem;
 	padding-left: 0;
 }
 
-body.lms-desk-enhanced.lms-sidebar-collapsed .desk-sidebar .sidebar-item-container.lms-sidebar-item .item-anchor {
+body.lms-desk-enhanced.lms-sidebar-collapsed :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item .item-anchor {
 	justify-content: center;
 	gap: 0;
 	padding: 0.3rem;
 }
 
-body.lms-desk-enhanced.lms-sidebar-collapsed .desk-sidebar .sidebar-item-label,
-body.lms-desk-enhanced.lms-sidebar-collapsed .desk-sidebar .lms-sidebar-root .sidebar-item-control {
+body.lms-desk-enhanced.lms-sidebar-collapsed :is(.desk-sidebar, .body-sidebar) .sidebar-item-label,
+body.lms-desk-enhanced.lms-sidebar-collapsed :is(.desk-sidebar, .body-sidebar) .lms-sidebar-root .sidebar-item-control {
 	display: none !important;
 }
 
-body.lms-desk-enhanced.lms-sidebar-collapsed .desk-sidebar .sidebar-item-container.lms-sidebar-item.is-active > .desk-sidebar-item .item-anchor::before {
+body.lms-desk-enhanced.lms-sidebar-collapsed :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item.is-active > :is(.desk-sidebar-item, .standard-sidebar-item) .item-anchor::before {
 	display: none;
 }
 
-body.lms-desk-enhanced.lms-sidebar-collapsed .desk-sidebar .sidebar-item-container.lms-sidebar-item.is-active > .desk-sidebar-item .sidebar-item-icon {
+body.lms-desk-enhanced.lms-sidebar-collapsed :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item.is-active > :is(.desk-sidebar-item, .standard-sidebar-item) .sidebar-item-icon {
 	box-shadow: 0 0 0 2px var(--lms-sidebar-active-accent);
 }
 
@@ -795,7 +801,7 @@ body.lms-desk-enhanced.lms-desk-staff:not(.lms-native-lending-nav) .page-head {
 	}
 }
 
-/* Frappe Lending / CRM module workspaces (/app/loans, /app/crm) */
+/* Frappe Lending / CRM module workspaces (/desk/lending, /desk/crm) */
 body.lms-desk-enhanced.lms-nav-lending-home .codex-editor__redactor,
 body.lms-desk-enhanced.lms-nav-crm .codex-editor__redactor {
 	display: grid;
@@ -883,7 +889,7 @@ body.lms-desk-enhanced.lms-nav-crm-dashboard .dashboard-page .widget-group .widg
 	gap: var(--lms-tile-gap);
 }
 
-body.lms-desk-enhanced[data-lms-layout="compact"] .desk-sidebar .sidebar-item-container.lms-sidebar-item .item-anchor {
+body.lms-desk-enhanced[data-lms-layout="compact"] :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item .item-anchor {
 	min-height: 1.875rem;
 	padding-top: 0.3rem;
 	padding-bottom: 0.3rem;
@@ -1077,5 +1083,32 @@ body.lms-desk-enhanced.lms-nav-report .report-summary .summary-item {
 body.lms-desk-enhanced.lms-nav-report .report-wrapper .chart-container,
 body.lms-desk-enhanced.lms-nav-report .report-wrapper .dt-scrollable {
 	border-radius: calc(var(--lms-radius) - 2px);
+}
+
+/* Frappe v16 — body-sidebar rail sizing and desktop navbar offsets */
+body.lms-desk-enhanced.lms-desk-v16 .body-sidebar-container {
+	--sidebar-width: var(--lms-sidebar-width);
+}
+
+body.lms-desk-enhanced.lms-desk-v16.lms-sidebar-collapsed .body-sidebar-container {
+	--sidebar-width: var(--lms-sidebar-collapsed-width);
+}
+
+body.lms-desk-enhanced.lms-desk-v16 .body-sidebar.lms-desk-sidebar .body-sidebar-top {
+	width: 100%;
+}
+
+body.lms-desk-enhanced.lms-desk-v16 .lms-desk-app-nav {
+	top: var(--desktop-navbar-height, var(--navbar-height));
+}
+
+body.lms-desk-enhanced.lms-desk-v16.lms-desk-staff:not(.lms-native-lending-nav) .page-head {
+	top: calc(var(--desktop-navbar-height, var(--navbar-height)) + var(--lms-app-nav-height));
+}
+
+body.lms-desk-enhanced.lms-desk-v16 .navbar-home.lms-navbar-brand {
+	display: inline-flex;
+	align-items: center;
+	border-radius: var(--lms-radius-sm);
 }
 

@@ -3,7 +3,7 @@ import frappe
 from lms_saas.utils.brand import get_brand_favicon_url, get_brand_splash_url, get_lms_theme
 from lms_saas.install import LOAN_DASHBOARD_NAME
 from lms_saas.utils.desk_nav import get_lms_desk_nav
-from lms_saas.utils.frappe_version import desk_prefix, get_major_version
+from lms_saas.utils.frappe_version import LENDING_HOME_SLUG, desk_prefix, get_major_version
 from lms_saas.utils.help import get_lms_help_menu
 
 LMS_DESK_ROLES = {"LMS Admin", "LMS Branch Manager", "LMS Loan Officer", "LMS Collector"}
@@ -30,7 +30,7 @@ def apply_default_route(bootinfo):
     desk_staff = roles.intersection(LMS_DESK_ROLES) or roles.intersection({"System Manager", "Administrator"})
     if desk_staff:
         # Lending home keeps the native workspace sidebar; Loan Dashboard stays one click away.
-        bootinfo.default_route = "loans"
+        bootinfo.default_route = LENDING_HOME_SLUG
         bootinfo.lms_loan_dashboard_route = LOAN_DASHBOARD_ROUTE
         return
 
