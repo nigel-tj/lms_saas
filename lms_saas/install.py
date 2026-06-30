@@ -578,6 +578,20 @@ def _setup_lms_roles():
         for dt, extra in (cfg.get("extra_perms") or {}).items():
             _ensure_role_perm(role_name, dt, extra)
 
+    # System Manager / Administrator have no LMS role, so the role-loop above
+    # doesn't set a home_page for them. Without one, Frappe's get_home_page()
+    # falls through to Portal Settings.default_portal_home (/lms) and sends the
+    # admin to the borrower portal — where they hit "No Customer linked to your
+    # portal account." Set their Role.home_page to the Lending desk home so they
+    # land on the desk instead. (Role.home_page is checked before the portal
+    # default in frappe.website.utils._get_home_page.)
+    from lms_saas.utils.frappe_version import LENDING_HOME_SLUG, desk_prefix
+
+    admin_home = f"{desk_prefix()}/{LENDING_HOME_SLUG}"
+    for role_name in ("System Manager", "Administrator"):
+        if frappe.db.exists("Role", role_name):
+            frappe.db.set_value("Role", role_name, "home_page", admin_home)
+
 
 def _ensure_lms_page_permissions():
     """Desk workspace routes resolve through Page — LMS staff need read access."""
