@@ -522,7 +522,7 @@ def _check_notifications():
     branded = False
     if frappe.db.exists("Email Template", "LMS Payment Reminder"):
         html = frappe.db.get_value("Email Template", "LMS Payment Reminder", "response") or ""
-        branded = "lms-email" in html.lower() or "0f4c5c" in html.lower()
+        branded = "lms-email" in html.lower() or "2f4f46" in html.lower()
     return {
         "ok": len(found) == len(templates) and branded,
         "templates": found,

@@ -688,3 +688,30 @@ body.lms-desk-enhanced .centered.splash img,
 	max-height: 72px;
 	object-fit: contain;
 }
+
+/* ------------------------------------------------------------------ */
+/* Accessibility — focus indicators                                   */
+/* ------------------------------------------------------------------ */
+.lms-btn:focus-visible,
+.lms-portal-nav a:focus-visible,
+.lms-action-tile:focus-visible,
+.lms-product-card:focus-visible,
+.lms-notification-bell:focus-visible,
+.lms-portal-menu-toggle:focus-visible,
+.lms-input:focus-visible,
+.lms-skip-link:focus-visible {
+	outline: 2px solid var(--lms-focus);
+	outline-offset: 2px;
+}
+
+/* High-contrast focus for keyboard users */
+body.lms-themed *:focus-visible {
+	outline: 2px solid var(--lms-focus);
+	outline-offset: 2px;
+}
+
+/* Ensure interactive elements have visible focus on dark backgrounds */
+[data-lms-theme="dark"] .lms-btn:focus-visible,
+[data-lms-theme="midnight"] .lms-btn:focus-visible {
+	outline-color: var(--lms-accent);
+}

@@ -1,71 +1,72 @@
-/* LMS theme: midnight (deep navy — flat, professional dark mode) */
+/* LMS theme: midnight (deep forest — flat, professional dark mode) */
 [data-lms-theme="midnight"] {
 	--theme-primary: #e2e8f0;
 	--theme-primary-light: #f8fafc;
-	--theme-accent: #38bdf8;
+	--theme-accent: #b9f19d;
+	--theme-accent-strong: #8fd96c;
 	--theme-accent-muted: #7dd3fc;
-	--theme-focus: #38bdf8;
+	--theme-focus: #5faf61;
 
-	--theme-canvas: #0b1220;
-	--theme-surface: #111827;
-	--theme-surface-alt: #1a2332;
-	--theme-surface-elevated: #1f2937;
-	--theme-border: #2d3a4d;
+	--theme-canvas: #0f1a16;
+	--theme-surface: #16241f;
+	--theme-surface-alt: #1d2f28;
+	--theme-surface-elevated: #243a31;
+	--theme-border: #2d4339;
 
-	--theme-text: #f1f5f9;
-	--theme-text-muted: #94a3b8;
-	--theme-success: #34d399;
-	--theme-warning: #fbbf24;
-	--theme-danger: #f87171;
+	--theme-text: #f1f5f1;
+	--theme-text-muted: #94a39a;
+	--theme-success: #5faf61;
+	--theme-warning: #f4b942;
+	--theme-danger: #e15c5c;
 
 	--theme-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
 	--theme-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
 	--theme-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.4);
 	--theme-shadow-panel: 0 1px 3px rgba(0, 0, 0, 0.3);
 
-	--theme-hero-border: rgba(56, 189, 248, 0.15);
-	--theme-hero-bg: #131c2e;
+	--theme-hero-border: rgba(185, 241, 157, 0.15);
+	--theme-hero-bg: #131e19;
 	--theme-hero-glow: transparent;
-	--theme-hero-accent: #38bdf8;
+	--theme-hero-accent: #b9f19d;
 
-	--theme-nav-active-bg: rgba(56, 189, 248, 0.1);
+	--theme-nav-active-bg: rgba(185, 241, 157, 0.1);
 	--theme-nav-active-text: #e2e8f0;
-	--theme-sidebar-section-text: #64748b;
-	--theme-sidebar-hover-bg: rgba(56, 189, 248, 0.06);
-	--theme-sidebar-active-bg: rgba(56, 189, 248, 0.12);
-	--theme-sidebar-active-text: #f1f5f9;
-	--theme-sidebar-active-accent: #38bdf8;
-	--theme-sidebar-icon-bg: rgba(56, 189, 248, 0.1);
+	--theme-sidebar-section-text: #64786e;
+	--theme-sidebar-hover-bg: rgba(185, 241, 157, 0.06);
+	--theme-sidebar-active-bg: rgba(185, 241, 157, 0.12);
+	--theme-sidebar-active-text: #f1f5f1;
+	--theme-sidebar-active-accent: #b9f19d;
+	--theme-sidebar-icon-bg: rgba(185, 241, 157, 0.1);
 	--theme-sidebar-icon-text: #e2e8f0;
-	--theme-sidebar-icon-active-bg: #38bdf8;
-	--theme-sidebar-icon-active-text: #0b1220;
-	--theme-sidebar-child-border: rgba(56, 189, 248, 0.15);
-	--theme-chip-bg: rgba(56, 189, 248, 0.1);
+	--theme-sidebar-icon-active-bg: #b9f19d;
+	--theme-sidebar-icon-active-text: #0f1a16;
+	--theme-sidebar-child-border: rgba(185, 241, 157, 0.15);
+	--theme-chip-bg: rgba(185, 241, 157, 0.1);
 	--theme-chip-text: #e2e8f0;
-	--theme-pill-bg: rgba(56, 189, 248, 0.1);
+	--theme-pill-bg: rgba(185, 241, 157, 0.1);
 	--theme-pill-text: #e2e8f0;
 
-	--theme-tile-bg: #1a2332;
-	--theme-tile-border: #2d3a4d;
+	--theme-tile-bg: #1d2f28;
+	--theme-tile-border: #2d4339;
 	--theme-tile-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
 	--theme-tile-shadow-hover: 0 4px 16px rgba(0, 0, 0, 0.35);
-	--theme-tile-border-hover: rgba(56, 189, 248, 0.28);
-	--theme-tile-icon-bg: rgba(56, 189, 248, 0.1);
+	--theme-tile-border-hover: rgba(185, 241, 157, 0.28);
+	--theme-tile-icon-bg: rgba(185, 241, 157, 0.1);
 	--theme-tile-icon-text: #e2e8f0;
-	--theme-tile-footer-border: rgba(45, 58, 77, 0.95);
-	--theme-tile-count-bg: rgba(56, 189, 248, 0.1);
+	--theme-tile-footer-border: rgba(45, 67, 57, 0.95);
+	--theme-tile-count-bg: rgba(185, 241, 157, 0.1);
 	--theme-tile-count-text: #e2e8f0;
-	--theme-tile-count-muted-bg: rgba(148, 163, 184, 0.12);
-	--theme-tile-count-muted-text: #94a3b8;
-	--theme-tile-action-text: #7dd3fc;
+	--theme-tile-count-muted-bg: rgba(148, 163, 154, 0.12);
+	--theme-tile-count-muted-text: #94a39a;
+	--theme-tile-action-text: #b9f19d;
 
 	--theme-tone-cyan: #0891b2;
-	--theme-tone-blue: #2563eb;
-	--theme-tone-green: #059669;
-	--theme-tone-orange: #d97706;
-	--theme-tone-red: #dc2626;
+	--theme-tone-blue: #5d9cec;
+	--theme-tone-green: #5faf61;
+	--theme-tone-orange: #f4b942;
+	--theme-tone-red: #e15c5c;
 	--theme-tone-purple: #7c3aed;
-	--theme-tone-grey: #64748b;
+	--theme-tone-grey: #64786e;
 }
 
 /* Midnight desk shell overrides */

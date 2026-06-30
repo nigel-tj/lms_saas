@@ -15,8 +15,8 @@ Branding lives entirely in `apps/lms_saas` — no changes to `frappe` or `erpnex
 Load order is fixed in `hooks.py`:
 
 1. **`lms_tokens.css`** — structural tokens (radii, fonts, layout) + semantic aliases
-2. **`lms_themes/default.css`** — default palette (teal fintech)
-3. **`lms_themes/midnight.css`** — alternate palette (deep navy)
+2. **`lms_themes/default.css`** — default palette (forest green + signature light green)
+3. **`lms_themes/midnight.css`** — alternate palette (deep forest dark mode)
 4. **`lms_components.css`** — shared UI patterns (hero, panel, action tiles, pills)
 5. **`lms_desk.css`** or **`lms_portal.css`** — surface-specific layout only
 

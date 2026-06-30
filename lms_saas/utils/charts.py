@@ -29,7 +29,7 @@ def to_frappe_report_chart(labels, values, chart_type="bar", colors=None):
 	}
 
 
-def render_email_bar_chart(rows, title=None, bar_color="#0f4c5c") -> str:
+def render_email_bar_chart(rows, title=None, bar_color="#2f4f46") -> str:
 	"""Email-safe HTML bar chart using nested tables (no JS)."""
 	if not rows:
 		return '<p style="margin:0;color:#64748b;font-size:13px;">No data.</p>'

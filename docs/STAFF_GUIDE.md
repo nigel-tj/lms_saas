@@ -138,7 +138,17 @@ The user who **created** the document cannot be the same user who **submits** it
 1. Open `{site-url}/login` in a supported browser (Chrome, Firefox, or Edge).
 2. Enter your **email** (or username, if your site uses one) and **password**.
 3. Click **Sign in**.
-4. You should land on **Lending** (`/app/loans`) with the workspace sidebar. Open **Loan Dashboard** from there; use **← Back to Lending menu** on the dashboard to return to the sidebar.
+4. You land on the workspace most relevant to your role:
+
+| Role | Landing workspace | Why |
+|------|-----------------|-----|
+| **LMS Admin** / System Manager | **Loan Management** | Full portfolio overview |
+| **LMS Branch Manager** | **Loans & Disbursements** | Oversight of the live book |
+| **LMS Loan Officer** | **Applications** | Origination pipeline is the daily focus |
+| **LMS Collector** | **Collections** | Repayments and arrears are the daily focus |
+| **Customer** (borrower, no desk) | **Borrower portal** (`/lms`) | Self-service loans and payments |
+
+The sidebar shows only the workspaces your role can access. Use it to navigate between workspaces; the **Loan Dashboard** is always one click away from any workspace.
 
 If you forget your password, use **Forgot Password?** on the login page, or ask a System Manager to reset it from the User record.
 
@@ -188,8 +198,9 @@ Use the **Lending** app sidebar for loan operations and the **Loan Dashboard** f
 |------|------|
 | New loan application | Applications → **New Application**, or `{site-url}/app/loan-application/new` |
 | List of active loans | Lending sidebar → **Loan**, or Applications workspace → **Active Loans** |
-| Record a repayment | Collections → **Collections Ledger** → New |
+| Record a repayment | Collections → **Collections Ledger** → New, or Collections → **New Repayment** |
 | Pending KYC | Borrowers & Collateral → **Compliance Queue** |
+| Onboard a user | Borrowers & Collateral → **Onboard User**, or `{site-url}/app/lms-user-setup/new` |
 
 ### Search and lists
 
@@ -205,53 +216,56 @@ Each workflow lists **who** should perform it, **where** to go in the desk, **st
 
 ---
 
-### 4a. Onboard a borrower
+### 4a. Onboard a borrower or staff member
 
-**Who:** LMS Loan Officer, LMS Branch Manager  
-**Where:** Borrowers & Collateral workspace (and standard Customer / User forms)
+**Who:** LMS Loan Officer (borrowers only), LMS Branch Manager, LMS Admin  
+**Where:** Borrowers & Collateral workspace → **Onboard User**, or Collections → **Onboard Borrower**
 
-#### Steps
+#### One-screen onboarding (recommended)
 
-1. **Create Customer**
-   - Go to **Borrower Ledger** (Customer list) → **New**.
-   - Enter name, contact details, and **email** (required for portal access).
-   - Set **Branch** (`custom_lms_branch`) to the correct Cost Center (branch).
-   - Save.
+The **LMS User Setup** form replaces the old multi-step process (Customer → User → Contact → Employee). Choose a persona, fill in the details, and submit — the system creates every linked record automatically.
 
-2. **Create LMS Borrower Compliance**
-   - From the Customer or **Compliance Queue** → **New**.
-   - Link to the Customer.
-   - Enter **National ID number** and attach ID / proof-of-address documents as required by policy.
-   - Set **KYC status** to **Approved** only after verification is complete.
-   - Record **consent** for sandbox testing:
-     - Enable **Consent given**.
-     - Set **Consent date** (required when the site enforces consent).
-   - Save, then **Submit** the compliance record if your process uses submittable compliance docs.
-
-3. **Enable portal access (optional but typical for volunteer borrowers)**
-   - Create a **User** with the same **email** as the Customer.
-   - Assign role **Customer** (do not assign Desk User unless this person is also staff).
-   - Create or update **Contact** linked to the Customer; **email** on Contact must match the User.
-   - Send login instructions: `{site-url}/login` → borrower opens `{site-url}/lms` after sign-in.
-
-4. **Register collateral (if applicable)**
-   - Borrowers & Collateral → **Collateral Register** → **New** **LMS Collateral**.
-   - Enter asset type, values, haircut, and attachments.
-   - Submit the collateral record when complete.
+1. Go to **Borrowers & Collateral** → **Onboard User** (or `{site-url}/app/lms-user-setup/new`).
+2. Choose **Persona**:
+   - **Borrower** — creates User (role: Customer) + Customer + Contact (portal-ready).
+   - **Loan Officer** — creates User (roles: LMS Loan Officer + Desk User) + Employee.
+   - **Branch Manager** — creates User (roles: LMS Branch Manager + Desk User) + Employee.
+   - **Collector** — creates User (roles: LMS Collector + Desk User) + Employee.
+   - **Admin** — creates User (roles: LMS Admin + Desk User).
+3. Enter **First Name**, **Last Name**, **Email**, and **Mobile**.
+4. For staff: set **Branch** (required, pre-filled with your own branch), **Gender**, and **Date of Birth** (both optional).
+5. For borrowers: enter **National ID** (required — used for KYC).
+6. **Submit** — the form creates the User, Customer/Contact or Employee, applies roles, and (for desk staff) auto-assigns the **LMS Staff** module profile so the sidebar shows only Loan Management. For borrowers, a draft **LMS Borrower Compliance** record is seeded with the National ID so KYC is one click away.
 
 #### What happens automatically
 
-- KYC and consent are checked again when a **Loan Application** is submitted (see [4b](#4b-originate-a-loan)).
-- Portal APIs only return loans for the Customer linked to the signed-in User’s Contact.
+- Roles are applied from the persona config (single source of truth in `install.py`).
+- The `before_validate` User hook auto-applies the **LMS Staff** module profile for desk personas.
+- Borrowers get a Contact linked to their Customer so portal permission resolution works.
+- Staff get an Employee record so `custom_loan_officer` (Link → Employee) resolves.
+- Borrowers get a draft **LMS Borrower Compliance** record pre-filled with their National ID, so KYC is one click away (just attach documents and set consent).
+- A welcome email is sent if **Send welcome email** is checked.
+
+#### After onboarding
+
+- **Borrowers**: create **LMS Borrower Compliance** (KYC + consent) from the Compliance Queue, then register collateral if applicable.
+- **Staff**: the new user logs in and lands on their role-specific workspace (see §3).
+
+#### Separation of duties
+
+- **Loan Officers** may only create **Borrower** accounts. Creating staff (Admin, Manager, Collector) requires LMS Branch Manager or LMS Admin role.
 
 #### Common blockers
 
 | Symptom | Cause | Fix |
 |---------|-------|-----|
+| "A User with email … already exists" | Duplicate email | Use a different email or edit the existing User |
+| "Branch is required for staff personas" | Branch not set | Select a Branch (Cost Center) for staff personas |
+| "National ID is required for the Borrower persona" | Borrower created without National ID | Enter the borrower's National ID (used for KYC) |
+| "Loan Officers may only create Borrower accounts" | Officer tried to create staff | Ask a Branch Manager or Admin to create staff |
+| Borrower sees empty portal | Email mismatch (rare with onboarding form) | Verify User, Contact, and Customer email match |
 | Cannot submit loan application | KYC not **Approved** | Complete verification; update compliance record |
 | Cannot submit loan application | Consent missing | Set consent given and date on compliance |
-| Borrower sees empty portal | Email mismatch | Align User, Contact, and Customer email |
-| Borrower sees no loans | No Contact link | Link Contact to Customer |
 
 ---
 

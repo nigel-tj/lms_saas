@@ -11,6 +11,8 @@ from lms_saas.utils.brand import enrich_brand, get_brand_favicon_url, get_brand_
 EMAIL_BODY_TEMPLATES = {
 	"payment_reminder": "templates/email/payment_reminder_body.html",
 	"repayment_received": "templates/email/repayment_received_body.html",
+	"disbursement_received": "templates/email/disbursement_received_body.html",
+	"welcome": "templates/email/welcome_body.html",
 	"lead_acknowledgement": "templates/email/lead_acknowledgement_body.html",
 	"morning_digest": "templates/email/morning_digest_body.html",
 	"kpi_pack": "templates/email/kpi_pack_body.html",
@@ -19,6 +21,8 @@ EMAIL_BODY_TEMPLATES = {
 EMAIL_TEMPLATE_NAMES = {
 	"payment_reminder": "LMS Payment Reminder",
 	"repayment_received": "LMS Loan Repayment Received",
+	"disbursement_received": "LMS Loan Disbursed",
+	"welcome": "LMS Welcome",
 	"lead_acknowledgement": "LMS Lead Acknowledgement",
 	"morning_digest": "LMS Morning Digest",
 	"kpi_pack": "LMS Sandbox Weekly KPI",
@@ -50,7 +54,7 @@ def get_email_brand_context() -> dict:
 	return {
 		"company_name": company,
 		"tagline": brand.get("tagline") or _("Stewardship in every repayment"),
-		"primary_color": brand.get("primary_color") or "#0f4c5c",
+		"primary_color": brand.get("primary_color") or "#2f4f46",
 		"logo_url": logo,
 		"favicon_url": favicon,
 		"footer_text": footer,
@@ -151,6 +155,24 @@ def _sample_subject_and_context(body_key: str) -> tuple[str, dict]:
 				"amount_paid": "1,200.00",
 			},
 		)
+	if body_key == "disbursement_received":
+		return (
+			_("Your loan has been disbursed — LOAN-00001"),
+			{
+				"customer_name": "Jane Borrower",
+				"loan_name": "LOAN-00001",
+				"disbursed_amount": "25,000.00",
+				"disbursement_date": "2026-06-30",
+			},
+		)
+	if body_key == "welcome":
+		return (
+			_("Welcome to {0}").format("Kesari"),
+			{
+				"customer_name": "Jane Borrower",
+				"reset_password_url": get_url("/update-password"),
+			},
+		)
 	if body_key == "morning_digest":
 		return (
 			_("LMS morning digest"),
@@ -200,6 +222,8 @@ def seed_email_templates():
 	specs = (
 		("payment_reminder", _("Upcoming loan payment reminder")),
 		("repayment_received", _("Payment received for {{ loan_name }}")),
+		("disbursement_received", _("Your loan has been disbursed — {{ loan_name }}")),
+		("welcome", _("Welcome to {{ company_name }}")),
 		("lead_acknowledgement", _("Thank you for your enquiry")),
 		("morning_digest", _("LMS morning digest — {{ report_date }}")),
 		("kpi_pack", _("LMS sandbox weekly KPI")),

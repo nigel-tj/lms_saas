@@ -5,7 +5,7 @@
 {% block lms_content %}
 <section class="lms-hero">
   <h2 class="lms-hero__title">My Account</h2>
-  <p class="lms-hero__subtitle">Manage your profile and sign-in settings.</p>
+  <p class="lms-hero__subtitle">Manage your profile, compliance status, and sign-in settings.</p>
 </section>
 
 <div class="lms-account">
@@ -42,4 +42,16 @@
     </div>
   </article>
 </div>
+
+<div id="lms-account-overview" aria-live="polite"></div>
+{% endblock %}
+
+{% block script %}
+<script>
+frappe.ready(function() {
+  if (typeof lms_portal !== 'undefined' && lms_portal.initAccountOverview) {
+    lms_portal.initAccountOverview();
+  }
+});
+</script>
 {% endblock %}

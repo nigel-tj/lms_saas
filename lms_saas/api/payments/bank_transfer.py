@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
+import hmac
+
 import frappe
 
 from lms_saas.api.payments.base import BasePaymentAdapter
@@ -27,6 +30,13 @@ class BankTransferAdapter(BasePaymentAdapter):
 		}
 
 	def verify_webhook(self, payload: dict, headers: dict) -> dict | None:
+		secret = frappe.conf.get("lms_bank_transfer_webhook_secret") or ""
+		if secret:
+			sig = headers.get("X-Bank-Transfer-Signature") or headers.get("X-Signature") or ""
+			body = frappe.request.get_data() if frappe.request else b""
+			expected = hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
+			if not hmac.compare_digest(sig, expected):
+				return None
 		return {
 			"external_ref": payload.get("reference"),
 			"status": "Confirmed" if payload.get("confirmed") else "Pending",

@@ -79,6 +79,7 @@ def _lms_css_stack(*surface_assets: str) -> list:
 		_versioned_asset("css/lms_tokens.css", "/assets/lms_saas/css/lms_tokens.css"),
 		_versioned_asset("css/lms_themes/default.css", "/assets/lms_saas/css/lms_themes/default.css"),
 		_versioned_asset("css/lms_themes/midnight.css", "/assets/lms_saas/css/lms_themes/midnight.css"),
+		_versioned_asset("css/lms_themes/dark.css", "/assets/lms_saas/css/lms_themes/dark.css"),
 		_versioned_asset("css/lms_components.css", "/assets/lms_saas/css/lms_components.css"),
 	]
 	return base + list(surface_assets)
@@ -111,6 +112,7 @@ doctype_js = {
     "Loan": "public/js/loan.js",
     "Lead": "public/js/lead.js",
     "LMS Investor": "public/js/lms_investor.js",
+    "LMS User Setup": "public/js/lms_user_setup.js",
 }
 
 website_route_rules = [
@@ -118,6 +120,7 @@ website_route_rules = [
     {"from_route": "/lms/loan", "to_route": "lms/loan"},
     {"from_route": "/lms/account", "to_route": "lms/account"},
     {"from_route": "/lms/apply", "to_route": "lms/apply"},
+    {"from_route": "/lms/applications", "to_route": "lms/applications"},
     {"from_route": "/lms/pay", "to_route": "lms/pay"},
     {"from_route": "/lms/collect", "to_route": "lms/collect"},
     {"from_route": "/lms-help", "to_route": "lms-help"},
@@ -126,12 +129,19 @@ website_route_rules = [
 
 standard_portal_menu_items = [
     {"title": "My Loans", "route": "/lms", "reference_doctype": "Loan", "role": "Customer"},
+    {"title": "My Applications", "route": "/lms/applications", "role": "Customer"},
     {"title": "Apply for Loan", "route": "/lms/apply", "role": "Customer"},
     {"title": "Make Payment", "route": "/lms/pay", "role": "Customer"},
     {"title": "My Account", "route": "/lms/account", "role": "Customer"},
 ]
 
 update_website_context = "lms_saas.utils.brand.update_website_context"
+
+# Post-login redirect: return the correct slugified desk workspace URL for each
+# LMS role. Frappe's get_home_page() checks Portal Settings.default_portal_home
+# (/lms) for ALL users, which sends desk staff to the portal. This hook wins over
+# that default and returns /desk/<slug> for desk staff, /lms for borrowers.
+get_website_user_home_page = "lms_saas.boot.get_lms_home_page"
 
 override_whitelisted_methods = {
 	# Shorthand cmd from portal links: /?cmd=web_logout

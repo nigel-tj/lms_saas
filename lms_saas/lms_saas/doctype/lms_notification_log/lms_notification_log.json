@@ -15,7 +15,8 @@
     {"fieldname": "status", "fieldtype": "Select", "label": "Status", "options": "Sent\nFailed\nSkipped", "in_list_view": 1, "reqd": 1, "default": "Sent"},
     {"fieldname": "recipient", "fieldtype": "Data", "label": "Recipient"},
     {"fieldname": "message_preview", "fieldtype": "Small Text", "label": "Message Preview"},
-    {"fieldname": "sent_on", "fieldtype": "Datetime", "label": "Sent On"}
+    {"fieldname": "sent_on", "fieldtype": "Datetime", "label": "Sent On"},
+    {"fieldname": "read_on", "fieldtype": "Datetime", "label": "Read On", "in_list_view": 0}
   ],
   "permissions": [
     {"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1, "export": 1, "report": 1},

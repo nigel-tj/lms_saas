@@ -49,8 +49,9 @@ info "--- Installed apps ---"
 bench --site "$FC_SITE" list-apps
 
 missing_apps=0
+installed_apps="$(bench --site "$FC_SITE" list-apps 2>/dev/null | awk 'NF {print $1}')"
 for app in frappe erpnext lending hrms lms_saas; do
-	if ! bench --site "$FC_SITE" list-apps 2>/dev/null | grep -qx "$app"; then
+	if ! printf '%s\n' "$installed_apps" | grep -qx "$app"; then
 		warn "Missing app: $app"
 		missing_apps=1
 	fi

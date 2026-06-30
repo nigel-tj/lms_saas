@@ -9,7 +9,7 @@ DEFAULT_BRAND = {
 	"portal_title": "Kesari",
 	"tagline": "Stewardship in every repayment",
 	"product_subtitle": "Loan management with accountability",
-	"primary_color": "#0f4c5c",
+	"primary_color": "#2f4f46",
 	"theme_id": "default",
 	"support_email": "",
 	"footer_text": "Powered by Kesari",
@@ -17,7 +17,7 @@ DEFAULT_BRAND = {
 	"favicon_url": None,
 }
 
-VALID_LMS_THEMES = frozenset({"default", "midnight"})
+VALID_LMS_THEMES = frozenset({"default", "midnight", "dark", "auto"})
 
 
 def get_lms_theme():

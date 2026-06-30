@@ -25,6 +25,59 @@ CRM_DELETE_ROLES = ("LMS Admin", "LMS Branch Manager", SYS_ROLE)
 # Desk email from Customer / Loan timeline (collections + origination).
 BORROWER_EMAIL_ROLES = (*ALL_LMS_ROLES, SYS_ROLE)
 
+# Persona → roles/records mapping for the LMS User Setup onboarding form.
+# Single source of truth (DRY): add a persona by adding one row here; the
+# LMS User Setup doctype on_submit reads this config to decide which records
+# to create. The before_validate User hook auto-applies the LMS Staff module
+# profile for desk personas, so no extra wiring is needed.
+PERSONA_CONFIG = {
+    "Borrower": {
+        "roles": ["Customer"],
+        "create_customer": True,
+        "create_employee": False,
+        "desk": False,
+        "landing_workspace": None,  # portal users land on /lms, not the desk
+    },
+    "Loan Officer": {
+        "roles": ["LMS Loan Officer", "Desk User"],
+        "create_customer": False,
+        "create_employee": True,
+        "desk": True,
+        "landing_workspace": "Applications",  # origination pipeline is their daily focus
+    },
+    "Branch Manager": {
+        "roles": ["LMS Branch Manager", "Desk User"],
+        "create_customer": False,
+        "create_employee": True,
+        "desk": True,
+        "landing_workspace": "Loans & Disbursements",  # oversight of the live book
+    },
+    "Collector": {
+        "roles": ["LMS Collector", "Desk User"],
+        "create_customer": False,
+        "create_employee": True,
+        "desk": True,
+        "landing_workspace": "Collections",  # repayments + arrears are their daily focus
+    },
+    "Admin": {
+        "roles": ["LMS Admin", "Desk User"],
+        "create_customer": False,
+        "create_employee": False,
+        "desk": True,
+        "landing_workspace": "Loan Management",  # full portfolio overview
+    },
+}
+
+# Role → desk landing route (slugified workspace title). Single source of truth
+# for post-login routing; boot.py reads this so each persona lands on the screen
+# that matters most to their job instead of a generic home page.
+ROLE_LANDING_ROUTES = {
+    "LMS Admin": "loan-management",
+    "LMS Branch Manager": "loans-disbursements",
+    "LMS Loan Officer": "applications",
+    "LMS Collector": "collections",
+}
+
 # Module Profile that hides every non-LMS module (and thus its sidebar workspace)
 # from LMS staff. Blocking modules never affects DocType permissions.
 MODULE_PROFILE_NAME = "LMS Staff"
@@ -34,11 +87,11 @@ ALLOWED_MODULES = {MODULE_NAME, LENDING_MODULE, CRM_MODULE}
 # Native Number Cards (type=Custom) backed by lms_saas.api.dashboard.get_kpi_card.
 # Number Card autonames from `label`, so name == label here (used by workspace refs).
 NUMBER_CARDS = (
-    {"name": "LMS Portfolio Outstanding", "label": "Portfolio Outstanding", "kpi": "portfolio_outstanding", "color": "#1f6feb"},
-    {"name": "LMS Active Loans", "label": "Active Loans (LMS)", "kpi": "active_loans", "color": "#0ea5e9"},
-    {"name": "LMS PAR 30+ Outstanding", "label": "PAR 30+ Outstanding", "kpi": "par30_outstanding", "color": "#f59e0b"},
-    {"name": "PAR 90+ Outstanding", "label": "PAR 90+ Outstanding", "kpi": "par90_outstanding", "color": "#dc2626"},
-    {"name": "LMS NPA Count", "label": "NPA Count", "kpi": "npa_count", "color": "#ef4444"},
+    {"name": "LMS Portfolio Outstanding", "label": "Portfolio Outstanding", "kpi": "portfolio_outstanding", "color": "#2f4f46"},
+    {"name": "LMS Active Loans", "label": "Active Loans (LMS)", "kpi": "active_loans", "color": "#5d9cec"},
+    {"name": "LMS PAR 30+ Outstanding", "label": "PAR 30+ Outstanding", "kpi": "par30_outstanding", "color": "#f4b942"},
+    {"name": "PAR 90+ Outstanding", "label": "PAR 90+ Outstanding", "kpi": "par90_outstanding", "color": "#e15c5c"},
+    {"name": "LMS NPA Count", "label": "NPA Count", "kpi": "npa_count", "color": "#e15c5c"},
 )
 
 # Charts appended to the native Frappe Lending Loan Dashboard (Half width = 2-column grid).
@@ -50,9 +103,9 @@ LOAN_DASHBOARD_CHARTS = (
 
 # Native Dashboard Charts (chart_type=Custom) backed by the LMS Portfolio source.
 DASHBOARD_CHARTS = (
-    {"name": "LMS Risk Composition", "metric": "risk_composition", "type": "Bar", "color": "#ef4444", "col": 6},
-    {"name": "LMS Collections Trend", "metric": "collections_trend", "type": "Line", "color": "#22c55e", "col": 6},
-    {"name": "LMS Branch Concentration", "metric": "branch_concentration", "type": "Bar", "color": "#1f6feb", "col": 12},
+    {"name": "LMS Risk Composition", "metric": "risk_composition", "type": "Bar", "color": "#e15c5c", "col": 6},
+    {"name": "LMS Collections Trend", "metric": "collections_trend", "type": "Line", "color": "#5faf61", "col": 6},
+    {"name": "LMS Branch Concentration", "metric": "branch_concentration", "type": "Bar", "color": "#5d9cec", "col": 12},
 )
 
 # ---------------------------------------------------------------------------
@@ -142,11 +195,13 @@ LMS_NAV_SPEC = (
         "shortcut_heading": "Collections",
         "shortcuts": [
             {"label": "Collections Ledger", "type": "DocType", "link_to": "Loan Repayment", "doc_view": "List", "color": "Orange"},
+            {"label": "New Repayment", "type": "URL", "url": "/app/loan-repayment/new", "color": "Green"},
             {"label": "PAR Snapshot", "type": "Report", "link_to": "Portfolio At Risk", "color": "Red"},
             {"label": "Arrears Ladder", "type": "Report", "link_to": "Arrears Aging", "color": "Orange"},
             {"label": "Collector Run Sheet", "type": "Report", "link_to": "Collection Sheet", "color": "Green"},
             {"label": "Past Cashflow", "type": "Report", "link_to": "Past Cashflow Report", "color": "Blue"},
             {"label": "Loan Repayment & Closure", "type": "Report", "link_to": "Loan Repayment and Closure", "color": "Green"},
+            {"label": "Onboard Borrower", "type": "URL", "url": "/app/lms-user-setup/new", "color": "Blue"},
         ],
         "cards": [],
     },
@@ -163,6 +218,7 @@ LMS_NAV_SPEC = (
             {"label": "Borrower Ledger", "type": "DocType", "link_to": "Customer", "doc_view": "List", "color": "Cyan"},
             {"label": "Collateral Register", "type": "DocType", "link_to": "LMS Collateral", "doc_view": "List", "color": "Green"},
             {"label": "Compliance Queue", "type": "DocType", "link_to": "LMS Borrower Compliance", "doc_view": "List", "color": "Purple"},
+            {"label": "Onboard User", "type": "URL", "url": "/app/lms-user-setup/new", "color": "Blue"},
         ],
         "cards": [],
     },
@@ -439,6 +495,7 @@ def _setup_lms_roles():
     roles_config = {
         "LMS Admin": {
             "desk_access": 1,
+            "home_page": "loan-management",
             "doctypes": _lms_doctypes() + _oversight_doctypes(),
             "perm": {
                 "read": 1,
@@ -454,16 +511,19 @@ def _setup_lms_roles():
         },
         "LMS Branch Manager": {
             "desk_access": 1,
+            "home_page": "loans-disbursements",
             "doctypes": _lms_doctypes() + _oversight_doctypes(),
             "perm": {"read": 1, "report": 1, "export": 1, "write": 1, "create": 1, "submit": 1, "cancel": 1, "amend": 1},
         },
         "LMS Loan Officer": {
             "desk_access": 1,
+            "home_page": "applications",
             "doctypes": _lms_doctypes(),
             "perm": {"read": 1, "report": 1, "export": 1, "write": 1, "create": 1, "submit": 1},
         },
         "LMS Collector": {
             "desk_access": 1,
+            "home_page": "collections",
             "doctypes": [
                 "Loan",
                 "Loan Repayment",
@@ -471,8 +531,17 @@ def _setup_lms_roles():
                 "Customer",
                 "LMS Borrower Compliance",
                 "LMS Notification Log",
+                "LMS User Setup",
             ],
             "perm": {"read": 1, "report": 1, "export": 1, "write": 0, "create": 0},
+            # Collectors record field repayments — they need create+write on Loan
+            # Repayment only, while staying read-only on the rest of the book.
+            # Collectors can also onboard borrowers (but not staff — the validate
+            # scope guard enforces that).
+            "extra_perms": {
+                "Loan Repayment": {"read": 1, "write": 1, "create": 1, "submit": 1},
+                "LMS User Setup": {"read": 1, "write": 1, "create": 1, "submit": 1},
+            },
         },
     }
 
@@ -482,8 +551,32 @@ def _setup_lms_roles():
                 ignore_permissions=True
             )
 
+        # Set the Role home_page so the post-login redirect (auth.py → get_home_page)
+        # sends desk staff to their role-specific workspace, not the portal /lms.
+        # Portal Settings.default_portal_home is /lms, which get_home_page() returns
+        # for ALL users unless a Role.home_page override exists (Role is checked first).
+        # The value must be the full /desk/<slug> path because get_home_page() returns
+        # it as-is to the login redirect (no slugification is applied).
+        home_page = cfg.get("home_page")
+        if home_page:
+            from lms_saas.utils.frappe_version import desk_prefix
+            from frappe.desk.utils import slug
+
+            workspace_title = {
+                "loan-management": "Loan Management",
+                "loans-disbursements": "Loans & Disbursements",
+                "applications": "Applications",
+                "collections": "Collections",
+            }.get(home_page, home_page)
+            frappe.db.set_value("Role", role_name, "home_page", f"{desk_prefix()}/{slug(workspace_title)}")
+
         for dt in cfg["doctypes"]:
             _ensure_role_perm(role_name, dt, cfg.get("perm", {}))
+
+        # Per-doctype overrides (e.g. Collector can create Loan Repayments but
+        # is read-only on everything else). These win over the default perm set.
+        for dt, extra in (cfg.get("extra_perms") or {}).items():
+            _ensure_role_perm(role_name, dt, extra)
 
 
 def _ensure_lms_page_permissions():
@@ -521,6 +614,7 @@ def _lms_doctypes():
         "LMS Center",
         "LMS Savings Account",
         "LMS Savings Transaction",
+        "LMS User Setup",
     ]
 
 
@@ -1019,6 +1113,22 @@ def _seed_print_formats():
                 frappe.get_app_path("lms_saas", "templates", "print", "lms_loan_agreement.html")
             ),
         },
+        {
+            "name": "LMS Collection Receipt",
+            "doc_type": "Loan Repayment",
+            "standard": "Yes",
+            "html": frappe.read_file(
+                frappe.get_app_path("lms_saas", "templates", "print", "lms_collection_receipt.html")
+            ),
+        },
+        {
+            "name": "LMS Repayment Schedule",
+            "doc_type": "Loan",
+            "standard": "Yes",
+            "html": frappe.read_file(
+                frappe.get_app_path("lms_saas", "templates", "print", "lms_repayment_schedule.html")
+            ),
+        },
     ]
     for pf in formats:
         if frappe.db.exists("Print Format", pf["name"]):
@@ -1032,6 +1142,8 @@ def _sync_print_formats():
     formats = {
         "LMS Loan Statement": "lms_loan_statement.html",
         "LMS Loan Agreement": "lms_loan_agreement.html",
+        "LMS Collection Receipt": "lms_collection_receipt.html",
+        "LMS Repayment Schedule": "lms_repayment_schedule.html",
     }
     for name, filename in formats.items():
         if not frappe.db.exists("Print Format", name):

@@ -46,6 +46,7 @@
 		"LMS Center": 1,
 		"LMS Savings Account": 1,
 		"LMS Savings Transaction": 1,
+		"LMS User Setup": 1,
 	};
 
 	var DOCTYPE_HERO = {
@@ -73,6 +74,7 @@
 		"LMS Center": { listTitle: "Centers", desc: "Branch and field office locations" },
 		"LMS Savings Account": { listTitle: "Savings accounts", desc: "Member savings balances" },
 		"LMS Savings Transaction": { listTitle: "Savings transactions", desc: "Deposits and withdrawals" },
+		"LMS User Setup": { listTitle: "Onboard users", desc: "Create borrowers and staff with one form" },
 	};
 	var SYNC_DEBOUNCE_MS = 80;
 	var SYNC_FOLLOWUP_MS = 450;
@@ -196,6 +198,72 @@
 		var boot = frappe.boot || {};
 		return boot.lms_favicon_url || boot.favicon || null;
 	}
+
+	/* ------------------------------------------------------------------ */
+	/* Session timeout warning                                            */
+	/* ------------------------------------------------------------------ */
+	var SESSION_TIMEOUT_KEY = "lms_session_timeout_minutes";
+	var WARNING_BEFORE_MINUTES = 5;
+	var _timeoutTimer = null;
+	var _warningShown = false;
+
+	function get_session_timeout_minutes() {
+		var boot = frappe.boot || {};
+		return parseInt(boot[SESSION_TIMEOUT_KEY] || "30", 10);
+	}
+
+	function init_session_timeout() {
+		var timeout = get_session_timeout_minutes();
+		if (!timeout || timeout < 1) return;
+		_warningShown = false;
+		clearTimeout(_timeoutTimer);
+		// Check every 30 seconds
+		_timeoutTimer = setInterval(_check_idle, 30000);
+		// Reset on user activity
+		["mousedown", "keydown", "touchstart"].forEach(function (evt) {
+			document.addEventListener(evt, function () {
+				_warningShown = false;
+			}, { passive: true });
+		});
+	}
+
+	function _check_idle() {
+		if (_warningShown) return;
+		var timeout = get_session_timeout_minutes();
+		var warnAt = (timeout - WARNING_BEFORE_MINUTES) * 60 * 1000;
+		// Use last activity from frappe.boot or approximate with page load
+		var lastActivity = window.__lms_last_activity || Date.now();
+		var idle = Date.now() - lastActivity;
+		if (idle >= warnAt && idle < timeout * 60 * 1000) {
+			_warningShown = true;
+			_show_timeout_warning();
+		}
+	}
+
+	function _show_timeout_warning() {
+		if (document.getElementById("lms-timeout-modal")) return;
+		var modal =
+			'<div class="lms-modal-overlay" id="lms-timeout-modal">' +
+			'<div class="lms-modal">' +
+			"<h3>Session expiring</h3>" +
+			"<p>Your session will expire in " + WARNING_BEFORE_MINUTES + " minutes due to inactivity.</p>" +
+			'<div class="lms-modal-actions">' +
+			'<button type="button" class="lms-btn lms-btn--primary" id="lms-timeout-stay">Stay signed in</button>' +
+			"</div></div></div>";
+		document.body.insertAdjacentHTML("beforeend", modal);
+		document.getElementById("lms-timeout-stay").addEventListener("click", function () {
+			frappe.call({ method: "frappe.handler.ping" });
+			document.getElementById("lms-timeout-modal").remove();
+			_warningShown = false;
+		});
+	}
+
+	window.__lms_last_activity = Date.now();
+	["mousedown", "keydown", "touchstart"].forEach(function (evt) {
+		document.addEventListener(evt, function () {
+			window.__lms_last_activity = Date.now();
+		}, { passive: true });
+	});
 
 	function enforce_desk_branding() {
 		var brandName = get_company_brand_name();
@@ -1709,6 +1777,7 @@
 		strip_frappe_branding_links();
 		override_lms_help_dropdown();
 		schedule_sync(true);
+		init_session_timeout();
 
 		if (frappe.router && frappe.router.on) {
 			frappe.router.on("change", function () {

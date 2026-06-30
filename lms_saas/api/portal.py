@@ -3,11 +3,14 @@ from frappe.utils import flt, getdate, get_url, today
 from frappe.utils.data import add_to_date, formatdate
 
 from lms_saas.utils.calculations import remaining_payable
+from lms_saas.utils.rate_limit import rate_limit
 
 
 @frappe.whitelist()
-def get_my_loans():
+def get_my_loans(limit_start=0, limit_page_length=20):
     customer = _require_customer()
+    limit_start = int(limit_start)
+    limit_page_length = int(limit_page_length)
     loans = frappe.get_all(
         "Loan",
         filters={
@@ -27,6 +30,16 @@ def get_my_loans():
             "total_amount_paid",
         ],
         order_by="modified desc",
+        limit_start=limit_start,
+        limit_page_length=limit_page_length,
+    )
+    total_count = frappe.db.count(
+        "Loan",
+        {
+            "applicant_type": "Customer",
+            "applicant": customer,
+            "docstatus": 1,
+        },
     )
     total_outstanding = 0
     active_count = 0
@@ -72,6 +85,7 @@ def get_my_loans():
             "upcoming_due": _monthly_due_projection(schedule_rows),
             "loan_mix": _loan_mix(loans),
         },
+        "total_count": total_count,
     }
 
 
@@ -123,7 +137,24 @@ def get_loan_detail(loan_id):
         "outstanding": remaining_payable(loan.total_payment, loan.total_amount_paid),
         "next_payment": _next_schedule_payment(loan_id),
         "dpd": loan.custom_days_past_due or loan.days_past_due or 0,
+        "collateral": _get_loan_collateral(loan),
     }
+
+
+def _get_loan_collateral(loan):
+    """Return collateral summary for a loan (borrower-facing)."""
+    try:
+        from lms_saas.api.collateral import get_collateral_coverage
+
+        coverage = get_collateral_coverage(loan)
+        return {
+            "items": coverage.get("items", []),
+            "total_net_realizable_value": coverage.get("total_net_realizable_value", 0),
+            "total_allocated_value": coverage.get("total_allocated_value", 0),
+            "coverage_ratio": coverage.get("coverage_ratio", 0),
+        }
+    except Exception:
+        return {"items": [], "total_net_realizable_value": 0, "total_allocated_value": 0, "coverage_ratio": 0}
 
 
 def _schedule_rows_for_loans(loan_ids):
@@ -256,12 +287,31 @@ def get_portal_shell():
 
 
 @frappe.whitelist()
+@rate_limit(max_calls=5, window_seconds=60)
 def submit_loan_application(loan_amount, loan_product=None, repayment_periods=6):
     """Borrower self-service loan application (draft, desk review required)."""
     customer = _require_customer()
 
-    if not frappe.db.get_value("LMS Borrower Compliance", {"customer": customer}, "consent_given"):
+    compliance = frappe.db.get_value(
+        "LMS Borrower Compliance",
+        {"customer": customer},
+        ["consent_given", "id_document_proof", "proof_of_address"],
+        as_dict=True,
+    )
+    if not compliance or not compliance.get("consent_given"):
         frappe.throw("Customer consent is required before applying.")
+
+    # Require KYC documents so desk review isn't blocked on missing uploads.
+    missing = []
+    if not compliance.get("id_document_proof"):
+        missing.append("ID document")
+    if not compliance.get("proof_of_address"):
+        missing.append("Proof of address")
+    if missing:
+        frappe.throw(
+            "Please upload the following document(s) before submitting: "
+            + ", ".join(missing) + "."
+        )
 
     company = frappe.db.get_single_value("Global Defaults", "default_company")
     if not loan_product:
@@ -292,6 +342,7 @@ def submit_loan_application(loan_amount, loan_product=None, repayment_periods=6)
 
 
 @frappe.whitelist()
+@rate_limit(max_calls=10, window_seconds=60)
 def upload_kyc_document(file_url, fieldname="id_document_proof"):
     """Attach KYC document to borrower compliance record."""
     customer = _require_customer()
@@ -308,6 +359,7 @@ def upload_kyc_document(file_url, fieldname="id_document_proof"):
 
 
 @frappe.whitelist()
+@rate_limit(max_calls=10, window_seconds=60)
 def initiate_repayment(loan_id, amount, provider_code="ecocash"):
     """Start online repayment for a loan."""
     customer = _require_customer()
@@ -337,3 +389,157 @@ def get_apply_context():
         as_dict=True,
     )
     return {"products": products, "compliance": compliance, "customer": customer}
+
+
+@frappe.whitelist()
+def get_loan_estimate(loan_product, loan_amount, repayment_periods):
+    """Estimate monthly payment, total payable, and total interest for a loan.
+
+    Uses simple amortization: monthly_payment = P * r / (1 - (1+r)^-n)
+    where P = principal, r = monthly rate, n = periods.
+    """
+    customer = _require_customer()
+    loan_amount = flt(loan_amount)
+    repayment_periods = int(repayment_periods)
+
+    if loan_amount <= 0:
+        frappe.throw("Loan amount must be positive.")
+    if repayment_periods <= 0:
+        frappe.throw("Repayment periods must be positive.")
+
+    rate = flt(frappe.db.get_value("Loan Product", loan_product, "rate_of_interest") or 0)
+    max_amount = flt(frappe.db.get_value("Loan Product", loan_product, "maximum_loan_amount") or 0)
+    if max_amount and loan_amount > max_amount:
+        frappe.throw(f"Amount exceeds the maximum for this product ({max_amount}).")
+
+    monthly_rate = rate / 100 / 12
+    if monthly_rate > 0:
+        monthly_payment = loan_amount * monthly_rate / (1 - (1 + monthly_rate) ** (-repayment_periods))
+    else:
+        monthly_payment = loan_amount / repayment_periods
+
+    total_payable = monthly_payment * repayment_periods
+    total_interest = total_payable - loan_amount
+
+    return {
+        "monthly_payment": flt(monthly_payment),
+        "total_payable": flt(total_payable),
+        "total_interest": flt(total_interest),
+        "rate_of_interest": rate,
+        "loan_amount": loan_amount,
+        "repayment_periods": repayment_periods,
+    }
+
+
+@frappe.whitelist()
+def get_my_applications():
+    """List the borrower's submitted loan applications with status."""
+    customer = _require_customer()
+    applications = frappe.get_all(
+        "Loan Application",
+        filters={"applicant_type": "Customer", "applicant": customer},
+        fields=[
+            "name",
+            "loan_amount",
+            "status",
+            "loan_product",
+            "repayment_periods",
+            "creation",
+            "modified",
+        ],
+        order_by="modified desc",
+    )
+    for app in applications:
+        app["product_name"] = frappe.db.get_value(
+            "Loan Product", app.loan_product, "product_name"
+        ) or app.loan_product
+    return {"applications": applications}
+
+
+@frappe.whitelist()
+def get_portal_notifications():
+    """Recent notification log entries for the borrower's loans."""
+    customer = _require_customer()
+    loan_names = frappe.get_all(
+        "Loan",
+        filters={"applicant_type": "Customer", "applicant": customer, "docstatus": 1},
+        pluck="name",
+    )
+    if not loan_names:
+        return {"notifications": [], "unread_count": 0}
+
+    notifications = frappe.get_all(
+        "LMS Notification Log",
+        filters={"loan": ("in", loan_names), "status": "Sent"},
+        fields=[
+            "name",
+            "loan",
+            "reminder_type",
+            "notification_date",
+            "channel",
+            "status",
+            "recipient",
+            "message_preview",
+            "read_on",
+        ],
+        order_by="notification_date desc",
+        limit_page_length=20,
+    )
+    # Unread = delivered (Sent) and not yet opened (read_on is null).
+    unread_count = frappe.db.count(
+        "LMS Notification Log",
+        {"loan": ("in", loan_names), "status": "Sent", "read_on": ("is", "not set")},
+    )
+    return {"notifications": notifications, "unread_count": unread_count}
+
+
+@frappe.whitelist()
+def mark_notifications_read():
+    """Mark all the borrower's unread notifications as read (bell open = seen)."""
+    customer = _require_customer()
+    loan_names = frappe.get_all(
+        "Loan",
+        filters={"applicant_type": "Customer", "applicant": customer, "docstatus": 1},
+        pluck="name",
+    )
+    if not loan_names:
+        return {"marked": 0}
+
+    now = frappe.utils.now_datetime()
+    updated = frappe.db.set_value(
+        "LMS Notification Log",
+        {"loan": ("in", loan_names), "status": "Sent", "read_on": ("is", "not set")},
+        "read_on",
+        now,
+    )
+    frappe.db.commit()
+    return {"marked": updated}
+
+
+@frappe.whitelist()
+def get_account_overview():
+    """KYC/AML status, notification preferences, and document list for the borrower."""
+    customer = _require_customer()
+    compliance = frappe.db.get_value(
+        "LMS Borrower Compliance",
+        {"customer": customer},
+        [
+            "name",
+            "kyc_status",
+            "aml_status",
+            "consent_given",
+            "consent_date",
+            "id_document_proof",
+            "proof_of_address",
+            "credit_score",
+            "debt_to_income_ratio",
+        ],
+        as_dict=True,
+    )
+    customer_doc = frappe.db.get_value(
+        "Customer", customer, ["name", "customer_name", "email_id", "mobile_no"], as_dict=True
+    )
+    return {
+        "compliance": compliance,
+        "customer": customer_doc,
+    }

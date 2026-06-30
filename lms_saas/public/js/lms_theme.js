@@ -1,7 +1,7 @@
 /* LMS theme bootstrap — shared desk + portal */
 (function (global) {
 	var DEFAULT_THEME = "default";
-	var VALID_THEMES = { default: 1, midnight: 1 };
+	var VALID_THEMES = { default: 1, midnight: 1, dark: 1, auto: 1 };
 
 	function resolve_theme(themeId) {
 		var theme = (themeId || "").trim().toLowerCase();

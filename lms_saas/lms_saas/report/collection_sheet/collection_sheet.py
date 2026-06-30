@@ -23,24 +23,51 @@ def execute(filters=None):
         order_by="payment_date asc",
     )
 
+    # Batch fetch: map schedule parent → loan (single query)
+    parent_to_loan = {
+        r["name"]: r["loan"]
+        for r in frappe.get_all(
+            "Loan Repayment Schedule",
+            filters={"name": ("in", schedule_parents)},
+            fields=["name", "loan"],
+        )
+    }
+
+    # Batch fetch: all loan details in one query
+    loan_names = list(set(parent_to_loan.values()))
+    loan_map = {}
+    if loan_names:
+        for loan in frappe.get_all(
+            "Loan",
+            filters={"name": ("in", loan_names)},
+            fields=["name", "applicant", "applicant_type", "company", "custom_lms_branch"],
+        ):
+            loan_map[loan.name] = loan
+
+    # Batch fetch: customer contacts
+    customer_names = [l.applicant for l in loan_map.values() if l.applicant_type == "Customer"]
+    customer_mobiles = {}
+    if customer_names:
+        for c in frappe.get_all(
+            "Customer", filters={"name": ("in", customer_names)}, fields=["name", "mobile_no"]
+        ):
+            customer_mobiles[c.name] = c.mobile_no
+
     columns = _columns()
     data = []
 
     for row in rows:
-        loan_name = frappe.db.get_value("Loan Repayment Schedule", row.parent, "loan")
+        loan_name = parent_to_loan.get(row.parent)
         if not loan_name:
             continue
 
-        loan = frappe.db.get_value(
-            "Loan",
-            loan_name,
-            ["applicant", "applicant_type", "company", "custom_lms_branch"],
-            as_dict=True,
-        )
+        loan = loan_map.get(loan_name)
+        if not loan:
+            continue
         if company and loan.company != company:
             continue
 
-        mobile = _contact_for_applicant(loan.applicant_type, loan.applicant)
+        mobile = customer_mobiles.get(loan.applicant, "") if loan.applicant_type == "Customer" else ""
         amount = row.total_payment or (row.principal_amount or 0) + (row.interest_amount or 0)
 
         data.append(
