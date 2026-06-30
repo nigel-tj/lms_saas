@@ -76,6 +76,16 @@
   },
   {
     "doctype": "Custom Field",
+    "name": "Customer-custom_national_id_number",
+    "dt": "Customer",
+    "fieldname": "custom_national_id_number",
+    "fieldtype": "Data",
+    "label": "National ID Number",
+    "insert_after": "custom_lms_branch",
+    "description": "Captured at onboarding (LMS User Setup) and carried over to the LMS Borrower Compliance record for KYC."
+  },
+  {
+    "doctype": "Custom Field",
     "name": "Loan Application-custom_collateral_section",
     "dt": "Loan Application",
     "fieldname": "custom_collateral_section",

@@ -36,11 +36,6 @@ class LMSUserSetup(Document):
 			customer = self._create_customer(user)
 			self.created_customer = customer
 			self._link_contact(user, customer)
-			# Seed a draft compliance record so KYC is one click away — the
-			# national_id captured here is carried over so the desk user doesn't
-			# have to retype it when completing KYC.
-			if self.national_id:
-				self._seed_compliance(customer)
 
 		if config.get("create_employee"):
 			employee = self._create_employee(user)
@@ -114,6 +109,7 @@ class LMSUserSetup(Document):
 				"customer_group": customer_group or "",
 				"territory": territory,
 				"custom_lms_branch": self.branch or "",
+				"custom_national_id_number": self.national_id or "",
 			}
 		)
 		customer.flags.ignore_permissions = True
@@ -138,32 +134,6 @@ class LMSUserSetup(Document):
 		)
 		contact.flags.ignore_permissions = True
 		contact.insert()
-
-	def _seed_compliance(self, customer):
-		"""Create a draft LMS Borrower Compliance record pre-filled with the
-		national_id captured on this form, so the desk user can finish KYC
-		(attach documents, set consent) in one place instead of retyping the ID.
-
-		Best-effort: if the doctype isn't installed or the record can't be
-		created, onboarding still succeeds — KYC can be completed manually.
-		"""
-		try:
-			if not frappe.db.exists("DocType", "LMS Borrower Compliance"):
-				return
-			if frappe.db.exists("LMS Borrower Compliance", {"customer": customer}):
-				return
-			compliance = frappe.get_doc(
-				{
-					"doctype": "LMS Borrower Compliance",
-					"customer": customer,
-					"national_id_number": self.national_id,
-					"kyc_status": "Pending",
-				}
-			)
-			compliance.flags.ignore_permissions = True
-			compliance.insert()
-		except Exception:
-			frappe.log_error(title="LMS User Setup compliance seed", message=frappe.get_traceback())
 
 	def _create_employee(self, user):
 		company = frappe.db.get_single_value("Global Defaults", "default_company") or frappe.db.get_value("Company", {}, "name")

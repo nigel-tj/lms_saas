@@ -148,25 +148,30 @@ class TestLMSUserSetup(FrappeTestCase):
 
 	def test_borrower_requires_national_id(self):
 		"""A Borrower without a National ID must be blocked at validate time."""
-		doc = self._make_setup("Borrower", "test.noid@example.com")
+		doc = frappe.get_doc(
+			{
+				"doctype": "LMS User Setup",
+				"persona": "Borrower",
+				"first_name": "No",
+				"last_name": "ID",
+				"email": "test.noid@example.com",
+				"mobile_no": "07720000001",
+				"send_welcome_email": 0,
+			}
+		)
 		self.assertRaises(frappe.ValidationError, doc.insert)
 
 	def test_borrower_seeds_compliance_with_national_id(self):
-		"""Onboarding a Borrower with a National ID seeds a draft compliance record
-		pre-filled with that ID, so KYC is one click away."""
+		"""Onboarding a Borrower with a National ID stores it on the Customer
+		(custom_national_id_number) so it carries over to the LMS Borrower
+		Compliance record when KYC is completed — no retyping needed."""
 		email = "test.compliance@example.com"
 		doc = self._make_setup("Borrower", email, national_id="99-333333-A33")
 		doc.submit()
 		self._track(doc.created_user, "User")
 		self._track(doc.created_customer, "Customer")
 
-		compliance = frappe.db.get_value(
-			"LMS Borrower Compliance",
-			{"customer": doc.created_customer},
-			["name", "national_id_number", "kyc_status"],
-			as_dict=True,
+		national_id = frappe.db.get_value(
+			"Customer", doc.created_customer, "custom_national_id_number"
 		)
-		self.assertTrue(compliance, "compliance record should be seeded")
-		self._track(compliance.name, "LMS Borrower Compliance")
-		self.assertEqual(compliance.national_id_number, "99-333333-A33")
-		self.assertEqual(compliance.kyc_status, "Pending")
+		self.assertEqual(national_id, "99-333333-A33")

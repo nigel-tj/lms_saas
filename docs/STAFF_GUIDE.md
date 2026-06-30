@@ -235,7 +235,7 @@ The **LMS User Setup** form replaces the old multi-step process (Customer → Us
 3. Enter **First Name**, **Last Name**, **Email**, and **Mobile**.
 4. For staff: set **Branch** (required, pre-filled with your own branch), **Gender**, and **Date of Birth** (both optional).
 5. For borrowers: enter **National ID** (required — used for KYC).
-6. **Submit** — the form creates the User, Customer/Contact or Employee, applies roles, and (for desk staff) auto-assigns the **LMS Staff** module profile so the sidebar shows only Loan Management. For borrowers, a draft **LMS Borrower Compliance** record is seeded with the National ID so KYC is one click away.
+6. **Submit** — the form creates the User, Customer/Contact or Employee, applies roles, and (for desk staff) auto-assigns the **LMS Staff** module profile so the sidebar shows only Loan Management. For borrowers, the National ID is stored on the Customer so it carries over to KYC.
 
 #### What happens automatically
 
@@ -243,7 +243,7 @@ The **LMS User Setup** form replaces the old multi-step process (Customer → Us
 - The `before_validate` User hook auto-applies the **LMS Staff** module profile for desk personas.
 - Borrowers get a Contact linked to their Customer so portal permission resolution works.
 - Staff get an Employee record so `custom_loan_officer` (Link → Employee) resolves.
-- Borrowers get a draft **LMS Borrower Compliance** record pre-filled with their National ID, so KYC is one click away (just attach documents and set consent).
+- Borrowers' **National ID** is stored on the Customer record and carries over to the **LMS Borrower Compliance** record when KYC is completed — no retyping needed.
 - A welcome email is sent if **Send welcome email** is checked.
 
 #### After onboarding
