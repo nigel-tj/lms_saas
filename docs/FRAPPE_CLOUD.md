@@ -49,7 +49,7 @@ git push -u origin main
 ## 3. Create site
 
 1. **Sites** → **New** on the private bench
-2. Hostname: e.g. `lms-saas.frappe.cloud` (custom domain e.g. `app.kesari.africa` added later under **Domains**)
+2. Hostname: e.g. `lms-saas.frappe.cloud` (custom domain `app.kesari.africa` added later under **Domains** — this is the live production URL)
 3. Install apps: `erpnext`, `lending`, `hrms`, `lms_saas`
 4. Set Administrator password
 

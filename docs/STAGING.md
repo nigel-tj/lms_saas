@@ -1,17 +1,17 @@
-# Pilot staging on a VM — `lms.embleconsulting.com`
+# Live production on a VM — `app.kesari.africa`
 
 Deploy the LMS stack (Frappe v15 + ERPNext + Lending + HRMS + `lms_saas`) on a
 public VM for RBZ sandbox pilot testing.
 
-**Pilot URL**
+**Live URL**
 
 | Surface | URL |
 |---------|-----|
-| Desk (staff) | https://lms.embleconsulting.com/app/loans |
-| Borrower portal | https://lms.embleconsulting.com/lms |
-| API | https://lms.embleconsulting.com/api |
+| Desk (staff) | https://app.kesari.africa/app/loans |
+| Borrower portal | https://app.kesari.africa/lms |
+| API | https://app.kesari.africa/api |
 
-**Site name on bench:** `lms.embleconsulting.com` (must match the hostname Frappe
+**Site name on bench:** `app.kesari.africa` (must match the hostname Frappe
 serves).
 
 ---
@@ -35,18 +35,18 @@ fails on a pure free account; stay within Always Free limits to avoid charges.
 Any Ubuntu 22.04 VM with **≥ 2 vCPU, 8 GB RAM, 50 GB disk** works (Hetzner,
 DigitalOcean, etc.).
 
-### DNS (Emble Consulting domain)
+### DNS (Kesari domain)
 
-In your DNS provider for `embleconsulting.com`, add:
+In your DNS provider for `kesari.africa`, add:
 
 | Type | Name | Value | TTL |
 |------|------|-------|-----|
-| A | `lms` | `<VM_PUBLIC_IP>` | 300 |
+| A | `app` | `<VM_PUBLIC_IP>` | 300 |
 
 Verify before continuing:
 
 ```bash
-dig +short lms.embleconsulting.com
+dig +short app.kesari.africa
 # must return your VM public IP
 ```
 
@@ -182,20 +182,20 @@ Replace passwords before running.
 cd ~/frappe-bench
 export PATH="$HOME/.local/bin:$PATH"
 
-bench new-site lms.embleconsulting.com \
+bench new-site app.kesari.africa \
   --mariadb-root-password 'YOUR_MARIADB_ROOT_PASSWORD' \
   --admin-password 'YOUR_DESK_ADMIN_PASSWORD'
 
-bench --site lms.embleconsulting.com install-app erpnext
-bench --site lms.embleconsulting.com install-app lending
-bench --site lms.embleconsulting.com install-app hrms
-bench --site lms.embleconsulting.com install-app lms_saas
+bench --site app.kesari.africa install-app erpnext
+bench --site app.kesari.africa install-app lending
+bench --site app.kesari.africa install-app hrms
+bench --site app.kesari.africa install-app lms_saas
 
-bench --site lms.embleconsulting.com migrate
+bench --site app.kesari.africa migrate
 bench build --app lms_saas
-bench --site lms.embleconsulting.com execute lms_saas.install.after_install
-bench --site lms.embleconsulting.com enable-scheduler
-bench --site lms.embleconsulting.com clear-cache
+bench --site app.kesari.africa execute lms_saas.install.after_install
+bench --site app.kesari.africa enable-scheduler
+bench --site app.kesari.africa clear-cache
 ```
 
 ---
@@ -213,7 +213,7 @@ Install Certbot and obtain a certificate (DNS must already resolve):
 
 ```bash
 sudo apt install -y certbot python3-certbot-nginx
-sudo certbot --nginx -d lms.embleconsulting.com
+sudo certbot --nginx -d app.kesari.africa
 ```
 
 Certbot adds HTTPS and redirects HTTP → HTTPS. Renewal is automatic via systemd
@@ -230,7 +230,7 @@ sudo systemctl status nginx
 
 ## 6. Pilot / RBZ sandbox configuration
 
-Edit `~/frappe-bench/sites/lms.embleconsulting.com/site_config.json`.
+Edit `~/frappe-bench/sites/app.kesari.africa/site_config.json`.
 Merge these keys (keep any existing keys such as `db_name`):
 
 ```json
@@ -248,14 +248,14 @@ Merge these keys (keep any existing keys such as `db_name`):
 Apply and verify:
 
 ```bash
-bench --site lms.embleconsulting.com clear-cache
-bench --site lms.embleconsulting.com execute lms_saas.setup.verify_spec.run_all_checks
+bench --site app.kesari.africa clear-cache
+bench --site app.kesari.africa execute lms_saas.setup.verify_spec.run_all_checks
 ```
 
 Weekly RBZ KPI export:
 
 ```bash
-bench --site lms.embleconsulting.com execute lms_saas.api.compliance.get_sandbox_report
+bench --site app.kesari.africa execute lms_saas.api.compliance.get_sandbox_report
 ```
 
 See [COMPLIANCE.md](COMPLIANCE.md) for the full control mapping.
@@ -288,28 +288,28 @@ On the **VM** (stop web workers briefly to avoid conflicts):
 cd ~/frappe-bench
 export PATH="$HOME/.local/bin:$PATH"
 
-bench --site lms.embleconsulting.com restore /tmp/lms-restore/2026*_database.sql.gz
-bench --site lms.embleconsulting.com restore --with-public-files /tmp/lms-restore/2026*_files.tar
-bench --site lms.embleconsulting.com migrate
-bench --site lms.embleconsulting.com clear-cache
+bench --site app.kesari.africa restore /tmp/lms-restore/2026*_database.sql.gz
+bench --site app.kesari.africa restore --with-public-files /tmp/lms-restore/2026*_files.tar
+bench --site app.kesari.africa migrate
+bench --site app.kesari.africa clear-cache
 ```
 
 After restore, reset the Administrator password if needed:
 
 ```bash
-bench --site lms.embleconsulting.com set-admin-password 'NEW_ADMIN_PASSWORD'
+bench --site app.kesari.africa set-admin-password 'NEW_ADMIN_PASSWORD'
 ```
 
 ### Option B — fresh demo seed on the VM
 
 ```bash
-bench --site lms.embleconsulting.com execute lms_saas.setup.seed_demo.run_bulk --kwargs '{"count":16}'
+bench --site app.kesari.africa execute lms_saas.setup.seed_demo.run_bulk --kwargs '{"count":16}'
 ```
 
 Interest accrual must run before repayments behave correctly:
 
 ```bash
-bench --site lms.embleconsulting.com execute lending.loan_management.doctype.process_loan_interest_accrual.process_loan_interest_accrual.process_loan_interest_accrual_for_term_loans
+bench --site app.kesari.africa execute lending.loan_management.doctype.process_loan_interest_accrual.process_loan_interest_accrual.process_loan_interest_accrual_for_term_loans
 ```
 
 ---
@@ -323,7 +323,7 @@ For each volunteer borrower:
 3. Add **Contact** linked to the Customer (email must match the User).
 4. On **LMS Borrower Compliance**: set KYC **Approved**, `consent_given = 1`,
    and `consent_date`.
-5. User opens https://lms.embleconsulting.com/lms after login.
+5. User opens https://app.kesari.africa/lms after login.
 
 Staff roles (LMS Admin, Branch Manager, Loan Officer, Collector) are seeded by
 `lms_saas.install.after_install` — assign users via **Role Manager**.
@@ -355,12 +355,12 @@ crontab -e
 Add:
 
 ```cron
-0 2 * * * cd /home/frappe/frappe-bench && /home/frappe/.local/bin/bench --site lms.embleconsulting.com backup --with-files >> /home/frappe/backup.log 2>&1
+0 2 * * * cd /home/frappe/frappe-bench && /home/frappe/.local/bin/bench --site app.kesari.africa backup --with-files >> /home/frappe/backup.log 2>&1
 ```
 
 Backups land in:
 
-`~/frappe-bench/sites/lms.embleconsulting.com/private/backups/`
+`~/frappe-bench/sites/app.kesari.africa/private/backups/`
 
 See [BACKUP.md](BACKUP.md) for restore and off-site copy (S3, etc.).
 
@@ -378,24 +378,24 @@ cd ~/frappe-bench/apps/lms_saas && git pull
 # rsync -avz apps/lms_saas/ frappe@<VM_IP>:~/frappe-bench/apps/lms_saas/
 
 cd ~/frappe-bench
-bench --site lms.embleconsulting.com migrate
+bench --site app.kesari.africa migrate
 bench build --app lms_saas
-bench --site lms.embleconsulting.com clear-cache
+bench --site app.kesari.africa clear-cache
 sudo supervisorctl restart all
 ```
 
 Run tests before/after major changes:
 
 ```bash
-bench --site lms.embleconsulting.com run-tests --module lms_saas.tests.test_calculations
+bench --site app.kesari.africa run-tests --module lms_saas.tests.test_calculations
 ```
 
 ---
 
 ## 12. Pre-pilot checklist
 
-- [ ] https://lms.embleconsulting.com loads with valid SSL
-- [ ] Scheduler enabled (`bench --site lms.embleconsulting.com doctor`)
+- [ ] https://app.kesari.africa loads with valid SSL
+- [ ] Scheduler enabled (`bench --site app.kesari.africa doctor`)
 - [ ] `verify_spec.run_all_checks` → overall OK
 - [ ] Desk Loan Dashboard shows lending + LMS KPIs at `/app/dashboard-view/Loan Dashboard`
 - [ ] Portal login works at `/lms`
@@ -413,7 +413,7 @@ bench --site lms.embleconsulting.com run-tests --module lms_saas.tests.test_calc
 |---------|-----|
 | 502 Bad Gateway | `sudo supervisorctl status` — restart: `sudo supervisorctl restart all` |
 | Assets/CSS missing | `bench build --app lms_saas` then `bench clear-cache` |
-| Scheduler not running | `bench --site lms.embleconsulting.com enable-scheduler` |
+| Scheduler not running | `bench --site app.kesari.africa enable-scheduler` |
 | MariaDB charset errors | Confirm utf8mb4 in `/etc/mysql/mariadb.conf.d/50-server.cnf` |
 | Certbot fails | DNS must point to VM; port 80 open; wait for TTL |
 | Negative outstanding on portal | Run migrate; ensure latest `lms_saas` is deployed |

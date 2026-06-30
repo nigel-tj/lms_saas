@@ -156,7 +156,7 @@ Production controls (enable in `site_config.json`): `lms_enforce_four_eyes`,
 
 ## Pilot staging (VM)
 
-Deploy to **https://lms.embleconsulting.com** — full VM guide:
+Deploy to **https://app.kesari.africa** — full VM guide:
 [STAGING.md](STAGING.md).
 
 ## Verification

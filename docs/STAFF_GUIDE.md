@@ -34,7 +34,7 @@ Replace `{site-url}` with your environment’s base URL (no trailing slash).
 | Environment | Example `{site-url}` |
 |-------------|----------------------|
 | Local development | `http://lms.localhost:8000` |
-| Pilot / staging | `https://lms.embleconsulting.com` |
+| Live / production | `https://app.kesari.africa` |
 
 | Surface | URL | Who uses it |
 |---------|-----|-------------|
@@ -564,7 +564,7 @@ Rows are created automatically when collections SMS/email runs (when `lms_collec
 |----------|----------|----------|
 | [SYSADMIN_GUIDE.md](SYSADMIN_GUIDE.md) | IT / System Manager | Full admin: install, site_config, GL, backups, compliance, troubleshooting |
 | [SETUP.md](SETUP.md) | IT / developers | Quick install reference, blueprint, verification |
-| [STAGING.md](STAGING.md) | IT | Pilot VM deploy for `lms.embleconsulting.com` |
+| [STAGING.md](STAGING.md) | IT | Live VM deploy for `app.kesari.africa` |
 | [COMPLIANCE.md](COMPLIANCE.md) | Compliance / IT | RBZ sandbox control mapping |
 | [DATA_IMPORT.md](DATA_IMPORT.md) | Managers | Bulk Loan Repayment import |
 | [BACKUP.md](BACKUP.md) | IT | Backup and restore |

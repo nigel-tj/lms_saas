@@ -41,12 +41,12 @@ This guide is for **System Managers**, **LMS Admins**, and **IT operators** who 
 | **Compliance** | Sandbox limits, weekly KPI export, audit/incident readiness |
 | **Support** | Portal user linkage; escalate to developers for app bugs |
 
-Replace `{site}` with your Frappe site name (e.g. `lms.localhost`, `lms.embleconsulting.com`).
+Replace `{site}` with your Frappe site name (e.g. `lms.localhost`, `app.kesari.africa`).
 
 | Environment | Example `{site-url}` |
 |-------------|----------------------|
 | Local | `http://lms.localhost:8000` |
-| Pilot | `https://lms.embleconsulting.com` |
+| Live / production | `https://app.kesari.africa` |
 
 ---
 
