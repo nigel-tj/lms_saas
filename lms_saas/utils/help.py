@@ -137,10 +137,17 @@ def get_lms_help_menu(user: str | None = None) -> dict:
 
 
 def _support_email() -> str | None:
+	raw = None
 	try:
-		raw = frappe.db.get_single_value("Website Settings", "support_email")
+		meta = frappe.get_meta("Website Settings")
+		has_support_field = bool(meta and meta.has_field("support_email"))
 	except Exception:
-		raw = None
+		has_support_field = False
+	if has_support_field:
+		try:
+			raw = frappe.db.get_single_value("Website Settings", "support_email")
+		except Exception:
+			raw = None
 	if not raw:
 		from lms_saas.utils.brand import DEFAULT_BRAND
 

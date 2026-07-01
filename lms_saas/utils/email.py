@@ -46,10 +46,17 @@ def get_email_brand_context() -> dict:
 	)
 	footer = brand.get("footer_text") or _("Powered by Kesari")
 	support = brand.get("support_email") or ""
-	try:
-		support = support or frappe.db.get_single_value("Website Settings", "support_email") or ""
-	except Exception:
-		pass
+	if not support:
+		try:
+			meta = frappe.get_meta("Website Settings")
+			has_support_field = bool(meta and meta.has_field("support_email"))
+		except Exception:
+			has_support_field = False
+		if has_support_field:
+			try:
+				support = frappe.db.get_single_value("Website Settings", "support_email") or ""
+			except Exception:
+				pass
 
 	return {
 		"company_name": company,
