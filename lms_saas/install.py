@@ -1219,6 +1219,9 @@ def _ensure_crm_permissions():
     crm_delete = {**crm_rw, "delete": 1}
     master_read = _crm_read_only_perm()
     email_read = _crm_email_support_read_perm()
+    # LMS Admin + System Manager need full write/create on Email Account so they
+    # can configure the live SMTP server. Other roles stay read-only.
+    email_admin = {"read": 1, "write": 1, "create": 1, "delete": 1, "email": 0}
 
     for role in ORIGINATION_ROLES:
         for dt in _crm_core_doctypes():
@@ -1230,6 +1233,10 @@ def _ensure_crm_permissions():
         _ensure_role_perm(role, "Address", _crm_address_perm())
         _ensure_role_perm(role, "Print Format", {"read": 1, "write": 0, "create": 0, "delete": 0})
 
+    # LMS Admin and System Manager get full Email Account access (configure SMTP).
+    for role in ("LMS Admin", "System Manager"):
+        _ensure_role_perm(role, "Email Account", email_admin)
+
     for role in CRM_DELETE_ROLES:
         for dt in _crm_core_doctypes():
             _ensure_role_perm(role, dt, crm_delete)
@@ -1237,6 +1244,11 @@ def _ensure_crm_permissions():
     for role in BORROWER_EMAIL_ROLES:
         _ensure_role_perm(role, "Customer", {"email": 1})
         for dt in _crm_email_support_doctypes():
+            # LMS Admin and System Manager already have full Email Account
+            # access from the email_admin block above — don't overwrite it
+            # back to read-only here.
+            if dt == "Email Account" and role in ("LMS Admin", "System Manager"):
+                continue
             _ensure_role_perm(role, dt, email_read)
         _ensure_role_perm(role, "Print Format", {"read": 1, "write": 0, "create": 0, "delete": 0})
 
