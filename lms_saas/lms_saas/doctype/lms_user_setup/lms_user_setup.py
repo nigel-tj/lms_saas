@@ -163,13 +163,12 @@ class LMSUserSetup(Document):
 		if not self.send_welcome_email:
 			return
 		try:
-			from frappe.utils import get_url
-
 			from lms_saas.utils.email import send_branded_email
 
-			# Generate a password-reset link so the new user can set their
-			# initial password from the email itself (Frappe's reset_key flow).
-			reset_url = get_url(f"/update-password?email={frappe.utils.quote(self.email)}")
+			# Generate a one-time reset key link so first-login users can set
+			# a password without being asked for an old one.
+			user_doc = frappe.get_doc("User", user)
+			reset_url = user_doc._reset_password(send_email=False)
 
 			send_branded_email(
 				recipients=[self.email],
