@@ -54,11 +54,11 @@ Optional flags:
 - `include_demo`: seed demo portfolio (`demo_count` optional)
 - `smtp_*`: override SMTP values for this run (`smtp_server`, `smtp_port`, `smtp_email_id`, `smtp_password`, `smtp_use_ssl`)
 
-Shell wrapper (from bench root):
+Shell wrapper (from bench root after the app is installed):
 
 ```bash
-FC_SITE=<site> COMPANY=Kesari DRY_RUN=1 bash scripts/onboard-company.sh
-FC_SITE=<site> COMPANY=Kesari APPLY=1 COMPANY_NAME=Kesari DOMAIN=kesari.africa bash scripts/onboard-company.sh
+FC_SITE=<site> COMPANY=Kesari DRY_RUN=1 bash apps/lms_saas/scripts/onboard-company.sh
+FC_SITE=<site> COMPANY=Kesari APPLY=1 COMPANY_NAME=Kesari DOMAIN=kesari.africa bash apps/lms_saas/scripts/onboard-company.sh
 ```
 
 ## Documentation

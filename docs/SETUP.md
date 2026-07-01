@@ -190,8 +190,8 @@ bench --site <site> execute lms_saas.setup.onboard_company.run --kwargs '{"compa
 4. Wrapper script (bench root):
 
 ```bash
-FC_SITE=<site> COMPANY="<Company Name>" DRY_RUN=1 bash scripts/onboard-company.sh
-FC_SITE=<site> COMPANY="<Company Name>" APPLY=1 RUN_VERIFY=1 bash scripts/onboard-company.sh
+FC_SITE=<site> COMPANY="<Company Name>" DRY_RUN=1 bash apps/lms_saas/scripts/onboard-company.sh
+FC_SITE=<site> COMPANY="<Company Name>" APPLY=1 RUN_VERIFY=1 bash apps/lms_saas/scripts/onboard-company.sh
 ```
 
 What it wires by default:
