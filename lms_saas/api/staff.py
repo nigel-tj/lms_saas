@@ -36,17 +36,28 @@ def get_current_user_branch():
     if not user or user == "Guest":
         return None
 
-    # 1. Employee → Cost Center (the branch the staff member belongs to).
-    employee = frappe.db.get_value("Employee", {"user_id": user, "status": "Active"}, "cost_center")
-    if employee:
-        return employee
+    # 1. Employee -> Branch/Cost Center (schema differs across HRMS versions).
+    employee_filters = {"user_id": user}
+    if frappe.get_meta("Employee").has_field("status"):
+        employee_filters["status"] = "Active"
+
+    employee_meta = frappe.get_meta("Employee")
+    for branch_field in ("branch", "cost_center", "custom_lms_branch"):
+        if not employee_meta.has_field(branch_field):
+            continue
+        employee_branch = frappe.db.get_value("Employee", employee_filters, branch_field)
+        if employee_branch:
+            return employee_branch
 
     # 2. User Permission on Cost Center (branch isolation set up by the admin).
-    cost_center = frappe.db.get_value(
+    cost_center_matches = frappe.get_all(
         "User Permission",
-        {"user": user, "allow": "Cost Center", "applicable_for": ["", "Cost Center"]},
-        "for_value",
+        filters={"user": user, "allow": "Cost Center"},
+        or_filters={"applicable_for": ["in", ["", "Cost Center"]]},
+        pluck="for_value",
+        limit=1,
     )
+    cost_center = cost_center_matches[0] if cost_center_matches else None
     if cost_center:
         return cost_center
 

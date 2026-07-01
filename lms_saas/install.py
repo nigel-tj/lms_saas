@@ -1233,9 +1233,11 @@ def _ensure_crm_permissions():
         _ensure_role_perm(role, "Address", _crm_address_perm())
         _ensure_role_perm(role, "Print Format", {"read": 1, "write": 0, "create": 0, "delete": 0})
 
-    # LMS Admin and System Manager get full Email Account access (configure SMTP).
+    # LMS Admin and System Manager get full Email Account + Email Template access
+    # (configure SMTP, create branded email templates). Other roles stay read-only.
     for role in ("LMS Admin", "System Manager"):
         _ensure_role_perm(role, "Email Account", email_admin)
+        _ensure_role_perm(role, "Email Template", email_admin)
 
     for role in CRM_DELETE_ROLES:
         for dt in _crm_core_doctypes():
@@ -1244,10 +1246,10 @@ def _ensure_crm_permissions():
     for role in BORROWER_EMAIL_ROLES:
         _ensure_role_perm(role, "Customer", {"email": 1})
         for dt in _crm_email_support_doctypes():
-            # LMS Admin and System Manager already have full Email Account
-            # access from the email_admin block above — don't overwrite it
-            # back to read-only here.
-            if dt == "Email Account" and role in ("LMS Admin", "System Manager"):
+            # LMS Admin and System Manager already have full Email Account +
+            # Email Template access from the email_admin block above — don't
+            # overwrite it back to read-only here.
+            if dt in ("Email Account", "Email Template") and role in ("LMS Admin", "System Manager"):
                 continue
             _ensure_role_perm(role, dt, email_read)
         _ensure_role_perm(role, "Print Format", {"read": 1, "write": 0, "create": 0, "delete": 0})
