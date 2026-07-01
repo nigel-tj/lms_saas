@@ -24,7 +24,7 @@ frappe.ui.form.on("LMS User Setup", {
 		// avoid relying on a boot structure that may not be present.
 		if (frm.is_new() && !frm.doc.branch) {
 			frappe.call({
-				method: "lms_saas.lms_saas.api.staff.get_current_user_branch",
+				method: "lms_saas.api.staff.get_current_user_branch",
 				callback: function (r) {
 					if (r && r.message) {
 						frm.set_value("branch", r.message);
