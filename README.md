@@ -32,6 +32,35 @@ bench --site <site> enable-scheduler
 bench --site <site> execute lms_saas.setup.verify_spec.run_all_checks
 ```
 
+## Company onboarding (live-safe, reusable)
+
+Use this to wire a new company from day one (idempotent; defaults to dry-run).
+
+Dry-run:
+
+```bash
+bench --site <site> execute lms_saas.setup.onboard_company.run --kwargs '{"company":"Kesari","dry_run":1}'
+```
+
+Apply:
+
+```bash
+bench --site <site> execute lms_saas.setup.onboard_company.run --kwargs '{"company":"Kesari","apply":1,"company_name":"Kesari","domain":"kesari.africa","run_verify":1}'
+```
+
+Optional flags:
+
+- `send_test_email`: send SMTP test after setup (`test_email_recipient` optional)
+- `include_demo`: seed demo portfolio (`demo_count` optional)
+- `smtp_*`: override SMTP values for this run (`smtp_server`, `smtp_port`, `smtp_email_id`, `smtp_password`, `smtp_use_ssl`)
+
+Shell wrapper (from bench root):
+
+```bash
+FC_SITE=<site> COMPANY=Kesari DRY_RUN=1 bash scripts/onboard-company.sh
+FC_SITE=<site> COMPANY=Kesari APPLY=1 COMPANY_NAME=Kesari DOMAIN=kesari.africa bash scripts/onboard-company.sh
+```
+
 ## Documentation
 
 | Doc | Audience |

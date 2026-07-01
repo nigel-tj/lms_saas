@@ -165,6 +165,43 @@ Deploy to **https://app.kesari.africa** — full VM guide:
 bench --site lms.localhost execute lms_saas.setup.verify_spec.run_all_checks
 ```
 
+## New company onboarding (repeatable)
+
+Use the onboarding command for each new company. It is idempotent and returns a JSON summary.
+
+1. Run dry-run first.
+
+```bash
+bench --site <site> execute lms_saas.setup.onboard_company.run --kwargs '{"company":"<Company Name>","dry_run":1}'
+```
+
+2. Apply once dry-run looks correct.
+
+```bash
+bench --site <site> execute lms_saas.setup.onboard_company.run --kwargs '{"company":"<Company Name>","apply":1,"run_verify":1}'
+```
+
+3. Optional actions:
+
+- Test SMTP send: add `"send_test_email":1` and optional `"test_email_recipient":"ops@example.com"`
+- Seed demo data: add `"include_demo":1` and optional `"demo_count":16`
+- One-run SMTP overrides: add `smtp_server`, `smtp_port`, `smtp_email_id`, `smtp_password`, `smtp_use_ssl`
+
+4. Wrapper script (bench root):
+
+```bash
+FC_SITE=<site> COMPANY="<Company Name>" DRY_RUN=1 bash scripts/onboard-company.sh
+FC_SITE=<site> COMPANY="<Company Name>" APPLY=1 RUN_VERIFY=1 bash scripts/onboard-company.sh
+```
+
+What it wires by default:
+
+- Company identity fields (if provided)
+- Branch cost centers and LMS standard loan product/account sync
+- LMS roles, permissions, dashboards, workspaces, portal/menu setup
+- Branded email template sync and optional live SMTP account configuration
+- Post-check verification (targeted by default; full checks optional)
+
 ## User permissions (branch isolation)
 
 Assign **User Permission** on Cost Center for branch staff. Combine with `custom_lms_branch` on loans for reporting filters.
