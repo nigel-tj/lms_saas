@@ -1,5 +1,12 @@
 /* LMS borrower portal — UX-focused UI */
-frappe.provide("lms_portal");
+// Guard frappe.provide: this file is in web_include_js, so it loads on the
+// login page too, where Frappe's desk JS bundle (and frappe.provide) is not
+// available. No-op when missing to avoid breaking the page.
+if (typeof frappe !== "undefined" && typeof frappe.provide === "function") {
+	frappe.provide("lms_portal");
+} else {
+	window.lms_portal = window.lms_portal || {};
+}
 
 lms_portal.escape = function (s) {
 	const d = document.createElement("div");

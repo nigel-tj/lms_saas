@@ -1,5 +1,12 @@
 /* LMS field collection PWA */
-frappe.provide("lms_collect");
+// Guard frappe.provide: this file is in web_include_js, so it loads on the
+// login page too, where Frappe's desk JS bundle (and frappe.provide) is not
+// available. No-op when missing to avoid breaking the page.
+if (typeof frappe !== "undefined" && typeof frappe.provide === "function") {
+	frappe.provide("lms_collect");
+} else {
+	window.lms_collect = window.lms_collect || {};
+}
 
 lms_collect.DB_NAME = "lms_collect_queue";
 lms_collect.STORE = "repayments";
