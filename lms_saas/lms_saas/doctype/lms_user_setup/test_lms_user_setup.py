@@ -161,6 +161,20 @@ class TestLMSUserSetup(FrappeTestCase):
 		employee_branch = frappe.db.get_value("Employee", doc.created_employee, "branch")
 		self.assertEqual(employee_branch, branch)
 
+	def test_staff_persona_can_be_updated_after_submit(self):
+		email = "test.update.persona@example.com"
+		branch = frappe.db.get_value("Cost Center", {"is_group": 0}, "name")
+		doc = self._make_setup("Loan Officer", email, branch=branch)
+		doc.submit()
+		self._track(doc.created_user, "User")
+		self._track(doc.created_employee, "Employee")
+
+		doc.persona = "Branch Manager"
+		doc.save(ignore_permissions=True)
+
+		employee_persona = frappe.db.get_value("Employee", doc.created_employee, "custom_lms_persona")
+		self.assertEqual(employee_persona, "Branch Manager")
+
 	def test_borrower_requires_national_id(self):
 		"""A Borrower without a National ID must be blocked at validate time."""
 		doc = frappe.get_doc(

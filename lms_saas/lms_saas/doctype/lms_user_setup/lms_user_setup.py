@@ -25,6 +25,9 @@ class LMSUserSetup(Document):
 		self._validate_officer_scope()
 		self._validate_staff_branch()
 
+	def on_update_after_submit(self):
+		self._sync_after_submit()
+
 	def on_submit(self):
 		config = PERSONA_CONFIG.get(self.persona)
 		if not config:
@@ -59,10 +62,13 @@ class LMSUserSetup(Document):
 			frappe.throw(_("Invalid persona {0}").format(self.persona))
 
 	def _validate_email_unique(self):
-		if frappe.db.exists("User", self.email):
+		existing_user = frappe.db.get_value("User", self.email, "name")
+		if existing_user and existing_user != (self.created_user or existing_user):
 			frappe.throw(_("A User with email {0} already exists").format(self.email))
-		if self.persona == "Borrower" and frappe.db.exists("Customer", {"email_id": self.email}):
-			frappe.throw(_("A Customer with email {0} already exists").format(self.email))
+		if self.persona == "Borrower":
+			existing_customer = frappe.db.get_value("Customer", {"email_id": self.email}, "name")
+			if existing_customer and existing_customer != (self.created_customer or existing_customer):
+				frappe.throw(_("A Customer with email {0} already exists").format(self.email))
 
 	def _validate_branch_for_staff(self):
 		"""Admins do not need a branch; portal staff personas do."""
@@ -90,6 +96,42 @@ class LMSUserSetup(Document):
 		config = PERSONA_CONFIG.get(self.persona) or {}
 		if config.get("create_employee") and not self.branch:
 			frappe.throw(_("Branch is required for the {0} persona").format(self.persona))
+
+	def _persona_kind(self, persona=None):
+		persona = persona or self.persona
+		config = PERSONA_CONFIG.get(persona) or {}
+		if config.get("create_employee"):
+			return "staff"
+		if config.get("create_customer"):
+			return "borrower"
+		return "admin"
+
+	def _sync_after_submit(self):
+		previous = None
+		if hasattr(self, "get_doc_before_save"):
+			previous = self.get_doc_before_save()
+		old_persona = getattr(previous, "persona", None) if previous else None
+		old_kind = self._persona_kind(old_persona)
+		new_kind = self._persona_kind()
+
+		if old_kind != new_kind:
+			frappe.throw(_("Changing a submitted setup between borrower/admin and staff personas is not supported. Create a new setup record instead."))
+
+		if new_kind != "staff":
+			return
+
+		if not self.created_employee:
+			frappe.throw(_("This setup is missing its linked Employee record. Re-run onboarding or create a new setup."))
+
+		updates = {
+			"branch": self.branch or None,
+			"department": self.department or None,
+			"gender": self.gender or None,
+			"date_of_birth": self.date_of_birth or None,
+		}
+		if frappe.get_meta("Employee").has_field("custom_lms_persona"):
+			updates["custom_lms_persona"] = self.persona
+		frappe.db.set_value("Employee", self.created_employee, updates, update_modified=True)
 
 	def _full_name(self):
 		parts = [p for p in (self.first_name, self.last_name) if p]

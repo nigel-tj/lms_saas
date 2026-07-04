@@ -183,4 +183,54 @@ if (typeof frappe !== "undefined" && typeof frappe.provide === "function") {
 	lms_charts.destroy = function (chart) {
 		if (chart && typeof chart.destroy === "function") chart.destroy();
 	};
+
+	function toCanvasId(target) {
+		if (!target) return null;
+		if (typeof target === "string") return target;
+		if (target.id) return target.id;
+		return null;
+	}
+
+	window.LMSChart = window.LMSChart || {};
+	window.LMSChart.donut = function (target, labels, values, options) {
+		var canvasId = toCanvasId(target);
+		if (!canvasId) return null;
+		var data = (labels || []).map(function (label, index) {
+			return { label: label, value: (values && values[index]) || 0 };
+		});
+		return lms_charts.donut(canvasId, data, options);
+	};
+	window.LMSChart.bar = function (target, labels, values, options) {
+		var canvasId = toCanvasId(target);
+		if (!canvasId) return null;
+		var data = (labels || []).map(function (label, index) {
+			return { label: label, value: (values && values[index]) || 0 };
+		});
+		return lms_charts.bars(canvasId, data, options);
+	};
+	window.LMSChart.line = function (target, labels, values, options) {
+		var canvasId = toCanvasId(target);
+		if (!canvasId) return null;
+		return lms_charts.line(
+			canvasId,
+			{
+				labels: labels || [],
+				datasets: [
+					{
+						label: (options && options.name) || "",
+						data: values || [],
+						color: options && options.color,
+					},
+				],
+			},
+			options
+		);
+	};
+	window.LMSChart.empty = function (target, message) {
+		var el = typeof target === "string" ? document.getElementById(target) : target;
+		if (el) {
+			el.innerHTML = '<p class="lms-muted">' + (message || "No data yet.") + "</p>";
+		}
+		return null;
+	};
 })();
