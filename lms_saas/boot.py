@@ -69,13 +69,14 @@ def get_lms_home_page(user=None):
 
         return f"{desk_prefix()}/{slug('Loan Management')}"
 
+    # Portal staff (Loan Officers, Collectors, Branch Managers) → persona-based portal page.
+    # Must be evaluated before the Customer check since many staff users also carry Customer.
+    if PORTAL_STAFF_ROLE in roles:
+        return _portal_staff_landing(user)
+
     # Borrowers → portal.
     if "Customer" in roles:
         return "/lms"
-
-    # Portal staff (Loan Officers, Collectors, Branch Managers) → persona-based portal page.
-    if PORTAL_STAFF_ROLE in roles:
-        return _portal_staff_landing(user)
 
     return None
 
