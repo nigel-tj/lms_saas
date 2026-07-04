@@ -231,6 +231,8 @@ def _lms_page_subtitle(nav_active, context):
 	Falls back to the risk disclosure line when no subtitle is defined for
 	the active page (e.g. borrower-facing pages keep the compliance text).
 	"""
+	import frappe
+
 	subtitles = {
 		"officer": "Track applications, manage your loan portfolio, and onboard borrowers.",
 		"manager": "Branch metrics, loan approvals, and team performance.",
