@@ -1,0 +1,34 @@
+{
+  "doctype": "DocType",
+  "name": "LMS User Setup",
+  "module": "Lms Saas",
+  "custom": 0,
+  "autoname": "format:SETUP-{#####}",
+  "is_submittable": 1,
+  "track_changes": 1,
+  "fields": [
+    {"fieldname": "persona_section", "fieldtype": "Section Break", "label": "1. Who are you onboarding?"},
+    {"fieldname": "persona", "fieldtype": "Select", "label": "Persona", "reqd": 1, "in_list_view": 1, "options": "\nBorrower\nAdmin\nLoan Officer\nCollector\nBranch Manager", "description": "Choose the role this person will have. Borrowers use the portal; Loan Officers, Collectors and Branch Managers use the portal; Admins use the desk.", "default": "Borrower"},
+    {"fieldname": "details_section", "fieldtype": "Section Break", "label": "2. Personal details"},
+    {"fieldname": "first_name", "fieldtype": "Data", "label": "First Name", "reqd": 1, "in_list_view": 1},
+    {"fieldname": "last_name", "fieldtype": "Data", "label": "Last Name"},
+    {"fieldname": "email", "fieldtype": "Data", "label": "Email", "reqd": 1, "in_list_view": 1, "options": "Email", "description": "Used as the login username. Must be unique."},
+    {"fieldname": "mobile_no", "fieldtype": "Data", "label": "Mobile", "options": "Phone", "description": "Used for SMS payment reminders (borrowers) and alerts (staff)."},
+    {"fieldname": "staff_section", "fieldtype": "Section Break", "label": "3. Staff assignment", "depends_on": "eval:doc.persona && doc.persona !== 'Borrower'", "description": "Shown for Admin, Loan Officer and Collector personas."},
+    {"fieldname": "branch", "fieldtype": "Link", "label": "Branch", "options": "Cost Center", "reqd": 0, "description": "The branch (Cost Center) this staff member belongs to. Required for all staff personas.", "depends_on": "eval:doc.persona && doc.persona !== 'Borrower'"},
+    {"fieldname": "department", "fieldtype": "Link", "label": "Department", "options": "Department", "depends_on": "eval:doc.persona && doc.persona !== 'Borrower'", "description": "Optional. Defaults to the branch's department if left blank."},
+    {"fieldname": "gender", "fieldtype": "Select", "label": "Gender", "options": "\nMale\nFemale\nOther", "depends_on": "eval:doc.persona && doc.persona !== 'Borrower'", "description": "Optional. Defaults to 'Male' if left blank (HRMS requires a value)."},
+    {"fieldname": "date_of_birth", "fieldtype": "Date", "label": "Date of Birth", "depends_on": "eval:doc.persona && doc.persona !== 'Borrower'", "description": "Optional. Leave blank if unknown; the system uses a default for HRMS."},
+    {"fieldname": "borrower_section", "fieldtype": "Section Break", "label": "3. Borrower details", "depends_on": "eval:doc.persona === 'Borrower'", "description": "Shown only for the Borrower persona."},
+    {"fieldname": "national_id", "fieldtype": "Data", "label": "National ID", "reqd": 0, "description": "Used for KYC / compliance verification. Carried over to the borrower's compliance record so KYC is one click away.", "depends_on": "eval:doc.persona === 'Borrower'"},
+    {"fieldname": "options_section", "fieldtype": "Section Break", "label": "4. Options"},
+    {"fieldname": "send_welcome_email", "fieldtype": "Check", "label": "Send welcome email with password setup link", "default": 1, "description": "Sends a branded welcome email with a password-reset link so the new user can set their initial password."},
+    {"fieldname": "results_section", "fieldtype": "Section Break", "label": "Created records", "depends_on": "eval:doc.created_user", "read_only": 1, "description": "Auto-filled after submit. Click a link to open the created record."},
+    {"fieldname": "created_user", "fieldtype": "Link", "label": "Created User", "options": "User", "read_only": 1, "no_copy": 1},
+    {"fieldname": "created_customer", "fieldtype": "Link", "label": "Created Customer", "options": "Customer", "read_only": 1, "no_copy": 1},
+    {"fieldname": "created_employee", "fieldtype": "Link", "label": "Created Employee", "options": "Employee", "read_only": 1, "no_copy": 1}
+  ],
+  "permissions": [
+    {"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1, "submit": 1, "cancel": 1, "amend": 1, "report": 1, "export": 1}
+  ]
+}

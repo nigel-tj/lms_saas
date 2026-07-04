@@ -1,0 +1,54 @@
+{
+  "doctype": "DocType",
+  "name": "LMS Investor",
+  "module": "Lms Saas",
+  "custom": 0,
+  "autoname": "format:INV-{#####}",
+  "fields": [
+    {
+      "fieldname": "investor_name",
+      "fieldtype": "Data",
+      "label": "Investor Name",
+      "reqd": 1
+    },
+    {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "label": "Company",
+      "options": "Company",
+      "reqd": 1
+    },
+    {
+      "fieldname": "investor_liability_account",
+      "fieldtype": "Link",
+      "label": "Investor Liability Account",
+      "options": "Account",
+      "reqd": 1,
+      "description": "Filter: Liability accounts excluding Payable (use e.g. Unsecured Loans)"
+    },
+    {
+      "fieldname": "total_investment",
+      "fieldtype": "Currency",
+      "label": "Total Investment",
+      "read_only": 1
+    },
+    {
+      "fieldname": "accrued_interest",
+      "fieldtype": "Currency",
+      "label": "Accrued Interest",
+      "read_only": 1
+    }
+  ],
+  "permissions": [
+    {
+      "role": "System Manager",
+      "read": 1,
+      "write": 1,
+      "create": 1,
+      "delete": 1,
+      "submit": 1,
+      "cancel": 1,
+      "amend": 1
+    }
+  ]
+}

@@ -1,0 +1,54 @@
+{
+ "doctype": "DocType",
+ "name": "LMS Group Meeting",
+ "module": "Lms Saas",
+ "custom": 0,
+ "autoname": "format:MTG-{#####}",
+ "fields": [
+  {
+   "fieldname": "lending_group",
+   "fieldtype": "Link",
+   "label": "Lending Group",
+   "options": "LMS Lending Group",
+   "reqd": 1
+  },
+  {
+   "fieldname": "meeting_date",
+   "fieldtype": "Date",
+   "label": "Meeting Date",
+   "reqd": 1,
+   "default": "Today"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Notes"
+  },
+  {
+   "fieldname": "attendance_count",
+   "fieldtype": "Int",
+   "label": "Attendance Count",
+   "default": "0"
+  }
+ ],
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "export": 1,
+   "report": 1
+  },
+  {
+   "role": "LMS Portal Staff",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "export": 1,
+   "report": 1
+  }
+ ]
+}

@@ -1,0 +1,46 @@
+{% include "templates/print/lms_print_base.html" %}
+{% set lms_company = frappe.db.get_single_value("Global Defaults", "default_company") or "Kesari" %}
+<div class="lms-print-header">
+  <h1>Loan Statement</h1>
+  <p>Account summary as of {{ frappe.utils.formatdate(frappe.utils.today()) }}</p>
+</div>
+<div class="lms-print-meta">
+  <div class="lms-print-meta-row">
+    <span class="lms-print-meta-label">Loan ID</span>
+    <span class="lms-print-meta-value">{{ doc.name }}</span>
+  </div>
+  <div class="lms-print-meta-row">
+    <span class="lms-print-meta-label">Borrower</span>
+    <span class="lms-print-meta-value">{{ doc.applicant }}</span>
+  </div>
+  <div class="lms-print-meta-row">
+    <span class="lms-print-meta-label">Principal</span>
+    <span class="lms-print-meta-value">{{ doc.get_formatted("loan_amount") }}</span>
+  </div>
+  <div class="lms-print-meta-row">
+    <span class="lms-print-meta-label">Interest rate</span>
+    <span class="lms-print-meta-value">{{ doc.rate_of_interest }}%</span>
+  </div>
+  <div class="lms-print-meta-row">
+    <span class="lms-print-meta-label">Status</span>
+    <span class="lms-print-meta-value">{{ doc.status }}</span>
+  </div>
+  <div class="lms-print-meta-row">
+    <span class="lms-print-meta-label">Days past due</span>
+    <span class="lms-print-meta-value">{{ doc.custom_days_past_due or doc.days_past_due or 0 }}</span>
+  </div>
+  <div class="lms-print-meta-row">
+    <span class="lms-print-meta-label">Total paid</span>
+    <span class="lms-print-meta-value">{{ doc.get_formatted("total_payment") or "0" }}</span>
+  </div>
+  {% if doc.custom_asset_classification %}
+  <div class="lms-print-meta-row">
+    <span class="lms-print-meta-label">Classification</span>
+    <span class="lms-print-meta-value">{{ doc.custom_asset_classification }}</span>
+  </div>
+  {% endif %}
+</div>
+<div class="lms-print-footer">
+  This statement is generated electronically by {{ lms_company }}. For queries contact your loan officer.
+</div>
+</div>

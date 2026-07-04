@@ -1,0 +1,21 @@
+{% extends "templates/lms_portal/base.html" %}
+
+{% block title %}Apply for Loan{% endblock %}
+
+{% block lms_content %}
+<section class="lms-hero lms-home-hero">
+  <h2 class="lms-hero__title">Apply for a Loan</h2>
+  <p class="lms-hero__subtitle">Submit your application and upload supporting documents for review.</p>
+</section>
+<div id="lms-apply-root" aria-live="polite"></div>
+{% endblock %}
+
+{% block script %}
+<script>
+frappe.ready(function() {
+  if (typeof lms_portal !== 'undefined') {
+    lms_portal.initApplyPage();
+  }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,111 @@
+/* LMS theme: midnight (deep forest — flat, professional dark mode)
+ *
+ * Phase 3 oklch migration:
+ * - Brand values that flip to the signature light-green primary stay close
+ *   to the same oklch value used in default (0.918 0.166 130).
+ * - Semantic ramps move to oklch for a perceptually-uniform gradient.
+ *
+ * Reference hex values are kept as comments for the design-system audit.
+ */
+
+[data-lms-theme="midnight"] {
+	/* hex: #e2e8f0 (primary in midnight) */
+	--theme-primary: oklch(0.91 0.012 240);
+	/* hex: #f8fafc (primary-light) */
+	--theme-primary-light: oklch(0.97 0.005 240);
+	/* hex: #b9f19d (signature accent — unchanged across themes) */
+	--theme-accent: oklch(0.918 0.166 130);
+	/* hex: #8fd96c */
+	--theme-accent-strong: oklch(0.812 0.182 130);
+	/* hex: #7dd3fc (accent-muted) */
+	--theme-accent-muted: oklch(0.78 0.10 220);
+	/* hex: #5faf61 */
+	--theme-focus: oklch(0.65 0.15 145);
+
+	/* hex: #0f1a16 (canvas dark) */
+	--theme-canvas: oklch(0.18 0.012 175);
+	/* hex: #16241f (surface dark) */
+	--theme-surface: oklch(0.22 0.015 175);
+	/* hex: #1d2f28 (surface-alt) */
+	--theme-surface-alt: oklch(0.26 0.018 175);
+	/* hex: #243a31 (surface-elevated) */
+	--theme-surface-elevated: oklch(0.30 0.020 175);
+	/* hex: #2d4339 (border dark) */
+	--theme-border: oklch(0.34 0.025 175);
+
+	/* hex: #f1f5f1 (text dark) */
+	--theme-text: oklch(0.96 0.005 130);
+	/* hex: #94a39a (muted text dark) */
+	--theme-text-muted: oklch(0.65 0.012 175);
+	/* hex: #5faf61 */
+	--theme-success: oklch(0.65 0.15 145);
+	/* hex: #f4b942 */
+	--theme-warning: oklch(0.78 0.15 75);
+	/* hex: #e15c5c */
+	--theme-danger: oklch(0.62 0.20 25);
+
+	--theme-shadow-sm: 0 1px 2px oklch(0 0 0 / 0.35);
+	--theme-shadow: 0 2px 8px oklch(0 0 0 / 0.35);
+	--theme-shadow-lg: 0 8px 24px oklch(0 0 0 / 0.40);
+	--theme-shadow-panel: 0 1px 3px oklch(0 0 0 / 0.30);
+
+	/* hex: rgba(185,241,157,0.15) */
+	--theme-hero-border: oklch(0.918 0.166 130 / 0.15);
+	/* hex: #131e19 */
+	--theme-hero-bg: oklch(0.20 0.014 175);
+	--theme-hero-glow: transparent;
+	--theme-hero-accent: oklch(0.918 0.166 130);
+
+	--theme-nav-active-bg: oklch(0.918 0.166 130 / 0.10);
+	/* hex: #e2e8f0 */
+	--theme-nav-active-text: oklch(0.91 0.012 240);
+	/* hex: #64786e */
+	--theme-sidebar-section-text: oklch(0.45 0.018 175);
+	--theme-sidebar-hover-bg: oklch(0.918 0.166 130 / 0.06);
+	--theme-sidebar-active-bg: oklch(0.918 0.166 130 / 0.12);
+	--theme-sidebar-active-text: oklch(0.96 0.005 130);
+	--theme-sidebar-active-accent: oklch(0.918 0.166 130);
+	--theme-sidebar-icon-bg: oklch(0.918 0.166 130 / 0.10);
+	--theme-sidebar-icon-text: oklch(0.91 0.012 240);
+	--theme-sidebar-icon-active-bg: oklch(0.918 0.166 130);
+	--theme-sidebar-icon-active-text: oklch(0.18 0.012 175);
+	--theme-sidebar-child-border: oklch(0.918 0.166 130 / 0.15);
+	--theme-chip-bg: oklch(0.918 0.166 130 / 0.10);
+	--theme-chip-text: oklch(0.91 0.012 240);
+	--theme-pill-bg: oklch(0.918 0.166 130 / 0.10);
+	--theme-pill-text: oklch(0.91 0.012 240);
+
+	/* hex: #1d2f28 */
+	--theme-tile-bg: oklch(0.26 0.018 175);
+	--theme-tile-border: oklch(0.34 0.025 175);
+	--theme-tile-shadow: 0 1px 3px oklch(0 0 0 / 0.25);
+	--theme-tile-shadow-hover: 0 4px 16px oklch(0 0 0 / 0.35);
+	--theme-tile-border-hover: oklch(0.918 0.166 130 / 0.28);
+	--theme-tile-icon-bg: oklch(0.918 0.166 130 / 0.10);
+	--theme-tile-icon-text: oklch(0.91 0.012 240);
+	--theme-tile-footer-border: oklch(0.34 0.025 175 / 0.95);
+	--theme-tile-count-bg: oklch(0.918 0.166 130 / 0.10);
+	--theme-tile-count-text: oklch(0.91 0.012 240);
+	--theme-tile-count-muted-bg: oklch(0.65 0.012 175 / 0.12);
+	--theme-tile-count-muted-text: oklch(0.65 0.012 175);
+	--theme-tile-action-text: oklch(0.918 0.166 130);
+
+	--theme-tone-cyan: oklch(0.55 0.10 220);
+	--theme-tone-blue: oklch(0.65 0.13 250);
+	--theme-tone-green: oklch(0.65 0.15 145);
+	--theme-tone-orange: oklch(0.78 0.15 75);
+	--theme-tone-red: oklch(0.62 0.20 25);
+	--theme-tone-purple: oklch(0.55 0.21 285);
+	--theme-tone-grey: oklch(0.45 0.018 175);
+}
+
+/* Midnight desk shell overrides */
+[data-lms-theme="midnight"] body.lms-desk-enhanced .navbar {
+	background: var(--theme-surface);
+	box-shadow: 0 1px 0 oklch(0 0 0 / 0.35);
+}
+
+[data-lms-theme="midnight"] body.lms-desk-enhanced .desk-sidebar,
+[data-lms-theme="midnight"] body.lms-desk-enhanced .body-sidebar {
+	background: var(--theme-surface);
+}

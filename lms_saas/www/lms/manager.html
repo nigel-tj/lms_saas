@@ -1,0 +1,17 @@
+{% extends "templates/lms_portal/base.html" %}
+
+{% block title %}Branch Manager Dashboard{% endblock %}
+
+{% block lms_content %}
+<div id="lms-manager-root" aria-live="polite"></div>
+{% endblock %}
+
+{% block script %}
+<script>
+frappe.ready(function() {
+  if (typeof lms_manager !== 'undefined') {
+    lms_manager.init();
+  }
+});
+</script>
+{% endblock %}

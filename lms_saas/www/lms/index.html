@@ -1,0 +1,84 @@
+{% extends "templates/lms_portal/base.html" %}
+
+{% block title %}My Loans{% endblock %}
+
+{% block lms_content %}
+<section class="lms-hero lms-home-hero">
+  <h2 class="lms-hero__title">Portfolio Dashboard</h2>
+  <p class="lms-hero__subtitle">Track obligations, payment momentum, and account health from one board.</p>
+</section>
+
+<div id="lms-portal-summary" aria-live="polite"></div>
+
+<div class="lms-bento" aria-label="Borrower dashboard">
+  <article class="lms-bento__region lms-bento__region--next-action" aria-label="Next payment action">
+    <div class="lms-chart-slot__head">
+      <h3 class="lms-section-pill">Next payment</h3>
+    </div>
+    <div class="lms-bento__body" id="lms-portal-next-action" aria-live="polite"></div>
+  </article>
+
+  <article class="lms-bento__region lms-bento__region--apply" aria-label="Apply for a loan">
+    <div class="lms-chart-slot__head">
+      <h3 class="lms-section-pill">Quick apply</h3>
+    </div>
+    <div class="lms-bento__body" id="lms-portal-apply">
+      <p class="lms-muted">Need funds? Your first loan is three minutes away.</p>
+      <a class="lms-btn lms-btn--primary" href="/lms/apply">Start application</a>
+    </div>
+  </article>
+
+  <article class="lms-bento__region lms-bento__region--notifications" aria-label="Notifications">
+    <div class="lms-chart-slot__head">
+      <h3 class="lms-section-pill">Notifications</h3>
+    </div>
+    <div class="lms-bento__body" id="lms-portal-notifications" aria-live="polite">
+      <p class="lms-muted">No new notifications.</p>
+    </div>
+  </article>
+
+  <article class="lms-bento__region lms-bento__region--loans" aria-label="Loans">
+    <div class="lms-chart-slot__head">
+      <h3 class="lms-section-pill">My loans</h3>
+    </div>
+    <div class="lms-bento__body" id="lms-portal-loans" aria-live="polite"></div>
+  </article>
+
+  <article class="lms-bento__region lms-bento__region--upcoming lms-chart-slot lms-chart-slot--lg" aria-label="Upcoming due">
+    <div class="lms-chart-slot__head">
+      <h3 class="lms-section-pill">Upcoming due</h3>
+    </div>
+    <div class="lms-chart-slot__body" id="lms-portal-upcoming" aria-live="polite"></div>
+  </article>
+
+  <article class="lms-bento__region lms-bento__region--risk lms-chart-slot lms-chart-slot--lg" aria-label="Risk mix">
+    <div class="lms-chart-slot__head">
+      <h3 class="lms-section-pill">Risk mix</h3>
+    </div>
+    <div class="lms-chart-slot__body" id="lms-portal-risk" aria-live="polite"></div>
+  </article>
+
+  <span class="lms-bento__region lms-bento__region--empty" aria-hidden="true"></span>
+</div>
+
+<section class="lms-home-panel lms-chart-slot lms-chart-slot--lg" aria-label="Collections trend">
+  <div class="lms-chart-slot__head">
+    <h3 class="lms-section-pill">Collections trend</h3>
+  </div>
+  <div class="lms-chart-slot__body" id="lms-portal-collections-trend" aria-live="polite"></div>
+</section>
+{% endblock %}
+
+{% block script %}
+<script>
+frappe.ready(function() {
+  if (typeof lms_portal !== 'undefined') {
+    lms_portal.initLoansPage();
+  }
+  // Phase 4.3 — first-login coachmark anchored to the Pay CTA.
+  if (typeof LMSCoachmark !== 'undefined') {
+    LMSCoachmark.init();
+  }
+});
+</script>
+{% endblock %}

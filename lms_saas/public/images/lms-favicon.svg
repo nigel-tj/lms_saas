@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" role="img" aria-label="Kesari">
+  <rect x="2" y="2" width="28" height="28" rx="8" fill="#2f4f46"/>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Crown — stewardship / authority -->
+    <path d="M8.5 13.5 L10.5 9.5 L16 11.5 L21.5 9.5 L23.5 13.5" stroke="#c9a227" stroke-width="1.5"/>
+    <path d="M8.5 13.5 H23.5" stroke="#c9a227" stroke-width="1.5"/>
+    <!-- Balance scales — fair accounting -->
+    <path d="M16 13.5 V17.5" stroke="#b9f19d" stroke-width="1.4"/>
+    <path d="M9 17.5 H23" stroke="#b9f19d" stroke-width="1.6"/>
+    <path d="M9 17.5 L7 21" stroke="#b9f19d" stroke-width="1.2"/>
+    <path d="M23 17.5 L25 21" stroke="#b9f19d" stroke-width="1.2"/>
+    <path d="M6.5 21 Q9 23 11.5 21" stroke="#b9f19d" stroke-width="1.2"/>
+    <path d="M20.5 21 Q23 23 25.5 21" stroke="#b9f19d" stroke-width="1.2"/>
+  </g>
+</svg>

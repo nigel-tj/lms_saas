@@ -1,0 +1,135 @@
+{% extends "templates/lms_portal/shell.html" %}
+
+{% block title %}{{ lms_page_title }}{% endblock %}
+
+{% block sidebar %}
+<aside class="lms-sidebar" id="lms-sidebar" aria-label="Portal navigation">
+  <div class="lms-sidebar__brand">
+    {% if brand and brand.logo_url %}
+    <div class="lms-sidebar__logo"><img src="{{ brand.logo_url }}" alt="{{ brand.portal_title if brand else 'Kesari' }}"></div>
+    {% else %}
+    <div class="lms-sidebar__logo lms-sidebar__logo--text">K</div>
+    {% endif %}
+    <div class="lms-sidebar__brand-text">
+      <span class="lms-sidebar__title">{{ brand.portal_title if brand else 'Kesari' }}</span>
+      {% if lms_persona %}
+      <span class="lms-sidebar__role">{{ lms_persona }}</span>
+      {% endif %}
+    </div>
+  </div>
+
+  <nav class="lms-sidebar__nav">
+    {% for item in lms_nav %}
+    <a href="{{ item.route }}"
+       class="lms-sidebar__item{% if portal_nav_active == item.key %} is-active{% endif %}"
+       data-key="{{ item.key }}">
+      <span class="lms-sidebar__icon">
+        {% if item.icon == 'loans' %}
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M12 12h.01"/><path d="M17 12h.01"/><path d="M7 12h.01"/></svg>
+        {% elif item.icon == 'apply' %}
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="M9 15h6"/></svg>
+        {% elif item.icon == 'pay' %}
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
+        {% elif item.icon == 'officer' %}
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        {% elif item.icon == 'manager' %}
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
+        {% elif item.icon == 'collect' %}
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        {% elif item.icon == 'account' %}
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        {% endif %}
+      </span>
+      <span class="lms-sidebar__label">{{ item.label }}</span>
+    </a>
+    {% endfor %}
+  </nav>
+
+  <div class="lms-sidebar__footer">
+    {% if show_staff_desk %}
+    <a href="{{ lms_desk_home }}" class="lms-sidebar__item">
+      <span class="lms-sidebar__icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></span>
+      <span class="lms-sidebar__label">Full Desk</span>
+    </a>
+    {% endif %}
+    <a href="/?cmd=web_logout" class="lms-sidebar__item">
+      <span class="lms-sidebar__icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></span>
+      <span class="lms-sidebar__label">Log out</span>
+    </a>
+  </div>
+
+  <button type="button" class="lms-sidebar__toggle" id="lms-sidebar-toggle" aria-label="Toggle menu" aria-expanded="false">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </svg>
+  </button>
+</aside>
+{% endblock %}
+
+{% block topbar %}
+<header class="lms-topbar">
+  <div class="lms-topbar__left">
+    <button type="button" class="lms-topbar__menu-btn" id="lms-topbar-menu-btn" aria-label="Toggle menu">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="3" y1="6" x2="21" y2="6"></line>
+        <line x1="3" y1="12" x2="21" y2="12"></line>
+        <line x1="3" y1="18" x2="21" y2="18"></line>
+      </svg>
+    </button>
+    <div class="lms-topbar__title">
+      <h1>{{ lms_page_title }}</h1>
+      {% if lms_page_subtitle %}
+      <span class="lms-topbar__disclosure">{{ lms_page_subtitle }}</span>
+      {% elif lms_risk_disclosure %}
+      <span class="lms-topbar__disclosure">{{ lms_risk_disclosure }}</span>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="lms-topbar__right">
+    <button type="button" class="lms-topbar__icon-btn" id="lms-notification-bell" aria-label="Notifications" title="Notifications">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+        <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+      </svg>
+      <span class="lms-topbar__badge" id="lms-notification-badge" style="display:none;"></span>
+    </button>
+
+    <div class="lms-user-menu" id="lms-user-menu">
+      <button type="button" class="lms-user-menu__trigger" aria-label="User menu" aria-expanded="false">
+        <span class="lms-user-menu__avatar" id="lms-user-avatar">{{ (frappe.session.user[0] | upper) if frappe.session.user != 'Guest' else '?' }}</span>
+        <span class="lms-user-menu__name">{{ frappe.session.user.split('@')[0].replace('.', ' ').title() if frappe.session.user != 'Guest' else 'Guest' }}</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<div class="lms-notification-panel" id="lms-notification-panel" role="dialog" aria-label="Notifications" aria-hidden="true">
+  <div class="lms-notification-panel__header">
+    <h3>Notifications</h3>
+    <button type="button" class="lms-notification-panel__close" id="lms-notification-close" aria-label="Close">×</button>
+  </div>
+  <div class="lms-notification-panel__body" id="lms-notification-body"></div>
+</div>
+{% endblock %}
+
+{% block lms_content %}
+{% endblock %}
+
+{% block script %}
+<script>
+(function () {
+  var toggle = document.getElementById('lms-sidebar-toggle');
+  var topbarToggle = document.getElementById('lms-topbar-menu-btn');
+  var sidebar = document.getElementById('lms-sidebar');
+  function toggleSidebar() {
+    var open = sidebar.classList.toggle('is-open');
+    (toggle || topbarToggle).setAttribute('aria-expanded', String(open));
+  }
+  if (toggle) toggle.addEventListener('click', toggleSidebar);
+  if (topbarToggle) topbarToggle.addEventListener('click', toggleSidebar);
+})();
+</script>
+{% endblock %}

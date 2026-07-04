@@ -1,0 +1,59 @@
+<p style="margin:0 0 16px;">Morning portfolio snapshot for <strong>{{ report_date }}</strong>.</p>
+
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:0 0 20px;">
+  <tr>
+    <td style="padding:8px 12px;background:#f0f9ff;border-radius:8px;width:50%;">
+      <p style="margin:0;font-size:11px;color:#64748b;text-transform:uppercase;">Portfolio outstanding</p>
+      <p style="margin:4px 0 0;font-size:18px;font-weight:700;color:#0f172a;">{{ portfolio_outstanding_fmt }}</p>
+    </td>
+    <td style="width:8px;"></td>
+    <td style="padding:8px 12px;background:#f0fdf4;border-radius:8px;width:50%;">
+      <p style="margin:0;font-size:11px;color:#64748b;text-transform:uppercase;">Active loans</p>
+      <p style="margin:4px 0 0;font-size:18px;font-weight:700;color:#0f172a;">{{ active_loans }}</p>
+    </td>
+  </tr>
+  <tr><td colspan="3" style="height:8px;"></td></tr>
+  <tr>
+    <td style="padding:8px 12px;background:#fffbeb;border-radius:8px;">
+      <p style="margin:0;font-size:11px;color:#64748b;">PAR 30+</p>
+      <p style="margin:4px 0 0;font-weight:700;">{{ par30_fmt }}</p>
+    </td>
+    <td></td>
+    <td style="padding:8px 12px;background:#fef2f2;border-radius:8px;">
+      <p style="margin:0;font-size:11px;color:#64748b;">PAR 90+</p>
+      <p style="margin:4px 0 0;font-weight:700;">{{ par90_fmt }}</p>
+    </td>
+  </tr>
+</table>
+
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:0 0 20px;font-size:13px;">
+  <tr><td style="padding:4px 0;"><strong>Dues today:</strong> {{ dues_today }}</td></tr>
+  <tr><td style="padding:4px 0;"><strong>Loans in arrears:</strong> {{ new_arrears }}</td></tr>
+  <tr><td style="padding:4px 0;"><strong>Open incidents:</strong> {{ open_incidents }}</td></tr>
+  <tr><td style="padding:4px 0;"><strong>KYC pending (alert):</strong> {{ kyc_pending_count }}</td></tr>
+</table>
+
+{{ risk_chart_html | safe }}
+
+<p style="margin:16px 0 8px;font-size:14px;font-weight:600;">Collections trend</p>
+{{ collections_chart_html | safe }}
+
+{% if kyc_pending_list and kyc_pending_list|length %}
+<p style="margin:20px 0 8px;font-size:14px;font-weight:600;">KYC pending review</p>
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="font-size:12px;border-collapse:collapse;">
+  <tr style="background:#f1f5f9;">
+    <th style="text-align:left;padding:8px;">Customer</th>
+    <th style="text-align:left;padding:8px;">Status</th>
+    <th style="text-align:right;padding:8px;">Days</th>
+  </tr>
+  {% for row in kyc_pending_list %}
+  <tr>
+    <td style="padding:8px;border-top:1px solid #e2e8f0;">{{ row.customer_name }}</td>
+    <td style="padding:8px;border-top:1px solid #e2e8f0;">{{ row.kyc_status }}</td>
+    <td style="padding:8px;border-top:1px solid #e2e8f0;text-align:right;">{{ row.days_pending }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% endif %}
+
+<p style="margin:16px 0 0;font-size:12px;color:#64748b;">Sandbox notice: figures are for operational oversight. Verify before regulatory submission.</p>

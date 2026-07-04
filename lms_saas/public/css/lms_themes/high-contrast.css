@@ -1,0 +1,87 @@
+/* LMS theme: high-contrast (system preference — accessibility)
+ *
+ * Phase 3 addition: triggered by `@media (prefers-contrast: more)`.
+ * - All borders thicken to 2 px (1 px → 2 px).
+ * - Focus rings thicken to 3 px (2 px → 3 px).
+ * - Decorative color-only signals gain a visible weight increase / text label
+ *   affordance. Where a state is communicated by color alone, we add a border
+ *   or weight so the meaning survives in monochrome.
+ *
+ * Loaded on every page via web_include_css; only takes effect when the user
+ * has explicitly requested a higher-contrast experience.
+ */
+
+@media (prefers-contrast: more) {
+	/* Borders: 1 px → 2 px on every themed border */
+	.lms-panel,
+	.lms-summary-card,
+	.lms-stat,
+	.lms-home-panel,
+	.lms-card,
+	.lms-product-card,
+	.lms-account-card,
+	.lms-modal,
+	.lms-toast,
+	.lms-list__item,
+	.lms-stat-row > .lms-stat,
+	.lms-pill,
+	.lms-badge {
+		border-width: 2px !important;
+	}
+
+	/* Focus ring: 2 px → 3 px */
+	.lms-btn:focus-visible,
+	.lms-portal-nav a:focus-visible,
+	.lms-action-tile:focus-visible,
+	.lms-product-card:focus-visible,
+	.lms-notification-bell:focus-visible,
+	.lms-portal-menu-toggle:focus-visible,
+	.lms-card-link:focus-visible,
+	.lms-skip-link:focus-visible,
+	.lms-staff-sidebar__link:focus-visible,
+	.staff-portal-sidebar__link:focus-visible,
+	.staff-btn:focus-visible,
+	.lms-chart-slot:focus-visible,
+	.lms-input:focus-visible {
+		outline-width: 3px !important;
+		outline-offset: 2px;
+	}
+
+	body.lms-themed *:focus-visible {
+		outline-width: 3px !important;
+	}
+
+	/* Color-only signals gain a non-color cue (text label) */
+	.lms-badge {
+		font-weight: 700;
+	}
+	.lms-pill {
+		font-weight: 700;
+	}
+
+	/* Wizard progress bar: thicker segments, current step has a stroke */
+	.lms-wizard__bar-segment {
+		block-size: 8px;
+	}
+	.lms-wizard__bar-segment--current {
+		outline: 2px solid var(--lms-text);
+		outline-offset: 1px;
+	}
+
+	/* Status indicators: underlay for color-blind users */
+	.lms-kpi__delta--up::before    { content: "(+) "; font-weight: 700; }
+	.lms-kpi__delta--down::before  { content: "(-) "; font-weight: 700; }
+	.lms-kpi__delta--flat::before  { content: "(=) "; font-weight: 700; }
+
+	/* Toast: stronger text + thicker left border */
+	.lms-toast {
+		font-weight: 600;
+		border-left-width: 4px !important;
+	}
+
+	/* Skip link: more visible at all times */
+	.lms-skip-link {
+		font-weight: 700;
+		border-width: 2px !important;
+	}
+}

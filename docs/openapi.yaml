@@ -1,0 +1,58 @@
+openapi: 3.0.3
+info:
+  title: LMS SaaS Integration API
+  version: 1.0.0
+  description: Whitelisted Frappe methods for bureau, AML, SMS, and payments.
+
+servers:
+  - url: https://{site}/api/method
+    variables:
+      site:
+        default: lms.example.com
+
+components:
+  securitySchemes:
+    ApiKey:
+      type: apiKey
+      in: header
+      name: X-LMS-API-Key
+    ApiSecret:
+      type: apiKey
+      in: header
+      name: X-LMS-API-Secret
+
+paths:
+  /lms_saas.api.integrations.aml.screen_customer:
+    post:
+      summary: Screen customer AML/CFT
+      security: [{ ApiKey: [], ApiSecret: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                customer: { type: string }
+                force: { type: integer }
+
+  /lms_saas.api.integrations.payments.create_intent:
+    post:
+      summary: Create payment intent
+      security: [{ ApiKey: [], ApiSecret: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                loan: { type: string }
+                amount: { type: number }
+                provider_code: { type: string }
+
+  /lms_saas.api.payments.service.handle_payment_webhook:
+    post:
+      summary: Inbound payment provider webhook
+      parameters:
+        - name: provider
+          in: query
+          schema: { type: string }

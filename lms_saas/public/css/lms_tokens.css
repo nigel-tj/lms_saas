@@ -1,0 +1,186 @@
+/* Kesari — structural design tokens (theme-independent) */
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
+
+:root {
+	/* Typography */
+	--lms-font: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+	--lms-font-display: "Inter", var(--lms-font);
+
+	/* Shape — locked scale: 6/12/16/20/24 only */
+	--lms-radius-sm: 6px;
+	--lms-radius: 12px;
+	--lms-radius-lg: 16px;
+	--lms-radius-panel: 20px;
+	--lms-radius-xl: 24px;
+
+	/* Motion — locked ramp, 4 values, no others */
+	--lms-transition: 0.15s ease;
+	--lms-transition-slow: 0.18s ease;
+	--lms-motion-fast: 200ms;
+	--lms-ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+	--lms-ease-in-out-cubic: cubic-bezier(0.65, 0, 0.35, 1);
+	--lms-transition-fast: var(--lms-motion-fast) var(--lms-ease-out-quart);
+	--lms-transition-base: 320ms var(--lms-ease-out-quart);
+	--lms-transition-slow-ease: 480ms var(--lms-ease-in-out-cubic);
+
+	/* Type — locked scale: 12/14/16/18/20/24/30/36/48 */
+	--lms-fs-xs: 0.75rem;     /* 12 */
+	--lms-fs-sm: 0.875rem;    /* 14 */
+	--lms-fs-base: 1rem;      /* 16 */
+	--lms-fs-md: 1.125rem;    /* 18 */
+	--lms-fs-lg: 1.25rem;     /* 20 */
+	--lms-fs-xl: 1.5rem;      /* 24 */
+	--lms-fs-2xl: 1.875rem;   /* 30 */
+	--lms-fs-3xl: 2.25rem;    /* 36 */
+	--lms-fs-4xl: 3rem;       /* 48 */
+	--lms-lh-tight: 1.2;
+	--lms-lh-base: 1.45;
+	--lms-lh-relaxed: 1.6;
+
+	/* Form + interaction tokens */
+	--lms-form-input-height: 2.5rem;
+	--lms-form-pad-x: 0.75rem;
+	--lms-form-pad-y: 0.5rem;
+	--lms-form-radius: 10px;
+	--lms-form-border: var(--lms-border);
+	--lms-form-focus-ring: 0 0 0 3px color-mix(in oklch, var(--lms-primary) 22%, transparent);
+	--lms-z-overlay: 80;
+	--lms-z-modal: 100;
+	--lms-z-popover: 90;
+	--lms-z-toast: 110;
+	--lms-z-tooltip: 120;
+
+	/* Layout */
+	--lms-content-max: none;
+	--lms-sidebar-width: 220px;
+	--lms-sidebar-collapsed-width: 3.25rem;
+	--lms-content-padding-x: clamp(0.875rem, 1.5vw, 1.75rem);
+	--lms-content-padding-y: clamp(0.875rem, 1.25vw, 1.5rem);
+	--lms-tile-gap: clamp(0.75rem, 1.25vw, 1.125rem);
+	--lms-tile-min: min(100%, 17.5rem);
+
+	/* Semantic aliases — resolved by active theme file */
+	--lms-primary: var(--theme-primary);
+	--lms-primary-light: var(--theme-primary-light);
+	--lms-accent: var(--theme-accent);
+	--lms-accent-muted: var(--theme-accent-muted);
+	--lms-focus: var(--theme-focus);
+
+	--lms-canvas: var(--theme-canvas);
+	--lms-surface: var(--theme-surface);
+	--lms-surface-alt: var(--theme-surface-alt);
+	--lms-surface-elevated: var(--theme-surface-elevated);
+	--lms-border: var(--theme-border);
+
+	--lms-text: var(--theme-text);
+	--lms-text-muted: var(--theme-text-muted);
+	--lms-success: var(--theme-success);
+	--lms-warning: var(--theme-warning);
+	--lms-danger: var(--theme-danger);
+
+	--lms-shadow-sm: var(--theme-shadow-sm);
+	--lms-shadow: var(--theme-shadow);
+	--lms-shadow-lg: var(--theme-shadow-lg);
+	--lms-shadow-panel: var(--theme-shadow-panel);
+
+	--lms-hero-border: var(--theme-hero-border);
+	--lms-hero-bg: var(--theme-hero-bg);
+	--lms-hero-glow: var(--theme-hero-glow);
+	--lms-hero-accent: var(--theme-hero-accent);
+
+	--lms-nav-active-bg: var(--theme-nav-active-bg);
+	--lms-nav-active-text: var(--theme-nav-active-text);
+	--lms-sidebar-section-text: var(--theme-sidebar-section-text);
+	--lms-sidebar-hover-bg: var(--theme-sidebar-hover-bg);
+	--lms-sidebar-active-bg: var(--theme-sidebar-active-bg);
+	--lms-sidebar-active-text: var(--theme-sidebar-active-text);
+	--lms-sidebar-active-accent: var(--theme-sidebar-active-accent);
+	--lms-sidebar-icon-bg: var(--theme-sidebar-icon-bg);
+	--lms-sidebar-icon-text: var(--theme-sidebar-icon-text);
+	--lms-sidebar-icon-active-bg: var(--theme-sidebar-icon-active-bg);
+	--lms-sidebar-icon-active-text: var(--theme-sidebar-icon-active-text);
+	--lms-sidebar-child-border: var(--theme-sidebar-child-border);
+	--lms-chip-bg: var(--theme-chip-bg);
+	--lms-chip-text: var(--theme-chip-text);
+	--lms-pill-bg: var(--theme-pill-bg);
+	--lms-pill-text: var(--theme-pill-text);
+
+	--lms-tile-bg: var(--theme-tile-bg);
+	--lms-tile-border: var(--theme-tile-border);
+	--lms-tile-shadow: var(--theme-tile-shadow);
+	--lms-tile-shadow-hover: var(--theme-tile-shadow-hover);
+	--lms-tile-border-hover: var(--theme-tile-border-hover);
+	--lms-tile-icon-bg: var(--theme-tile-icon-bg);
+	--lms-tile-icon-text: var(--theme-tile-icon-text);
+	--lms-tile-footer-border: var(--theme-tile-footer-border);
+	--lms-tile-count-bg: var(--theme-tile-count-bg);
+	--lms-tile-count-text: var(--theme-tile-count-text);
+	--lms-tile-count-muted-bg: var(--theme-tile-count-muted-bg);
+	--lms-tile-count-muted-text: var(--theme-tile-count-muted-text);
+	--lms-tile-action-text: var(--theme-tile-action-text);
+
+	/* Tile tone accents (shared structure, theme may override) */
+	--lms-tone-cyan: var(--theme-tone-cyan);
+	--lms-tone-blue: var(--theme-tone-blue);
+	--lms-tone-green: var(--theme-tone-green);
+	--lms-tone-orange: var(--theme-tone-orange);
+	--lms-tone-red: var(--theme-tone-red);
+	--lms-tone-purple: var(--theme-tone-purple);
+	--lms-tone-grey: var(--theme-tone-grey);
+}
+
+/* ------------------------------------------------------------------ */
+/* Shadow ramp (v3) — three values only, in oklch for theme-aware shift */
+/* ------------------------------------------------------------------ */
+:root {
+	--lms-shadow-1: 0 1px 0 oklch(95% 0 0), 0 1px 2px oklch(20% 0 0 / 0.04);
+	--lms-shadow-2: 0 1px 0 oklch(95% 0 0), 0 4px 12px oklch(20% 0 0 / 0.08);
+	--lms-shadow-3: 0 1px 0 oklch(95% 0 0), 0 12px 32px oklch(20% 0 0 / 0.12);
+}
+
+[data-lms-theme="dark"] {
+	--lms-shadow-1: 0 1px 0 oklch(8% 0 0), 0 1px 2px oklch(0% 0 0 / 0.25);
+	--lms-shadow-2: 0 1px 0 oklch(8% 0 0), 0 4px 12px oklch(0% 0 0 / 0.35);
+	--lms-shadow-3: 0 1px 0 oklch(8% 0 0), 0 12px 32px oklch(0% 0 0 / 0.45);
+}
+
+[data-lms-theme="midnight"] {
+	--lms-shadow-1: 0 1px 0 oklch(8% 0 0), 0 1px 2px oklch(0% 0 0 / 0.3);
+	--lms-shadow-2: 0 1px 0 oklch(8% 0 0), 0 4px 12px oklch(0% 0 0 / 0.4);
+	--lms-shadow-3: 0 1px 0 oklch(8% 0 0), 0 12px 32px oklch(0% 0 0 / 0.5);
+}
+
+/* ------------------------------------------------------------------ */
+/* Reduced motion — single global rule                                  */
+/* ------------------------------------------------------------------ */
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.01ms !important;
+		scroll-behavior: auto !important;
+	}
+}
+
+/* Viewport tiers — sidebar + page chrome */
+@media (min-width: 1600px) {
+	:root {
+		--lms-content-padding-x: clamp(1.25rem, 2vw, 2.25rem);
+		--lms-sidebar-width: 232px;
+	}
+}
+
+@media (max-width: 1199px) {
+	:root {
+		--lms-sidebar-width: 208px;
+	}
+}
+
+@media (max-width: 991px) {
+	:root {
+		--lms-content-padding-x: 0.875rem;
+		--lms-content-padding-y: 0.875rem;
+	}
+}

@@ -1,0 +1,175 @@
+/* LMS help documentation (/lms-help/*) */
+body.lms-help-page {
+	background: var(--lms-canvas, #f4f8fa);
+	color: var(--lms-text, #0f172a);
+}
+
+.lms-help-wrap {
+	max-width: 52rem;
+	margin: 0 auto;
+	padding: clamp(1rem, 3vw, 2rem) clamp(1rem, 4vw, 2.5rem) 3rem;
+}
+
+.lms-help-header {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 1rem;
+	margin-bottom: 1.25rem;
+	padding-bottom: 1rem;
+	border-bottom: 1px solid var(--lms-border, #d3d6d2);
+}
+
+.lms-help-brand {
+	display: flex;
+	align-items: center;
+	gap: 0.75rem;
+}
+
+.lms-help-logo {
+	width: 2.5rem;
+	height: 2.5rem;
+	object-fit: contain;
+}
+
+.lms-help-kicker {
+	margin: 0;
+	font-size: 0.75rem;
+	font-weight: 600;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	color: var(--lms-text-muted, #666666);
+}
+
+.lms-help-title {
+	margin: 0.15rem 0 0;
+	font-size: clamp(1.35rem, 3vw, 1.75rem);
+	font-weight: 700;
+	color: var(--lms-sidebar-active-text, #2f4f46);
+}
+
+.lms-help-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+}
+
+.lms-help-nav {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.35rem;
+	margin-bottom: 1.25rem;
+}
+
+.lms-help-nav a {
+	display: inline-flex;
+	padding: 0.35rem 0.75rem;
+	border-radius: 999px;
+	border: 1px solid var(--lms-border, #d3d6d2);
+	font-size: 0.8125rem;
+	color: var(--lms-text-muted, #666666);
+	text-decoration: none;
+	background: var(--lms-surface, #fff);
+}
+
+.lms-help-nav a:hover,
+.lms-help-nav a.is-active {
+	color: var(--lms-sidebar-active-text, #2f4f46);
+	border-color: var(--lms-hero-border, #b9c9c0);
+	background: var(--lms-sidebar-hover-bg, #e8f4f0);
+}
+
+.lms-help-doc {
+	background: var(--lms-surface, #fff);
+	border: 1px solid var(--lms-border, #d3d6d2);
+	border-radius: var(--lms-radius-lg, 12px);
+	box-shadow: var(--lms-shadow-sm, 0 1px 3px rgba(47, 79, 70, 0.08));
+	padding: clamp(1.25rem, 3vw, 2rem);
+	line-height: 1.6;
+	font-size: 0.9375rem;
+}
+
+.lms-help-doc h1,
+.lms-help-doc h2,
+.lms-help-doc h3,
+.lms-help-doc h4 {
+	color: var(--lms-sidebar-active-text, #2f4f46);
+	margin-top: 1.5em;
+	margin-bottom: 0.5em;
+	line-height: 1.25;
+}
+
+.lms-help-doc h1 { font-size: 1.5rem; margin-top: 0; }
+.lms-help-doc h2 { font-size: 1.2rem; border-bottom: 1px solid var(--lms-border, #d3d6d2); padding-bottom: 0.35rem; }
+.lms-help-doc h3 { font-size: 1.05rem; }
+
+.lms-help-doc p,
+.lms-help-doc ul,
+.lms-help-doc ol {
+	margin: 0 0 0.85em;
+}
+
+.lms-help-doc table {
+	width: 100%;
+	border-collapse: collapse;
+	margin: 1em 0;
+	font-size: 0.875rem;
+}
+
+.lms-help-doc th,
+.lms-help-doc td {
+	border: 1px solid var(--lms-border, #d3d6d2);
+	padding: 0.45rem 0.6rem;
+	text-align: left;
+	vertical-align: top;
+}
+
+.lms-help-doc th {
+	background: var(--lms-surface-alt, #fafafa);
+	font-weight: 600;
+}
+
+.lms-help-doc code {
+	font-size: 0.85em;
+	background: var(--lms-surface-alt, #fafafa);
+	padding: 0.1em 0.35em;
+	border-radius: 4px;
+}
+
+.lms-help-doc pre,
+.lms-help-pre {
+	overflow-x: auto;
+	background: var(--lms-surface-alt, #fafafa);
+	padding: 0.75rem 1rem;
+	border-radius: 8px;
+	font-size: 0.8125rem;
+}
+
+.lms-help-doc a {
+	color: var(--lms-accent, #2f4f46);
+}
+
+.lms-help-doc hr {
+	border: none;
+	border-top: 1px solid var(--lms-border, #d3d6d2);
+	margin: 1.5rem 0;
+}
+
+.lms-help-wrap .lms-loading .lms-brand-loader {
+	margin: 0 auto;
+}
+
+.lms-help-footer {
+	margin-top: 2rem;
+	padding-top: 1rem;
+	border-top: 1px solid var(--lms-border, #d3d6d2);
+	font-size: 0.75rem;
+	color: var(--lms-text-muted, #666666);
+	text-align: center;
+}
+
+.lms-help-footer a {
+	color: var(--lms-primary-light, #1a6b7d);
+	text-decoration: none;
+}

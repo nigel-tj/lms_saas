@@ -1,0 +1,6 @@
+{% set _favicon = favicon_url or (brand.favicon_url if brand else none) or brand_favicon_url %}
+{% if _favicon %}
+<link rel="icon" type="image/svg+xml" href="{{ _favicon }}">
+<link rel="shortcut icon" href="{{ _favicon }}">
+<link rel="apple-touch-icon" href="{{ _favicon }}">
+{% endif %}
