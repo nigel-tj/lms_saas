@@ -1,5 +1,7 @@
 """Portal branding defaults and context helpers."""
 
+from urllib.parse import urlparse
+
 from lms_saas.utils.frappe_version import desk_url, lending_home_url
 
 BRAND_LOGO_PATH = "/assets/lms_saas/images/lms-logo.svg"
@@ -20,6 +22,19 @@ DEFAULT_BRAND = {
 VALID_LMS_THEMES = frozenset({"default", "midnight", "dark", "auto"})
 
 
+def _is_private_asset_url(value: str | None) -> bool:
+	"""True when URL/path points to private files that website users cannot access."""
+	if not value:
+		return False
+	raw = str(value).strip()
+	if not raw:
+		return False
+
+	path = urlparse(raw).path if "://" in raw else raw
+	path = path.strip().lower()
+	return path.startswith("/private/") or path.startswith("private/")
+
+
 def get_lms_theme():
 	"""Active UI theme id (switch via site_config.json → lms_theme)."""
 	import frappe
@@ -34,7 +49,7 @@ def get_brand_logo_url() -> str:
 
 	try:
 		logo = frappe.get_single_value("Website Settings", "app_logo")
-		if logo:
+		if logo and not _is_private_asset_url(logo):
 			return logo
 	except Exception:
 		pass
@@ -47,7 +62,7 @@ def get_brand_favicon_url() -> str:
 
 	try:
 		favicon = frappe.get_single_value("Website Settings", "favicon")
-		if favicon:
+		if favicon and not _is_private_asset_url(favicon):
 			return favicon
 	except Exception:
 		pass
@@ -60,7 +75,7 @@ def get_brand_splash_url() -> str:
 
 	try:
 		splash = frappe.get_single_value("Website Settings", "splash_image")
-		if splash:
+		if splash and not _is_private_asset_url(splash):
 			return splash
 	except Exception:
 		pass

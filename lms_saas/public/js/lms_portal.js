@@ -509,6 +509,18 @@ lms_portal.initLoansPage = function () {
 		method: "lms_saas.api.portal.get_my_loans",
 		args: { limit_start: 0, limit_page_length: lms_portal._loansState.pageSize },
 		callback: function (r) {
+			if (r.message && r.message.no_customer_linked) {
+				if (summaryEl) summaryEl.innerHTML = "";
+				if (riskEl) riskEl.innerHTML = "";
+				if (loanMixEl) loanMixEl.innerHTML = "";
+				if (upcomingEl) upcomingEl.innerHTML = "";
+				el.innerHTML =
+					'<div class="lms-empty" role="status">' +
+					"<h3>No borrower profile linked</h3>" +
+					"<p>Your login is active, but no Customer record is connected to this account.</p>" +
+					'<p class="lms-empty-hint">Ask your loan officer/admin to link this user to a Customer profile.</p></div>';
+				return;
+			}
 			lms_portal._loansState.total = (r.message && r.message.total_count) || 0;
 			lms_portal._loansState.allLoans = (r.message && r.message.loans) || [];
 			lms_portal._loansState.offset = lms_portal._loansState.allLoans.length;
@@ -1095,6 +1107,12 @@ lms_portal.initPayPage = function () {
 	frappe.call({
 		method: "lms_saas.api.portal.get_my_loans",
 		callback: function (r) {
+			if (r.message && r.message.no_customer_linked) {
+				root.innerHTML =
+					'<div class="lms-panel"><p>No borrower profile linked to this account yet.</p>' +
+					"<p class=\"lms-muted\">Please ask your loan officer/admin to link your user to a Customer record.</p></div>";
+				return;
+			}
 			var loans = (r.message && r.message.loans) || [];
 			if (!loans.length) {
 				root.innerHTML = '<div class="lms-panel"><p>No active loans to pay.</p></div>';

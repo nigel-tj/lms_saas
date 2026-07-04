@@ -8,7 +8,29 @@ from lms_saas.utils.rate_limit import rate_limit
 
 @frappe.whitelist()
 def get_my_loans(limit_start=0, limit_page_length=20):
-    customer = _require_customer()
+    customer = _require_customer(raise_exception=False)
+    if not customer:
+        return {
+            "loans": [],
+            "summary": {
+                "total_outstanding": 0,
+                "active_count": 0,
+                "loan_count": 0,
+                "next_due": None,
+                "at_risk_count": 0,
+                "delinquency_ratio": 0,
+                "outstanding_history": [],
+            },
+            "dashboard": {
+                "bucket_totals": {"current": 0, "par30": 0, "par60": 0, "par90": 0},
+                "upcoming_due": [],
+                "loan_mix": {"current": 0, "watchlist": 0, "npa": 0},
+                "collections_trend": [],
+                "outstanding_history": [],
+            },
+            "total_count": 0,
+            "no_customer_linked": 1,
+        }
     limit_start = int(limit_start)
     limit_page_length = int(limit_page_length)
     loans = frappe.get_all(
@@ -318,7 +340,7 @@ def get_statement_pdf(loan_id):
     return {"url": get_url(f"/api/method/lms_saas.api.portal.download_statement&loan_id={loan_id}")}
 
 
-def _require_customer():
+def _require_customer(raise_exception=True):
     if frappe.session.user == "Guest":
         frappe.throw("Please log in", frappe.PermissionError)
 
@@ -326,7 +348,9 @@ def _require_customer():
 
     linked = _portal_customer(frappe.session.user)
     if not linked:
-        frappe.throw("No Customer linked to your portal account.", frappe.PermissionError)
+        if raise_exception:
+            frappe.throw("No Customer linked to your portal account.", frappe.PermissionError)
+        return None
     return linked
 
 
