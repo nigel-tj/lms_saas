@@ -1,0 +1,50 @@
+{
+  "doctype": "DocType",
+  "name": "LMS Loan Collateral",
+  "module": "Lms Saas",
+  "custom": 0,
+  "istable": 1,
+  "fields": [
+    {
+      "fieldname": "collateral",
+      "fieldtype": "Link",
+      "label": "Collateral",
+      "options": "LMS Collateral",
+      "in_list_view": 1,
+      "reqd": 1,
+      "columns": 3
+    },
+    {
+      "fieldname": "collateral_type",
+      "fieldtype": "Data",
+      "label": "Type",
+      "fetch_from": "collateral.collateral_type",
+      "read_only": 1,
+      "in_list_view": 1,
+      "columns": 2
+    },
+    {
+      "fieldname": "net_realizable_value",
+      "fieldtype": "Currency",
+      "label": "Net Realizable Value",
+      "fetch_from": "collateral.net_realizable_value",
+      "read_only": 1,
+      "in_list_view": 1,
+      "columns": 2
+    },
+    {
+      "fieldname": "allocated_value",
+      "fieldtype": "Currency",
+      "label": "Allocated Value",
+      "in_list_view": 1,
+      "columns": 2,
+      "description": "Portion of this collateral's value pledged to this loan. Defaults to the net realizable value."
+    },
+    {
+      "fieldname": "notes",
+      "fieldtype": "Small Text",
+      "label": "Notes"
+    }
+  ],
+  "permissions": []
+}

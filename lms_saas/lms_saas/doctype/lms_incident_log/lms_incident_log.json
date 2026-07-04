@@ -1,0 +1,79 @@
+{
+ "doctype": "DocType",
+ "name": "LMS Incident Log",
+ "module": "Lms Saas",
+ "custom": 0,
+ "autoname": "format:INC-{#####}",
+ "track_changes": 1,
+ "fields": [
+  {
+   "fieldname": "title",
+   "fieldtype": "Data",
+   "label": "Title",
+   "in_list_view": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "incident_type",
+   "fieldtype": "Select",
+   "label": "Type",
+   "options": "Operational\nTechnical\nCyber Security\nData Breach\nFraud\nCustomer Complaint",
+   "in_list_view": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "severity",
+   "fieldtype": "Select",
+   "label": "Severity",
+   "options": "Low\nMedium\nHigh\nCritical",
+   "in_list_view": 1,
+   "default": "Medium"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Open\nInvestigating\nResolved\nClosed",
+   "in_list_view": 1,
+   "default": "Open"
+  },
+  {
+   "fieldname": "reported_on",
+   "fieldtype": "Datetime",
+   "label": "Reported On",
+   "reqd": 1
+  },
+  {
+   "fieldname": "reference_doctype",
+   "fieldtype": "Link",
+   "label": "Reference DocType",
+   "options": "DocType"
+  },
+  {
+   "fieldname": "reference_name",
+   "fieldtype": "Data",
+   "label": "Reference Name"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Text",
+   "label": "Description"
+  },
+  {
+   "fieldname": "remediation",
+   "fieldtype": "Text",
+   "label": "Remediation / Steps Taken"
+  }
+ ],
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "export": 1,
+   "report": 1
+  }
+ ]
+}

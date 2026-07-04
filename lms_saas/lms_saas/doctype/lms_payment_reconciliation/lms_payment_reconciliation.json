@@ -1,0 +1,64 @@
+{
+ "doctype": "DocType",
+ "name": "LMS Payment Reconciliation",
+ "module": "Lms Saas",
+ "custom": 0,
+ "autoname": "format:RECON-{#####}",
+ "fields": [
+  {
+   "fieldname": "provider_code",
+   "fieldtype": "Data",
+   "label": "Provider Code",
+   "reqd": 1
+  },
+  {
+   "fieldname": "statement_date",
+   "fieldtype": "Date",
+   "label": "Statement Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "external_ref",
+   "fieldtype": "Data",
+   "label": "External Reference",
+   "search_index": 1
+  },
+  {
+   "fieldname": "amount",
+   "fieldtype": "Currency",
+   "label": "Amount",
+   "reqd": 1
+  },
+  {
+   "fieldname": "payment_intent",
+   "fieldtype": "Link",
+   "label": "Payment Intent",
+   "options": "LMS Payment Intent"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Unmatched\nMatched\nIgnored",
+   "default": "Unmatched",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "raw_line",
+   "fieldtype": "Code",
+   "label": "Raw Statement Line",
+   "options": "JSON"
+  }
+ ],
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "export": 1,
+   "report": 1
+  }
+ ]
+}

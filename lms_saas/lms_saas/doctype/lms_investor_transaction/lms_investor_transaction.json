@@ -1,0 +1,72 @@
+{
+  "doctype": "DocType",
+  "name": "LMS Investor Transaction",
+  "module": "Lms Saas",
+  "custom": 0,
+  "is_submittable": 1,
+  "autoname": "hash",
+  "fields": [
+    {
+      "fieldname": "investor",
+      "fieldtype": "Link",
+      "label": "Investor",
+      "options": "LMS Investor",
+      "reqd": 1
+    },
+    {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "label": "Company",
+      "options": "Company",
+      "fetch_from": "investor.company",
+      "read_only": 1
+    },
+    {
+      "fieldname": "investor_liability_account",
+      "fieldtype": "Link",
+      "label": "Investor Liability Account",
+      "options": "Account",
+      "fetch_from": "investor.investor_liability_account",
+      "read_only": 1
+    },
+    {
+      "fieldname": "transaction_type",
+      "fieldtype": "Select",
+      "label": "Transaction Type",
+      "options": "Credit\nDebit",
+      "reqd": 1
+    },
+    {
+      "fieldname": "amount",
+      "fieldtype": "Currency",
+      "label": "Amount",
+      "reqd": 1
+    },
+    {
+      "fieldname": "posting_date",
+      "fieldtype": "Date",
+      "label": "Posting Date",
+      "reqd": 1,
+      "default": "Today"
+    },
+    {
+      "fieldname": "reference_journal_entry",
+      "fieldtype": "Link",
+      "label": "Reference Journal Entry",
+      "options": "Journal Entry",
+      "read_only": 1
+    }
+  ],
+  "permissions": [
+    {
+      "role": "System Manager",
+      "read": 1,
+      "write": 1,
+      "create": 1,
+      "delete": 1,
+      "submit": 1,
+      "cancel": 1,
+      "amend": 1
+    }
+  ]
+}

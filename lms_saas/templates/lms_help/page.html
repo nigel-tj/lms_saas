@@ -1,0 +1,57 @@
+{% extends "templates/web.html" %}
+
+{% block head_include %}
+{{ super() }}
+{% include "templates/lms_brand/favicon.html" %}
+<script>document.documentElement.setAttribute("data-lms-theme", {{ (lms_theme or "default") | tojson }});</script>
+{% if brand and brand.favicon_url %}
+<script>document.documentElement.setAttribute("data-lms-favicon", {{ brand.favicon_url | tojson }});</script>
+{% endif %}
+{% endblock %}
+
+{% block navbar %}{% endblock %}
+{% block footer %}{% endblock %}
+
+{% block page_content %}
+<div class="lms-help-wrap">
+  <header class="lms-help-header">
+    <div class="lms-help-brand">
+      {% if brand and brand.logo_url %}
+      <img class="lms-help-logo" src="{{ brand.logo_url }}" alt="">
+      {% endif %}
+      <div>
+        <p class="lms-help-kicker">{{ _("LMS help") }}</p>
+        <h1 class="lms-help-title">{{ help_title }}</h1>
+      </div>
+    </div>
+    <div class="lms-help-actions">
+      {% if show_staff_desk %}
+      <a class="btn btn-default btn-sm" href="{{ lms_desk_home }}">{{ _("Open staff desk") }}</a>
+      {% endif %}
+      <a class="btn btn-primary btn-sm" href="/?cmd=web_logout">{{ _("Log out") }}</a>
+    </div>
+  </header>
+
+  {% if help_nav and help_nav|length > 1 %}
+  <nav class="lms-help-nav" aria-label="{{ _('Help topics') }}">
+    {% for item in help_nav %}
+    <a href="{{ item.url }}"{% if item.active %} class="is-active" aria-current="page"{% endif %}>{{ item.title }}</a>
+    {% endfor %}
+  </nav>
+  {% endif %}
+
+  <article class="lms-help-doc">
+    {{ help_body | safe }}
+  </article>
+
+  <footer class="lms-help-footer">
+    {{ brand.footer_text if brand else _('Powered by Kesari') }}
+    {% if brand and brand.support_email %}
+    · <a href="mailto:{{ brand.support_email }}">{{ _('Support') }}</a>
+    {% endif %}
+  </footer>
+</div>
+<script>document.body.classList.add('lms-help-page', 'lms-themed');</script>
+{% endblock %}
+
+{% block script %}{% endblock %}

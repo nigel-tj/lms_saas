@@ -1,0 +1,18 @@
+{
+  "_comment": "Merge into site_config.json on Frappe Cloud (Site → Configuration). No secrets in git.",
+  "developer_mode": 0,
+  "lms_enforce_four_eyes": true,
+  "lms_require_consent": true,
+  "lms_max_loan_amount": 50000,
+  "lms_max_active_customers": 500,
+  "lms_sandbox_end_date": "2027-12-31",
+  "lms_payments_enabled": false,
+  "lms_aml_enabled": false,
+  "lms_aml_require_clear": true,
+  "lms_credit_bureau_enabled": false,
+  "lms_collections_escalation_enabled": false,
+  "lms_digest_enabled": false,
+  "lms_weekly_kpi_enabled": true,
+  "lms_compliance_report_recipients": "ops@example.com",
+  "lms_risk_disclosure": "Loans involve credit risk. Terms and fees apply."
+}

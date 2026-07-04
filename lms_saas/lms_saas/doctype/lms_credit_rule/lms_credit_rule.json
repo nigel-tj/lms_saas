@@ -1,0 +1,14 @@
+{
+  "doctype": "DocType",
+  "name": "LMS Credit Rule",
+  "module": "Lms Saas",
+  "custom": 0,
+  "istable": 1,
+  "fields": [
+    {"fieldname": "rule_field", "fieldtype": "Select", "label": "Field", "options": "credit_score\ndebt_to_income_ratio\nloan_amount\nmax_exposure\ncollateral_coverage", "reqd": 1, "in_list_view": 1},
+    {"fieldname": "operator", "fieldtype": "Select", "label": "Operator", "options": ">=\n<=\n>\n<\n==", "reqd": 1, "in_list_view": 1},
+    {"fieldname": "threshold", "fieldtype": "Float", "label": "Threshold", "reqd": 1, "in_list_view": 1},
+    {"fieldname": "action", "fieldtype": "Select", "label": "Action", "options": "Pass\nFail\nRefer", "default": "Pass", "reqd": 1, "in_list_view": 1}
+  ],
+  "permissions": []
+}

@@ -1,0 +1,297 @@
+{% extends "templates/web.html" %}
+
+{% macro email_login_fields() -%}
+{% if not disable_user_pass_login or (ldap_settings and ldap_settings.enabled) %}
+<div class="page-card-body">
+	<div class="form-group">
+		<label class="form-label sr-only" for="login_email">{{ login_label or _("Email")}}</label>
+		<div class="email-field">
+			<input type="text" id="login_email" class="form-control"
+				placeholder="{% if login_name_placeholder %}{{ login_name_placeholder }}{% else %}{{ _('jane@example.com') }}{% endif %}"
+				required autofocus autocomplete="username">
+			<svg class="field-icon email-icon" width="16" height="16" viewBox="0 0 16 16" fill="none"
+				xmlns="http://www.w3.org/2000/svg">
+				<use class="es-lock" href="#es-line-email"></use>
+			</svg>
+		</div>
+	</div>
+
+	<div class="form-group">
+		<label class="form-label sr-only" for="login_password">{{ _("Password") }}</label>
+		<div class="password-field">
+			<input type="password" id="login_password" class="form-control" placeholder="•••••"
+				autocomplete="current-password" required>
+			<svg class="field-icon password-icon" width="16" height="16" viewBox="0 0 16 16" fill="none"
+				xmlns="http://www.w3.org/2000/svg">
+				<use class="es-lock" href="#es-line-lock"></use>
+			</svg>
+			<span toggle="#login_password" class="toggle-password text-muted">{{ _('Show') }}</span>
+		</div>
+	</div>
+
+	{% if not disable_user_pass_login %}
+	<p class="forgot-password-message">
+		<a href="#forgot">{{ _("Forgot Password?") }}</a>
+	</p>
+	{% endif %}
+</div>
+{% endif %}
+{%- endmacro %}
+
+{% macro email_login_actions() -%}
+<div class="page-card-actions">
+	{% if not disable_user_pass_login %}
+	<button class="btn btn-sm btn-primary btn-block btn-login" type="submit">
+		{{ _("Sign in") }}
+	</button>
+	{% endif %}
+	{% if ldap_settings and ldap_settings.enabled %}
+	<button class="btn btn-sm {{ "btn-primary" if disable_user_pass_login else "btn-default" }} btn-block btn-login btn-ldap-login">
+		{{ _("Login with LDAP") }}
+	</button>
+	{% endif %}
+</div>
+{%- endmacro %}
+
+{% macro email_login_body() -%}
+{{ email_login_fields() }}
+{{ email_login_actions() }}
+{%- endmacro %}
+
+{% block navbar %}{% endblock %}
+{% block footer %}{% endblock %}
+
+{% block head_include %}
+{{ include_style('login.bundle.css') }}
+{% include "templates/lms_brand/favicon.html" %}
+<script>document.documentElement.setAttribute("data-lms-theme", {{ (lms_theme or "default") | tojson }});</script>
+{% if brand and brand.favicon_url %}
+<script>document.documentElement.setAttribute("data-lms-favicon", {{ brand.favicon_url | tojson }});</script>
+{% endif %}
+{% endblock %}
+
+{% macro logo_section(title=null) %}
+<div class="page-card-head lms-login-card-head">
+	{% if logo %}
+	<img class="app-logo lms-login-lockup__mark" src="{{ logo }}" alt="{{ app_name or brand.portal_title if brand else 'Kesari' }}">
+	{% endif %}
+	{% if title %}
+	<h4 class="lms-login-card-title">{{ _(title) }}</h4>
+	{% else %}
+	<h4 class="lms-login-card-title">{{ lms_login.headline if lms_login else _('Login to {0}').format(app_name or _("Kesari")) }}</h4>
+	{% endif %}
+	{% if not title and lms_login and lms_login.subtitle %}
+	<p class="lms-login-card-subtitle">{{ lms_login.subtitle }}</p>
+	{% endif %}
+</div>
+{% endmacro %}
+
+{% block page_content %}
+<div class="lms-login-shell">
+	<aside class="lms-login-brand" aria-hidden="false">
+		<div class="lms-login-brand__inner">
+			<div class="lms-login-brand__lockup">
+				{% if brand and brand.logo_url %}
+				<img class="lms-login-lockup__mark" src="{{ brand.logo_url }}" alt="">
+				{% else %}
+				<img class="lms-login-lockup__mark" src="/assets/lms_saas/images/lms-logo.svg" alt="">
+				{% endif %}
+				<h1 class="lms-login-lockup__wordmark">{{ brand.portal_title if brand else app_name or "Kesari" }}</h1>
+			</div>
+			<p class="lms-login-brand__tagline">{{ brand.tagline if brand else _("Stewardship in every repayment") }}</p>
+
+			<ul class="lms-login-brand__features">
+				{% for feature in (lms_login.features if lms_login else []) %}
+				<li>{{ feature }}</li>
+				{% endfor %}
+			</ul>
+
+			<div class="lms-login-brand__routes">
+				<a class="lms-login-route-card" href="{{ lms_login.staff_url if lms_login and lms_login.staff_url else lms_desk_home }}">
+					<span class="lms-login-route-card__label">{{ lms_login.staff_label if lms_login else _("Staff desk") }}</span>
+					<span class="lms-login-route-card__hint">{{ lms_login.staff_hint if lms_login else _("Operations & compliance") }}</span>
+				</a>
+				<a class="lms-login-route-card" href="/lms">
+					<span class="lms-login-route-card__label">{{ lms_login.borrower_label if lms_login else _("Borrower portal") }}</span>
+					<span class="lms-login-route-card__hint">{{ lms_login.borrower_hint if lms_login else _("Self-service loans") }}</span>
+				</a>
+			</div>
+
+			<p class="lms-login-brand__disclosure">
+				{{ _("Lending involves credit risk. Terms apply to approved borrowers only.") }}
+			</p>
+		</div>
+	</aside>
+
+	<div class="lms-login-panel">
+		<noscript>
+			<div class="lms-login-noscript">
+				<h4>{{ _("Javascript is disabled on your browser") }}</h4>
+				<p class="text-muted">
+					{{ _("You need to enable JavaScript for your app to work.") }}
+				</p>
+			</div>
+		</noscript>
+
+		<div class="lms-login-forms">
+			{% if logged_out %}
+			<div class="lms-login-alert lms-login-alert--success" role="status">
+				<strong>{{ _("Signed out") }}</strong>
+				<p>{{ lms_login.logged_out_message if lms_login else _("You have been logged out securely.") }}</p>
+			</div>
+			{% endif %}
+			<section class="for-login">
+				{{ logo_section() }}
+				<div class="login-content page-card lms-login-card">
+					<form class="form-signin form-login" role="form">
+						{%- if social_login or login_with_email_link -%}
+						{{ email_login_fields() }}
+						{{ email_login_actions() }}
+						<div class="social-logins text-center">
+								{% if not disable_user_pass_login or (ldap_settings and ldap_settings.enabled) %}
+								<p class="text-muted login-divider">{{ _("or") }}</p>
+								{% endif %}
+								<div class="social-login-buttons">
+									{% for provider in provider_logins %}
+									<div class="login-button-wrapper">
+										<a href="{{ provider.auth_url }}"
+											class="btn btn-block btn-default btn-sm btn-login-option btn-{{ provider.name }}">
+											{% if provider.icon %}{{ provider.icon }}{% endif %}
+											{{ _("Login with {0}").format(provider.provider_name) }}
+										</a>
+									</div>
+									{% endfor %}
+								</div>
+
+								{% if login_with_frappe_cloud_url %}
+								<div class="social-login-buttons">
+									<div class="login-button-wrapper">
+										<a href="{{ login_with_frappe_cloud_url }}"
+											class="btn btn-block btn-default btn-sm btn-login-option btn-login-with-frappe-cloud">
+											{{ _("Login with Frappe Cloud") }}
+										</a>
+									</div>
+								</div>
+								{% endif %}
+
+								{% if login_with_email_link %}
+								<div class="login-with-email-link social-login-buttons">
+									<div class="login-button-wrapper">
+										<a href="#login-with-email-link"
+											class="btn btn-block btn-default btn-sm btn-login-option btn-login-with-email-link">
+											{{ _("Login with Email Link") }}
+										</a>
+									</div>
+								</div>
+								{% endif %}
+							</div>
+						{% else %}
+						{{ email_login_body() }}
+						{%- endif -%}
+					</form>
+				</div>
+				{%- if not disable_signup and not disable_user_pass_login -%}
+				<div class="text-center sign-up-message lms-login-signup-link">
+					{{ _("Don't have an account?") }}
+					<a href="#signup">{{ _("Sign up") }}</a>
+				</div>
+				{%- endif -%}
+			</section>
+
+			{%- if social_login -%}
+			<section class="for-email-login">
+				{{ logo_section() }}
+				<div class="login-content page-card lms-login-card">
+					<form class="form-signin form-login" role="form">
+						{{ email_login_body() }}
+					</form>
+				</div>
+				{%- if not disable_signup and not disable_user_pass_login -%}
+				<div class="text-center sign-up-message lms-login-signup-link">
+					{{ _("Don't have an account?") }}
+					<a href="#signup">{{ _("Sign up") }}</a>
+				</div>
+				{%- endif -%}
+			</section>
+			{%- endif -%}
+
+			<section class="for-signup {{ 'signup-disabled' if disable_signup else '' }}">
+				{{ logo_section(_('Create a {0} Account').format(app_name or _("Kesari"))) }}
+				<div class="login-content page-card lms-login-card">
+					{%- if not disable_signup -%}
+					{{ signup_form_template }}
+					{%- else -%}
+					<div class="page-card-head mb-2">
+						<span class="indicator gray">{{ _("Signup Disabled") }}</span>
+						<p class="text-muted text-normal sign-up-message mt-1 mb-8">{{ _("Signups have been disabled for this website.") }}</p>
+						<div><a href="/login" class="btn btn-primary btn-md">{{ _("Back to login") }}</a></div>
+					</div>
+					{%- endif -%}
+				</div>
+			</section>
+
+			<section class="for-forgot">
+				{{ logo_section(_("Forgot Password")) }}
+				<div class="login-content page-card lms-login-card">
+					<form class="form-signin form-forgot hide" role="form">
+						<div class="page-card-body">
+							<div class="email-field">
+								<input type="email" id="forgot_email" class="form-control"
+									placeholder="{{ _('Email Address') }}" required autofocus autocomplete="username">
+								<svg class="field-icon email-icon" width="20" height="20" viewBox="0 0 20 20" fill="none"
+									xmlns="http://www.w3.org/2000/svg">
+									<use href="#es-line-email"></use>
+								</svg>
+							</div>
+						</div>
+						<div class="page-card-actions">
+							<button class="btn btn-sm btn-primary btn-block btn-forgot" type="submit">{{ _("Reset Password") }}</button>
+							<p class="text-center sign-up-message">
+								<a href="#login">{{ _("Back to Login") }}</a>
+							</p>
+						</div>
+					</form>
+				</div>
+			</section>
+
+			<section class="for-login-with-email-link">
+				{{ logo_section(_("Login with Email Link")) }}
+				<div class="login-content page-card lms-login-card">
+					<form class="form-signin form-login-with-email-link hide" role="form">
+						<div class="page-card-body">
+							<div class="email-field">
+								<input type="email" id="login_with_email_link_email" class="form-control"
+									placeholder="{{ _('Email Address') }}" required autofocus autocomplete="username">
+								<svg class="field-icon email-icon" width="20" height="20" viewBox="0 0 20 20" fill="none"
+									xmlns="http://www.w3.org/2000/svg">
+									<use href="#es-line-email"></use>
+								</svg>
+							</div>
+						</div>
+						<div class="page-card-actions">
+							<button class="btn btn-sm btn-primary btn-block btn-login-with-email-link" type="submit">{{ _("Send login link") }}</button>
+							<p class="text-center sign-up-message">
+								<a href="#login">{{ _("Back to Login") }}</a>
+							</p>
+						</div>
+					</form>
+				</div>
+			</section>
+		</div>
+
+		<footer class="lms-login-footer">
+			{{ brand.footer_text if brand else _("Powered by Kesari") }}
+			{% if brand and brand.support_email %}
+			· <a href="mailto:{{ brand.support_email }}">{{ _("Support") }}</a>
+			{% endif %}
+		</footer>
+	</div>
+</div>
+<script>document.body.classList.add("lms-login-page", "lms-themed");</script>
+{% endblock %}
+
+{% block script %}
+<script>{% include "templates/includes/login/login.js" %}</script>
+{% endblock %}
+
+{% block sidebar %}{% endblock %}

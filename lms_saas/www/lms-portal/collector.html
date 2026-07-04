@@ -1,0 +1,263 @@
+{% extends "templates/lms_staff_portal/base.html" %}
+
+{% block title %}Collection Dashboard{% endblock %}
+
+{% block lms_content %}
+<div class="staff-page-header">
+  <h2>Collection Dashboard</h2>
+  <p>Today's dues, quick payment logging, and outstanding queues.</p>
+</div>
+
+{# ── KPI cards ── #}
+<div class="staff-kpi-grid">
+  <div class="staff-kpi-card">
+    <span class="staff-kpi-card__label">Today's Collections</span>
+    <span class="staff-kpi-card__value is-positive" id="kpi-today-total">{{ staffPortal.currency(today_total) if today_total else '0.00' }}</span>
+    <span class="staff-kpi-card__sub">{{ today_count }} payment(s) recorded</span>
+  </div>
+  <div class="staff-kpi-card">
+    <span class="staff-kpi-card__label">Due Today</span>
+    <span class="staff-kpi-card__value">{{ due_count }}</span>
+    <span class="staff-kpi-card__sub">loans on run sheet</span>
+  </div>
+  <div class="staff-kpi-card">
+    <span class="staff-kpi-card__label">Overdue</span>
+    <span class="staff-kpi-card__value{% if overdue_count > 0 %} is-danger{% endif %}">{{ overdue_count }}</span>
+    <span class="staff-kpi-card__sub">past due date</span>
+  </div>
+  <div class="staff-kpi-card">
+    <span class="staff-kpi-card__label">PAR 30+</span>
+    <span class="staff-kpi-card__value is-warning">{{ '{:,.2f}'.format(arrears.get('par30', 0)|float + arrears.get('par60', 0)|float + arrears.get('par90', 0)|float) }}</span>
+    <span class="staff-kpi-card__sub">outstanding arrears</span>
+  </div>
+</div>
+
+{# ── Collection Run Sheet ── #}
+<div class="staff-panel">
+  <h3 class="staff-panel__title">
+    Collection Run Sheet
+    <span class="badge">{{ collection_rows|length }} loans</span>
+  </h3>
+
+  {% if collection_rows %}
+  <div class="staff-table-wrap">
+    <table class="staff-table" id="collection-table">
+      <thead>
+        <tr>
+          <th>Loan</th>
+          <th>Borrower</th>
+          <th>Mobile</th>
+          <th class="text-right">Amount Due</th>
+          <th class="text-center">DPD</th>
+          <th class="text-center">Due Date</th>
+          <th class="text-center">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in collection_rows %}
+        <tr data-loan="{{ row.loan }}" data-amount="{{ row.total_payment or row.amount or 0 }}">
+          <td><strong>{{ row.loan }}</strong></td>
+          <td>{{ row.applicant_name or row.applicant or '—' }}</td>
+          <td>
+            {% if row.borrower_mobile %}
+            <a href="tel:{{ row.borrower_mobile }}">{{ row.borrower_mobile }}</a>
+            {% else %}—{% endif %}
+          </td>
+          <td class="text-right">{{ '{:,.2f}'.format((row.total_payment or row.amount or 0)|float) }}</td>
+          <td class="text-center">
+            {% set dpd = (row.days_past_due or 0)|int %}
+            <span class="staff-status-badge {% if dpd > 90 %}is-danger{% elif dpd > 30 %}is-warning{% elif dpd > 0 %}is-info{% else %}is-success{% endif %}">
+              {{ dpd }}
+            </span>
+          </td>
+          <td class="text-center">{{ row.payment_date or '—' }}</td>
+          <td class="text-center">
+            <div class="staff-btn-group" style="justify-content:center;">
+              <button type="button" class="staff-btn staff-btn-primary staff-btn-sm btn-log-payment"
+                      data-loan="{{ row.loan }}" data-amount="{{ row.total_payment or row.amount or 0 }}">
+                Log Payment
+              </button>
+              <button type="button" class="staff-btn staff-btn-outline staff-btn-sm btn-promise"
+                      data-loan="{{ row.loan }}">
+                Promise
+              </button>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="staff-empty-state">
+    <p>No collections scheduled for today. Great work!</p>
+  </div>
+  {% endif %}
+</div>
+
+{# ── Leaderboard ── #}
+{% if leaderboard %}
+<div class="staff-panel">
+  <h3 class="staff-panel__title">Today's Leaderboard</h3>
+  <div class="staff-table-wrap">
+    <table class="staff-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Collector</th>
+          <th class="text-right">Amount Collected</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for entry in leaderboard %}
+        <tr>
+          <td>{{ loop.index }}</td>
+          <td>{{ entry.collector }}</td>
+          <td class="text-right">{{ '{:,.2f}'.format(entry.amount|float) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{# ── Log Payment Modal ── #}
+<div class="staff-modal-overlay" id="modal-log-payment" aria-hidden="true">
+  <div class="staff-modal">
+    <div class="staff-modal__header">
+      <h3 class="staff-modal__title">Log Collection Payment</h3>
+      <button type="button" class="staff-modal__close" onclick="staffPortal.closeModal('modal-log-payment')">×</button>
+    </div>
+    <form id="form-log-payment" onsubmit="return false;">
+      <div class="staff-form-group">
+        <label for="pay-loan-id">Loan</label>
+        <input type="text" class="staff-form-input" id="pay-loan-id" readonly>
+      </div>
+      <div class="staff-form-group">
+        <label for="pay-amount">Amount</label>
+        <input type="number" class="staff-form-input" id="pay-amount" step="0.01" min="0.01" required>
+      </div>
+      <div class="staff-form-group">
+        <label for="pay-mode">Payment Mode</label>
+        <select class="staff-form-input staff-form-select" id="pay-mode">
+          <option value="Cash">Cash</option>
+          <option value="Bank Transfer">Bank Transfer</option>
+          <option value="EcoCash">EcoCash</option>
+          <option value="OneMoney">OneMoney</option>
+        </select>
+      </div>
+      <div class="staff-btn-group" style="margin-top: 1rem;">
+        <button type="submit" class="staff-btn staff-btn-success" id="btn-submit-payment">Record Payment</button>
+        <button type="button" class="staff-btn staff-btn-outline" onclick="staffPortal.closeModal('modal-log-payment')">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{# ── Promise to Pay Modal ── #}
+<div class="staff-modal-overlay" id="modal-promise" aria-hidden="true">
+  <div class="staff-modal">
+    <div class="staff-modal__header">
+      <h3 class="staff-modal__title">Promise to Pay</h3>
+      <button type="button" class="staff-modal__close" onclick="staffPortal.closeModal('modal-promise')">×</button>
+    </div>
+    <form id="form-promise" onsubmit="return false;">
+      <div class="staff-form-group">
+        <label for="promise-loan-id">Loan</label>
+        <input type="text" class="staff-form-input" id="promise-loan-id" readonly>
+      </div>
+      <div class="staff-form-group">
+        <label for="promise-date">Promised Date</label>
+        <input type="date" class="staff-form-input" id="promise-date" required>
+      </div>
+      <div class="staff-form-group">
+        <label for="promise-amount">Promised Amount (optional)</label>
+        <input type="number" class="staff-form-input" id="promise-amount" step="0.01" min="0">
+      </div>
+      <div class="staff-form-group">
+        <label for="promise-note">Note</label>
+        <input type="text" class="staff-form-input" id="promise-note" placeholder="Brief note...">
+      </div>
+      <div class="staff-btn-group" style="margin-top: 1rem;">
+        <button type="submit" class="staff-btn staff-btn-primary" id="btn-submit-promise">Create Promise</button>
+        <button type="button" class="staff-btn staff-btn-outline" onclick="staffPortal.closeModal('modal-promise')">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block script %}
+<script>
+frappe.ready(function() {
+  /* ── Log Payment flow ── */
+  document.querySelectorAll('.btn-log-payment').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var loan = this.getAttribute('data-loan');
+      var amount = this.getAttribute('data-amount');
+      document.getElementById('pay-loan-id').value = loan;
+      document.getElementById('pay-amount').value = parseFloat(amount) || '';
+      staffPortal.openModal('modal-log-payment');
+    });
+  });
+
+  document.getElementById('form-log-payment').addEventListener('submit', function(e) {
+    e.preventDefault();
+    var submitBtn = document.getElementById('btn-submit-payment');
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Recording…';
+
+    staffPortal.call('lms_saas.api.field_collection.record_field_repayment', {
+      loan: document.getElementById('pay-loan-id').value,
+      amount: parseFloat(document.getElementById('pay-amount').value),
+      payment_mode: document.getElementById('pay-mode').value
+    }).then(function(r) {
+      staffPortal.closeModal('modal-log-payment');
+      staffPortal.toast('Payment recorded: ' + (r.repayment || ''), 'success');
+      // Refresh the page after a brief delay
+      setTimeout(function() { window.location.reload(); }, 1200);
+    }).catch(function() {
+      // Toast already shown by staffPortal.call
+    }).finally(function() {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Record Payment';
+    });
+  });
+
+  /* ── Promise to Pay flow ── */
+  document.querySelectorAll('.btn-promise').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var loan = this.getAttribute('data-loan');
+      document.getElementById('promise-loan-id').value = loan;
+      document.getElementById('promise-date').value = '';
+      document.getElementById('promise-amount').value = '';
+      document.getElementById('promise-note').value = '';
+      staffPortal.openModal('modal-promise');
+    });
+  });
+
+  document.getElementById('form-promise').addEventListener('submit', function(e) {
+    e.preventDefault();
+    var submitBtn = document.getElementById('btn-submit-promise');
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Creating…';
+
+    staffPortal.call('lms_saas.api.field_collection.create_promise_to_pay', {
+      loan: document.getElementById('promise-loan-id').value,
+      promised_date: document.getElementById('promise-date').value,
+      promised_amount: parseFloat(document.getElementById('promise-amount').value) || null,
+      note: document.getElementById('promise-note').value
+    }).then(function(r) {
+      staffPortal.closeModal('modal-promise');
+      staffPortal.toast('Promise created: ' + (r.todo || ''), 'success');
+    }).catch(function() {
+      // Toast already shown
+    }).finally(function() {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Create Promise';
+    });
+  });
+});
+</script>
+{% endblock %}

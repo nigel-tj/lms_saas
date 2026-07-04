@@ -1,0 +1,21 @@
+{% extends "templates/lms_portal/base.html" %}
+
+{% block title %}Loan Detail{% endblock %}
+
+{% block lms_content %}
+<section class="lms-hero">
+  <h2 id="loan-title" class="lms-hero__title">Loan</h2>
+  <p class="lms-hero__subtitle">Repayment schedule, balance, and account status.</p>
+</section>
+<div id="loan-detail" aria-live="polite"></div>
+{% endblock %}
+
+{% block script %}
+<script>
+frappe.ready(function() {
+  if (typeof lms_portal !== 'undefined') {
+    lms_portal.initLoanDetailPage();
+  }
+});
+</script>
+{% endblock %}

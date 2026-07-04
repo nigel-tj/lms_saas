@@ -1,0 +1,20 @@
+<p style="margin:0 0 12px;">{{ _("Hello") }} <strong>{{ customer_name }}</strong>,</p>
+<p style="margin:0 0 12px;">{{ _("Welcome to {0}.").format(company_name) }}</p>
+<p style="margin:0 0 12px;">{{ _("Your account has been created. You can now sign in to the borrower portal to view your loans, repayment schedule, and account details.") }}</p>
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+  <tr>
+    <td align="center" style="padding:8px 0;">
+      <a href="{{ site_url | safe }}/lms" style="display:inline-block;padding:12px 28px;background:{{ primary_color }};color:#ffffff;font-weight:600;font-size:15px;border-radius:8px;text-decoration:none;">{{ _("Go to my account") }}</a>
+    </td>
+  </tr>
+</table>
+<p style="margin:16px 0 8px;font-size:14px;font-weight:600;">{{ _("Set your password") }}</p>
+<p style="margin:0 0 12px;">{{ _("Use the link below to choose your sign-in password. The link expires in 24 hours.") }}</p>
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+  <tr>
+    <td align="center" style="padding:4px 0;">
+      <a href="{{ reset_password_url | safe }}" style="display:inline-block;padding:10px 24px;background:#ffffff;color:{{ primary_color }};font-weight:600;font-size:14px;border-radius:8px;border:1px solid {{ primary_color }};text-decoration:none;">{{ _("Set my password") }}</a>
+    </td>
+  </tr>
+</table>
+<p style="margin:16px 0 0;">{{ _("If you did not expect this email, you can safely ignore it.") }}</p>

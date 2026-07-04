@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr" data-lms-theme="{{ lms_theme or 'default' }}">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+	<meta name="generator" content="frappe">
+	<title>{% block title %}{{ brand.portal_title if brand else 'Kesari' }}{% endblock %}</title>
+
+	{% include "templates/lms_brand/favicon.html" %}
+
+	{# LMS design system: tokens → themes → components → surface CSS #}
+	{% for css in lms_css_stack or [] %}
+	<link rel="stylesheet" href="{{ css }}">
+	{% endfor %}
+
+	{# Inter font — loaded from Google Fonts for now; can be self-hosted later #}
+	<link rel="preconnect" href="https://fonts.googleapis.com">
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+	<script>document.documentElement.setAttribute("data-lms-theme", {{ (lms_theme or "default") | tojson }});</script>
+	{% if brand and brand.favicon_url %}
+	<script>document.documentElement.setAttribute("data-lms-favicon", {{ brand.favicon_url | tojson }});</script>
+	{% endif %}
+	<script>window.__lms_desk_home = {{ (lms_desk_home or "/desk/lending") | tojson }};</script>
+	<script>window.__lms_support_email = {{ (brand.support_email if brand else '') | tojson }};</script>
+
+	{# Frappe web globals — must exist before frappe-web.bundle.js loads #}
+	<script>
+		window.frappe = {};
+		window._version_number = "{{ build_version }}";
+		frappe.ready_events = [];
+		frappe.ready = function(fn) { frappe.ready_events.push(fn); };
+		window.dev_server = {{ 'true' if dev_server else 'false' }};
+		window.socketio_port = {{ (frappe.socketio_port or 9000) }};
+		window.show_language_picker = {{ 'true' if show_language_picker else 'false' }};
+	</script>
+	<script>
+		frappe.boot = {{ frappe.utils.orjson_dumps(boot, default=frappe.json_handler) if boot else '{}' }};
+		frappe.sys_defaults = (frappe.boot && frappe.boot.sysdefaults) || {};
+	</script>
+
+	{# Frappe web bundle — required for frappe.call() and auth #}
+	{{ include_script('libs.bundle.js') }}
+	{{ include_script('frappe-web.bundle.js') }}
+
+	{% for js in lms_js_stack or [] %}
+	<script type="text/javascript" src="{{ js }}"></script>
+	{% endfor %}
+
+	{% block head_include %}{% endblock %}
+</head>
+<body class="{{ body_class or '' }}">
+	{% block body %}
+	<div class="lms-shell">
+		{% block sidebar %}{% endblock %}
+
+		<div class="lms-main">
+			{% block topbar %}{% endblock %}
+
+			<main class="lms-content" id="lms-content">
+				{% block lms_content %}{% endblock %}
+			</main>
+
+			{% block footer %}
+			<footer class="lms-footer">
+				<p>{{ brand.footer_text if brand else 'Powered by Kesari' }}</p>
+			</footer>
+			{% endblock %}
+		</div>
+	</div>
+
+	<div class="lms-toast-stack" id="lms-toast-stack" aria-live="polite" aria-atomic="true"></div>
+	{% endblock %}
+
+	{% block script %}{% endblock %}
+</body>
+</html>

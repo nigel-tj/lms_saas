@@ -1,0 +1,17 @@
+{% extends "templates/lms_portal/base.html" %}
+
+{% block title %}Loan Officer Dashboard{% endblock %}
+
+{% block lms_content %}
+<div id="lms-officer-root" aria-live="polite"></div>
+{% endblock %}
+
+{% block script %}
+<script>
+frappe.ready(function() {
+  if (typeof lms_officer !== 'undefined') {
+    lms_officer.init();
+  }
+});
+</script>
+{% endblock %}

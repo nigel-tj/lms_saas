@@ -1,0 +1,50 @@
+{
+ "doctype": "DocType",
+ "name": "LMS Payment Provider",
+ "module": "Lms Saas",
+ "custom": 0,
+ "autoname": "field:provider_code",
+ "fields": [
+  {
+   "fieldname": "provider_code",
+   "fieldtype": "Select",
+   "label": "Provider Code",
+   "options": "ecocash\nonemoney\nbank_transfer",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "provider_name",
+   "fieldtype": "Data",
+   "label": "Provider Name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "label": "Enabled",
+   "default": "0"
+  },
+  {
+   "fieldname": "api_url",
+   "fieldtype": "Data",
+   "label": "API URL"
+  },
+  {
+   "fieldname": "merchant_id",
+   "fieldtype": "Data",
+   "label": "Merchant ID"
+  }
+ ],
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "export": 1,
+   "report": 1
+  }
+ ]
+}

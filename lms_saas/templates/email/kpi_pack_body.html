@@ -1,0 +1,20 @@
+<p style="margin:0 0 16px;">RBZ sandbox weekly KPI pack for the period since <strong>{{ since }}</strong> ({{ period_days }} days).</p>
+
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:0 0 16px;font-size:13px;">
+  <tr><td style="padding:4px 0;"><strong>Volunteer customers (active):</strong> {{ volunteer_customers }}</td></tr>
+  <tr><td style="padding:4px 0;"><strong>Disbursements:</strong> {{ disbursements_count }} ({{ disbursements_value }})</td></tr>
+  <tr><td style="padding:4px 0;"><strong>Repayments:</strong> {{ repayments_count }} ({{ repayments_value }})</td></tr>
+  <tr><td style="padding:4px 0;"><strong>Open incidents:</strong> {{ incidents_open }}</td></tr>
+  <tr><td style="padding:4px 0;"><strong>Customer complaints (period):</strong> {{ complaints }}</td></tr>
+  <tr><td style="padding:4px 0;"><strong>Audit events (period):</strong> {{ audit_events }}</td></tr>
+  <tr><td style="padding:4px 0;"><strong>Failed notifications (period):</strong> {{ notifications_failed }}</td></tr>
+</table>
+
+{{ incident_chart_html | safe }}
+
+<p style="margin:16px 0 8px;font-size:14px;font-weight:600;">Transaction trends</p>
+{{ trend_chart_html | safe }}
+<p style="margin:12px 0 8px;"></p>
+{{ repayment_trend_chart_html | safe }}
+
+<p style="margin:16px 0 0;font-size:12px;color:#64748b;">Full metrics are attached as JSON for regulatory filing and audit reference.</p>

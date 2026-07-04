@@ -1,0 +1,16 @@
+<p style="margin:0 0 12px;">{{ _("Hello") }}{% if customer_name %}, <strong>{{ customer_name }}</strong>{% endif %}.</p>
+<p style="margin:0 0 12px;">{{ _("Good news — your loan has been disbursed.") }}</p>
+<p style="margin:0 0 8px;">{{ _("Loan") }}: <strong>{{ loan_name }}</strong></p>
+<p style="margin:0 0 8px;">{{ _("Disbursed amount") }}: <strong>{{ disbursed_amount }}</strong></p>
+{% if disbursement_date %}
+<p style="margin:0 0 12px;">{{ _("Disbursed on") }}: <strong>{{ disbursement_date }}</strong></p>
+{% endif %}
+<p style="margin:0 0 16px;">{{ _("Your repayment schedule is now active. You can view your first due date and full schedule from your portal.") }}</p>
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+  <tr>
+    <td align="center" style="padding:8px 0;">
+      <a href="{{ site_url | safe }}/lms/loan?name={{ loan_name | urlencode }}" style="display:inline-block;padding:12px 28px;background:{{ primary_color }};color:#ffffff;font-weight:600;font-size:15px;border-radius:8px;text-decoration:none;">{{ _("View loan & schedule") }}</a>
+    </td>
+  </tr>
+</table>
+<p style="margin:16px 0 0;">{{ _("This email confirms the funds have been released to your account.") }}</p>

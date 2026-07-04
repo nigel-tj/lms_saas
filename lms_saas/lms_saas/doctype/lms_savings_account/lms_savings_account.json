@@ -1,0 +1,70 @@
+{
+ "doctype": "DocType",
+ "name": "LMS Savings Account",
+ "module": "Lms Saas",
+ "custom": 0,
+ "autoname": "format:SAV-{#####}",
+ "fields": [
+  {
+   "fieldname": "customer",
+   "fieldtype": "Link",
+   "label": "Customer",
+   "options": "Customer",
+   "reqd": 1
+  },
+  {
+   "fieldname": "lending_group",
+   "fieldtype": "Link",
+   "label": "Lending Group",
+   "options": "LMS Lending Group"
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1
+  },
+  {
+   "fieldname": "balance",
+   "fieldtype": "Currency",
+   "label": "Balance",
+   "read_only": 1,
+   "default": "0"
+  },
+  {
+   "fieldname": "liability_account",
+   "fieldtype": "Link",
+   "label": "Liability Account",
+   "options": "Account",
+   "reqd": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Active\nClosed",
+   "default": "Active"
+  }
+ ],
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "export": 1,
+   "report": 1
+  },
+  {
+   "role": "LMS Portal Staff",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "export": 1,
+   "report": 1
+  }
+ ]
+}

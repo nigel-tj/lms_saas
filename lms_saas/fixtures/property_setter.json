@@ -1,0 +1,11 @@
+[
+  {
+    "doctype": "Property Setter",
+    "name": "Repayment Schedule-payment_date-in_list_view",
+    "doctype_or_field": "DocField",
+    "doc_type": "Repayment Schedule",
+    "field_name": "payment_date",
+    "property": "in_list_view",
+    "value": "1"
+  }
+]

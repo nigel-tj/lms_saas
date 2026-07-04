@@ -1,0 +1,116 @@
+{
+  "doctype": "DocType",
+  "name": "LMS Borrower Compliance",
+  "module": "Lms Saas",
+  "custom": 0,
+  "autoname": "format:COMP-{#####}",
+  "fields": [
+    {
+      "fieldname": "customer",
+      "fieldtype": "Link",
+      "label": "Customer",
+      "options": "Customer",
+      "reqd": 1
+    },
+    {
+      "fieldname": "national_id_number",
+      "fieldtype": "Data",
+      "label": "National ID Number",
+      "reqd": 1
+    },
+    {
+      "fieldname": "kyc_status",
+      "fieldtype": "Select",
+      "label": "KYC Status",
+      "options": "Pending\nApproved\nRejected",
+      "default": "Pending"
+    },
+    {
+      "fieldname": "id_document_proof",
+      "fieldtype": "Attach",
+      "label": "ID Document Proof",
+      "reqd": 1
+    },
+    {
+      "fieldname": "proof_of_address",
+      "fieldtype": "Attach",
+      "label": "Proof Of Address",
+      "reqd": 1
+    },
+    {
+      "fieldname": "credit_score",
+      "fieldtype": "Int",
+      "label": "Credit Score",
+      "read_only": 1
+    },
+    {
+      "fieldname": "debt_to_income_ratio",
+      "fieldtype": "Percent",
+      "label": "Debt To Income Ratio",
+      "read_only": 1
+    },
+    {
+      "fieldname": "consent_given",
+      "fieldtype": "Check",
+      "label": "Customer Consent Given",
+      "description": "Customer consented to participate and was informed of product terms and risks."
+    },
+    {
+      "fieldname": "consent_date",
+      "fieldtype": "Datetime",
+      "label": "Consent Date",
+      "depends_on": "consent_given"
+    },
+    {
+      "fieldname": "aml_section",
+      "fieldtype": "Section Break",
+      "label": "AML / CFT Screening"
+    },
+    {
+      "fieldname": "aml_status",
+      "fieldtype": "Select",
+      "label": "AML Status",
+      "options": "Pending\nClear\nFlagged\nRejected",
+      "default": "Pending",
+      "read_only": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "aml_screened_at",
+      "fieldtype": "Datetime",
+      "label": "AML Screened At",
+      "read_only": 1
+    },
+    {
+      "fieldname": "aml_provider_ref",
+      "fieldtype": "Data",
+      "label": "AML Provider Reference",
+      "read_only": 1
+    },
+    {
+      "fieldname": "aml_risk_level",
+      "fieldtype": "Data",
+      "label": "AML Risk Level",
+      "read_only": 1
+    },
+    {
+      "fieldname": "aml_details",
+      "fieldtype": "Code",
+      "label": "AML Provider Details",
+      "options": "JSON",
+      "read_only": 1
+    }
+  ],
+  "permissions": [
+    {
+      "role": "System Manager",
+      "read": 1,
+      "write": 1,
+      "create": 1,
+      "delete": 1,
+      "submit": 1,
+      "cancel": 1,
+      "amend": 1
+    }
+  ]
+}

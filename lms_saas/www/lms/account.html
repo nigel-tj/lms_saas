@@ -1,0 +1,57 @@
+{% extends "templates/lms_portal/base.html" %}
+
+{% block title %}My Account{% endblock %}
+
+{% block lms_content %}
+<section class="lms-hero">
+  <h2 class="lms-hero__title">My Account</h2>
+  <p class="lms-hero__subtitle">Manage your profile, compliance status, and sign-in settings.</p>
+</section>
+
+<div class="lms-account">
+  <article class="lms-account-card lms-panel">
+    <div class="lms-account-row">
+      <div class="lms-account-profile">
+        <span class="lms-account-avatar" aria-hidden="true">{{ account_initials }}</span>
+        <div>
+          <p class="lms-account-name">{{ account_user.full_name | e }}</p>
+          <p class="lms-account-email">{{ account_email | e }}</p>
+        </div>
+      </div>
+      <a class="lms-btn lms-btn--ghost" href="/update-profile/{{ account_user.name | e }}">Edit profile</a>
+    </div>
+  </article>
+
+  <article class="lms-account-card lms-panel">
+    <div class="lms-account-row">
+      <div>
+        <p class="lms-account-item-title">Reset password</p>
+        <p class="lms-account-item-desc">Choose a new password for your portal sign-in.</p>
+      </div>
+      <a class="lms-btn lms-btn--primary" href="/update-password">Reset password</a>
+    </div>
+  </article>
+
+  <article class="lms-account-card lms-panel">
+    <div class="lms-account-row">
+      <div>
+        <p class="lms-account-item-title">Loan portfolio</p>
+        <p class="lms-account-item-desc">View balances, schedules, and payment history.</p>
+      </div>
+      <a class="lms-btn lms-btn--ghost" href="/lms">My loans</a>
+    </div>
+  </article>
+</div>
+
+<div id="lms-account-overview" aria-live="polite"></div>
+{% endblock %}
+
+{% block script %}
+<script>
+frappe.ready(function() {
+  if (typeof lms_portal !== 'undefined' && lms_portal.initAccountOverview) {
+    lms_portal.initAccountOverview();
+  }
+});
+</script>
+{% endblock %}

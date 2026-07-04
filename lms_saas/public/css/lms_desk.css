@@ -1,0 +1,1116 @@
+/* LMS Desk — layout shell (theme + components handle look) */
+
+body.lms-desk-enhanced[data-route="Workspaces/Loans"],
+body.lms-desk-enhanced[data-route="Workspaces/Lending"],
+body.lms-desk-enhanced[data-route="Workspaces/Loan Management"],
+body.lms-desk-enhanced[data-route="Workspaces/Applications"],
+body.lms-desk-enhanced[data-route="Workspaces/Loans & Disbursements"],
+body.lms-desk-enhanced[data-route="Workspaces/Collections"],
+body.lms-desk-enhanced[data-route="Workspaces/Borrowers & Collateral"],
+/* v3: focus ring is enforced via lms_components.css; never outline:none on
+   focusable desk elements. Keep the 2-px solid var(--lms-focus) at 2-px offset. */
+body.lms-desk-enhanced[data-route="Workspaces/Reports"],
+body.lms-desk-enhanced[data-route="Workspaces/Compliance & Risk"],
+body.lms-desk-enhanced[data-route="Workspaces/Investors"],
+body.lms-desk-enhanced[data-route="Workspaces/CRM"],
+body.lms-desk-enhanced.lms-nav-screen,
+body.lms-desk-enhanced.lms-nav-lending-home,
+body.lms-desk-enhanced.lms-nav-crm,
+body.lms-desk-enhanced.lms-nav-company,
+body.lms-desk-enhanced.lms-nav-lending-form,
+body.lms-desk-enhanced.lms-nav-loan-application {
+	--lms-screen-active: 1;
+}
+
+body.lms-desk-enhanced {
+	--navbar-height: var(--desktop-navbar-height, var(--navbar-h, 60px));
+	font-family: var(--lms-font);
+	background: var(--lms-canvas);
+	color: var(--lms-text);
+	-webkit-font-smoothing: antialiased;
+}
+
+/* Frappe desk .container caps at ~1290px — use full viewport on LMS workspaces */
+body.lms-desk-enhanced .container {
+	max-width: none !important;
+	width: 100% !important;
+	padding-left: clamp(0.75rem, 1.25vw, 1.5rem);
+	padding-right: clamp(0.75rem, 1.25vw, 1.5rem);
+}
+
+body.lms-desk-enhanced .layout-main {
+	margin-left: 0 !important;
+	margin-right: 0 !important;
+}
+
+body.lms-desk-enhanced .layout-main-section-wrapper {
+	padding-left: clamp(0.5rem, 1vw, 1rem) !important;
+	padding-right: clamp(0.5rem, 1vw, 1rem) !important;
+}
+
+/* Lists, forms, reports — same full-width shell as workspaces */
+body.lms-desk-enhanced .layout-main-section,
+body.lms-desk-enhanced .page-body,
+body.lms-desk-enhanced .page-content,
+body.lms-desk-enhanced .page-form,
+body.lms-desk-enhanced .frappe-list,
+body.lms-desk-enhanced .query-report-area {
+	max-width: none !important;
+	width: 100%;
+}
+
+body.lms-desk-enhanced .navbar,
+body.lms-desk-enhanced .desktop-navbar,
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) {
+	--primary: var(--lms-primary) !important;
+}
+
+body.lms-desk-enhanced .navbar,
+body.lms-desk-enhanced .desktop-navbar {
+	box-shadow: 0 1px 0 var(--lms-hero-border);
+	background: var(--lms-surface);
+}
+
+/* Navbar brand / home logo link */
+body.lms-desk-enhanced .lms-navbar-brand,
+body.lms-desk-enhanced a.navbar-brand.navbar-home {
+	display: inline-flex;
+	align-items: center;
+	padding: 0.3rem 0.5rem;
+	margin-left: -0.35rem;
+	border-radius: var(--lms-radius-sm);
+	text-decoration: none !important;
+	transition:
+		background var(--lms-transition),
+		box-shadow var(--lms-transition);
+}
+
+body.lms-desk-enhanced .lms-navbar-brand:hover,
+body.lms-desk-enhanced .lms-navbar-brand:focus-visible,
+body.lms-desk-enhanced a.navbar-brand.navbar-home:hover,
+body.lms-desk-enhanced a.navbar-brand.navbar-home:focus-visible {
+	background: var(--lms-sidebar-hover-bg);
+	color: inherit;
+	text-decoration: none !important;
+	box-shadow: none;
+	outline: none;
+}
+
+body.lms-desk-enhanced .lms-navbar-brand:focus-visible,
+body.lms-desk-enhanced a.navbar-brand.navbar-home:focus-visible {
+	box-shadow: 0 0 0 2px var(--lms-focus);
+}
+
+body.lms-desk-enhanced .lms-navbar-brand:active,
+body.lms-desk-enhanced a.navbar-brand.navbar-home:active {
+	background: var(--lms-sidebar-active-bg);
+}
+
+body.lms-desk-enhanced .lms-navbar-brand img,
+body.lms-desk-enhanced a.navbar-brand.navbar-home img,
+body.lms-desk-enhanced #brand-logo {
+	width: 1.75rem;
+	height: 1.75rem;
+	object-fit: contain;
+	transition: opacity var(--lms-transition);
+}
+
+body.lms-desk-enhanced .lms-navbar-brand:hover img,
+body.lms-desk-enhanced a.navbar-brand.navbar-home:hover img,
+body.lms-desk-enhanced .lms-navbar-brand:hover #brand-logo {
+	opacity: 0.88;
+}
+
+/* Frappe col-lg-2 (~208px) clips LMS labels — use full sidebar width */
+body.lms-desk-enhanced .layout-main-section-wrapper {
+	flex: 1 1 0% !important;
+	max-width: none !important;
+	min-width: 0 !important;
+}
+
+body.lms-desk-enhanced .layout-side-section.col-lg-2 {
+	flex: 0 0 var(--lms-sidebar-width) !important;
+	max-width: var(--lms-sidebar-width) !important;
+	width: var(--lms-sidebar-width) !important;
+	overflow: visible !important;
+	padding-right: 0.35rem;
+	transition:
+		flex-basis var(--lms-transition-slow),
+		max-width var(--lms-transition-slow),
+		width var(--lms-transition-slow);
+}
+
+body.lms-desk-enhanced.lms-sidebar-collapsed {
+	--lms-sidebar-width: var(--lms-sidebar-collapsed-width);
+}
+
+body.lms-desk-enhanced .layout-side-section .list-sidebar,
+body.lms-desk-enhanced .layout-side-section :is(.desk-sidebar, .body-sidebar) {
+	width: 100% !important;
+	min-width: 0 !important;
+	max-width: none !important;
+}
+
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) {
+	width: 100%;
+	min-width: 0;
+	background: var(--lms-surface);
+	border-right: 1px solid var(--lms-border);
+	padding: 0.35rem 0 0.75rem;
+	position: relative;
+	z-index: 4;
+}
+
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .lms-sidebar-toolbar {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.35rem;
+	margin: 0 0.35rem 0.35rem;
+	padding: 0 0.15rem;
+	min-height: 1.5rem;
+}
+
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .lms-sidebar-collapse-btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 1.625rem;
+	height: 1.625rem;
+	margin: 0;
+	padding: 0;
+	border: 1px solid var(--lms-border);
+	border-radius: 6px;
+	background: var(--lms-surface-alt);
+	color: var(--lms-text-muted);
+	cursor: pointer;
+	flex-shrink: 0;
+	transition:
+		background var(--lms-transition),
+		color var(--lms-transition),
+		border-color var(--lms-transition);
+}
+
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .lms-sidebar-collapse-btn:hover {
+	background: var(--lms-sidebar-hover-bg);
+	color: var(--lms-sidebar-active-text);
+	border-color: var(--lms-sidebar-active-accent);
+}
+
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .lms-sidebar-collapse-btn svg {
+	width: 0.875rem;
+	height: 0.875rem;
+	--icon-stroke: currentColor;
+	stroke: currentColor;
+	fill: none;
+}
+
+body.lms-desk-enhanced.lms-sidebar-collapsed :is(.desk-sidebar, .body-sidebar) .lms-sidebar-toolbar {
+	justify-content: center;
+	margin: 0 0.25rem 0.35rem;
+}
+
+body.lms-desk-enhanced.lms-sidebar-collapsed :is(.desk-sidebar, .body-sidebar) .lms-sidebar-toolbar-label {
+	display: none;
+}
+
+/* Reset Frappe sidebar row chrome — we style .item-anchor only */
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .standard-sidebar-item,
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) :is(.desk-sidebar-item, .standard-sidebar-item),
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .standard-sidebar-item.selected,
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) :is(.desk-sidebar-item, .standard-sidebar-item).selected,
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .standard-sidebar-item:hover,
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) :is(.desk-sidebar-item, .standard-sidebar-item):hover,
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .standard-sidebar-item:focus-within,
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) :is(.desk-sidebar-item, .standard-sidebar-item):focus-within {
+	background: transparent !important;
+	box-shadow: none !important;
+	border: none !important;
+	border-radius: 0 !important;
+}
+
+/* Hide empty Personal section; keep LMS tree under Public only */
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .standard-sidebar-section.hidden,
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .standard-sidebar-section.nested-container.hidden {
+	display: none !important;
+}
+
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar).lms-desk-sidebar .standard-sidebar-label {
+	display: flex;
+	align-items: center;
+	flex: 1 1 auto;
+	min-width: 0;
+	width: auto;
+	margin: 0;
+	padding: 0 0.25rem;
+	border: none;
+	border-radius: 8px;
+	background: transparent;
+	pointer-events: none;
+}
+
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar).lms-desk-sidebar .standard-sidebar-label .section-title {
+	font-size: 0.625rem;
+	font-weight: 700;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	color: var(--lms-sidebar-section-text);
+}
+
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar).lms-desk-sidebar .standard-sidebar-label svg,
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar).lms-desk-sidebar .standard-sidebar-label .collapse-icon {
+	display: none;
+}
+
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item {
+	margin: 0.0625rem 0.35rem;
+	padding: 0;
+	background: transparent;
+	border-radius: 0;
+}
+
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item,
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item :is(.desk-sidebar-item, .standard-sidebar-item) {
+	margin-left: 0 !important;
+}
+
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item.lms-sidebar-child {
+	padding-left: 0.35rem;
+}
+
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item :is(.desk-sidebar-item, .standard-sidebar-item) {
+	margin: 0;
+	overflow: visible !important;
+	display: flex;
+	align-items: center;
+	width: 100%;
+}
+
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item .item-anchor {
+	display: flex;
+	align-items: center;
+	gap: 0.625rem;
+	flex: 1 1 auto;
+	width: auto;
+	min-width: 0;
+	min-height: 2rem;
+	margin: 0;
+	padding: 0.35rem 0.5rem 0.35rem 0.55rem;
+	border-radius: 8px;
+	border: none;
+	color: var(--lms-text);
+	text-decoration: none;
+	position: relative;
+	overflow: visible !important;
+	transition: background var(--lms-transition), color var(--lms-transition);
+}
+
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item .item-anchor:hover {
+	background: var(--lms-sidebar-hover-bg);
+	color: var(--lms-sidebar-active-text);
+}
+
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item:not(.is-active) > :is(.desk-sidebar-item, .standard-sidebar-item) .item-anchor:hover .sidebar-item-icon {
+	--icon-stroke: var(--lms-sidebar-active-text);
+}
+
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item:not(.is-active) > :is(.desk-sidebar-item, .standard-sidebar-item) .item-anchor:hover .sidebar-item-icon svg,
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item:not(.is-active) > :is(.desk-sidebar-item, .standard-sidebar-item) .item-anchor:hover .sidebar-item-icon svg use {
+	stroke: var(--lms-sidebar-active-text);
+}
+
+/* Active route — only .is-active (not Frappe parent .selected) */
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item.is-active > :is(.desk-sidebar-item, .standard-sidebar-item) .item-anchor {
+	background: var(--lms-sidebar-active-bg);
+	color: var(--lms-sidebar-active-text);
+	font-weight: 600;
+}
+
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item.is-active > :is(.desk-sidebar-item, .standard-sidebar-item) .item-anchor::before {
+	content: "";
+	position: absolute;
+	left: 0;
+	top: 4px;
+	bottom: 4px;
+	width: 3px;
+	border-radius: 3px;
+	background: var(--lms-sidebar-active-accent);
+}
+
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .lms-sidebar-root > :is(.desk-sidebar-item, .standard-sidebar-item) .item-anchor {
+	font-size: 0.8125rem;
+	font-weight: 600;
+}
+
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .lms-sidebar-child > :is(.desk-sidebar-item, .standard-sidebar-item) .item-anchor {
+	padding-left: 0.65rem;
+	font-size: 0.78125rem;
+	font-weight: 500;
+}
+
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .sidebar-item-label {
+	flex: 1 1 auto;
+	min-width: 0;
+	align-self: center;
+	font-weight: inherit;
+	font-size: inherit;
+	line-height: 1.3;
+	white-space: normal !important;
+	overflow: visible !important;
+	text-overflow: unset !important;
+	word-break: break-word;
+}
+
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .sidebar-item-label .ellipsis {
+	white-space: normal !important;
+	overflow: visible !important;
+	text-overflow: unset !important;
+}
+
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item > :is(.desk-sidebar-item, .standard-sidebar-item) .sidebar-item-icon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 1.75rem;
+	height: 1.75rem;
+	flex-shrink: 0;
+	border-radius: 8px;
+	background: var(--lms-sidebar-icon-bg);
+	color: var(--lms-sidebar-icon-text);
+	line-height: 0;
+	--icon-stroke: var(--lms-sidebar-icon-text);
+	--icon-fill: transparent;
+	transition: background var(--lms-transition), color var(--lms-transition);
+}
+
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item > :is(.desk-sidebar-item, .standard-sidebar-item) .sidebar-item-icon:empty {
+	display: none;
+}
+
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item > :is(.desk-sidebar-item, .standard-sidebar-item) .sidebar-item-icon .icon,
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item > :is(.desk-sidebar-item, .standard-sidebar-item) .sidebar-item-icon svg,
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item > :is(.desk-sidebar-item, .standard-sidebar-item) .sidebar-item-icon svg use {
+	width: 1.125rem !important;
+	height: 1.125rem !important;
+	margin: 0 !important;
+	flex-shrink: 0;
+	display: block;
+	--icon-stroke: inherit;
+	stroke: var(--icon-stroke);
+	fill: none;
+}
+
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item.is-active > :is(.desk-sidebar-item, .standard-sidebar-item) .sidebar-item-icon {
+	background: var(--lms-sidebar-icon-active-bg);
+	color: var(--lms-sidebar-icon-active-text);
+	--icon-stroke: var(--lms-sidebar-icon-active-text);
+}
+
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item.is-active > :is(.desk-sidebar-item, .standard-sidebar-item) .sidebar-item-icon .icon,
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item.is-active > :is(.desk-sidebar-item, .standard-sidebar-item) .sidebar-item-icon svg,
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item.is-active > :is(.desk-sidebar-item, .standard-sidebar-item) .sidebar-item-icon svg use {
+	--icon-stroke: var(--lms-sidebar-icon-active-text) !important;
+	stroke: var(--lms-sidebar-icon-active-text) !important;
+	fill: none !important;
+}
+
+/* Frappe .selected is route-based; LMS highlight uses .is-active on the direct container only */
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item:not(.is-active) > :is(.desk-sidebar-item, .standard-sidebar-item).selected .item-anchor {
+	background: transparent !important;
+	color: var(--lms-text) !important;
+	font-weight: inherit !important;
+}
+
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item:not(.is-active) > :is(.desk-sidebar-item, .standard-sidebar-item).selected .item-anchor::before {
+	display: none;
+}
+
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item:not(.is-active) > :is(.desk-sidebar-item, .standard-sidebar-item).selected .sidebar-item-icon {
+	background: var(--lms-sidebar-icon-bg) !important;
+	color: var(--lms-sidebar-icon-text) !important;
+	--icon-stroke: var(--lms-sidebar-icon-text) !important;
+}
+
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item:not(.is-active) > :is(.desk-sidebar-item, .standard-sidebar-item).selected .sidebar-item-icon svg,
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item:not(.is-active) > :is(.desk-sidebar-item, .standard-sidebar-item).selected .sidebar-item-icon svg use {
+	--icon-stroke: var(--lms-sidebar-icon-text) !important;
+	stroke: var(--lms-sidebar-icon-text) !important;
+}
+
+body.lms-desk-enhanced[data-lms-can-manage="0"] :is(.desk-sidebar, .body-sidebar) .lms-sidebar-item .sidebar-item-control {
+	display: none !important;
+}
+
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item.is-active > :is(.desk-sidebar-item, .standard-sidebar-item) .item-anchor:hover {
+	background: var(--lms-sidebar-active-bg);
+}
+
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item.is-active > :is(.desk-sidebar-item, .standard-sidebar-item) .item-anchor:hover .sidebar-item-icon {
+	--icon-stroke: var(--lms-sidebar-icon-active-text);
+}
+
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item.is-active > :is(.desk-sidebar-item, .standard-sidebar-item) .item-anchor:hover .sidebar-item-icon .icon,
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item.is-active > :is(.desk-sidebar-item, .standard-sidebar-item) .item-anchor:hover .sidebar-item-icon svg,
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item.is-active > :is(.desk-sidebar-item, .standard-sidebar-item) .item-anchor:hover .sidebar-item-icon svg use {
+	stroke: var(--lms-sidebar-icon-active-text);
+}
+
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar).lms-desk-sidebar > .standard-sidebar-section > .standard-sidebar-label {
+	display: none;
+}
+
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar).lms-desk-sidebar .lms-sidebar-toolbar-label.section-title {
+	font-size: 0.625rem;
+	font-weight: 700;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	color: var(--lms-sidebar-section-text);
+}
+
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .lms-sidebar-root .sidebar-item-control {
+	margin-left: auto;
+	opacity: 0.45;
+}
+
+body.lms-desk-enhanced :is(.desk-sidebar, .body-sidebar) .lms-sidebar-root .sidebar-item-control .drop-icon {
+	padding: 0 0.25rem;
+}
+
+/* Collapsed rail — icons only */
+body.lms-desk-enhanced.lms-sidebar-collapsed :is(.desk-sidebar, .body-sidebar).lms-desk-sidebar .standard-sidebar-label {
+	display: none;
+}
+
+body.lms-desk-enhanced.lms-sidebar-collapsed :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item,
+body.lms-desk-enhanced.lms-sidebar-collapsed :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item.lms-sidebar-child {
+	margin-left: 0.25rem;
+	margin-right: 0.25rem;
+	padding-left: 0;
+}
+
+body.lms-desk-enhanced.lms-sidebar-collapsed :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item .item-anchor {
+	justify-content: center;
+	gap: 0;
+	padding: 0.3rem;
+}
+
+body.lms-desk-enhanced.lms-sidebar-collapsed :is(.desk-sidebar, .body-sidebar) .sidebar-item-label,
+body.lms-desk-enhanced.lms-sidebar-collapsed :is(.desk-sidebar, .body-sidebar) .lms-sidebar-root .sidebar-item-control {
+	display: none !important;
+}
+
+body.lms-desk-enhanced.lms-sidebar-collapsed :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item.is-active > :is(.desk-sidebar-item, .standard-sidebar-item) .item-anchor::before {
+	display: none;
+}
+
+body.lms-desk-enhanced.lms-sidebar-collapsed :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item.is-active > :is(.desk-sidebar-item, .standard-sidebar-item) .sidebar-item-icon {
+	box-shadow: 0 0 0 2px var(--lms-sidebar-active-accent);
+}
+
+/* Hero routes: hide duplicate Frappe title only; keep Save / menu / record nav in .page-actions */
+body.lms-desk-enhanced.lms-nav-screen .page-head .page-title,
+body.lms-desk-enhanced.lms-nav-dashboard #page-dashboard-view .page-head .page-title,
+body.lms-desk-enhanced.lms-nav-crm-dashboard #page-dashboard-view .page-head .page-title,
+body.lms-desk-enhanced.lms-nav-company #page-Company .page-head .page-title,
+body.lms-desk-enhanced.lms-nav-lending-form .page-head .page-title,
+body.lms-desk-enhanced.lms-nav-report .page-head .page-title {
+	display: none !important;
+}
+
+body.lms-desk-enhanced.lms-nav-screen .page-head .page-head-content,
+body.lms-desk-enhanced.lms-nav-dashboard #page-dashboard-view .page-head .page-head-content,
+body.lms-desk-enhanced.lms-nav-crm-dashboard #page-dashboard-view .page-head .page-head-content,
+body.lms-desk-enhanced.lms-nav-company #page-Company .page-head .page-head-content,
+body.lms-desk-enhanced.lms-nav-lending-form .page-head .page-head-content,
+body.lms-desk-enhanced.lms-nav-report .page-head .page-head-content {
+	justify-content: flex-end;
+}
+
+/* Collapse page-head when there are no visible toolbar buttons (workspace/dashboard chrome) */
+body.lms-desk-enhanced.lms-nav-screen .page-head.flex:not(:has(.page-actions .btn:not(.hide))),
+body.lms-desk-enhanced.lms-nav-dashboard #page-dashboard-view .page-head.flex:not(:has(.page-actions .btn:not(.hide))),
+body.lms-desk-enhanced.lms-nav-crm-dashboard #page-dashboard-view .page-head.flex:not(:has(.page-actions .btn:not(.hide))),
+body.lms-desk-enhanced.lms-nav-company #page-Company .page-head.flex:not(:has(.page-actions .btn:not(.hide))),
+body.lms-desk-enhanced.lms-nav-lending-form .page-head.flex:not(:has(.page-actions .btn:not(.hide))),
+body.lms-desk-enhanced.lms-nav-report .page-head.flex:not(:has(.page-actions .btn:not(.hide))) {
+	display: none !important;
+}
+
+body.lms-desk-enhanced.lms-nav-screen .layout-main {
+	max-width: none;
+}
+
+body.lms-desk-enhanced.lms-nav-screen .layout-main-section-wrapper {
+	background: var(--lms-canvas);
+}
+
+body.lms-desk-enhanced.lms-nav-screen .layout-main-section.lms-workspace-canvas {
+	flex: 1 1 auto;
+	width: 100%;
+	max-width: none;
+	margin: 0;
+	padding: var(--lms-content-padding-y) 0 clamp(1.25rem, 2vw, 2rem);
+	border-radius: 0;
+}
+
+body.lms-desk-enhanced.lms-nav-screen .lms-workspace-canvas .desk-page.page-main-content {
+	padding: 0;
+}
+
+/* Workspace grid — 12 columns mirroring Frappe block.js col-class stacking */
+body.lms-desk-enhanced.lms-nav-screen .codex-editor__redactor,
+body.lms-desk-enhanced.lms-nav-landing .codex-editor__redactor {
+	display: grid;
+	grid-template-columns: repeat(12, minmax(0, 1fr));
+	gap: var(--lms-tile-gap);
+	align-items: stretch;
+}
+
+body.lms-desk-enhanced.lms-nav-screen .codex-editor__redactor > .ce-block,
+body.lms-desk-enhanced.lms-nav-landing .codex-editor__redactor > .ce-block {
+	min-height: 0;
+}
+
+@media (min-width: 992px) {
+	body.lms-desk-enhanced.lms-nav-screen .ce-block.col-lg-3,
+	body.lms-desk-enhanced.lms-nav-landing .ce-block.col-lg-3 {
+		grid-column: span 3;
+	}
+
+	body.lms-desk-enhanced.lms-nav-screen .ce-block.col-md-4:not(.col-lg-3),
+	body.lms-desk-enhanced.lms-nav-landing .ce-block.col-md-4:not(.col-lg-3) {
+		grid-column: span 4;
+	}
+
+	body.lms-desk-enhanced.lms-nav-screen .ce-block.col-sm-6:not(.col-md-4):not(.col-lg-3),
+	body.lms-desk-enhanced.lms-nav-landing .ce-block.col-sm-6:not(.col-md-4):not(.col-lg-3) {
+		grid-column: span 6;
+	}
+}
+
+@media (min-width: 768px) and (max-width: 991.98px) {
+	body.lms-desk-enhanced.lms-nav-screen .ce-block.col-md-4,
+	body.lms-desk-enhanced.lms-nav-landing .ce-block.col-md-4 {
+		grid-column: span 4;
+	}
+
+	body.lms-desk-enhanced.lms-nav-screen .ce-block.col-sm-6:not(.col-md-4),
+	body.lms-desk-enhanced.lms-nav-landing .ce-block.col-sm-6:not(.col-md-4) {
+		grid-column: span 6;
+	}
+}
+
+body.lms-desk-enhanced.lms-nav-screen .ce-block {
+	float: none !important;
+	width: 100% !important;
+	max-width: none !important;
+	padding-left: 0 !important;
+	padding-right: 0 !important;
+	min-width: 0;
+}
+
+/* Hero, section labels, spacers — full row */
+body.lms-desk-enhanced.lms-nav-screen .ce-block.col-xs-12:not(.col-sm-6):not(.col-sm-4):not(.col-md-4):not(.col-lg-3),
+body.lms-desk-enhanced.lms-nav-landing .ce-block.col-xs-12:not(.col-sm-6):not(.col-sm-4):not(.col-md-4):not(.col-lg-3) {
+	grid-column: 1 / -1;
+}
+
+body.lms-desk-enhanced.lms-nav-screen .ce-block.col-sm-6,
+body.lms-desk-enhanced.lms-nav-screen .ce-block.col-sm-4,
+body.lms-desk-enhanced.lms-nav-landing .ce-block.col-sm-6,
+body.lms-desk-enhanced.lms-nav-landing .ce-block.col-sm-4 {
+	display: flex;
+	flex-direction: column;
+}
+
+body.lms-desk-enhanced.lms-nav-screen .ce-block.col-sm-6 .widget,
+body.lms-desk-enhanced.lms-nav-screen .ce-block.col-sm-4 .widget,
+body.lms-desk-enhanced.lms-nav-landing .ce-block.col-sm-6 .widget,
+body.lms-desk-enhanced.lms-nav-landing .ce-block.col-sm-4 .widget {
+	flex: 1 1 auto;
+	width: 100%;
+	height: 100%;
+}
+
+@media (max-width: 767.98px) {
+	body.lms-desk-enhanced.lms-nav-screen .ce-block.col-sm-6,
+	body.lms-desk-enhanced.lms-nav-screen .ce-block.col-sm-4,
+	body.lms-desk-enhanced.lms-nav-screen .ce-block.col-md-4,
+	body.lms-desk-enhanced.lms-nav-screen .ce-block.col-lg-3,
+	body.lms-desk-enhanced.lms-nav-landing .ce-block.col-sm-6,
+	body.lms-desk-enhanced.lms-nav-landing .ce-block.col-sm-4,
+	body.lms-desk-enhanced.lms-nav-landing .ce-block.col-md-4,
+	body.lms-desk-enhanced.lms-nav-landing .ce-block.col-lg-3 {
+		grid-column: 1 / -1;
+	}
+}
+
+body.lms-desk-enhanced.lms-nav-screen .widget.shortcut-widget-box .widget-head {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 0.75rem;
+	padding: 0;
+	margin: 0 0 0.75rem;
+	min-height: 0;
+	flex: 1;
+}
+
+body.lms-desk-enhanced.lms-nav-screen .widget.shortcut-widget-box .widget-body {
+	display: none;
+}
+
+body.lms-desk-enhanced.lms-nav-screen .widget.shortcut-widget-box .widget-label {
+	width: 100%;
+}
+
+body.lms-desk-enhanced.lms-nav-screen .widget.shortcut-widget-box .widget-control {
+	display: none !important;
+}
+
+body.lms-desk-enhanced .list-row-container .list-row:hover {
+	background: var(--lms-surface-alt);
+}
+
+body.lms-desk-enhanced .query-report-area .report-summary .summary-item {
+	border-radius: var(--lms-radius);
+	border: 1px solid var(--lms-border);
+	box-shadow: var(--lms-shadow-sm);
+}
+
+body.lms-desk-enhanced .lms-hide-frappe-branding,
+body.lms-desk-enhanced .footer-powered,
+body.lms-desk-enhanced a[href*="frappe.io"],
+body.lms-desk-enhanced a[href*="erpnext.com"] {
+	display: none !important;
+}
+
+body.lms-desk-enhanced .ce-block.lms-empty-section {
+	display: none !important;
+}
+
+body.lms-desk-enhanced.lms-nav-screen .workspace-footer,
+body.lms-desk-enhanced.lms-nav-screen .btn-edit-workspace,
+body.lms-desk-enhanced.lms-nav-screen .btn-new-workspace,
+body.lms-desk-enhanced.lms-nav-screen .widget:not(.shortcut-widget-box) .widget-control {
+	display: none !important;
+}
+
+/* ------------------------------------------------------------------ */
+/* App nav — sticky workspace tabs on all LMS desk pages               */
+/* ------------------------------------------------------------------ */
+body.lms-desk-enhanced {
+	--lms-app-nav-height: 0px;
+}
+
+body.lms-desk-enhanced.lms-desk-staff:not(.lms-native-lending-nav) {
+	--lms-app-nav-height: 2.625rem;
+}
+
+.lms-desk-app-nav {
+	display: none;
+	position: sticky;
+	top: var(--navbar-height);
+	z-index: 1020;
+	background: var(--lms-surface);
+	border-bottom: 1px solid var(--lms-border);
+	box-shadow: 0 1px 0 rgba(15, 76, 92, 0.04);
+}
+
+body.lms-desk-enhanced.lms-desk-staff:not(.lms-native-lending-nav) .lms-desk-app-nav {
+	display: block;
+}
+
+.lms-desk-app-nav__inner {
+	display: flex;
+	align-items: center;
+	min-height: var(--lms-app-nav-height);
+	padding: 0 clamp(0.75rem, 2vw, 1.25rem);
+}
+
+.lms-desk-app-nav__items {
+	display: flex;
+	align-items: center;
+	gap: 0.35rem;
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow-x: auto;
+	scrollbar-width: thin;
+	padding: 0.35rem 0;
+	-webkit-overflow-scrolling: touch;
+}
+
+.lms-desk-app-nav__items::-webkit-scrollbar {
+	height: 4px;
+}
+
+.lms-desk-app-nav__link {
+	display: inline-flex;
+	align-items: center;
+	flex-shrink: 0;
+	padding: 0.35rem 0.8rem;
+	border-radius: 999px;
+	border: 1px solid transparent;
+	font-size: 0.8125rem;
+	font-weight: 500;
+	line-height: 1.25;
+	color: var(--lms-text-muted);
+	text-decoration: none;
+	white-space: nowrap;
+	transition:
+		background var(--lms-transition),
+		color var(--lms-transition),
+		border-color var(--lms-transition);
+}
+
+.lms-desk-app-nav__link:hover {
+	color: var(--lms-sidebar-active-text);
+	background: var(--lms-sidebar-hover-bg);
+	border-color: var(--lms-hero-border);
+	text-decoration: none;
+}
+
+.lms-desk-app-nav__link.is-active {
+	color: var(--lms-sidebar-active-text);
+	background: var(--lms-sidebar-active-bg);
+	border-color: var(--lms-sidebar-active-accent);
+	font-weight: 600;
+}
+
+.lms-desk-app-nav__link--home {
+	font-weight: 600;
+	padding-left: 0.65rem;
+}
+
+.lms-desk-app-nav__link--home::before {
+	content: "";
+	display: inline-block;
+	width: 0.875rem;
+	height: 0.875rem;
+	margin-right: 0.35rem;
+	background: currentColor;
+	mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='currentColor' stroke-width='1.5'%3E%3Cpath d='M2.5 6.5 8 2l5.5 4.5V13a1 1 0 0 1-1 1h-3.5v-4H7v4H3.5a1 1 0 0 1-1-1V6.5z'/%3E%3C/svg%3E") center / contain no-repeat;
+	-webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='currentColor' stroke-width='1.5'%3E%3Cpath d='M2.5 6.5 8 2l5.5 4.5V13a1 1 0 0 1-1 1h-3.5v-4H7v4H3.5a1 1 0 0 1-1-1V6.5z'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+body.lms-desk-enhanced.lms-desk-staff:not(.lms-native-lending-nav) .page-head {
+	top: calc(var(--navbar-height) + var(--lms-app-nav-height));
+}
+
+@media (min-width: 992px) {
+	body.lms-desk-enhanced.lms-desk-staff:not(.lms-native-lending-nav)[data-page-route^="Workspaces"] .layout-main {
+		height: calc(100vh - var(--navbar-height) - var(--lms-app-nav-height) - 5px);
+	}
+}
+
+/* Frappe Lending / CRM module workspaces (/desk/lending, /desk/crm) */
+body.lms-desk-enhanced.lms-nav-lending-home .codex-editor__redactor,
+body.lms-desk-enhanced.lms-nav-crm .codex-editor__redactor {
+	display: grid;
+	grid-template-columns: repeat(12, minmax(0, 1fr));
+	gap: var(--lms-tile-gap);
+	align-items: stretch;
+}
+
+body.lms-desk-enhanced.lms-nav-lending-home .codex-editor__redactor > .ce-block,
+body.lms-desk-enhanced.lms-nav-crm .codex-editor__redactor > .ce-block {
+	min-height: 0;
+}
+
+body.lms-desk-enhanced.lms-nav-lending-home .layout-main-section.lms-workspace-canvas,
+body.lms-desk-enhanced.lms-nav-crm .layout-main-section.lms-workspace-canvas {
+	padding: var(--lms-content-padding-y) 0 clamp(1.25rem, 2vw, 2rem);
+}
+
+body.lms-desk-enhanced.lms-nav-dashboard #page-dashboard-view .page-content,
+body.lms-desk-enhanced.lms-nav-crm-dashboard #page-dashboard-view .page-content {
+	box-sizing: border-box;
+}
+
+/* Same horizontal origin as .dashboard / KPI cards (page-body gutter only — no extra hero margin) */
+body.lms-desk-enhanced.lms-nav-dashboard .lms-loan-dashboard-hero,
+body.lms-desk-enhanced.lms-nav-crm-dashboard .lms-crm-dashboard-hero {
+	margin-top: clamp(0.5rem, 1vw, 1rem) !important;
+	margin-bottom: clamp(0.85rem, 1.5vw, 1.25rem) !important;
+	margin-left: 0 !important;
+	margin-right: 0 !important;
+	width: 100% !important;
+	max-width: 100% !important;
+	box-sizing: border-box;
+}
+
+body.lms-desk-enhanced.lms-nav-dashboard .lms-loan-dashboard-hero.lms-hero,
+body.lms-desk-enhanced.lms-nav-crm-dashboard .lms-crm-dashboard-hero.lms-hero {
+	--lms-hero-pad-left: calc(var(--lms-hero-stripe) + var(--lms-hero-stripe-gap) + 0.25rem);
+}
+
+body.lms-desk-enhanced.lms-nav-dashboard .lms-loan-dashboard-hero .lms-hero__inner,
+body.lms-desk-enhanced.lms-nav-crm-dashboard .lms-crm-dashboard-hero .lms-hero__inner {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: flex-end;
+	justify-content: space-between;
+	gap: 1rem 1.5rem;
+	position: relative;
+	z-index: 1;
+	padding-right: var(--lms-hero-pad-x);
+	padding-left: var(--lms-hero-pad-left);
+}
+
+body.lms-desk-enhanced.lms-nav-dashboard .lms-loan-dashboard-hero .lms-hero__actions,
+body.lms-desk-enhanced.lms-nav-crm-dashboard .lms-crm-dashboard-hero .lms-hero__actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+}
+
+body.lms-desk-enhanced.lms-nav-dashboard .layout-main-section,
+body.lms-desk-enhanced.lms-nav-crm-dashboard .layout-main-section,
+body.lms-desk-enhanced.lms-nav-lending-home .layout-main-section,
+body.lms-desk-enhanced.lms-nav-crm .layout-main-section {
+	padding-top: 0.25rem;
+}
+
+body.lms-desk-enhanced.lms-nav-dashboard .dashboard-page .dashboard-graph,
+body.lms-desk-enhanced.lms-nav-crm-dashboard .dashboard-page .dashboard-graph {
+	display: grid;
+	grid-template-columns: repeat(12, minmax(0, 1fr));
+	gap: var(--lms-tile-gap);
+	align-items: stretch;
+}
+
+body.lms-desk-enhanced.lms-nav-dashboard .dashboard-page .widget-group,
+body.lms-desk-enhanced.lms-nav-crm-dashboard .dashboard-page .widget-group {
+	grid-column: span 12;
+}
+
+body.lms-desk-enhanced.lms-nav-dashboard .dashboard-page .widget-group .widget-group-body,
+body.lms-desk-enhanced.lms-nav-crm-dashboard .dashboard-page .widget-group .widget-group-body {
+	display: grid;
+	grid-template-columns: repeat(12, minmax(0, 1fr));
+	gap: var(--lms-tile-gap);
+}
+
+body.lms-desk-enhanced[data-lms-layout="compact"] :is(.desk-sidebar, .body-sidebar) .sidebar-item-container.lms-sidebar-item .item-anchor {
+	min-height: 1.875rem;
+	padding-top: 0.3rem;
+	padding-bottom: 0.3rem;
+}
+
+body.lms-desk-enhanced.lms-nav-company #page-Company .page-content {
+	box-sizing: border-box;
+}
+
+body.lms-desk-enhanced.lms-nav-company #page-Company .layout-main-section-wrapper {
+	background: var(--lms-canvas);
+}
+
+/* Company form: hero replaces duplicate title/breadcrumb chrome */
+body.lms-desk-enhanced.lms-nav-company #page-Company .page-head .breadcrumb,
+body.lms-desk-enhanced.lms-nav-company #page-Company .form-page > .breadcrumb {
+	display: none !important;
+}
+
+body.lms-desk-enhanced.lms-nav-company #page-Company .layout-main-section-wrapper:empty,
+body.lms-desk-enhanced.lms-nav-company #page-Company .layout-main-section:empty {
+	min-height: 4.5rem;
+}
+
+body.lms-desk-enhanced.lms-nav-company .lms-company-hero {
+	margin-top: clamp(0.5rem, 1vw, 1rem) !important;
+	margin-bottom: clamp(0.85rem, 1.5vw, 1.25rem) !important;
+	margin-left: 0 !important;
+	margin-right: 0 !important;
+	width: 100% !important;
+	max-width: 100% !important;
+	box-sizing: border-box;
+}
+
+body.lms-desk-enhanced.lms-nav-company .lms-company-hero.lms-hero {
+	--lms-hero-pad-left: calc(var(--lms-hero-stripe) + var(--lms-hero-stripe-gap) + 0.25rem);
+}
+
+body.lms-desk-enhanced.lms-nav-company .lms-company-hero .lms-hero__inner {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: flex-end;
+	justify-content: space-between;
+	gap: 0.75rem 1rem;
+}
+
+body.lms-desk-enhanced.lms-nav-company .lms-company-hero .lms-hero__actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+}
+
+/* Lending doctype form/list — canvas shell (Loan Application, Loan, disbursement, repayment) */
+body.lms-desk-enhanced.lms-nav-lending-form .page-content {
+	box-sizing: border-box;
+}
+
+body.lms-desk-enhanced.lms-nav-lending-form .layout-main-section-wrapper {
+	background: var(--lms-canvas);
+}
+
+body.lms-desk-enhanced.lms-nav-lending-form .layout-main-section {
+	padding-top: 0.25rem;
+}
+
+body.lms-desk-enhanced.lms-nav-loan-application .page-head .breadcrumb,
+body.lms-desk-enhanced.lms-nav-loan-application .form-page > .breadcrumb,
+body.lms-desk-enhanced.lms-nav-lending-form .page-head .breadcrumb,
+body.lms-desk-enhanced.lms-nav-lending-form .form-page > .breadcrumb {
+	display: none !important;
+}
+
+body.lms-desk-enhanced.lms-nav-loan-application .lms-loan-application-hero {
+	margin-top: clamp(0.5rem, 1vw, 1rem) !important;
+	margin-bottom: clamp(0.85rem, 1.5vw, 1.25rem) !important;
+	margin-left: 0 !important;
+	margin-right: 0 !important;
+	width: 100% !important;
+	max-width: 100% !important;
+	box-sizing: border-box;
+}
+
+body.lms-desk-enhanced.lms-nav-loan-application .lms-loan-application-hero.lms-hero {
+	--lms-hero-pad-left: calc(var(--lms-hero-stripe) + var(--lms-hero-stripe-gap) + 0.25rem);
+}
+
+body.lms-desk-enhanced.lms-nav-loan-application .lms-loan-application-hero .lms-hero__inner {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: flex-end;
+	justify-content: space-between;
+	gap: 0.75rem 1rem;
+}
+
+body.lms-desk-enhanced.lms-nav-loan-application .lms-loan-application-hero .lms-hero__actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+}
+
+body.lms-desk-enhanced.lms-nav-lending-form .frappe-list {
+	background: var(--lms-surface);
+	border: 1px solid var(--lms-border);
+	border-radius: var(--lms-radius);
+	box-shadow: var(--lms-shadow-sm);
+}
+
+body.lms-desk-enhanced.lms-nav-lending-form .form-layout,
+body.lms-desk-enhanced.lms-nav-lending-form .form-page {
+	background: var(--lms-surface);
+	border: 1px solid var(--lms-border);
+	border-radius: var(--lms-radius);
+	box-shadow: var(--lms-shadow-sm);
+}
+
+/* Shared doctype / report hero chrome */
+body.lms-desk-enhanced.lms-nav-lending-form .lms-doctype-hero,
+body.lms-desk-enhanced.lms-nav-lending-form .lms-loan-application-hero,
+body.lms-desk-enhanced.lms-nav-report .lms-report-hero {
+	margin-top: clamp(0.5rem, 1vw, 1rem) !important;
+	margin-bottom: clamp(0.85rem, 1.5vw, 1.25rem) !important;
+	margin-left: 0 !important;
+	margin-right: 0 !important;
+	width: 100% !important;
+	max-width: 100% !important;
+	box-sizing: border-box;
+}
+
+body.lms-desk-enhanced.lms-nav-lending-form .lms-doctype-hero.lms-hero,
+body.lms-desk-enhanced.lms-nav-lending-form .lms-loan-application-hero.lms-hero,
+body.lms-desk-enhanced.lms-nav-report .lms-report-hero.lms-hero {
+	--lms-hero-pad-left: calc(var(--lms-hero-stripe) + var(--lms-hero-stripe-gap) + 0.25rem);
+}
+
+body.lms-desk-enhanced.lms-nav-lending-form .lms-doctype-hero .lms-hero__inner,
+body.lms-desk-enhanced.lms-nav-lending-form .lms-loan-application-hero .lms-hero__inner,
+body.lms-desk-enhanced.lms-nav-report .lms-report-hero .lms-hero__inner {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: flex-end;
+	justify-content: space-between;
+	gap: 0.75rem 1rem;
+}
+
+body.lms-desk-enhanced.lms-nav-lending-form .lms-doctype-hero .lms-hero__actions,
+body.lms-desk-enhanced.lms-nav-lending-form .lms-loan-application-hero .lms-hero__actions,
+body.lms-desk-enhanced.lms-nav-report .lms-report-hero .lms-hero__actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+}
+
+/* Query / script reports — canvas shell */
+body.lms-desk-enhanced.lms-nav-report .page-content {
+	box-sizing: border-box;
+}
+
+body.lms-desk-enhanced.lms-nav-report .layout-main-section-wrapper {
+	background: var(--lms-canvas);
+}
+
+body.lms-desk-enhanced.lms-nav-report .layout-main-section {
+	padding-top: 0.25rem;
+}
+
+body.lms-desk-enhanced.lms-nav-report .query-report-area,
+body.lms-desk-enhanced.lms-nav-report .report-wrapper {
+	background: var(--lms-surface);
+	border: 1px solid var(--lms-border);
+	border-radius: var(--lms-radius);
+	box-shadow: var(--lms-shadow-sm);
+	padding: clamp(0.75rem, 1.5vw, 1.25rem);
+}
+
+body.lms-desk-enhanced.lms-nav-report .layout-main-section > .report-summary {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.75rem;
+	margin-bottom: clamp(0.75rem, 1.5vw, 1rem);
+}
+
+body.lms-desk-enhanced.lms-nav-report .report-summary .summary-item {
+	border-radius: var(--lms-radius);
+	border: 1px solid var(--lms-border);
+	box-shadow: var(--lms-shadow-sm);
+	background: var(--lms-surface);
+	padding: 0.65rem 0.85rem;
+	min-width: 8rem;
+}
+
+body.lms-desk-enhanced.lms-nav-report .report-wrapper .chart-container,
+body.lms-desk-enhanced.lms-nav-report .report-wrapper .dt-scrollable {
+	border-radius: calc(var(--lms-radius) - 2px);
+}
+
+/* Frappe v16 — body-sidebar rail sizing and desktop navbar offsets */
+body.lms-desk-enhanced.lms-desk-v16 .body-sidebar-container {
+	--sidebar-width: var(--lms-sidebar-width);
+}
+
+body.lms-desk-enhanced.lms-desk-v16.lms-sidebar-collapsed .body-sidebar-container {
+	--sidebar-width: var(--lms-sidebar-collapsed-width);
+}
+
+body.lms-desk-enhanced.lms-desk-v16 .body-sidebar.lms-desk-sidebar .body-sidebar-top {
+	width: 100%;
+}
+
+body.lms-desk-enhanced.lms-desk-v16 .lms-desk-app-nav {
+	top: var(--desktop-navbar-height, var(--navbar-height));
+}
+
+body.lms-desk-enhanced.lms-desk-v16.lms-desk-staff:not(.lms-native-lending-nav) .page-head {
+	top: calc(var(--desktop-navbar-height, var(--navbar-height)) + var(--lms-app-nav-height));
+}
+
+body.lms-desk-enhanced.lms-desk-v16 .navbar-home.lms-navbar-brand {
+	display: inline-flex;
+	align-items: center;
+	border-radius: var(--lms-radius-sm);
+}
+

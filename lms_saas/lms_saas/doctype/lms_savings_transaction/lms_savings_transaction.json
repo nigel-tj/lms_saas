@@ -1,0 +1,57 @@
+{
+ "doctype": "DocType",
+ "name": "LMS Savings Transaction",
+ "module": "Lms Saas",
+ "custom": 0,
+ "is_submittable": 1,
+ "autoname": "hash",
+ "fields": [
+  {
+   "fieldname": "savings_account",
+   "fieldtype": "Link",
+   "label": "Savings Account",
+   "options": "LMS Savings Account",
+   "reqd": 1
+  },
+  {
+   "fieldname": "transaction_type",
+   "fieldtype": "Select",
+   "label": "Type",
+   "options": "Deposit\nWithdrawal",
+   "reqd": 1
+  },
+  {
+   "fieldname": "amount",
+   "fieldtype": "Currency",
+   "label": "Amount",
+   "reqd": 1
+  },
+  {
+   "fieldname": "posting_date",
+   "fieldtype": "Date",
+   "label": "Posting Date",
+   "default": "Today",
+   "reqd": 1
+  },
+  {
+   "fieldname": "reference_journal_entry",
+   "fieldtype": "Link",
+   "label": "Journal Entry",
+   "options": "Journal Entry",
+   "read_only": 1
+  }
+ ],
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "submit": 1,
+   "cancel": 1,
+   "export": 1,
+   "report": 1
+  }
+ ]
+}
