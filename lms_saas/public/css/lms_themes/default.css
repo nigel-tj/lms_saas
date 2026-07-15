@@ -50,6 +50,17 @@
 	/* hex: #5d9cec (info) */
 	--theme-info: oklch(0.65 0.13 250);
 
+	/* Tone palette — used by chart slices and badges.
+	   These were missing in default.css; tokens.css referenced them,
+	   so charts/badges with these colors rendered as the empty fallback. */
+	--theme-tone-cyan: oklch(0.78 0.10 200);
+	--theme-tone-blue: oklch(0.65 0.13 250);
+	--theme-tone-green: oklch(0.65 0.15 145);
+	--theme-tone-orange: oklch(0.72 0.18 55);
+	--theme-tone-red: oklch(0.62 0.20 25);
+	--theme-tone-purple: oklch(0.60 0.18 300);
+	--theme-tone-grey: oklch(0.55 0.01 250);
+
 	/* hex: rgba(0,0,0,0.05) → oklch(20% 0 0 / 0.05) */
 	--theme-shadow-sm: 0 1px 2px oklch(0.20 0 0 / 0.05);
 	--theme-shadow: 0 4px 20px oklch(0.20 0 0 / 0.05);

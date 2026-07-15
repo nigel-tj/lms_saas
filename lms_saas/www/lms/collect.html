@@ -29,7 +29,7 @@
 <div id="lms-collect-root" aria-live="polite"></div>
 {% endblock %}
 
-{% block script %}
+{% block sidebar_script %}{{ super() }}
 <script>
 frappe.ready(function() {
   if (typeof lms_collect !== 'undefined') {

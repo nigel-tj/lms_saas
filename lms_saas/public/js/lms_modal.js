@@ -115,6 +115,17 @@
 		dlg.showModal();
 		// Defer focus until after showModal so the dialog is fully in the top layer
 		setTimeout(function () { focusFirst(dlg); }, 0);
+		// Auto-upgrade any <select> in the dialog to a popout combobox.
+		// Skip if the dialog body has data-no-pop (e.g. native Frappe dialogs
+		// we don't own). Wrapped in setTimeout 0 so it runs after the caller
+		// has finished attaching their own event listeners.
+		setTimeout(function () {
+			try {
+				if (window.LMSForms && typeof LMSForms.bindAll === "function") {
+					LMSForms.bindAll(dlg);
+				}
+			} catch (e) { /* noop — never break modal open on form upgrade */ }
+		}, 0);
 
 		return promise;
 	};

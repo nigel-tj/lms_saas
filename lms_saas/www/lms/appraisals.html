@@ -1,0 +1,17 @@
+{% extends "templates/lms_portal/base.html" %}
+
+{% block title %}Appraisals{% endblock %}
+
+{% block lms_content %}
+<div id="lms-appraisals-root" aria-live="polite"></div>
+{% endblock %}
+
+{% block sidebar_script %}{{ super() }}
+<script>
+frappe.ready(function() {
+  if (typeof lms_appraisals !== 'undefined') {
+    lms_appraisals.init();
+  }
+});
+</script>
+{% endblock %}

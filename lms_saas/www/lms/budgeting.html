@@ -1,0 +1,17 @@
+{% extends "templates/lms_portal/base.html" %}
+
+{% block title %}Budgeting{% endblock %}
+
+{% block lms_content %}
+<div id="lms-budgeting-root" aria-live="polite"></div>
+{% endblock %}
+
+{% block sidebar_script %}{{ super() }}
+<script>
+frappe.ready(function() {
+  if (typeof lms_budgeting !== 'undefined') {
+    lms_budgeting.init();
+  }
+});
+</script>
+{% endblock %}

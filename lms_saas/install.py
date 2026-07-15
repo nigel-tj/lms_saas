@@ -191,6 +191,24 @@ LMS_NAV_SPEC = (
         ],
         "cards": [],  # populated dynamically by _resolve_workspace_spec
     },
+    {
+        "key": "addons",
+        "title": "Addons",
+        "parent": "",
+        "roles": ADMIN_ROLES,
+        "icon": "extension",
+        "sequence_id": 5,
+        "greeting": "Toggle portal addons on or off. Enabled addons appear in the portal sidebar for users with the matching persona.",
+        "shortcut_heading": "Addons",
+        "shortcuts": [
+            {"label": "Addon Settings", "type": "DocType", "link_to": "LMS Addon Settings", "doc_view": "Form", "color": "Blue"},
+            {"label": "Announcements", "type": "DocType", "link_to": "LMS Announcement", "doc_view": "List", "color": "Cyan"},
+            {"label": "Tasks", "type": "URL", "url": "/app/task", "color": "Green"},
+            {"label": "Document Categories", "type": "DocType", "link_to": "LMS Document Category", "doc_view": "List", "color": "Orange"},
+            {"label": "Issues (Tickets)", "type": "URL", "url": "/app/issue", "color": "Red"},
+        ],
+        "cards": [],
+    },
 )
 
 
@@ -219,6 +237,7 @@ def after_install():
     _seed_payment_providers()
     _retire_legacy_roles_and_profile()
     _set_admin_home_page()
+    _seed_addon_settings()
 
 
 def _seed_payment_providers():
@@ -812,6 +831,8 @@ def _upsert_workspace(spec):
     for sc in spec.get("shortcuts", ()):  # big clickable tiles (1-click to screen)
         if sc.get("type") == "Report" and not frappe.db.exists("Report", sc.get("link_to")):
             continue
+        if sc.get("type") == "DocType" and not frappe.db.exists("DocType", sc.get("link_to")):
+            continue
         row = dict(sc)
         if row.get("url"):
             from lms_saas.utils.frappe_version import rewrite_desk_path
@@ -1302,3 +1323,37 @@ def _hide_navbar_items(navbar):
         for row in navbar.get(fieldname) or []:
             if row.item_label in _HIDE_NAVBAR_LABELS:
                 row.hidden = 1
+
+
+# ---------------------------------------------------------------------------
+# Addon settings — seed the LMS Addon Settings singleton with all registered
+# addons. Admins then toggle addons on/off via the desk page.
+# ---------------------------------------------------------------------------
+
+def _seed_addon_settings():
+    """Populate the LMS Addon Settings single with rows for every registered addon."""
+    from lms_saas.utils.addons import ADDON_REGISTRY
+
+    if not frappe.db.exists("DocType", "LMS Addon Settings"):
+        return
+
+    doc = frappe.get_single("LMS Addon Settings")
+    existing_keys = {row.addon_key for row in (doc.addons or [])}
+    if existing_keys == set(ADDON_REGISTRY.keys()):
+        return  # already fully populated
+
+    for key, spec in ADDON_REGISTRY.items():
+        if key in existing_keys:
+            continue
+        doc.append(
+            "addons",
+            {
+                "addon_key": key,
+                "addon_label": str(spec.get("label", key)),
+                "description": str(spec.get("description", "")),
+                "enabled": 0,
+            },
+        )
+    doc.flags.ignore_permissions = True
+    doc.save()
+    frappe.db.commit()

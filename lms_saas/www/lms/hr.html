@@ -1,0 +1,17 @@
+{% extends "templates/lms_portal/base.html" %}
+
+{% block title %}HR Management{% endblock %}
+
+{% block lms_content %}
+<div id="lms-hr-root" aria-live="polite"></div>
+{% endblock %}
+
+{% block sidebar_script %}{{ super() }}
+<script>
+frappe.ready(function() {
+  if (typeof lms_hr !== 'undefined') {
+    lms_hr.init();
+  }
+});
+</script>
+{% endblock %}

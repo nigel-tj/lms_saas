@@ -1,0 +1,17 @@
+{% extends "templates/lms_portal/base.html" %}
+
+{% block title %}Document Center{% endblock %}
+
+{% block lms_content %}
+<div id="lms-documents-root" aria-live="polite"></div>
+{% endblock %}
+
+{% block sidebar_script %}{{ super() }}
+<script>
+frappe.ready(function() {
+  if (typeof lms_documents !== 'undefined') {
+    lms_documents.init();
+  }
+});
+</script>
+{% endblock %}

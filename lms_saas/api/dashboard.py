@@ -85,14 +85,16 @@ def get_kpi_card(filters=None, **kwargs):
     return frappe.format_value(int(value), {"fieldtype": "Int"})
 
 
-def _portfolio_metrics(company=None):
+def _portfolio_metrics(company=None, branch=None):
     """Single-pass aggregation over the live loan book shared by all widgets.
 
     Uses frappe.get_list so row-level User Permissions scope a branch manager to
     their own portfolio while System Manager / Administrator see everything.
+    When ``branch`` is provided, loans are additionally filtered by
+    ``custom_lms_branch`` so portal KPIs match the branch-scoped tab views.
     Results are cached for 5 minutes in Redis.
     """
-    cache_key = f"lms_dashboard:{company or 'all'}:{frappe.session.user}"
+    cache_key = f"lms_dashboard:{company or 'all'}:{branch or 'all'}:{frappe.session.user}"
     cached = frappe.cache().get_value(cache_key)
     if cached:
         return cached
@@ -100,6 +102,8 @@ def _portfolio_metrics(company=None):
     loan_filters = {"docstatus": 1, "status": ("in", ["Disbursed", "Active", "Partially Disbursed"])}
     if company:
         loan_filters["company"] = company
+    if branch:
+        loan_filters["custom_lms_branch"] = branch
 
     loans = frappe.get_list(
         "Loan",

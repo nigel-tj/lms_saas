@@ -73,6 +73,159 @@
 	<div class="lms-toast-stack" id="lms-toast-stack" aria-live="polite" aria-atomic="true"></div>
 	{% endblock %}
 
+	{% block sidebar_script %}
+	{# Sidebar collapse/expand — runs on every page regardless of the
+	   individual page's {% block script %} override. This script is self-
+	   contained: it bails out if #lms-sidebar is not present. #}
+	<script>
+	(function () {
+	  var sidebar = document.getElementById('lms-sidebar');
+	  var main = document.querySelector('.lms-main');
+	  var sidebarToggle = document.getElementById('lms-sidebar-toggle');
+	  var topbarToggle = document.getElementById('lms-topbar-menu-btn');
+	  var backdrop = document.getElementById('lms-sidebar-backdrop');
+	  if (!sidebar) return;
+
+	  var STORAGE_KEY = 'lms.sidebar.collapsed';
+	  var MOBILE_BREAKPOINT = 1024;
+
+	  function isMobile() {
+	    return window.matchMedia('(max-width: ' + (MOBILE_BREAKPOINT - 1) + 'px)').matches;
+	  }
+
+	  function persist(value) {
+	    try { localStorage.setItem(STORAGE_KEY, value ? '1' : '0'); } catch (e) {}
+	  }
+
+	  function readPersisted() {
+	    try { return localStorage.getItem(STORAGE_KEY) === '1'; } catch (e) { return false; }
+	  }
+
+	  function updateToggleUI(collapsed) {
+	    if (!sidebarToggle) return;
+	    var expandIcon = sidebarToggle.querySelector('.lms-sidebar__toggle-icon-expand');
+	    var collapseIcon = sidebarToggle.querySelector('.lms-sidebar__toggle-icon-collapse');
+	    var label = sidebarToggle.querySelector('.lms-sidebar__toggle-label');
+	    sidebarToggle.setAttribute('aria-expanded', String(!collapsed));
+	    sidebarToggle.setAttribute('aria-label', collapsed ? 'Expand sidebar' : 'Collapse sidebar');
+	    sidebarToggle.setAttribute('title', collapsed ? 'Expand sidebar (→)' : 'Collapse sidebar (←)');
+	    if (expandIcon) expandIcon.style.display = collapsed ? 'inline-block' : 'none';
+	    if (collapseIcon) collapseIcon.style.display = collapsed ? 'none' : 'inline-block';
+	    if (label) label.textContent = collapsed ? 'Expand' : 'Collapse';
+	  }
+
+	  function applyCollapsed(collapsed, persistState) {
+	    if (isMobile()) {
+	      // On mobile, mini is meaningless; the sidebar slides in/out.
+	      sidebar.classList.remove('is-mini');
+	      if (main) main.classList.remove('is-mini');
+	      return;
+	    }
+	    sidebar.classList.toggle('is-mini', collapsed);
+	    if (main) main.classList.toggle('is-mini', collapsed);
+	    updateToggleUI(collapsed);
+	    if (persistState) persist(collapsed);
+	  }
+
+	  function openMobile() {
+	    if (!isMobile()) return;
+	    sidebar.classList.add('is-open');
+	    if (backdrop) backdrop.classList.add('is-visible');
+	  }
+
+	  function closeMobile() {
+	    if (!isMobile()) return;
+	    sidebar.classList.remove('is-open');
+	    if (backdrop) backdrop.classList.remove('is-visible');
+	  }
+
+	  // Bind all event listeners first, then apply the persisted state.
+	  // Defer to next tick to guarantee the DOM is fully parsed.
+	  function init() {
+	    // Initial state: respect the user's stored preference (desktop only).
+	    if (!isMobile() && readPersisted()) {
+	      applyCollapsed(true, false);
+	    } else {
+	      applyCollapsed(false, false);
+	    }
+
+	    // Topbar hamburger: on mobile, slide the sidebar over; on desktop,
+	    // toggle mini mode.
+	    if (topbarToggle) {
+	      topbarToggle.addEventListener('click', function (e) {
+	        e.preventDefault();
+	        e.stopPropagation();
+	        if (isMobile()) {
+	          if (sidebar.classList.contains('is-open')) closeMobile();
+	          else openMobile();
+	        } else {
+	          var collapsed = !sidebar.classList.contains('is-mini');
+	          applyCollapsed(collapsed, true);
+	        }
+	      });
+	    }
+
+	    // Sidebar footer toggle (desktop): only toggle mini mode; close mobile drawer.
+	    if (sidebarToggle) {
+	      sidebarToggle.addEventListener('click', function (e) {
+	        e.preventDefault();
+	        e.stopPropagation();
+	        if (isMobile()) {
+	          closeMobile();
+	          return;
+	        }
+	        var collapsed = !sidebar.classList.contains('is-mini');
+	        applyCollapsed(collapsed, true);
+	      });
+	    }
+
+	    // Backdrop click closes the mobile drawer.
+	    if (backdrop) {
+	      backdrop.addEventListener('click', closeMobile);
+	    }
+
+	    // ESC closes the mobile drawer.
+	    document.addEventListener('keydown', function (e) {
+	      if (e.key === 'Escape' && isMobile() && sidebar.classList.contains('is-open')) {
+	        closeMobile();
+	      }
+	    });
+
+	    // Recompute on resize so a user dragging the window between mobile/desktop
+	    // doesn't end up in an inconsistent state.
+	    var resizeTimer = null;
+	    window.addEventListener('resize', function () {
+	      clearTimeout(resizeTimer);
+	      resizeTimer = setTimeout(function () {
+	        if (!isMobile()) {
+	          // Re-apply stored collapsed state.
+	          applyCollapsed(readPersisted(), false);
+	          closeMobile();
+	        } else {
+	          // Reset desktop mini state when crossing into mobile.
+	          sidebar.classList.remove('is-mini');
+	          if (main) main.classList.remove('is-mini');
+	        }
+	      }, 120);
+	    });
+	  }
+
+	  if (document.readyState === 'loading') {
+	    document.addEventListener('DOMContentLoaded', init);
+	  } else {
+	    init();
+	  }
+	})();
+	</script>
+	{% endblock %}
+
 	{% block script %}{% endblock %}
+
+	{# Frappe's base_template_page.add_csrf_token replaces this marker with
+	   <script>frappe.csrf_token = "...";</script>. It must come AFTER the
+	   frappe boot script (which defines window.frappe) so the assignment
+	   doesn't fail with "frappe is not defined". Without the CSRF token,
+	   every frappe.call() returns 400 and the UI stays on "Loading…". #}
+	<!-- csrf_token -->
 </body>
 </html>

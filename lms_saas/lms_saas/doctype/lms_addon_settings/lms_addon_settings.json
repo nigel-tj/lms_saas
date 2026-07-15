@@ -1,0 +1,38 @@
+{
+ "doctype": "DocType",
+ "name": "LMS Addon Settings",
+ "module": "Lms Saas",
+ "custom": 0,
+ "is_single": 1,
+ "track_changes": 1,
+ "fields": [
+  {
+   "fieldname": "intro_section",
+   "fieldtype": "Section Break",
+   "label": "Portal Addons"
+  },
+  {
+   "fieldname": "intro_html",
+   "fieldtype": "HTML",
+   "options": "<p class=\"text-muted\">Toggle portal addons on or off. Enabled addons appear in the portal sidebar for users with the matching persona. Changes take effect after <code>bench clear-cache</code>.</p>"
+  },
+  {
+   "fieldname": "addons",
+   "fieldtype": "Table",
+   "label": "Addons",
+   "options": "LMS Addon Row",
+   "description": "One row per registered addon. Check 'Enabled' to activate."
+  }
+ ],
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1
+  }
+ ]
+}

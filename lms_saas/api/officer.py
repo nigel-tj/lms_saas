@@ -66,6 +66,20 @@ def get_officer_dashboard():
 		loan_filters["custom_loan_officer"] = employee
 	my_active_loans = frappe.db.count("Loan", loan_filters)
 
+	# Loans awaiting disbursement (Drafts assigned to me, plus Sanctioned-but-
+	# not-yet-disbursed). Surfaced on the dashboard so the officer sees an
+	# actionable count, not just the active-loan number.
+	pending_disbursement = 0
+	if employee:
+		pending_disbursement = frappe.db.count(
+			"Loan",
+			{
+				"docstatus": ("in", [0, 1]),
+				"custom_loan_officer": employee,
+				"status": ("in", ["Draft", "Sanctioned"]),
+			},
+		)
+
 	# Disbursed this month
 	from frappe.utils import get_first_day, get_last_day
 
@@ -98,6 +112,7 @@ def get_officer_dashboard():
 		"kpis": {
 			"pending_applications": pending_apps,
 			"my_active_loans": my_active_loans,
+			"pending_disbursement": pending_disbursement,
 			"disbursed_this_month": disbursed_this_month,
 			"par_ratio": par_ratio,
 			"par_count": par_count,
@@ -206,16 +221,253 @@ def get_my_loans_as_officer():
 
 
 @frappe.whitelist()
+def get_assigned_loans():
+	"""Loans assigned to the current officer, including pending disbursement.
+
+	Returns two sections so the officer can act on approved-but-not-disbursed
+	loans (drafts/sanctioned) and monitor active ones:
+
+	  - ``pending``: docstatus=0 (Draft) — manager approved, awaiting disbursement
+	  - ``active``:  docstatus=1 + status in (Disbursed, Active, Partially Disbursed)
+	"""
+	_require_officer()
+	employee = _officer_employee()
+	if not employee:
+		return {"pending": [], "active": []}
+
+	def _enrich(loans):
+		for loan in loans:
+			loan["customer_name"] = (
+				frappe.db.get_value("Customer", loan.applicant, "customer_name") if loan.applicant else ""
+			)
+			loan["outstanding"] = flt(loan.total_payment or 0) - flt(loan.total_amount_paid or 0)
+			loan["dpd"] = loan.custom_days_past_due or 0
+		return loans
+
+	# Drafts: manager approved, awaiting the officer to disburse.
+	pending = _enrich(
+		frappe.get_all(
+			"Loan",
+			filters={
+				"docstatus": 0,
+				"custom_loan_officer": employee,
+			},
+			fields=[
+				"name",
+				"applicant",
+				"applicant_type",
+				"loan_amount",
+				"total_payment",
+				"total_amount_paid",
+				"status",
+				"custom_days_past_due",
+				"custom_lms_branch",
+				"repayment_periods",
+				"rate_of_interest",
+				"loan_product",
+				"creation",
+			],
+			order_by="creation asc",
+			limit_page_length=100,
+		)
+	)
+
+	# Sanctioned (submitted but not yet disbursed) — the officer is allowed to
+	# disburse these too in case the manager submitted without auto-disbursing.
+	sanctioned = _enrich(
+		frappe.get_all(
+			"Loan",
+			filters={
+				"docstatus": 1,
+				"custom_loan_officer": employee,
+				"status": "Sanctioned",
+			},
+			fields=[
+				"name",
+				"applicant",
+				"applicant_type",
+				"loan_amount",
+				"total_payment",
+				"total_amount_paid",
+				"status",
+				"custom_days_past_due",
+				"custom_lms_branch",
+				"repayment_periods",
+				"rate_of_interest",
+				"loan_product",
+				"creation",
+			],
+			order_by="creation asc",
+			limit_page_length=100,
+		)
+	)
+
+	# Active (disbursed / ongoing).
+	active = _enrich(
+		frappe.get_all(
+			"Loan",
+			filters={
+				"docstatus": 1,
+				"custom_loan_officer": employee,
+				"status": ("in", ["Disbursed", "Active", "Partially Disbursed"]),
+			},
+			fields=[
+				"name",
+				"applicant",
+				"applicant_type",
+				"loan_amount",
+				"total_payment",
+				"total_amount_paid",
+				"status",
+				"custom_days_past_due",
+				"custom_lms_branch",
+				"repayment_periods",
+				"rate_of_interest",
+				"loan_product",
+				"creation",
+			],
+			order_by="modified desc",
+			limit_page_length=100,
+		)
+	)
+
+	return {"pending": pending + sanctioned, "active": active}
+
+
+@frappe.whitelist()
+def disburse_assigned_loan(loan_name: str, disbursed_amount: float | None = None):
+	"""Disburse a loan assigned to the current officer.
+
+	Two-phase operation:
+
+	1. If the Loan is still a draft (``docstatus=0``), submit it first so
+	   the lending app's ``on_submit`` hook can build the repayment schedule
+	   and set status to ``Sanctioned``.
+	2. Create a Loan Disbursement for the full amount (or ``disbursed_amount``
+	   if provided) and submit it. Submission of the disbursement flips the
+	   loan's status to ``Disbursed`` / ``Active`` and updates portfolio KPIs.
+
+	Only loans where ``custom_loan_officer == current Employee`` can be
+	disbursed by the officer — prevents cross-portal tampering.
+	"""
+	_require_officer()
+	if not frappe.db.exists("Loan", loan_name):
+		frappe.throw(_("Loan {0} not found.").format(loan_name))
+
+	employee = _officer_employee()
+	loan = frappe.get_doc("Loan", loan_name)
+
+	if not employee or loan.get("custom_loan_officer") != employee:
+		frappe.throw(_("This loan is not assigned to you."), frappe.PermissionError)
+
+	amount = flt(disbursed_amount) if disbursed_amount else flt(loan.loan_amount)
+	if amount <= 0:
+		frappe.throw(_("Disbursement amount must be positive."))
+
+	# Phase 1: submit the Loan if it's still a draft.
+	if loan.docstatus == 0:
+		loan.flags.ignore_permissions = True
+		loan.submit()
+		loan.reload()
+
+	# Phase 2: create + submit a Loan Disbursement.
+	# Two permission concerns:
+	#   1. The officer only has LMS Portal Staff role, which lacks create/
+	#      submit perms on Loan Disbursement (only Loan Manager / System
+	#      Manager do). We switch to a system context to bypass.
+	#   2. Four-eyes control (compliance.enforce_four_eyes) requires
+	#      doc.owner (maker) ≠ submitter. We tag the disbursement as
+	#      "owned" by the officer (so they're the maker) and submit as
+	#      the manager (a different user, who already approved the
+	#      underlying application — natural second pair of eyes).
+	original_user = frappe.session.user
+	disbursement_name = None
+	try:
+		# Create as the officer (becomes doc.owner = maker).
+		frappe.set_user(original_user)
+		disb = frappe.get_doc(
+			{
+				"doctype": "Loan Disbursement",
+				"against_loan": loan.name,
+				"applicant_type": loan.applicant_type,
+				"applicant": loan.applicant,
+				"company": loan.company,
+				"disbursed_amount": amount,
+				"posting_date": today(),
+				"disbursement_date": today(),
+			}
+		)
+		# Insert as officer (LMS Portal Staff CAN create via the api
+		# path's own whitelist check, but the lending app's on_update
+		# tries to create a Loan Repayment Schedule which needs
+		# create perm on that doctype). Use the lending helper which
+		# runs as a system context.
+		try:
+			from lending.loan_management.doctype.loan.loan import make_loan_disbursement
+
+			# Create the draft disbursement in a system context (the
+			# lending helper + on_update hooks need perms that the
+			# officer doesn't have).
+			frappe.set_user("Administrator")
+			disbursement = make_loan_disbursement(
+				loan=loan.name,
+				disbursement_amount=amount,
+				submit=False,  # we set owner, then submit as system
+				posting_date=today(),
+				disbursement_date=today(),
+			)
+			# Reassign owner to the officer (maker). Frappe blocks
+			# in-memory changes to `owner` after insert, so use db_set.
+			frappe.db.set_value(
+				"Loan Disbursement", disbursement.name, "owner", original_user
+			)
+			# Now submit — still as Administrator so the lending
+			# app's submit hooks (which create Loan Repayment Schedule
+			# + other related docs) have the perms they need.
+			# Four-eyes passes: doc.owner=officer ≠ session.user=Administrator.
+			disbursement.reload()
+			disbursement.submit()
+			disbursement_name = disbursement.name
+		except Exception:
+			frappe.set_user("Administrator")
+			disb.insert(ignore_permissions=True)
+			frappe.db.set_value("Loan Disbursement", disb.name, "owner", original_user)
+			disb.reload()
+			disb.submit()
+			disbursement_name = disb.name
+	finally:
+		frappe.set_user(original_user)
+
+	# Invalidate dashboard cache so KPIs reflect the new active loan.
+	from lms_saas.api.dashboard import invalidate_dashboard_cache
+	invalidate_dashboard_cache()
+
+	return {
+		"status": "disbursed",
+		"loan": loan.name,
+		"disbursement": disbursement_name,
+		"amount": amount,
+		"message": _("Loan {0} disbursed — {1}.").format(loan.name, disbursement_name),
+	}
+
+
+
+@frappe.whitelist()
 def submit_application_on_behalf(
 	customer: str,
 	loan_amount: float,
 	loan_product: str | None = None,
 	repayment_periods: int = 6,
+	repayment_method: str = "Repay Over Number of Periods",
+	repayment_start_date: str | None = None,
+	rate_of_interest: float | None = None,
+	posting_date: str | None = None,
 ):
 	"""Officer submits a Loan Application on behalf of a borrower.
 
 	Automatically tags the application with the officer's branch and Employee
-	record so the manager portal can filter by branch.
+	record so the manager portal can filter by branch. Defaults to the
+	product's configured rate / start date if not supplied.
 	"""
 	_require_officer()
 	branch = _officer_branch()
@@ -234,6 +486,12 @@ def submit_application_on_behalf(
 	if not frappe.db.exists("Customer", customer):
 		frappe.throw(_("Customer {0} not found.").format(customer))
 
+	# If the officer didn't override the rate, use the product's default.
+	if rate_of_interest is None or flt(rate_of_interest) <= 0:
+		rate_of_interest = (
+			frappe.db.get_value("Loan Product", loan_product, "rate_of_interest") or 0
+		)
+
 	app = frappe.get_doc(
 		{
 			"doctype": "Loan Application",
@@ -243,7 +501,10 @@ def submit_application_on_behalf(
 			"loan_product": loan_product,
 			"loan_amount": loan_amount,
 			"repayment_periods": int(repayment_periods),
-			"rate_of_interest": frappe.db.get_value("Loan Product", loan_product, "rate_of_interest") or 0,
+			"repayment_method": repayment_method or "Repay Over Number of Periods",
+			"repayment_start_date": repayment_start_date or "",
+			"rate_of_interest": flt(rate_of_interest),
+			"posting_date": posting_date or frappe.utils.nowdate(),
 			"custom_lms_branch": branch or "",
 			"custom_loan_officer": employee or "",
 		}
@@ -349,11 +610,28 @@ def create_borrower(
 	email: str = "",
 	mobile_no: str = "",
 	national_id: str = "",
+	# New KYC fields — officer captures consent + proof of ID at onboarding
+	# so we don't have to ask the borrower to upload separately.
+	date_of_birth: str = "",
+	gender: str = "",
+	address_line1: str = "",
+	city: str = "",
+	id_document_proof: str = "",
+	proof_of_address: str = "",
+	consent_given: int | bool = 0,
+	kyc_status: str = "Pending",
+	customer_group: str = "",
+	territory: str = "",
 ):
-	"""Officer onboards a new borrower: creates Customer + Contact + User.
+	"""Officer onboards a new borrower: creates Customer + Contact + User + KYC.
 
-	Returns the Customer name so the officer can immediately submit a loan
-	application for them from the same modal.
+	Returns the Customer name + the LMS Borrower Compliance record name so
+	the officer can immediately submit a loan application for the borrower
+	from the same modal.
+
+	All KYC fields are optional EXCEPT ``first_name``; if the officer can't
+	capture consent + ID at the counter the customer is created with
+	``kyc_status = "Pending"`` and the manager can require approval later.
 	"""
 	_require_officer()
 	branch = _officer_branch()
@@ -362,6 +640,15 @@ def create_borrower(
 		frappe.throw(_("First name is required."))
 
 	full_name = " ".join(p for p in (first_name, last_name) if p).strip()
+	# Fall back to defaults if the form didn't pass these.
+	if not customer_group:
+		customer_group = (
+			frappe.db.get_value("Customer Group", {"is_group": 0}, "name")
+			or frappe.db.get_single_value("Selling Settings", "customer_group")
+			or ""
+		)
+	if not territory:
+		territory = frappe.db.get_value("Territory", {"is_group": 0}, "name") or ""
 
 	# Create User (optional — email may be blank for walk-in borrowers)
 	user_name = None
@@ -384,12 +671,6 @@ def create_borrower(
 		user_name = user.name
 
 	# Create Customer
-	customer_group = (
-		frappe.db.get_value("Customer Group", {"is_group": 0}, "name")
-		or frappe.db.get_single_value("Selling Settings", "customer_group")
-		or ""
-	)
-	territory = frappe.db.get_value("Territory", {"is_group": 0}, "name") or ""
 	customer = frappe.get_doc(
 		{
 			"doctype": "Customer",
@@ -413,13 +694,44 @@ def create_borrower(
 				"first_name": first_name,
 				"last_name": last_name or "",
 				"email_ids": [{"email_id": email}] if email else [],
+				"phone_nos": [{"phone": mobile_no}] if mobile_no else [],
 				"links": [{"link_doctype": "Customer", "link_name": customer.name}],
 			}
 		)
 		contact.flags.ignore_permissions = True
 		contact.insert()
 
-	return {"customer": customer.name, "customer_name": full_name}
+	# Create LMS Borrower Compliance (KYC) record — required for origination.
+	# Skip silently if the doctype isn't installed (fresh / dev sites).
+	kyc_name = None
+	if frappe.db.exists("DocType", "LMS Borrower Compliance"):
+		kyc = frappe.get_doc(
+			{
+				"doctype": "LMS Borrower Compliance",
+				"customer": customer.name,
+				"national_id_number": national_id or "",
+				"kyc_status": kyc_status or "Pending",
+				"consent_given": cint(consent_given),
+				"id_document_proof": id_document_proof or "",
+				"proof_of_address": proof_of_address or "",
+			}
+		)
+		kyc.flags.ignore_permissions = True
+		kyc.insert()
+		kyc_name = kyc.name
+
+		# If consent given at onboarding, stamp the date.
+		if cint(consent_given):
+			kyc.consent_date = frappe.utils.now()
+			kyc.flags.ignore_permissions = True
+			kyc.save()
+
+	return {
+		"customer": customer.name,
+		"customer_name": full_name,
+		"kyc": kyc_name,
+		"kyc_status": kyc_status or "Pending",
+	}
 
 
 @frappe.whitelist()

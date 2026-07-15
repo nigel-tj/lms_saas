@@ -11,6 +11,11 @@
 
 /* ----- Input primitives ----------------------------------------------- */
 
+/* Single source of truth for form control sizing/styling. Every <input>,
+ * <select>, <textarea>, and the popout trigger <button> all match this
+ * so a control always renders at the same height/border/padding. Without
+ * this the trigger button falls back to browser defaults
+ * (`2px outset rgb(0,0,0)`, font 13.3px) and looks 2008. */
 .lms-input,
 .lms-form .lms-input,
 .lms-form input[type="text"],
@@ -18,18 +23,33 @@
 .lms-form input[type="email"],
 .lms-form input[type="tel"],
 .lms-form input[type="date"],
+.lms-form input[type="search"],
 .lms-form textarea,
-.lms-fallback-select {
+.lms-fallback-select,
+.lms-select-pop__trigger,
+.lms-modal input[type="text"],
+.lms-modal input[type="number"],
+.lms-modal input[type="email"],
+.lms-modal input[type="tel"],
+.lms-modal input[type="date"],
+.lms-modal textarea,
+.lms-modal select,
+.lms-modal .lms-select-pop__trigger {
 	width: 100%;
 	min-height: var(--lms-form-input-height);
 	padding: var(--lms-form-pad-y) var(--lms-form-pad-x);
-	font: inherit;
+	font-family: inherit;
 	font-size: var(--lms-fs-base);
+	line-height: 1.4;
 	color: var(--lms-text);
 	background: var(--lms-surface);
 	border: 1px solid var(--lms-form-border);
 	border-radius: var(--lms-form-radius);
-	transition: border-color var(--lms-transition-fast), box-shadow var(--lms-transition-fast);
+	box-shadow: none;
+	box-sizing: border-box;
+	transition: border-color var(--lms-transition-fast),
+		box-shadow var(--lms-transition-fast),
+		background-color var(--lms-transition-fast);
 }
 
 .lms-form input:focus,
@@ -38,6 +58,21 @@
 .lms-input:focus {
 	border-color: var(--lms-primary);
 	box-shadow: var(--lms-form-focus-ring);
+}
+
+/* When the form lives inside a modal, give it horizontal padding so
+ * inputs don't sit flush against the modal's edges. The form is the
+ * "body" of many modals (LMSModal) so it needs the same gutter as
+ * .lms-modal__body. */
+.lms-modal .lms-form,
+.lms-modal__body {
+	padding: 0.25rem 1.5rem 0.75rem 1.5rem;
+	/* When the form is the body, let it scroll while header and actions
+	 * stay pinned. The .lms-modal is flex column so flex:1 fills the
+	 * remaining height between header and actions. */
+	overflow-y: auto;
+	min-height: 0;
+	flex: 1 1 auto;
 }
 
 .lms-form .lms-form-row {
@@ -51,12 +86,26 @@
 	min-width: 0;
 }
 
-.lms-form label {
+.lms-form label,
+.lms-modal label,
+.lms-grid-2 > label {
 	display: block;
 	font-size: var(--lms-fs-sm);
 	font-weight: 600;
 	color: var(--lms-text);
-	margin-bottom: 0.25rem;
+	margin-bottom: 0.4rem;
+	letter-spacing: 0.01em;
+}
+
+/* Form label + input pairs read clearly even without asterisks:
+ * light hint text under each label, monospaced placeholder, etc. */
+.lms-form .lms-hint,
+.lms-modal .lms-hint {
+	display: block;
+	font-size: 0.8rem;
+	color: var(--lms-text-muted);
+	margin-top: 0.3rem;
+	line-height: 1.4;
 }
 
 /* Native fallback <select> — matches the staff form-select. */
@@ -84,29 +133,37 @@
 	width: 100%;
 	min-height: var(--lms-form-input-height);
 	padding: var(--lms-form-pad-y) var(--lms-form-pad-x);
-	font: inherit;
+	font-family: inherit;
 	font-size: var(--lms-fs-base);
+	line-height: 1.4;
 	color: var(--lms-text);
 	background: var(--lms-surface);
 	border: 1px solid var(--lms-form-border);
 	border-radius: var(--lms-form-radius);
 	cursor: pointer;
 	text-align: left;
-	transition: border-color var(--lms-transition-fast), box-shadow var(--lms-transition-fast);
+	box-shadow: none;
+	box-sizing: border-box;
+	transition: border-color var(--lms-transition-fast),
+		box-shadow var(--lms-transition-fast),
+		background-color var(--lms-transition-fast);
 }
 
 .lms-select-pop__trigger:hover {
 	border-color: var(--lms-primary);
+	background: var(--lms-surface-alt, var(--lms-surface));
 }
 
 .lms-select-pop__trigger:focus-visible {
-	outline: 2px solid var(--lms-focus);
-	outline-offset: 2px;
+	outline: none;
+	border-color: var(--lms-primary);
+	box-shadow: var(--lms-form-focus-ring);
 }
 
 .lms-select-pop__trigger[aria-expanded="true"] {
 	border-color: var(--lms-primary);
 	box-shadow: var(--lms-form-focus-ring);
+	background: var(--lms-surface);
 }
 
 .lms-select-pop__trigger-text {
@@ -115,27 +172,43 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+	font-weight: 500;
 }
 
 .lms-select-pop__trigger-text--placeholder {
 	color: var(--lms-text-muted);
+	font-weight: 400;
 }
 
 .lms-select-pop__trigger-caret {
 	flex-shrink: 0;
+	width: 18px;
+	height: 18px;
 	color: var(--lms-text-muted);
 	transition: transform var(--lms-transition-fast);
+	opacity: 0.7;
 }
 
 .lms-select-pop__trigger[aria-expanded="true"] .lms-select-pop__trigger-caret {
 	transform: rotate(180deg);
 }
 
-/* Popover menu — uses Popover API for top-layer + free dismiss */
+/* Popover menu — uses Popover API for top-layer + free dismiss.
+ * The menu is detached to <body> at bind time so modal/dialog ancestors
+ * don't clip the open listbox with overflow:hidden. Default opacity is
+ * 0 (invisible) and pointer-events:none so an unopened menu does not
+ * intercept clicks; the data-open="1" attribute reveals it.
+ *
+ * Important: the Popover API auto-centers via `margin: auto`; we override
+ * that to zero so the JS `positionMenu` math (fixed coords relative to
+ * the trigger) is the only thing that places the element. */
 .lms-select-pop__menu {
 	position: fixed;
 	inset: auto;
-	margin: 0;
+	margin: 0 !important;
+	display: block;
+	pointer-events: none;
+	visibility: hidden;
 	min-width: 14rem;
 	max-width: min(28rem, 92vw);
 	max-height: min(20rem, 70vh);
@@ -155,16 +228,20 @@
 		transform var(--lms-transition-fast) var(--lms-ease-out-quart);
 }
 
-.lms-select-pop__menu:popover-open {
+/* Open state — both Popover API and manual data-open="1" trigger it. */
+.lms-select-pop__menu:popover-open,
+.lms-select-pop__menu[data-open="1"] {
 	opacity: 1;
+	visibility: visible;
+	pointer-events: auto;
 	transform: translateY(0);
 }
 
 @supports not (selector(:popover-open)) {
-	/* CSS-only fallback for browsers without the Popover API:
-	 *  treat .lms-select-pop--open on the wrapper as the open state. */
-	.lms-select-pop--open .lms-select-pop__menu {
+	.lms-select-pop__menu[data-open="1"] {
 		opacity: 1;
+		visibility: visible;
+		pointer-events: auto;
 		transform: translateY(0);
 	}
 }
@@ -191,14 +268,15 @@
 	display: flex;
 	align-items: center;
 	gap: 0.5rem;
-	padding: 0.55rem 0.7rem;
-	font-size: var(--lms-fs-sm);
+	padding: 0.6rem 0.75rem;
+	font-size: 0.9rem;
 	color: var(--lms-text);
 	border-radius: var(--lms-radius-sm);
 	cursor: pointer;
 	user-select: none;
+	line-height: 1.4;
 	/* Allow attribute selector styling without :hover bleed */
-	transition: background var(--lms-transition-fast);
+	transition: background var(--lms-transition-fast), color var(--lms-transition-fast);
 }
 
 .lms-select-pop__option[aria-selected="true"] {
@@ -214,7 +292,7 @@
 
 .lms-select-pop__option--selected.lms-select-pop__option--active,
 .lms-select-pop__option--selected:hover {
-	background: color-mix(in oklch, var(--lms-primary) 16%, transparent);
+	background: color-mix(in oklch, var(--lms-primary) 18%, transparent);
 }
 
 .lms-select-pop__option-check {

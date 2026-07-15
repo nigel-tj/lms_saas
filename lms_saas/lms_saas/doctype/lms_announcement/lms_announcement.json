@@ -1,0 +1,112 @@
+{
+ "doctype": "DocType",
+ "name": "LMS Announcement",
+ "module": "Lms Saas",
+ "custom": 0,
+ "autoname": "format:ANN-{#####}",
+ "track_changes": 1,
+ "title_field": "title",
+ "fields": [
+  {
+   "fieldname": "title",
+   "fieldtype": "Data",
+   "label": "Title",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "body",
+   "fieldtype": "Text Editor",
+   "label": "Body",
+   "reqd": 1
+  },
+  {
+   "fieldname": "target_section",
+   "fieldtype": "Section Break",
+   "label": "Targeting"
+  },
+  {
+   "fieldname": "target_persona",
+   "fieldtype": "Select",
+   "label": "Target Persona",
+   "options": "\nAll Staff\nAdmin\nBranch Manager\nLoan Officer\nCollector\nBorrower",
+   "default": "All Staff",
+   "in_list_view": 1,
+   "description": "Who should see this announcement."
+  },
+  {
+   "fieldname": "target_branch",
+   "fieldtype": "Link",
+   "label": "Target Branch",
+   "options": "Cost Center",
+   "description": "Leave blank for all branches."
+  },
+  {
+   "fieldname": "column_break_target",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "requires_acknowledgement",
+   "fieldtype": "Check",
+   "label": "Requires Acknowledgement",
+   "default": "0",
+   "description": "Staff must acknowledge reading this announcement."
+  },
+  {
+   "fieldname": "publish_date",
+   "fieldtype": "Datetime",
+   "label": "Publish Date",
+   "default": "Now",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "expiry_date",
+   "fieldtype": "Datetime",
+   "label": "Expiry Date",
+   "description": "Hide after this date. Leave blank for no expiry."
+  },
+  {
+   "fieldname": "status_section",
+   "fieldtype": "Section Break",
+   "label": "Status"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Draft\nPublished\nArchived",
+   "default": "Draft",
+   "in_list_view": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_status",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "acknowledged_by",
+   "fieldtype": "Table",
+   "label": "Acknowledged By",
+   "options": "LMS Announcement Acknowledgement"
+  }
+ ],
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "export": 1,
+   "report": 1
+  },
+  {
+   "role": "LMS Portal Staff",
+   "read": 1
+  },
+  {
+   "role": "Customer",
+   "read": 1
+  }
+ ]
+}

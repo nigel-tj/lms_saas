@@ -819,3 +819,80 @@ bench --site {site} doctor
 ---
 
 *Aligns with `lms_saas` hooks, `install.py`, and verification scripts in `apps/lms_saas/lms_saas/`.*
+
+## 17. Portal Addons
+
+The LMS portal supports admin-toggleable addons that extend the borrower
+and staff portals with new functionality. Addons are disabled by default
+and can be enabled from the **LMS Addon Settings** desk page (or
+`site_config.json`).
+
+### 17.1 Available addons
+
+| Key | Label | Personas | Purpose |
+|-----|-------|----------|---------|
+| `announcements` | Announcements | All staff, Borrower | Internal board with acknowledgement |
+| `task_management` | Task Management | All staff | Kanban tasks linked to loans/projects |
+| `document_center` | Document Center | All staff, Borrower | Centralised documents, expiry tracking |
+| `helpdesk` | Support / Helpdesk | All staff, Borrower | Ticket system, complaint escalation |
+| `hr_management` | HR Management | Manager, Admin | Leave, attendance, expenses, shifts |
+| `branch_analytics` | Branch Analytics | Manager, Admin | Cross-branch KPI comparison |
+| `regulatory_hub` | Regulatory Hub | Admin | Centralised regulatory reporting |
+| `payroll` | Payroll | Admin, Manager | Payroll runs, payslips, deductions |
+| `appraisals` | Appraisals | All staff | Appraisal cycles, KRA scoring |
+| `training` | Training | All staff | Training programs, events, feedback |
+| `recruitment` | Recruitment | Admin, Manager | Job openings, applicants, interviews |
+| `procurement` | Procurement | Admin, Manager | Purchase requests, POs, suppliers |
+| `savings_club` | Savings Club | All staff, Borrower | Group savings goals, statements |
+| `customer_feedback` | Customer Feedback | Manager, Admin, Borrower | NPS surveys, complaint routing |
+| `field_visits` | Field Visits | All staff | Geo-tagged visit scheduling |
+| `inventory` | Inventory & Assets | Admin, Manager | Asset register, stock items |
+| `budgeting` | Budgeting | Admin, Manager | Budget vs. actual, forecasting |
+| `insurance` | Insurance | Admin, Manager, Officer, Borrower | Loan insurance, claims |
+| `whatsapp` | WhatsApp Business | All staff | WhatsApp notifications |
+| `wallet_recon` | Wallet Reconciliation | Admin, Manager | Mobile money reconciliation |
+
+### 17.2 Enabling an addon
+
+**Via the desk page:**
+
+1. Open **LMS Addon Settings** from the Addons workspace.
+2. Check the **Enabled** box for the addon.
+3. Save — the toggle is written to `site_config.lms_addons` automatically.
+4. Run `bench --site {site} clear-cache` and refresh the portal.
+
+**Via site_config.json:**
+
+```jsonc
+{
+  "lms_addons": {
+    "hr_management": true,
+    "helpdesk": true,
+    "announcements": true
+  }
+}
+```
+
+Then `bench --site {site} clear-cache`.
+
+### 17.3 Architecture
+
+- **Registry** — `lms_saas/utils/addons.py` (single source of truth for all addons)
+- **Desk settings** — `LMS Addon Settings` single doctype
+- **API guards** — `require_addon_api(key)` / `require_addon_persona(key)` from `lms_saas.utils.addons`
+- **Page guards** — `require_addon(key)` in `www/lms/<addon>.py`
+- **Nav integration** — addons appear in the portal sidebar via `_build_lms_nav()` in `utils/brand.py`
+- **Persona gating** — each addon declares which personas may use it; non-matching users never see nav items
+
+### 17.4 Custom addons
+
+To add a new addon:
+
+1. Add an entry to `ADDON_REGISTRY` in `lms_saas/utils/addons.py`.
+2. Create the API at `lms_saas/api/<key>.py` — guard with `require_addon_persona("<key>")`.
+3. Create the portal page at `www/lms/<route>.py` + `.html`.
+4. Create the portal JS at `public/js/lms_<key>_portal.js` with the `lms_<key>` namespace.
+5. Add the route to `website_route_rules` in `hooks.py`.
+6. Add the page title to `_lms_page_title` in `utils/brand.py`.
+7. (If new doc types are needed) create the DocType JSONs under `lms_saas/doctype/`.
+8. Run `bench --site {site} migrate` and `bench --site {site} clear-cache`.

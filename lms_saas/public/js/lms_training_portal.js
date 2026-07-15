@@ -1,0 +1,248 @@
+/* LMS Training portal — programs, events, my training */
+if (typeof frappe !== "undefined" && typeof frappe.provide === "function") {
+	frappe.provide("lms_training");
+} else {
+	window.lms_training = window.lms_training || {};
+}
+
+lms_training._currentTab = "programs";
+
+lms_training.init = function () {
+	var root = document.getElementById("lms-training-root");
+	if (!root) return;
+
+	var tabs = [
+		{ id: "programs", label: "Programs", icon: "📚" },
+		{ id: "events", label: "Events", icon: "📅" },
+		{ id: "mine", label: "My Training", icon: "🎓" },
+	];
+	var html = '<nav class="lms-tab-nav" role="tablist">';
+	tabs.forEach(function (t) {
+		var active = lms_training._currentTab === t.id ? " is-active" : "";
+		html += '<button type="button" class="lms-tab' + active + '" data-tab="' + t.id + '" role="tab" aria-selected="' + (active ? "true" : "false") + '">' + t.icon + " " + lms_portal.escape(t.label) + "</button>";
+	});
+	html += "</nav>";
+	html += '<div id="lms-training-tab-content"></div>';
+	root.innerHTML = html;
+
+	root.querySelectorAll(".lms-tab").forEach(function (btn) {
+		btn.addEventListener("click", function () {
+			lms_training._currentTab = btn.getAttribute("data-tab");
+			root.querySelectorAll(".lms-tab").forEach(function (b) {
+				b.classList.remove("is-active");
+				b.setAttribute("aria-selected", "false");
+			});
+			btn.classList.add("is-active");
+			btn.style.borderBottom = "2px solid var(--lms-primary)";
+			btn.style.color = "var(--lms-primary)";
+			btn.style.fontWeight = "600";
+			lms_training._showTab(lms_training._currentTab);
+		});
+	});
+
+	lms_training._showTab(lms_training._currentTab);
+};
+
+lms_training._showTab = function (tabId) {
+	var content = document.getElementById("lms-training-tab-content");
+	if (!content) return;
+	content.innerHTML = lms_portal.loading("Loading…");
+
+	if (tabId === "programs") lms_training._loadPrograms(content);
+	else if (tabId === "events") lms_training._loadEvents(content);
+	else if (tabId === "mine") lms_training._loadMine(content);
+};
+
+lms_training._statCard = function (label, value, tone) {
+	var cls = tone ? " lms-stat--" + tone : "";
+	return '<div class="lms-stat-card lms-stat' + cls + '" style="padding:1rem;"><div class="lms-stat-label">' +
+		lms_portal.escape(label) + '</div><div class="lms-stat-value">' + value + '</div></div>';
+};
+
+lms_training._loadPrograms = function (content) {
+	lms_portal.safeCall({
+		method: "lms_saas.api.training.get_training_programs",
+		callback: function (r) {
+			var programs = (r && r.message && r.message.programs) || [];
+			if (!programs.length) {
+				content.innerHTML = '<div class="lms-panel"><div class="lms-empty"><div class="lms-empty-icon">📚</div><h3>No programs</h3><p>No training programs available.</p></div></div>';
+				return;
+			}
+			var html = '<div class="lms-panel"><div class="lms-data-table__wrap"><table class="lms-data-table">';
+			html += "<thead><tr><th>Program</th><th>Status</th><th>Description</th><th>Created</th></tr></thead><tbody>";
+			programs.forEach(function (p) {
+				var statusClass = p.status === "Active" || p.status === "Published" ? "lms-badge--success" : "";
+				html += "<tr>";
+				html += "<td><strong>" + lms_portal.escape(p.program_name || p.name) + "</strong></td>";
+				html += '<td><span class="lms-badge ' + statusClass + '">' + lms_portal.escape(p.status || "") + "</span></td>";
+				html += "<td>" + lms_portal.escape((p.description || "").slice(0, 80)) + "</td>";
+				html += "<td>" + lms_portal.formatDate(p.created_on || p.creation) + "</td>";
+				html += "</tr>";
+			});
+			html += "</tbody></table></div></div>";
+			content.innerHTML = html;
+		},
+		error: function () {
+			content.innerHTML = lms_portal.error("Could not load training programs.");
+		},
+	});
+};
+
+lms_training._loadEvents = function (content) {
+	lms_portal.safeCall({
+		method: "lms_saas.api.training.get_training_events",
+		args: { upcoming: true },
+		callback: function (r) {
+			var events = (r && r.message && r.message.events) || [];
+			if (!events.length) {
+				content.innerHTML = '<div class="lms-panel"><div class="lms-empty"><div class="lms-empty-icon">📅</div><h3>No events</h3><p>No upcoming training events.</p></div></div>';
+				return;
+			}
+			var html = '<div class="lms-panel"><div class="lms-data-table__wrap"><table class="lms-data-table">';
+			html += "<thead><tr><th>Event</th><th>Program</th><th>Start</th><th>End</th><th>Location</th><th>Registered</th><th>Status</th><th>Action</th></tr></thead><tbody>";
+			events.forEach(function (e) {
+				var statusClass = e.status === "Scheduled" ? "lms-badge--info" : (e.status === "Completed" ? "lms-badge--success" : "");
+				html += "<tr>";
+				html += "<td><strong>" + lms_portal.escape(e.event_name || e.name) + "</strong></td>";
+				html += "<td>" + lms_portal.escape(e.training_program || "—") + "</td>";
+				html += "<td>" + lms_portal.formatDate(e.start_time) + "</td>";
+				html += "<td>" + lms_portal.formatDate(e.end_time) + "</td>";
+				html += "<td>" + lms_portal.escape(e.location || "—") + "</td>";
+				html += "<td>" + (e.registered_count || 0) + "</td>";
+				html += '<td><span class="lms-badge ' + statusClass + '">' + lms_portal.escape(e.status || "") + "</span></td>";
+				html += '<td><button type="button" class="lms-btn lms-btn--primary lms-btn--sm lms-tr-register" data-name="' + lms_portal.escape(e.name) + '">Register</button></td>';
+				html += "</tr>";
+			});
+			html += "</tbody></table></div></div>";
+			content.innerHTML = html;
+
+			content.querySelectorAll(".lms-tr-register").forEach(function (btn) {
+				btn.addEventListener("click", function () {
+					lms_training._registerForEvent(btn.getAttribute("data-name"));
+				});
+			});
+		},
+		error: function () {
+			content.innerHTML = lms_portal.error("Could not load training events.");
+		},
+	});
+};
+
+lms_training._registerForEvent = function (eventName) {
+	lms_portal.safeCall({
+		method: "lms_saas.api.training.register_for_event",
+		args: { event_name: eventName },
+		callback: function (r) {
+			var res = (r && r.message) || {};
+			if (res.already_registered) {
+				lms_portal.toast("You are already registered.", "info");
+			} else {
+				lms_portal.toast("Registered successfully!", "success");
+			}
+			lms_training._showTab("events");
+		},
+		error: function () {
+			lms_portal.toast("Could not register for event.", "danger");
+		},
+	});
+};
+
+lms_training._loadMine = function (content) {
+	lms_portal.safeCall({
+		method: "lms_saas.api.training.get_my_training_results",
+		callback: function (r) {
+			var results = (r && r.message && r.message.results) || [];
+			var html = '<section class="lms-grid-4" style="margin-bottom:1rem;">';
+			html += lms_training._statCard("Training Completed", results.length, "success");
+			html += "</section>";
+
+			if (!results.length) {
+				html += '<div class="lms-panel"><div class="lms-empty"><div class="lms-empty-icon">🎓</div><h3>No results</h3><p>You have no training results yet.</p></div></div>';
+				content.innerHTML = html;
+				return;
+			}
+
+			html += '<div class="lms-panel"><div class="lms-data-table__wrap"><table class="lms-data-table">';
+			html += "<thead><tr><th>Event</th><th>Status</th><th>Result</th><th>Score</th><th>Date</th><th>Feedback</th></tr></thead><tbody>";
+			results.forEach(function (res) {
+				var statusClass = res.status === "Completed" ? "lms-badge--success" : (res.status === "Failed" ? "lms-badge--danger" : "lms-badge--warning");
+				html += "<tr>";
+				html += "<td><strong>" + lms_portal.escape(res.training_event || res.name) + "</strong></td>";
+				html += '<td><span class="lms-badge ' + statusClass + '">' + lms_portal.escape(res.status || "") + "</span></td>";
+				html += "<td>" + lms_portal.escape(res.result || "—") + "</td>";
+				html += "<td>" + (res.score || "—") + "</td>";
+				html += "<td>" + lms_portal.formatDate(res.posting_date) + "</td>";
+				html += '<td><button type="button" class="lms-btn lms-btn--ghost lms-btn--sm lms-tr-feedback" data-event="' + lms_portal.escape(res.training_event || res.name) + '">Give Feedback</button></td>';
+				html += "</tr>";
+			});
+			html += "</tbody></table></div></div>";
+			content.innerHTML = html;
+
+			content.querySelectorAll(".lms-tr-feedback").forEach(function (btn) {
+				btn.addEventListener("click", function () {
+					lms_training._showFeedbackModal(btn.getAttribute("data-event"));
+				});
+			});
+		},
+		error: function () {
+			content.innerHTML = lms_portal.error("Could not load your training results.");
+		},
+	});
+};
+
+lms_training._showFeedbackModal = function (eventName) {
+	// First check if feedback already exists
+	lms_portal.safeCall({
+		method: "lms_saas.api.training.get_training_feedback",
+		args: { event_name: eventName },
+		callback: function (r) {
+			var data = (r && r.message) || {};
+			if (data.already_submitted) {
+				lms_portal.toast("You have already submitted feedback for this event.", "info");
+				return;
+			}
+			lms_training._renderFeedbackForm(eventName);
+		},
+	});
+};
+
+lms_training._renderFeedbackForm = function (eventName) {
+	var html = '<div class="lms-form">';
+	html += '<div class="lms-field"><label>Rating</label>';
+	html += '<select id="lms-tr-rating" class="lms-input lms-fallback-select">';
+	html += '<option value="1">1 — Poor</option>';
+	html += '<option value="2">2 — Fair</option>';
+	html += '<option value="3" selected>3 — Good</option>';
+	html += '<option value="4">4 — Very Good</option>';
+	html += '<option value="5">5 — Excellent</option>';
+	html += '</select></div>';
+	html += '<div class="lms-field"><label>Feedback</label>';
+	html += '<textarea id="lms-tr-feedback" class="lms-input" rows="4" placeholder="Share your thoughts on this training…"></textarea></div>';
+	html += '</div>';
+
+	lms_portal.modal({
+		title: "Training Feedback",
+		body: html,
+		confirmText: "Submit",
+		confirmVariant: "primary",
+		onConfirm: function (overlay) {
+			var rating = overlay.querySelector("#lms-tr-rating").value;
+			var feedback = overlay.querySelector("#lms-tr-feedback").value;
+			if (!feedback) {
+				lms_portal.toast("Feedback is required.", "danger");
+				return false;
+			}
+			lms_portal.safeCall({
+				method: "lms_saas.api.training.submit_training_feedback",
+				args: { event_name: eventName, feedback: feedback, rating: rating },
+				callback: function () {
+					lms_portal.toast("Feedback submitted.", "success");
+					lms_training._showTab("mine");
+				},
+				error: function () {
+					lms_portal.toast("Could not submit feedback.", "danger");
+				},
+			});
+		},
+	});
+};

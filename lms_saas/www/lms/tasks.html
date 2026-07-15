@@ -1,0 +1,17 @@
+{% extends "templates/lms_portal/base.html" %}
+
+{% block title %}Tasks{% endblock %}
+
+{% block lms_content %}
+<div id="lms-tasks-root" aria-live="polite"></div>
+{% endblock %}
+
+{% block sidebar_script %}{{ super() }}
+<script>
+frappe.ready(function() {
+  if (typeof lms_tasks !== 'undefined') {
+    lms_tasks.init();
+  }
+});
+</script>
+{% endblock %}
