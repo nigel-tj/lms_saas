@@ -1,0 +1,17 @@
+{% extends "templates/lms_portal/base.html" %}
+
+{% block title %}Savings Club{% endblock %}
+
+{% block lms_content %}
+<div id="lms-savings-root" aria-live="polite"></div>
+{% endblock %}
+
+{% block sidebar_script %}{{ super() }}
+<script>
+frappe.ready(function() {
+  if (typeof lms_savings !== 'undefined') {
+    lms_savings.init();
+  }
+});
+</script>
+{% endblock %}

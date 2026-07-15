@@ -11,7 +11,7 @@
   /* ── API helper ── */
   staffPortal.call = function (method, args) {
     return new Promise(function (resolve, reject) {
-      frappe.call({
+      lms_portal.safeCall({
         method: method,
         args: args || {},
         type: 'POST',

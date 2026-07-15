@@ -27,9 +27,9 @@ def _require_manager():
 	if roles.intersection({"System Manager", "Administrator"}):
 		return
 	# Use the same persona helper the nav uses — single source of truth.
-	from lms_saas.utils.portal import resolve_portal_persona
+	from lms_saas.utils.brand import _get_user_persona
 
-	persona = resolve_portal_persona()
+	persona = _get_user_persona()
 	if persona != "Branch Manager":
 		frappe.throw("Not permitted", frappe.PermissionError)
 
@@ -47,10 +47,13 @@ def get_manager_dashboard():
 	_require_manager()
 	branch = _manager_branch()
 
-	# Reuse the dashboard metrics engine for portfolio KPIs
+	# Reuse the dashboard metrics engine for portfolio KPIs.
+	# Pass the manager's branch so the dashboard KPIs are scoped to the same
+	# loan book as the Loans / Borrowers tabs (otherwise the count would reflect
+	# the entire portfolio and disagree with the tab views).
 	from lms_saas.api.dashboard import _portfolio_metrics
 
-	metrics = _portfolio_metrics()
+	metrics = _portfolio_metrics(branch=branch)
 	kpis = metrics["kpis"]
 	risk_buckets = metrics["risk_buckets"]
 
@@ -135,6 +138,11 @@ def approve_application(application_name: str):
 
 	app = frappe.get_doc("Loan Application", application_name)
 
+	# Branch scoping: a manager may only act on applications in their own branch.
+	branch = _manager_branch()
+	if branch and app.get("custom_lms_branch") and app.custom_lms_branch != branch:
+		frappe.throw(_("Application is not in your branch."), frappe.PermissionError)
+
 	if app.docstatus != 0:
 		frappe.throw(_("Only draft applications can be approved (current status: {0}).").format(app.docstatus))
 
@@ -173,6 +181,15 @@ def reject_application(application_name: str, reason: str = ""):
 		frappe.throw(_("Loan Application {0} not found.").format(application_name))
 
 	app = frappe.get_doc("Loan Application", application_name)
+
+	# Branch scoping.
+	branch = _manager_branch()
+	if branch and app.get("custom_lms_branch") and app.custom_lms_branch != branch:
+		frappe.throw(_("Application is not in your branch."), frappe.PermissionError)
+
+	# A rejection reason is required for the audit trail.
+	if not (reason or "").strip():
+		frappe.throw(_("Rejection reason is required for the audit trail."))
 
 	if app.docstatus != 0:
 		frappe.throw(_("Only draft applications can be rejected (current status: {0}).").format(app.docstatus))
@@ -512,22 +529,34 @@ def get_loan_detail(loan_name: str):
 		frappe.throw(_("Loan is not in your branch."), frappe.PermissionError)
 
 	# Schedule
+	# NOTE: Repayment Schedule has no 'paid' column — use 'demand_generated'
+	# (Check) as a proxy for "this instalment has been billed/settled".
 	schedule = frappe.get_all(
 		"Repayment Schedule",
 		filters={"parent": loan_name, "parenttype": "Loan"},
-		fields=["payment_date", "principal_amount", "interest_amount", "total_payment", "paid", "balance_loan_amount"],
+		fields=[
+			"payment_date", "principal_amount", "interest_amount",
+			"total_payment", "balance_loan_amount", "demand_generated",
+		],
 		order_by="payment_date asc",
 		limit_page_length=0,
 	)
+	# Map demand_generated to a 'paid' flag for the frontend's convenience.
+	for row in schedule:
+		row["paid"] = cint(row.get("demand_generated"))
 
 	# Repayments
+	# NOTE: Loan Repayment has no 'status' field — expose docstatus as a
+	# user-friendly state instead.
 	repayments = frappe.get_all(
 		"Loan Repayment",
 		filters={"against_loan": loan_name, "docstatus": 1},
-		fields=["name", "amount_paid", "posting_date"],
+		fields=["name", "amount_paid", "posting_date", "docstatus"],
 		order_by="posting_date desc",
 		limit_page_length=50,
 	)
+	for r in repayments:
+		r["status"] = "Submitted" if cint(r.get("docstatus")) == 1 else "Draft"
 
 	# Disbursements
 	disbursements = frappe.get_all(
@@ -1004,28 +1033,12 @@ def get_branch_staff():
 
 	filters = {"status": "Active"}
 	if branch:
-		# OR-match across all branch-type fields that exist on the Employee meta.
-		# Previously this broke after the first matching field, which excluded
-		# employees whose branch was stored in a different field.
+		# Try branch field or cost_center
 		emp_meta = frappe.get_meta("Employee")
-		branch_fields = [bf for bf in ("branch", "cost_center", "custom_lms_branch") if emp_meta.has_field(bf)]
-		if len(branch_fields) == 1:
-			filters[branch_fields[0]] = branch
-		elif len(branch_fields) > 1:
-			or_conditions = " OR ".join(f"`{bf}` = %(branch)s" for bf in branch_fields)
-			employees = frappe.db.sql(
-				f"""SELECT name, employee_name, user_id, designation, status
-					FROM `tabEmployee`
-					WHERE status = 'Active' AND ({or_conditions})
-					ORDER BY employee_name ASC
-					LIMIT 100""",
-				{"branch": branch},
-				as_dict=True,
-			)
-			for emp in employees:
-				emp["persona"] = frappe.db.get_value("Employee", emp.name, "custom_lms_persona") or ""
-				emp["loan_count"] = frappe.db.count("Loan", {"custom_loan_officer": emp.name, "docstatus": 1})
-			return {"staff": employees}
+		for bf in ("branch", "cost_center", "custom_lms_branch"):
+			if emp_meta.has_field(bf):
+				filters[bf] = branch
+				break
 
 	employees = frappe.get_all(
 		"Employee",
@@ -1090,7 +1103,7 @@ def get_collateral_register(loan_status: str | None = None):
 	collateral = frappe.get_all(
 		"LMS Collateral",
 		fields=[
-			"name", "collateral_type", "collateral_title", "market_value",
+			"name", "collateral_title", "collateral_type", "market_value",
 			"net_realizable_value", "status", "owner_customer",
 		],
 		order_by="creation desc",

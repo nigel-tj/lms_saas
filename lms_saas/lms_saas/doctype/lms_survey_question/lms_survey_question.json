@@ -1,0 +1,40 @@
+{
+ "doctype": "DocType",
+ "name": "LMS Survey Question",
+ "module": "Lms Saas",
+ "custom": 0,
+ "istable": 1,
+ "fields": [
+  {
+   "fieldname": "question_text",
+   "fieldtype": "Data",
+   "label": "Question Text",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "question_type",
+   "fieldtype": "Select",
+   "label": "Question Type",
+   "options": "Rating\nMultiple Choice\nOpen Text",
+   "default": "Rating",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "options",
+   "fieldtype": "Small Text",
+   "label": "Options",
+   "description": "One option per line (for Multiple Choice questions)."
+  }
+ ],
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1
+  }
+ ]
+}

@@ -1,0 +1,17 @@
+{% extends "templates/lms_portal/base.html" %}
+
+{% block title %}Inventory & Assets{% endblock %}
+
+{% block lms_content %}
+<div id="lms-inventory-root" aria-live="polite"></div>
+{% endblock %}
+
+{% block sidebar_script %}{{ super() }}
+<script>
+frappe.ready(function() {
+  if (typeof lms_inventory !== 'undefined') {
+    lms_inventory.init();
+  }
+});
+</script>
+{% endblock %}

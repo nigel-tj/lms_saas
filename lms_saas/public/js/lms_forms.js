@@ -148,9 +148,17 @@
 		selectEl.style.overflow = "hidden";
 		selectEl.style.clip = "rect(0 0 0 0)";
 
-		// Position the popover
+		// Position the popover. We do NOT use the native popover API
+		// (`popover="auto"`) when the trigger lives inside a <dialog>:
+		// a dialog is itself a top-layer element, and stacking a popover
+		// inside it puts the menu in the dialog's nested top layer with
+		// its own coordinate system, which makes `position: fixed` no
+		// longer relative to the viewport and breaks the anchoring math.
+		// Manual positioning + visibility toggle handles both cases.
 		var menu = wrap.querySelector(".lms-select-pop__menu");
-		if (supportsPopover()) menu.setAttribute("popover", "auto");
+		var insideDialog = !!(selectEl.closest && selectEl.closest("dialog"));
+		var usePopover = supportsPopover() && !insideDialog;
+		if (usePopover) menu.setAttribute("popover", "auto");
 		else {
 			// CSS-only fallback
 			wrap.classList.add("lms-select-pop--legacy");
@@ -158,6 +166,12 @@
 
 		selectEl.parentNode.insertBefore(wrap, selectEl);
 		wrap.appendChild(selectEl);
+
+		// Move the menu out of the wrapper into <body> so the popover is
+		// never clipped by the dialog/modal ancestor (overflow: hidden
+		// on .lms-modal__body would otherwise crop the open menu).
+		document.body.appendChild(menu);
+		menu.dataset.lmsPopOwner = selectEl.id || "";
 
 		var trigger = wrap.querySelector(".lms-select-pop__trigger");
 		var triggerText = wrap.querySelector(".lms-select-pop__trigger-text");
@@ -181,18 +195,58 @@
 			});
 		}
 
+		function positionMenu() {
+			// Anchor the popout under the trigger. The menu is a direct
+			// child of <body> (top layer), so we use `position: fixed` and
+			// compute coords from the trigger's bounding rect — this works
+			// identically with or without the Popover API.
+			var r = trigger.getBoundingClientRect();
+			var vw = window.innerWidth;
+			var vh = window.innerHeight;
+			// Measure menu size (it's hidden the first time, so we temporarily
+			// make it visible to measure, then hide again).
+			var prevVis = menu.style.visibility;
+			menu.style.visibility = "hidden";
+			menu.style.position = "fixed";
+			menu.style.left = "0px";
+			menu.style.top = "0px";
+			// Override the Popover API's auto-margin (it centers the
+			// popover with `margin: auto`; we always anchor explicitly).
+			menu.style.margin = "0";
+			menu.style.minWidth = r.width + "px";
+			var mw = menu.offsetWidth;
+			var mh = menu.offsetHeight;
+			// Default: below trigger, aligned left edge, min width = trigger.
+			var left = r.left;
+			var top = r.bottom + 6;
+			// If it would overflow right, shift left
+			if (left + mw > vw - 8) {
+				left = Math.max(8, vw - mw - 8);
+			}
+			// If it would overflow bottom, place above the trigger
+			if (top + mh > vh - 8) {
+				top = r.top - mh - 6;
+				if (top < 8) top = Math.max(8, vh - mh - 8);
+			}
+			menu.style.left = left + "px";
+			menu.style.top = top + "px";
+			menu.style.visibility = prevVis;
+		}
+
 		function openMenu() {
 			trigger.setAttribute("aria-expanded", "true");
-			openPopover(menu);
-			// Position the menu under the trigger when popover is unsupported
-			if (!supportsPopover()) {
-				var r = trigger.getBoundingClientRect();
-				menu.style.position = "fixed";
-				menu.style.top = r.bottom + 4 + "px";
-				menu.style.left = r.left + "px";
-				menu.style.minWidth = r.width + "px";
-				menu.style.display = "block";
-				wrap.classList.add("lms-select-pop--open");
+			if (usePopover) {
+				openPopover(menu);
+			}
+			menu.setAttribute("data-open", "1");
+			menu.style.visibility = "visible";
+			positionMenu();
+			wrap.classList.add("lms-select-pop--open");
+			// Re-anchor on scroll/resize while open
+			if (!openMenu._bound) {
+				window.addEventListener("scroll", positionMenu, true);
+				window.addEventListener("resize", positionMenu);
+				openMenu._bound = true;
 			}
 			var first = menu.querySelector(".lms-select-pop__option--selected") ||
 				menu.querySelector(".lms-select-pop__option:not([hidden])");
@@ -201,11 +255,12 @@
 
 		function closeMenu() {
 			trigger.setAttribute("aria-expanded", "false");
-			closePopover(menu);
-			if (!supportsPopover()) {
-				menu.style.display = "none";
-				wrap.classList.remove("lms-select-pop--open");
+			if (usePopover) {
+				closePopover(menu);
 			}
+			menu.removeAttribute("data-open");
+			menu.style.visibility = "hidden";
+			wrap.classList.remove("lms-select-pop--open");
 		}
 
 		trigger.addEventListener("click", function (ev) {
@@ -298,17 +353,59 @@
 
 	LMSForms.bindAll = function (root) {
 		root = root || document;
+		// Bind explicitly-tagged popout selects (developer opted in).
 		Array.prototype.forEach.call(root.querySelectorAll("select.lms-pop-select"), function (sel) {
 			LMSForms.bindPopSelect(sel, { searchable: sel.dataset.searchable !== undefined });
 		});
+		// Also bind any <select> inside a .lms-form / .lms-modal so every
+		// dropdown becomes a beautiful, anchored popout — even ones the
+		// author didn't tag. Native <select> rendering in dialogs looks
+		// dated and the browser draws the option list outside the dialog
+		// top-layer, so we upgrade everything by default.
+		Array.prototype.forEach.call(
+			root.querySelectorAll(".lms-form select:not(.lms-pop-select):not([data-no-pop]), .lms-modal select:not(.lms-pop-select):not([data-no-pop])"),
+			function (sel) {
+				LMSForms.bindPopSelect(sel, { searchable: sel.dataset.searchable !== undefined });
+			}
+		);
+		// Upgrade any <select class="lms-fallback-select"> anywhere on the
+		// page (toolbar filters, in-page controls). The CSS still gives
+		// the native control a styled face, but the popout system makes
+		// the option list match the rest of the UI.
+		Array.prototype.forEach.call(
+			root.querySelectorAll("select.lms-fallback-select:not(.lms-pop-select):not([data-no-pop])"),
+			function (sel) {
+				LMSForms.bindPopSelect(sel, { searchable: sel.dataset.searchable !== undefined });
+			}
+		);
 	};
 
 	window.LMSForms = LMSForms;
 
+	function startObserver() {
+		// Re-bind selects as they're added to the DOM. Tabs that lazy-load
+		// markup (e.g. manager Loans tab renders the status filter only
+		// when the user clicks the tab) need this. Throttle to 100ms so
+		// a single large render doesn't trigger many binds.
+		var pending = null;
+		var observer = new MutationObserver(function () {
+			if (pending) return;
+			pending = setTimeout(function () {
+				pending = null;
+				LMSForms.bindAll();
+			}, 100);
+		});
+		observer.observe(document.body, { childList: true, subtree: true });
+	}
+
 	// Auto-bind on DOMContentLoaded for any <select class="lms-pop-select">
 	if (document.readyState === "loading") {
-		document.addEventListener("DOMContentLoaded", function () { LMSForms.bindAll(); });
+		document.addEventListener("DOMContentLoaded", function () {
+			LMSForms.bindAll();
+			startObserver();
+		});
 	} else {
 		LMSForms.bindAll();
+		startObserver();
 	}
 })(window);

@@ -18,6 +18,10 @@ lms_officer.init = function () {
 };
 
 lms_officer._pageHeader = function () {
+	// Topbar quick actions. NOTE: "My Loans" is NOT here — it would be a
+	// duplicate of the 💰 My Loans tab. Tabs already expose the same view
+	// without an extra click, so the topbar only carries the two primary
+	// actions: start a new application, onboard a new borrower.
 	return (
 		'<div class="lms-quick-actions">' +
 		'<button type="button" class="lms-btn lms-btn--primary lms-quick-action" id="lms-officer-new-app-top">' +
@@ -27,10 +31,6 @@ lms_officer._pageHeader = function () {
 		'<button type="button" class="lms-btn lms-btn--ghost lms-quick-action" id="lms-officer-add-borrower">' +
 		'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>' +
 		'Add Borrower' +
-		'</button>' +
-		'<button type="button" class="lms-btn lms-btn--ghost lms-quick-action" id="lms-officer-view-loans">' +
-		'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>' +
-		'My Loans' +
 		'</button>' +
 		'</div>'
 	);
@@ -46,7 +46,7 @@ lms_officer._tabNav = function () {
 	];
 	var html = '<nav class="lms-tab-nav" role="tablist">';
 	tabs.forEach(function (t) {
-		var active = lms_officer._currentTab === t.id ? " lms-tab--active" : "";
+		var active = lms_officer._currentTab === t.id ? " is-active" : "";
 		html += '<button type="button" class="lms-tab' + active + '" data-tab="' + t.id + '" role="tab">' + t.icon + " " + lms_portal.escape(t.label) + "</button>";
 	});
 	html += "</nav>";
@@ -68,12 +68,14 @@ lms_officer._bindPrimaryAction = function () {
 			lms_officer._openBorrowerModal();
 		});
 	}
+	// The "View Loans" topbar button was removed (it duplicated the
+	// 💰 My Loans tab); the binding stays as a no-op for any cached markup.
 	var viewLoansBtn = root.querySelector("#lms-officer-view-loans");
 	if (viewLoansBtn) {
 		viewLoansBtn.addEventListener("click", function () {
 			lms_officer._currentTab = "loans";
 			root.querySelectorAll(".lms-tab").forEach(function (b) {
-				b.classList.toggle("lms-tab--active", b.getAttribute("data-tab") === "loans");
+				b.classList.toggle("is-active", b.getAttribute("data-tab") === "loans");
 			});
 			lms_officer._showTab("loans");
 		});
@@ -87,9 +89,9 @@ lms_officer._bindTabs = function () {
 		btn.addEventListener("click", function () {
 			lms_officer._currentTab = btn.getAttribute("data-tab");
 			root.querySelectorAll(".lms-tab").forEach(function (b) {
-				b.classList.remove("lms-tab--active");
+				b.classList.remove("is-active");
 			});
-			btn.classList.add("lms-tab--active");
+			btn.classList.add("is-active");
 			lms_officer._showTab(lms_officer._currentTab);
 		});
 	});
@@ -132,7 +134,7 @@ lms_officer._loadDashboard = function (content) {
 		lms_officer._renderAll(content, dashboardData, appsData, loansData, branchData, collectionsData, customersData, productsData);
 	}
 
-	frappe.call({
+	lms_portal.safeCall({
 		method: "lms_saas.api.officer.get_officer_dashboard",
 		callback: function (r) {
 			dashboardData = (r && r.message) || {};
@@ -146,7 +148,7 @@ lms_officer._loadDashboard = function (content) {
 		},
 	});
 
-	frappe.call({
+	lms_portal.safeCall({
 		method: "lms_saas.api.officer.get_pending_applications",
 		callback: function (r) {
 			appsData = (r && r.message) || { applications: [] };
@@ -155,7 +157,7 @@ lms_officer._loadDashboard = function (content) {
 		},
 	});
 
-	frappe.call({
+	lms_portal.safeCall({
 		method: "lms_saas.api.officer.get_my_loans_as_officer",
 		callback: function (r) {
 			loansData = (r && r.message) || { loans: [] };
@@ -164,7 +166,7 @@ lms_officer._loadDashboard = function (content) {
 		},
 	});
 
-	frappe.call({
+	lms_portal.safeCall({
 		method: "lms_saas.api.dashboard.get_branch_overview",
 		callback: function (r) {
 			branchData = (r && r.message) || { officer_performance: [] };
@@ -173,7 +175,7 @@ lms_officer._loadDashboard = function (content) {
 		},
 	});
 
-	frappe.call({
+	lms_portal.safeCall({
 		method: "lms_saas.api.dashboard.get_collections_overview",
 		callback: function (r) {
 			collectionsData = (r && r.message) || { today_total: 0, par30: 0, par60: 0, par90: 0 };
@@ -183,13 +185,13 @@ lms_officer._loadDashboard = function (content) {
 	});
 
 	// Pre-load customers and products for the application modal
-	frappe.call({
+	lms_portal.safeCall({
 		method: "lms_saas.api.officer.get_officer_customers",
 		callback: function (r) {
 			customersData = (r && r.message) || { customers: [] };
 		},
 	});
-	frappe.call({
+	lms_portal.safeCall({
 		method: "lms_saas.api.officer.get_loan_products",
 		callback: function (r) {
 			productsData = (r && r.message) || { products: [] };
@@ -206,6 +208,7 @@ lms_officer._renderAll = function (root, dash, apps, loans, branch, collections,
 	var k = dash.kpis || {};
 	html += '<section class="lms-summary" aria-label="Officer KPIs">';
 	html += lms_officer._kpiCard("Pending applications", k.pending_applications || 0);
+	html += lms_officer._kpiCard("Awaiting disbursement", k.pending_disbursement || 0);
 	html += lms_officer._kpiCard("My active loans", k.my_active_loans || 0);
 	html += lms_officer._kpiCard("Disbursed this month", k.disbursed_this_month || 0);
 	html += lms_officer._kpiCard("PAR count", k.par_count || 0);
@@ -215,13 +218,13 @@ lms_officer._renderAll = function (root, dash, apps, loans, branch, collections,
 	// Today vs PAR gauge
 	html += '<div class="lms-chart-slot">';
 	html += '<div class="lms-chart-slot__head"><h3>Today\'s collections</h3></div>';
-	html += '<div class="lms-chart-slot__body" id="lms-officer-today-gauge" aria-live="polite"></div>';
+	html += '<div class="lms-chart-slot__body"><canvas id="lms-officer-today-gauge" aria-live="polite"></canvas></div>';
 	html += '</div>';
 
 	// Officer performance bar
 	html += '<div class="lms-chart-slot lms-chart-slot--lg">';
 	html += '<div class="lms-chart-slot__head"><h3>Officer performance</h3></div>';
-	html += '<div class="lms-chart-slot__body" id="lms-officer-performance" aria-live="polite"></div>';
+	html += '<div class="lms-chart-slot__body"><canvas id="lms-officer-performance" aria-live="polite"></canvas></div>';
 	html += '</div>';
 
 	// Pending applications
@@ -249,18 +252,17 @@ lms_officer._renderAll = function (root, dash, apps, loans, branch, collections,
 	}
 	html += "</div>";
 
-	// My assigned loans
-	html += '<div class="lms-panel">';
-	html += "<h3>My assigned loans</h3>";
-	var loanRows = (loans.loans || []);
-	if (!loanRows.length) {
-		html +=
-			'<div class="staff-empty-state">' +
-			"<p>No loans assigned to you yet.</p>" +
-			"</div>";
-	} else {
+	// Active loans summary (counts only — the full list lives on the My
+	// Loans tab to avoid duplicating the table and the disburse actions).
+	if ((k.my_active_loans || 0) > 0) {
+		var topOfficer = (loans.loans || []).slice(0, 3);
+		html += '<div class="lms-panel">';
+		html += '<div class="lms-section-header">';
+		html += '<h3>Recent active loans</h3>';
+		html += '<a href="#" class="lms-btn lms-btn--ghost lms-btn--sm" id="lms-officer-view-all-loans">View all</a>';
+		html += '</div>';
 		html += '<ul class="lms-list">';
-		loanRows.forEach(function (row) {
+		topOfficer.forEach(function (row) {
 			var badge = lms_portal.badgeClass(row.dpd, row.status);
 			var badgeLabel = lms_portal.badgeLabel(row.dpd, row.status);
 			html +=
@@ -271,28 +273,45 @@ lms_officer._renderAll = function (root, dash, apps, loans, branch, collections,
 				' <span class="lms-badge ' + badge + '">' + lms_portal.escape(badgeLabel) + "</span>" +
 				"</div></li>";
 		});
-		html += "</ul>";
+		html += "</ul></div>";
 	}
-	html += "</div>";
 
 	html += "</div>"; // .lms-stack
 
 	root.innerHTML = html;
 
 	// -------- Charts ------------------------------------------------
+	// Wire the dashboard's "View all" loan shortcut to jump to the My Loans tab.
+	var viewAll = root.querySelector("#lms-officer-view-all-loans");
+	if (viewAll) {
+		viewAll.addEventListener("click", function (e) {
+			e.preventDefault();
+			lms_officer._currentTab = "loans";
+			var nav = document.getElementById("lms-officer-root");
+			if (nav) {
+				nav.querySelectorAll(".lms-tab").forEach(function (b) {
+					b.classList.toggle("is-active", b.getAttribute("data-tab") === "loans");
+				});
+			}
+			lms_officer._showTab("loans");
+		});
+	}
+
+	// NOTE: switched from the legacy LMSChart API to lms_charts.* which is
+	// the current chart library used elsewhere in the portal. Wrapped in
+	// try/catch so a chart failure never breaks the dashboard render.
 	var gaugeEl = document.getElementById("lms-officer-today-gauge");
-	if (gaugeEl) {
+	if (gaugeEl && typeof lms_charts !== "undefined") {
 		var todayTotal = (collections && collections.today_total) || 0;
 		var parTotal = ((collections && (collections.par30 || 0)) +
 			(collections && (collections.par60 || 0) || 0) +
 			(collections && (collections.par90 || 0) || 0)) || 0;
-		lms_portal._renderOrFallback(gaugeEl, function (el) {
-			return LMSChart.donut(el,
-				["Collected today", "PAR outstanding"],
-				[todayTotal, parTotal],
-				{ height: 220, hideLegend: true }
-			);
-		}, function () {
+		try {
+			lms_charts.donut("lms-officer-today-gauge", [
+				{ label: "Collected today", value: todayTotal, color: lms_officer._resolveColor("var(--lms-success)") },
+				{ label: "PAR outstanding", value: parTotal, color: lms_officer._resolveColor("var(--lms-danger)") },
+			]);
+		} catch (e) {
 			gaugeEl.innerHTML =
 				'<div class="lms-stat-row">' +
 				'<div class="lms-stat"><div class="lms-stat-label">Collected today</div>' +
@@ -300,28 +319,23 @@ lms_officer._renderAll = function (root, dash, apps, loans, branch, collections,
 				'<div class="lms-stat"><div class="lms-stat-label">PAR outstanding</div>' +
 				'<div class="lms-stat-value">' + format_currency(parTotal) + '</div></div>' +
 				'</div>';
-		});
+		}
 	}
 
 	var perfEl = document.getElementById("lms-officer-performance");
-	if (perfEl) {
+	if (perfEl && typeof lms_charts !== "undefined") {
 		var perf = (branch && branch.officer_performance) || [];
 		if (!perf.length) {
-			LMSChart.empty(perfEl, "No officer data yet.");
+			perfEl.innerHTML = '<p class="lms-muted">No officer data yet.</p>';
 		} else {
-			var pLabels = perf.map(function (o) { return o.officer || "Unassigned"; });
-			var pValues = perf.map(function (o) { return o.outstanding || 0; });
-			lms_portal._renderOrFallback(perfEl, function (el) {
-				return LMSChart.bar(el, pLabels, pValues, {
-					name: "Outstanding",
-					height: 220,
-					hideLegend: true
-				});
-			}, function () {
-				perfEl.innerHTML = lms_portal.simpleBars(
-					perf.map(function (o) { return { label: o.officer, value: o.outstanding }; })
-				);
+			var perfData = perf.map(function (o) {
+				return { label: o.officer || "Unassigned", value: o.outstanding || 0 };
 			});
+			try {
+				lms_charts.bars("lms-officer-performance", perfData);
+			} catch (e) {
+				perfEl.innerHTML = (lms_portal.simpleBars && lms_portal.simpleBars(perfData)) || "";
+			}
 		}
 	}
 };
@@ -331,11 +345,11 @@ lms_officer._openApplicationModalFromHeader = function () {
 	if (!root) return;
 	var customers = { customers: [] };
 	var products = { products: [] };
-	frappe.call({
+	lms_portal.safeCall({
 		method: "lms_saas.api.officer.get_officer_customers",
 		callback: function (r) {
 			customers = (r && r.message) || { customers: [] };
-			frappe.call({
+			lms_portal.safeCall({
 				method: "lms_saas.api.officer.get_loan_products",
 				callback: function (r2) {
 					products = (r2 && r2.message) || { products: [] };
@@ -353,6 +367,17 @@ lms_officer._kpiCard = function (label, value) {
 		'<div class="lms-summary-value">' + lms_portal.escape(value) + "</div>" +
 		"</div>"
 	);
+};
+
+lms_officer._resolveColor = function (cssVar) {
+	if (!cssVar || cssVar.indexOf("var(") !== 0) return cssVar || "#2f4f46";
+	var name = cssVar.replace(/var\(|\)/g, "").split(",")[0].trim();
+	try {
+		var v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+		return v || "#2f4f46";
+	} catch (e) {
+		return "#2f4f46";
+	}
 };
 
 lms_officer._openApplicationModal = function (customers, products, root) {
@@ -387,8 +412,17 @@ lms_officer._openApplicationModal = function (customers, products, root) {
 		'<select id="lms-app-product" class="lms-input lms-fallback-select lms-pop-select">' +
 		productOpts +
 		"</select></label>" +
+		'<div class="lms-grid-2">' +
 		'<label>Loan amount<input type="number" id="lms-app-amount" class="lms-input" min="1" step="0.01" placeholder="10000"></label>' +
-		'<label>Repayment periods<input type="number" id="lms-app-periods" class="lms-input" min="1" value="6"></label>' +
+		'<label>Rate of interest (% / yr)<input type="number" id="lms-app-rate" class="lms-input" min="0" max="100" step="0.01" placeholder="24"></label>' +
+		'<label>Repayment periods (months)<input type="number" id="lms-app-periods" class="lms-input" min="1" value="6"></label>' +
+		'<label>Repayment method<select id="lms-app-method" class="lms-input lms-fallback-select">' +
+		'<option value="Repay Over Number of Periods" selected>Repay Over Number of Periods</option>' +
+		'<option value="Repay Fixed Amount per Period">Repay Fixed Amount per Period</option>' +
+		'</select></label>' +
+		'<label>Repayment start date<input type="date" id="lms-app-start" class="lms-input"></label>' +
+		'<label>Posting date<input type="date" id="lms-app-posting" class="lms-input"></label>' +
+		'</div>' +
 		"</div>";
 
 	var dlg = LMSModal.open({
@@ -415,108 +449,238 @@ lms_officer._openApplicationModal = function (customers, products, root) {
 
 	dlg.then(function (submit) {
 		if (!submit) return; // cancelled
-		var customerVal = (dlg.dialog.querySelector("#lms-app-customer") || {}).value || "";
-		var product = (dlg.dialog.querySelector("#lms-app-product") || {}).value || "";
-		var amount = parseFloat((dlg.dialog.querySelector("#lms-app-amount") || {}).value) || 0;
-		var periods = parseInt((dlg.dialog.querySelector("#lms-app-periods") || {}).value) || 6;
+		var $ = function (id) { return (dlg.dialog.querySelector("#" + id) || {}).value || ""; };
+		var customerVal = $("lms-app-customer");
+		var product = $("lms-app-product");
+		var amount = parseFloat($("lms-app-amount")) || 0;
+		var rate = parseFloat($("lms-app-rate")) || 0;
+		var periods = parseInt($("lms-app-periods")) || 6;
+		var method = $("lms-app-method") || "Repay Over Number of Periods";
+		var startDate = $("lms-app-start") || "";
+		var postingDate = $("lms-app-posting") || "";
+
+		// Collect all the new-borrower sub-fields too in case the user picked
+		// "+ New borrower…" in the dropdown.
+		var newBorrower = {};
+		if (customerVal === "__new__") {
+			["lms-new-first","lms-new-last","lms-new-email","lms-new-mobile","lms-new-national"].forEach(function (id) {
+				var el = dlg.dialog.querySelector("#" + id);
+				if (el) newBorrower[id.replace("lms-new-", "")] = el.value || "";
+			});
+		}
 
 		if (customerVal === "__new__") {
-			var first = (dlg.dialog.querySelector("#lms-new-first") || {}).value || "";
-			var last = (dlg.dialog.querySelector("#lms-new-last") || {}).value || "";
-			var email = (dlg.dialog.querySelector("#lms-new-email") || {}).value || "";
-			var mobile = (dlg.dialog.querySelector("#lms-new-mobile") || {}).value || "";
-			var national = (dlg.dialog.querySelector("#lms-new-national") || {}).value || "";
-			if (!first) {
-				frappe.show_alert({ message: "First name is required.", indicator: "red" });
+			if (!newBorrower.first || !newBorrower.first.trim()) {
+				lms_portal.toast("First name is required.", "danger");
 				return;
 			}
-			frappe.call({
+			lms_portal.safeCall({
 				method: "lms_saas.api.officer.create_borrower",
-				args: { first_name: first, last_name: last, email: email, mobile_no: mobile, national_id: national },
+				args: {
+					first_name: newBorrower.first,
+					last_name: newBorrower.last,
+					email: newBorrower.email,
+					mobile_no: newBorrower.mobile,
+					national_id: newBorrower.national,
+				},
 				callback: function (r) {
 					var res = (r && r.message) || {};
 					if (!res.customer) {
-						frappe.show_alert({ message: "Could not create borrower.", indicator: "red" });
+						lms_portal.toast("Could not create borrower.", "danger");
 						return;
 					}
-					lms_officer._submitApp(res.customer, product, amount, periods);
+					lms_officer._submitApp(res.customer, product, amount, periods, rate, method, startDate, postingDate);
 				},
-				error: function () {
-					frappe.show_alert({ message: "Could not create borrower.", indicator: "red" });
+				error: function (err) {
+					var msg = (err && (err.message || err._server_message)) || "Could not create borrower.";
+					lms_portal.toast(msg, "danger");
 				},
 			});
 		} else if (!customerVal) {
-			frappe.show_alert({ message: "Please select a customer.", indicator: "red" });
+			lms_portal.toast("Please select a customer.", "danger");
 		} else {
-			lms_officer._submitApp(customerVal, product, amount, periods);
+			lms_officer._submitApp(customerVal, product, amount, periods, rate, method, startDate, postingDate);
 		}
 	});
 };
 
-lms_officer._submitApp = function (customer, product, amount, periods) {
-	frappe.call({
+lms_officer._submitApp = function (customer, product, amount, periods, rate, method, startDate, postingDate) {
+	lms_portal.safeCall({
 		method: "lms_saas.api.officer.submit_application_on_behalf",
-		args: { customer: customer, loan_amount: amount, loan_product: product, repayment_periods: periods },
+		args: {
+			customer: customer,
+			loan_amount: amount,
+			loan_product: product,
+			repayment_periods: periods,
+			repayment_method: method || "Repay Over Number of Periods",
+			repayment_start_date: startDate || null,
+			rate_of_interest: rate > 0 ? rate : null,
+			posting_date: postingDate || null,
+		},
 		callback: function (r) {
 			var res = (r && r.message) || {};
-			frappe.show_alert({
-				message: lms_copy.tSync("wizard.submitted", "Application submitted. Reference: {reference}", { reference: res.application || "" }),
-				indicator: "green",
-			});
+			lms_portal.toast("Application submitted. Reference: " + (res.application || ""), "success");
 			lms_officer._showTab("dashboard");
 		},
-		error: function () {
-			frappe.show_alert({
-				message: lms_copy.tSync("generic.error", "Something went wrong. Please try again."),
-				indicator: "red"
-			});
+		error: function (err) {
+			var msg = (err && (err.message || err._server_message)) || "Something went wrong. Please try again.";
+			lms_portal.toast(msg, "danger");
 		},
 	});
 };
 
 lms_officer._openBorrowerModal = function () {
+	// Full onboarding form. Captures: identity (name, DOB, gender, national ID,
+	// ID document upload, proof-of-address upload), contact (email, mobile,
+	// address), KYC (status, consent), so the borrower is fully onboarded in
+	// one step and the manager can approve a loan application immediately.
 	var body =
 		'<div class="lms-form">' +
-		'<label>First name<input type="text" id="lms-of-b-first" class="lms-input" placeholder="John"></label>' +
+		// --- Section: Identity ---
+		'<div class="lms-section-header"><h4>Identity</h4></div>' +
+		'<div class="lms-grid-2">' +
+		'<label>First name *<input type="text" id="lms-of-b-first" class="lms-input" placeholder="John" required></label>' +
 		'<label>Last name<input type="text" id="lms-of-b-last" class="lms-input" placeholder="Doe"></label>' +
-		'<label>Email (optional)<input type="email" id="lms-of-b-email" class="lms-input" placeholder="john@example.com"></label>' +
-		'<label>Mobile (optional)<input type="tel" id="lms-of-b-mobile" class="lms-input" placeholder="0772..."></label>' +
-		'<label>National ID (optional)<input type="text" id="lms-of-b-national" class="lms-input" placeholder="99-000000-A99"></label>' +
-		"</div>";
+		'<label>Date of birth<input type="date" id="lms-of-b-dob" class="lms-input"></label>' +
+		'<label>Gender<select id="lms-of-b-gender" class="lms-input lms-fallback-select">' +
+		'<option value="">—</option><option value="Male">Male</option><option value="Female">Female</option><option value="Other">Other</option>' +
+		'</select></label>' +
+		'<label class="lms-grid-2__full">National ID *<input type="text" id="lms-of-b-national" class="lms-input" placeholder="63-000000-A99" required></label>' +
+		'</div>' +
 
-	lms_portal.modal({
-		title: "Add new borrower",
-		body: body,
-		confirmText: "Create borrower",
-		confirmVariant: "primary",
-		onConfirm: function (overlay) {
-			var first = (overlay.querySelector("#lms-of-b-first") || {}).value || "";
-			var last = (overlay.querySelector("#lms-of-b-last") || {}).value || "";
-			var email = (overlay.querySelector("#lms-of-b-email") || {}).value || "";
-			var mobile = (overlay.querySelector("#lms-of-b-mobile") || {}).value || "";
-			var national = (overlay.querySelector("#lms-of-b-national") || {}).value || "";
-			if (!first) {
-				frappe.show_alert({ message: "First name is required.", indicator: "red" });
-				return;
-			}
-			frappe.call({
-				method: "lms_saas.api.officer.create_borrower",
-				args: { first_name: first, last_name: last, email: email, mobile_no: mobile, national_id: national },
-				callback: function (r) {
-					var res = (r && r.message) || {};
-					if (!res.customer) {
-						frappe.show_alert({ message: "Could not create borrower.", indicator: "red" });
-						return;
-					}
-					lms_portal.toast("Borrower created: " + (res.customer_name || res.customer), "success");
-					lms_officer._showTab("borrowers");
-				},
-				error: function () {
-					frappe.show_alert({ message: "Could not create borrower.", indicator: "red" });
-				},
+		// --- Section: Contact ---
+		'<div class="lms-section-header"><h4>Contact</h4></div>' +
+		'<div class="lms-grid-2">' +
+		'<label>Email<input type="email" id="lms-of-b-email" class="lms-input" placeholder="john@example.com"></label>' +
+		'<label>Mobile<input type="tel" id="lms-of-b-mobile" class="lms-input" placeholder="0772..."></label>' +
+		'<label class="lms-grid-2__full">Address line 1<input type="text" id="lms-of-b-addr1" class="lms-input" placeholder="House / plot number, street"></label>' +
+		'<label>City<input type="text" id="lms-of-b-city" class="lms-input" placeholder="Harare"></label>' +
+		'<label>Customer group<select id="lms-of-b-cgroup" class="lms-input lms-fallback-select"><option value="">— Default —</option></select></label>' +
+		'</div>' +
+
+		// --- Section: KYC ---
+		'<div class="lms-section-header"><h4>KYC &amp; consent</h4></div>' +
+		'<p class="lms-muted" style="margin:0 0 0.5rem;font-size:0.85rem;">Mandatory fields marked with *. File fields accept the path to an uploaded document (e.g. <code>/files/national_id_123.pdf</code>); upload via Files menu first.</p>' +
+		'<div class="lms-grid-2">' +
+		'<label>KYC status<select id="lms-of-b-kyc" class="lms-input lms-fallback-select">' +
+		'<option value="Pending" selected>Pending — collect later</option>' +
+		'<option value="Approved">Approved — documents verified</option>' +
+		'<option value="Rejected">Rejected</option>' +
+		'</select></label>' +
+		'<label class="lms-grid-2__full"><input type="checkbox" id="lms-of-b-consent"> Customer consents to data processing (RBZ §3.19)</label>' +
+		'<label class="lms-grid-2__full">ID document (file name) *<input type="text" id="lms-of-b-iddoc" class="lms-input" placeholder="e.g. /files/national_id_123.pdf" required></label>' +
+		'<label class="lms-grid-2__full">Proof of address (file name) *<input type="text" id="lms-of-b-poa" class="lms-input" placeholder="e.g. /files/utility_bill.pdf" required></label>' +
+		'</div>' +
+		'</div>';
+
+	// Prefer LMSModal (consistent with New Application) — fallback to
+	// lms_portal.modal only if LMSModal isn't loaded for some reason.
+	var open = window.LMSModal && window.LMSModal.open
+		? function (content) {
+			return window.LMSModal.open({
+				title: "Add new borrower",
+				body: content,
+				size: "lg",
+				actions: [
+					{ label: "Cancel", value: false },
+					{ label: "Create borrower", value: true, primary: true },
+				],
 			});
-		},
-	});
+		}
+		: function (content) {
+			return lms_portal.modal({
+				title: "Add new borrower",
+				body: content,
+				size: "lg",
+				confirmText: "Create borrower",
+				confirmVariant: "primary",
+			});
+		};
+
+	// LMSModal.open returns a Promise-like { then(cb) }; lms_portal.modal
+	// returns { close, el }. Normalise both to a callback-based flow.
+	var dlg = open(body);
+	// Upgrade the dialog's <select> elements to popout comboboxes so
+	// dropdowns look consistent across the portal.
+	if (dlg && dlg.dialog && window.LMSForms && typeof LMSForms.bindAll === "function") {
+		LMSForms.bindAll(dlg.dialog);
+	}
+	// Read field values from the dialog element while it is still in the DOM.
+	// Once the LMSModal action is clicked, the dialog is removed from the
+	// document immediately, so `document.body.querySelector("#lms-of-b-…")`
+	// returns nothing. Use the captured dlg/dialog reference instead.
+	var dlgRoot = (dlg && dlg.dialog) || (dlg && dlg.el) || null;
+	var onSubmit = function (submit) {
+		if (!submit) return;
+		var root = dlgRoot || document.body;
+		var $ = function (id) { return (root.querySelector ? root.querySelector("#" + id) : null); };
+		var first = ($("lms-of-b-first") || {}).value || "";
+		var last = ($("lms-of-b-last") || {}).value || "";
+		var dob = ($("lms-of-b-dob") || {}).value || "";
+		var gender = ($("lms-of-b-gender") || {}).value || "";
+		var national = ($("lms-of-b-national") || {}).value || "";
+		var email = ($("lms-of-b-email") || {}).value || "";
+		var mobile = ($("lms-of-b-mobile") || {}).value || "";
+		var addr1 = ($("lms-of-b-addr1") || {}).value || "";
+		var city = ($("lms-of-b-city") || {}).value || "";
+		var cgroup = ($("lms-of-b-cgroup") || {}).value || "";
+		var kyc = ($("lms-of-b-kyc") || {}).value || "Pending";
+		var consent = ($("lms-of-b-consent") || {}).checked ? 1 : 0;
+		var iddoc = ($("lms-of-b-iddoc") || {}).value || "";
+		var poa = ($("lms-of-b-poa") || {}).value || "";
+
+		if (!first.trim()) {
+			lms_portal.toast("First name is required.", "danger");
+			return;
+		}
+		lms_portal.safeCall({
+			method: "lms_saas.api.officer.create_borrower",
+			args: {
+				first_name: first,
+				last_name: last,
+				email: email,
+				mobile_no: mobile,
+				national_id: national,
+				date_of_birth: dob,
+				gender: gender,
+				address_line1: addr1,
+				city: city,
+				id_document_proof: iddoc,
+				proof_of_address: poa,
+				consent_given: consent,
+				kyc_status: kyc,
+				customer_group: cgroup,
+			},
+			callback: function (r) {
+				var res = (r && r.message) || {};
+				if (!res.customer) {
+					lms_portal.toast("Could not create borrower.", "danger");
+					return;
+				}
+				lms_portal.toast(
+					"Borrower created: " + (res.customer_name || res.customer) +
+					(res.kyc ? " (KYC " + res.kyc_status + ")" : ""),
+					"success"
+				);
+				lms_officer._showTab("borrowers");
+			},
+			error: function (err) {
+				var msg = (err && (err.message || err._server_message)) || "Could not create borrower.";
+				lms_portal.toast(msg, "danger");
+			},
+		});
+	};
+
+	if (dlg && typeof dlg.then === "function") {
+		// LMSModal: returns a Promise-like { then }
+		dlg.then(onSubmit);
+	} else if (dlg && dlg.el) {
+		// lms_portal.modal: bind to the confirm button manually
+		var confirmBtn = dlg.el.querySelector("[data-lms-modal-confirm]");
+		if (confirmBtn) {
+			confirmBtn.addEventListener("click", function () { onSubmit(true); });
+		}
+	}
 };
 
 // ---------------------------------------------------------------------------
@@ -555,7 +719,7 @@ lms_officer._fetchBorrowers = function (content, query) {
 	if (!results) return;
 	results.innerHTML = lms_portal.loading("Searching…");
 
-	frappe.call({
+	lms_portal.safeCall({
 		method: "lms_saas.api.officer.search_borrowers",
 		args: { query: query },
 		callback: function (r) {
@@ -597,7 +761,7 @@ lms_officer._renderBorrowerTable = function (el, borrowers) {
 };
 
 lms_officer._viewBorrower = function (customerName) {
-	frappe.call({
+	lms_portal.safeCall({
 		method: "lms_saas.api.officer.get_borrower_detail",
 		args: { customer_name: customerName },
 		callback: function (r) {
@@ -634,6 +798,7 @@ lms_officer._showBorrowerModal = function (b) {
 	lms_portal.modal({
 		title: "Borrower Profile — " + (b.customer_name || ""),
 		body: html,
+		size: "xl",
 		confirmText: "Close",
 		confirmVariant: "primary",
 		onConfirm: function () {},
@@ -642,15 +807,18 @@ lms_officer._showBorrowerModal = function (b) {
 
 // ---------------------------------------------------------------------------
 // Loans tab
+
 // ---------------------------------------------------------------------------
 lms_officer._loadLoans = function (content) {
 	content.innerHTML = lms_portal.loading("Loading loans…");
 
-	frappe.call({
-		method: "lms_saas.api.officer.get_my_loans_as_officer",
+	lms_portal.safeCall({
+		method: "lms_saas.api.officer.get_assigned_loans",
 		callback: function (r) {
-			var loans = (r && r.message && r.message.loans) || [];
-			lms_officer._renderLoansTab(content, loans);
+			var data = (r && r.message) || {};
+			var pending = data.pending || [];
+			var active = data.active || [];
+			lms_officer._renderLoansTab(content, pending, active);
 		},
 		error: function () {
 			content.innerHTML = lms_portal.error("Could not load loans.");
@@ -658,27 +826,61 @@ lms_officer._loadLoans = function (content) {
 	});
 };
 
-lms_officer._renderLoansTab = function (el, loans) {
-	if (!loans.length) {
-		el.innerHTML = '<div class="lms-panel"><div class="lms-empty"><div class="lms-empty-icon">💰</div><h3>No loans assigned</h3><p>No active loans are assigned to you.</p></div></div>';
+lms_officer._renderLoansTab = function (el, pending, active) {
+	var hasAny = pending.length || active.length;
+	if (!hasAny) {
+		el.innerHTML = '<div class="lms-panel"><div class="lms-empty"><div class="lms-empty-icon">💰</div><h3>No loans assigned</h3><p>You have no loans assigned. Approved applications will appear here for disbursement.</p></div></div>';
 		return;
 	}
-	var html = '<div class="lms-panel">';
-	html += '<div class="lms-section-header"><h3>My Assigned Loans</h3><span class="lms-muted">' + loans.length + ' loans</span></div>';
-	html += '<div class="lms-data-table__wrap"><table class="lms-data-table">';
-	html += "<thead><tr><th>Loan #</th><th>Borrower</th><th>Amount</th><th>Outstanding</th><th>Status</th><th>DPD</th><th>Actions</th></tr></thead><tbody>";
-	loans.forEach(function (l) {
-		html += "<tr>";
-		html += "<td><strong>" + lms_portal.escape(l.name) + "</strong></td>";
-		html += "<td>" + lms_portal.escape(l.customer_name || l.applicant || "—") + "</td>";
-		html += "<td>" + format_currency(l.loan_amount || 0) + "</td>";
-		html += "<td>" + format_currency(l.outstanding || 0) + "</td>";
-		html += '<td><span class="lms-badge ' + lms_portal.badgeClass(l.dpd, l.status) + '">' + lms_portal.escape(l.status || "") + "</span></td>";
-		html += "<td>" + (l.dpd || 0) + "</td>";
-		html += '<td><button type="button" class="lms-btn lms-btn--ghost lms-btn--sm lms-of-loan-view" data-loan="' + lms_portal.escape(l.name) + '">View</button></td>';
-		html += "</tr>";
-	});
-	html += "</tbody></table></div></div>";
+
+	var html = "";
+
+	// Pending disbursement section — manager has approved, officer acts next.
+	if (pending.length) {
+		html += '<div class="lms-panel" style="margin-bottom:1.25rem;">';
+		html += '<div class="lms-section-header"><h3>Pending Disbursement</h3>';
+		html += '<span class="lms-badge lms-badge--warning">' + pending.length + ' awaiting</span></div>';
+		html += '<p class="lms-muted" style="margin-top:-0.5rem;">Manager-approved loans waiting for you to disburse funds.</p>';
+		html += '<div class="lms-data-table__wrap"><table class="lms-data-table">';
+		html += "<thead><tr><th>Loan #</th><th>Borrower</th><th>Product</th><th>Amount</th><th>Tenure</th><th>Rate</th><th>Actions</th></tr></thead><tbody>";
+		pending.forEach(function (l) {
+			html += "<tr>";
+			html += "<td><strong>" + lms_portal.escape(l.name) + "</strong></td>";
+			html += "<td>" + lms_portal.escape(l.customer_name || l.applicant || "—") + "</td>";
+			html += "<td>" + lms_portal.escape(l.loan_product || "—") + "</td>";
+			html += "<td>" + format_currency(l.loan_amount || 0) + "</td>";
+			html += "<td>" + (l.repayment_periods || 0) + " mo</td>";
+			html += "<td>" + (l.rate_of_interest || 0) + "%</td>";
+			html += '<td><div class="lms-data-table__actions">';
+			html += '<button type="button" class="lms-btn lms-btn--success lms-btn--sm lms-of-disburse-btn" data-loan="' + lms_portal.escape(l.name) + '">Disburse</button>';
+			html += '<button type="button" class="lms-btn lms-btn--ghost lms-btn--sm lms-of-loan-view" data-loan="' + lms_portal.escape(l.name) + '">View</button>';
+			html += '</div></td>';
+			html += "</tr>";
+		});
+		html += "</tbody></table></div></div>";
+	}
+
+	// Active loans section — already disbursed, in repayment.
+	if (active.length) {
+		html += '<div class="lms-panel">';
+		html += '<div class="lms-section-header"><h3>Active Loans</h3>';
+		html += '<span class="lms-muted">' + active.length + ' loans</span></div>';
+		html += '<div class="lms-data-table__wrap"><table class="lms-data-table">';
+		html += "<thead><tr><th>Loan #</th><th>Borrower</th><th>Amount</th><th>Outstanding</th><th>Status</th><th>DPD</th><th>Actions</th></tr></thead><tbody>";
+		active.forEach(function (l) {
+			html += "<tr>";
+			html += "<td><strong>" + lms_portal.escape(l.name) + "</strong></td>";
+			html += "<td>" + lms_portal.escape(l.customer_name || l.applicant || "—") + "</td>";
+			html += "<td>" + format_currency(l.loan_amount || 0) + "</td>";
+			html += "<td>" + format_currency(l.outstanding || 0) + "</td>";
+			html += '<td><span class="lms-badge ' + lms_portal.badgeClass(l.dpd, l.status) + '">' + lms_portal.escape(l.status || "") + "</span></td>";
+			html += "<td>" + (l.dpd || 0) + "</td>";
+			html += '<td><button type="button" class="lms-btn lms-btn--ghost lms-btn--sm lms-of-loan-view" data-loan="' + lms_portal.escape(l.name) + '">View</button></td>';
+			html += "</tr>";
+		});
+		html += "</tbody></table></div></div>";
+	}
+
 	el.innerHTML = html;
 
 	el.querySelectorAll(".lms-of-loan-view").forEach(function (btn) {
@@ -686,15 +888,94 @@ lms_officer._renderLoansTab = function (el, loans) {
 			lms_officer._viewLoan(btn.getAttribute("data-loan"));
 		});
 	});
+	el.querySelectorAll(".lms-of-disburse-btn").forEach(function (btn) {
+		btn.addEventListener("click", function () {
+			lms_officer._confirmDisburse(btn.getAttribute("data-loan"));
+		});
+	});
+};
+
+lms_officer._confirmDisburse = function (loanName) {
+	// Find the row to surface the amount in the confirmation.
+	var row = document.querySelector('button.lms-of-disburse-btn[data-loan="' + loanName + '"]');
+	var tr = row ? row.closest("tr") : null;
+	var amount = "—";
+	var borrower = "—";
+	if (tr) {
+		var cells = tr.querySelectorAll("td");
+		// Cols: Loan #, Borrower, Product, Amount, Tenure, Rate, Actions
+		borrower = cells[1] ? cells[1].textContent.trim() : borrower;
+		amount = cells[3] ? cells[3].textContent.trim() : amount;
+	}
+
+	lms_portal.modal({
+		title: "Disburse Loan",
+		size: "lg",
+		body:
+			'<div class="lms-form">' +
+			'<p class="lms-muted">Confirm disbursement of the approved loan. This will submit the loan record and create a Loan Disbursement for the borrower.</p>' +
+			'<div class="lms-summary" style="margin:1rem 0;">' +
+			'<div class="lms-summary-card lms-summary-card--primary"><div class="lms-summary-label">Loan #</div><div class="lms-summary-value">' + lms_portal.escape(loanName) + '</div></div>' +
+			'<div class="lms-summary-card"><div class="lms-summary-label">Borrower</div><div class="lms-summary-value">' + lms_portal.escape(borrower) + '</div></div>' +
+			'<div class="lms-summary-card lms-summary-card--primary"><div class="lms-summary-label">Amount</div><div class="lms-summary-value">' + lms_portal.escape(amount) + '</div></div>' +
+			'</div>' +
+			'<div class="lms-field"><label>Disbursement amount</label>' +
+			'<input type="number" id="lms-of-disburse-amount" class="lms-input" step="0.01" min="0" value="' + lms_portal.escape(amount.replace(/[^0-9.]/g, "")) + '">' +
+			'<div class="lms-field__hint">Defaults to the full sanctioned amount. Adjust only if a partial disbursement is intended.</div></div>' +
+			'</div>',
+		confirmText: "Disburse",
+		confirmVariant: "success",
+		onConfirm: function (overlay) {
+			var amtInput = overlay.querySelector("#lms-of-disburse-amount");
+			var amt = amtInput && amtInput.value ? parseFloat(amtInput.value) : null;
+			lms_officer._doDisburse(loanName, amt);
+		},
+	});
+};
+
+lms_officer._doDisburse = function (loanName, amount) {
+	lms_portal.safeCall({
+		method: "lms_saas.api.officer.disburse_assigned_loan",
+		args: { loan_name: loanName, disbursed_amount: amount || null },
+		callback: function (r) {
+			var data = (r && r.message) || {};
+			if (data._lms_error) {
+				lms_portal.toast("Disbursement failed.", "danger");
+				return;
+			}
+			lms_portal.toast("Disbursed \u2014 " + (data.disbursement || loanName), "success");
+			// Re-render the Loans tab so the loan moves from Pending to Active.
+			// We use _currentTab + _showTab so charts on other tabs aren't
+			// rebuilt and we stay on the same tab the user was on.
+			if (lms_officer._currentTab === "loans") {
+				var content = document.getElementById("lms-officer-tab-content");
+				if (content) lms_officer._loadLoans(content);
+			} else {
+				lms_officer._showTab(lms_officer._currentTab);
+			}
+		},
+		error: function (err) {
+			var msg = (err && (err.message || err._server_message)) || "Disbursement failed.";
+			lms_portal.toast(msg, "danger");
+		},
+	});
 };
 
 lms_officer._viewLoan = function (loanName) {
-	frappe.call({
+	lms_portal.safeCall({
 		method: "lms_saas.api.officer.get_loan_detail",
 		args: { loan_name: loanName },
 		callback: function (r) {
 			var data = (r && r.message) || {};
+			if (data._lms_error) {
+				lms_portal.toast("Could not load loan details.", "danger");
+				return;
+			}
 			lms_officer._showLoanModal(data);
+		},
+		error: function (err) {
+			var msg = (err && (err.message || err._server_message)) || "Could not load loan details.";
+			lms_portal.toast(msg, "danger");
 		},
 	});
 };
@@ -739,6 +1020,7 @@ lms_officer._showLoanModal = function (data) {
 	lms_portal.modal({
 		title: "Loan Detail — " + (l.name || ""),
 		body: html,
+		size: "xl",
 		confirmText: "Close",
 		confirmVariant: "primary",
 		onConfirm: function () {},
@@ -747,11 +1029,12 @@ lms_officer._showLoanModal = function (data) {
 
 // ---------------------------------------------------------------------------
 // Leads tab
+
 // ---------------------------------------------------------------------------
 lms_officer._loadLeads = function (content) {
 	content.innerHTML = lms_portal.loading("Loading leads…");
 
-	frappe.call({
+	lms_portal.safeCall({
 		method: "lms_saas.api.officer.get_officer_leads",
 		callback: function (r) {
 			var leads = (r && r.message && r.message.leads) || [];
@@ -839,7 +1122,7 @@ lms_officer._openLeadModal = function (content) {
 			frappe.show_alert({ message: "First name is required.", indicator: "red" });
 			return;
 		}
-		frappe.call({
+		lms_portal.safeCall({
 			method: "lms_saas.api.officer.create_lead",
 			args: { first_name: first, last_name: last, email: email, mobile_no: mobile, source: source },
 			callback: function (r) {
@@ -861,7 +1144,7 @@ lms_officer._convertLead = function (leadName) {
 		confirmText: "Convert",
 		confirmVariant: "success",
 		onConfirm: function () {
-			frappe.call({
+			lms_portal.safeCall({
 				method: "lms_saas.api.officer.convert_lead",
 				args: { lead_name: leadName },
 				callback: function (r) {
@@ -912,11 +1195,14 @@ lms_officer._loadReport = function (content, reportType) {
 	if (!rc) return;
 	rc.innerHTML = lms_portal.loading("Loading report…");
 
-	if (reportType === "portfolio") {
-		frappe.call({
+	// Each report declares its API + a renderer. An error handler shows a
+	// retry so a 500 doesn't leave the user staring at "Loading report…"
+	// forever, and a no-rows result shows a clear empty state.
+	var endpoints = {
+		portfolio: {
 			method: "lms_saas.api.officer.get_my_portfolio_summary",
-			callback: function (r) {
-				var s = (r && r.message && r.message.summary) || {};
+			unwrap: function (m) { return (m && m.summary) || {}; },
+			render: function (s) {
 				var html = '<h4>My Portfolio Summary</h4>';
 				html += '<div class="lms-summary" style="margin-bottom:1rem;">';
 				html += '<div class="lms-summary-card"><div class="lms-summary-label">Total Loans</div><div class="lms-summary-value">' + (s.total_loans || 0) + '</div></div>';
@@ -926,17 +1212,16 @@ lms_officer._loadReport = function (content, reportType) {
 				html += '<div class="lms-summary-card"><div class="lms-summary-label">PAR 60+</div><div class="lms-summary-value">' + (s.par60_count || 0) + '</div></div>';
 				html += '<div class="lms-summary-card"><div class="lms-summary-label">PAR 90+</div><div class="lms-summary-value">' + (s.par90_count || 0) + '</div></div>';
 				html += '</div>';
-				rc.innerHTML = html;
+				return html;
 			},
-		});
-	} else if (reportType === "arrears") {
-		frappe.call({
+		},
+		arrears: {
 			method: "lms_saas.api.officer.get_my_arrears_report",
-			callback: function (r) {
-				var data = (r && r.message) || {};
+			unwrap: function (m) { return m || {}; },
+			render: function (data) {
 				var b = data.buckets || {};
 				var html = '<h4>My Arrears Aging</h4>';
-				var bucketLabels = {"current": "Current", "1_30": "1-30 Days", "31_60": "31-60 Days", "61_90": "61-90 Days", "90_plus": "90+ Days"};
+				var bucketLabels = { current: "Current", "1_30": "1-30 Days", "31_60": "31-60 Days", "61_90": "61-90 Days", "90_plus": "90+ Days" };
 				Object.keys(bucketLabels).forEach(function (key) {
 					var rows = b[key] || [];
 					if (!rows.length) return;
@@ -952,16 +1237,15 @@ lms_officer._loadReport = function (content, reportType) {
 					html += "</tbody></table></div>";
 				});
 				if (!html.match(/<h5/)) {
-					html += '<p>No arrears — all loans are current.</p>';
+					html += '<div class="lms-empty"><div class="lms-empty-icon">✅</div><h3>No arrears</h3><p>All loans are current.</p></div>';
 				}
-				rc.innerHTML = html;
+				return html;
 			},
-		});
-	} else if (reportType === "collections") {
-		frappe.call({
+		},
+		collections: {
 			method: "lms_saas.api.officer.get_my_collections_report",
-			callback: function (r) {
-				var data = (r && r.message) || {};
+			unwrap: function (m) { return m || {}; },
+			render: function (data) {
 				var html = '<h4>My Collections Report</h4>';
 				html += '<div class="lms-summary" style="margin-bottom:1rem;">';
 				html += '<div class="lms-summary-card"><div class="lms-summary-label">Total Collected</div><div class="lms-summary-value">' + format_currency(data.total_collected || 0) + '</div></div>';
@@ -977,8 +1261,25 @@ lms_officer._loadReport = function (content, reportType) {
 					});
 					html += "</tbody></table></div>";
 				}
-				rc.innerHTML = html;
+				if (!data.repayments || !data.repayments.length) {
+					html += '<div class="lms-empty"><div class="lms-empty-icon">📭</div><h3>No collections yet</h3><p>Once repayments are recorded they will appear here.</p></div>';
+				}
+				return html;
 			},
-		});
+		},
+	};
+	var ep = endpoints[reportType];
+	if (!ep) {
+		rc.innerHTML = lms_portal.error("Unknown report type.");
+		return;
 	}
+	lms_portal.safeCall({
+		method: ep.method,
+		callback: function (r) { rc.innerHTML = ep.render(ep.unwrap(r && r.message)); },
+		error: function () {
+			rc.innerHTML = lms_portal.error("Could not load report.", function () {
+				lms_officer._loadReport(content, reportType);
+			});
+		},
+	});
 };

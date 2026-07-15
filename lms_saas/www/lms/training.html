@@ -1,0 +1,17 @@
+{% extends "templates/lms_portal/base.html" %}
+
+{% block title %}Training & Development{% endblock %}
+
+{% block lms_content %}
+<div id="lms-training-root" aria-live="polite"></div>
+{% endblock %}
+
+{% block sidebar_script %}{{ super() }}
+<script>
+frappe.ready(function() {
+  if (typeof lms_training !== 'undefined') {
+    lms_training.init();
+  }
+});
+</script>
+{% endblock %}

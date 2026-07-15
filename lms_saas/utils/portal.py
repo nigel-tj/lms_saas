@@ -207,42 +207,17 @@ PERSONA_LANDING = {
 def _user_can(perm: str) -> bool:
 	"""Return True if the current user has the named permission.
 
-	Used by page-level guards and API guards that need a one-shot predicate
-	(no context object).
+	Mirrors utils/brand.py:_get_user_permissions. Used by page-level guards
+	and API guards that need a one-shot predicate (no context object).
 	"""
 	if frappe.session.user == "Guest":
 		return False
-	persona = resolve_portal_persona()
+	from lms_saas.utils.brand import _get_user_persona, _get_user_permissions
+
+	persona = _get_user_persona()
 	roles = set(frappe.get_roles())
-	perms = _persona_permissions(persona, roles)
+	perms = _get_user_permissions(persona, roles)
 	return bool(perms.get(perm))
-
-
-def _persona_permissions(persona: str | None, roles: set) -> dict:
-	"""Return permission map for a persona.
-
-	Mirrors the old utils/brand.py helpers.  Kept here so the rest of the
-	codebase can keep calling _user_can() without importing removed helpers.
-	"""
-	perms = {}
-	if persona == "Branch Manager":
-		perms = {
-			"can_manager": True,
-			"can_officer": True,
-			"can_collect": True,
-		}
-	elif persona == "Loan Officer":
-		perms = {
-			"can_officer": True,
-			"can_collect": True,
-		}
-	elif persona == "Collector":
-		perms = {"can_collect": True}
-
-	# Admins always get everything.
-	if roles & DESK_ADMIN_ROLES:
-		perms.update({"can_manager": True, "can_officer": True, "can_collect": True})
-	return perms
 
 
 def require_persona_for_page(perm: str):
@@ -256,8 +231,9 @@ def require_persona_for_page(perm: str):
 		return
 	if _user_can(perm):
 		return
+	from lms_saas.utils.brand import _get_user_persona
 
-	persona = resolve_portal_persona() or ""
+	persona = _get_user_persona() or ""
 	landing = PERSONA_LANDING.get(persona, "/lms")
 	frappe.local.flags.redirect_location = landing
 	raise frappe.Redirect

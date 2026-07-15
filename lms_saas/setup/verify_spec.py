@@ -50,8 +50,70 @@ def run_all_checks():
     check("field_collection", _check_field_collection)
     check("group_lending", _check_group_lending)
     check("savings", _check_savings)
+    check("addons", _check_addons)
 
     return results
+
+
+def _check_addons():
+    """Verify the addon registry, settings doctype, and core addon modules."""
+    import frappe
+    from lms_saas.utils.addons import ADDON_REGISTRY
+
+    # 1. Registry must have entries
+    if not ADDON_REGISTRY:
+        return {"ok": False, "error": "ADDON_REGISTRY is empty"}
+
+    # 2. LMS Addon Settings doctype + singleton
+    if not frappe.db.exists("DocType", "LMS Addon Settings"):
+        return {"ok": False, "error": "LMS Addon Settings DocType not found"}
+
+    settings = frappe.get_single("LMS Addon Settings")
+    if not (settings.addons or []):
+        return {"ok": False, "error": "LMS Addon Settings has no rows — run after_install"}
+
+    # 3. Verify each registered addon has its API module
+    missing_modules = []
+    for key, spec in ADDON_REGISTRY.items():
+        api_module = f"lms_saas.api.{key}"
+        try:
+            __import__(api_module)
+        except Exception:
+            missing_modules.append(api_module)
+
+    # 4. Verify portal pages exist for each addon
+    import os
+    missing_pages = []
+    www_dir = os.path.join(os.path.dirname(__file__), "..", "www", "lms")
+    for key, spec in ADDON_REGISTRY.items():
+        route = spec.get("route", "").lstrip("/").replace("lms/", "")
+        page = os.path.join(www_dir, route + ".py")
+        if not os.path.exists(page):
+            missing_pages.append(route + ".py")
+
+    # 5. Verify portal JS files exist
+    missing_js = []
+    public_dir = os.path.join(os.path.dirname(__file__), "..", "public", "js")
+    for key in ADDON_REGISTRY.keys():
+        js = os.path.join(public_dir, f"lms_{key}_portal.js")
+        if not os.path.exists(js):
+            missing_js.append(f"lms_{key}_portal.js")
+
+    result = {
+        "ok": not (missing_modules or missing_pages or missing_js),
+        "registered_addons": len(ADDON_REGISTRY),
+        "settings_rows": len(settings.addons or []),
+        "missing_modules": missing_modules,
+        "missing_pages": missing_pages,
+        "missing_js": missing_js,
+    }
+    if missing_modules or missing_pages or missing_js:
+        result["error"] = (
+            f"{len(missing_modules)} missing API modules, "
+            f"{len(missing_pages)} missing portal pages, "
+            f"{len(missing_js)} missing portal JS files"
+        )
+    return result
 
 
 def _check_aml():

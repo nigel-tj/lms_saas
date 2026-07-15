@@ -1,0 +1,17 @@
+{% extends "templates/lms_portal/base.html" %}
+
+{% block title %}Procurement{% endblock %}
+
+{% block lms_content %}
+<div id="lms-procurement-root" aria-live="polite"></div>
+{% endblock %}
+
+{% block sidebar_script %}{{ super() }}
+<script>
+frappe.ready(function() {
+  if (typeof lms_procurement !== 'undefined') {
+    lms_procurement.init();
+  }
+});
+</script>
+{% endblock %}

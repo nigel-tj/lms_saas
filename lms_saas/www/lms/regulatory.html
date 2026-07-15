@@ -1,0 +1,17 @@
+{% extends "templates/lms_portal/base.html" %}
+
+{% block title %}Regulatory Hub{% endblock %}
+
+{% block lms_content %}
+<div id="lms-regulatory-root" aria-live="polite"></div>
+{% endblock %}
+
+{% block sidebar_script %}{{ super() }}
+<script>
+frappe.ready(function() {
+  if (typeof lms_regulatory !== 'undefined') {
+    lms_regulatory.init();
+  }
+});
+</script>
+{% endblock %}

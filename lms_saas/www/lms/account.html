@@ -46,7 +46,7 @@
 <div id="lms-account-overview" aria-live="polite"></div>
 {% endblock %}
 
-{% block script %}
+{% block sidebar_script %}{{ super() }}
 <script>
 frappe.ready(function() {
   if (typeof lms_portal !== 'undefined' && lms_portal.initAccountOverview) {

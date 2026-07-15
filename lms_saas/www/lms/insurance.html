@@ -1,0 +1,17 @@
+{% extends "templates/lms_portal/base.html" %}
+
+{% block title %}Insurance{% endblock %}
+
+{% block lms_content %}
+<div id="lms-insurance-root" aria-live="polite"></div>
+{% endblock %}
+
+{% block sidebar_script %}{{ super() }}
+<script>
+frappe.ready(function() {
+  if (typeof lms_insurance !== 'undefined') {
+    lms_insurance.init();
+  }
+});
+</script>
+{% endblock %}

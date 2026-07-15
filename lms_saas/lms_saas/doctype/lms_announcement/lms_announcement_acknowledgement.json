@@ -1,0 +1,25 @@
+{
+ "doctype": "DocType",
+ "name": "LMS Announcement Acknowledgement",
+ "module": "Lms Saas",
+ "custom": 0,
+ "istable": 1,
+ "fields": [
+  {
+   "fieldname": "user",
+   "fieldtype": "Link",
+   "label": "User",
+   "options": "User",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "acknowledged_on",
+   "fieldtype": "Datetime",
+   "label": "Acknowledged On",
+   "default": "Now",
+   "in_list_view": 1
+  }
+ ],
+ "permissions": []
+}

@@ -1,6 +1,86 @@
 /* LMS borrower portal — UX-focused UI */
 frappe.provide("lms_portal");
 
+/* ------------------------------------------------------------------ */
+/* lms_portal.safeCall                                                 */
+/* ------------------------------------------------------------------ */
+/* Wrap frappe.call with a defensive layer so the UI never sits on a    */
+/* spinner forever when the server returns a 500 / network error.       */
+/* The web bundle's frappe.call typically fires the `error` callback    */
+/* only for transport failures; a 500 (e.g. an ImportError on the       */
+/* server) often resolves without ever invoking callback OR error.      */
+/* We intercept the underlying fetch and route the result to the right  */
+/* branch.                                                              */
+lms_portal.safeCall = function (opts) {
+	if (typeof frappe === "undefined" || typeof frappe.call !== "function") {
+		console.error("[lms_portal] frappe.call unavailable");
+		if (typeof opts.error === "function") {
+			opts.error({ status: 0, message: "Frappe client not available" });
+		}
+		return;
+	}
+
+	// Build a wrapped error handler that always fires, even for 500s.
+	var userError = opts.error;
+	var userCallback = opts.callback;
+	var wrappedError = function (err) {
+		console.error("[lms_portal.safeCall] error", err);
+		if (typeof userError === "function") {
+			try { userError(err); } catch (e) { console.error(e); }
+		} else if (typeof userCallback === "function") {
+			// User didn't provide an error handler — surface a generic error
+			// to the page so we don't stay on "Loading…".
+			console.warn("[lms_portal.safeCall] no error handler; calling callback with null");
+			try { userCallback({ message: null, _lms_error: true }); } catch (e) { console.error(e); }
+		}
+	};
+
+	var wrappedCallback = function (r) {
+		// The server sometimes embeds the error into a 200 response.
+		if (r && r._server_messages) {
+			try {
+				var msgs = JSON.parse(r._server_messages || "[]");
+				if (msgs && msgs.length) {
+					var msg = msgs[0];
+					if (typeof msg === "string") {
+						try { msg = JSON.parse(msg).message || msg; } catch (e) {}
+					}
+					if (msg && /error|traceback|exception|frappe\.exceptions/i.test(String(msg))) {
+						return wrappedError({ status: 200, message: msg, _server_message: true });
+					}
+				}
+			} catch (e) { /* fallthrough */ }
+		}
+		if (r && r.exc) {
+			return wrappedError({ status: 200, message: r.exc, _server_message: true });
+		}
+		if (typeof userCallback === "function") {
+			try { userCallback(r); } catch (e) { console.error(e); }
+		}
+	};
+
+	var safeOpts = Object.assign({}, opts, {
+		callback: wrappedCallback,
+		error: wrappedError,
+		// Make sure HTTP errors are routed to error handler, not callback.
+		no_spinner: opts.no_spinner || true,
+	});
+
+	try {
+		frappe.call(safeOpts);
+	} catch (e) {
+		console.error("[lms_portal.safeCall] threw synchronously", e);
+		wrappedError({ status: 0, message: String(e && e.message || e) });
+	}
+};
+
+/* Global safety net: if a fetch (not via frappe.call) returns 500, the   */
+/* developer console sees it, but the portal still needs a user-friendly  */
+/* error boundary. The base template wires a top-level error listener.    */
+window.addEventListener("unhandledrejection", function (event) {
+	console.error("[lms_portal] unhandledrejection", event.reason);
+});
+
 lms_portal.escape = function (s) {
 	const d = document.createElement("div");
 	d.textContent = s == null ? "" : String(s);
@@ -112,20 +192,6 @@ lms_portal.simpleBars = function (rows, options) {
 			.join("") +
 		"</div>"
 	);
-};
-
-lms_portal._renderOrFallback = function (el, renderFn, fallbackFn) {
-	// Try to render a chart; if the chart library is missing, use the fallback.
-	try {
-		var result = renderFn(el);
-		if (result) return result;
-	} catch (e) {
-		// fall through
-	}
-	if (fallbackFn) {
-		return fallbackFn(el);
-	}
-	el.innerHTML = '<p class="lms-muted">Chart could not be rendered.</p>';
 };
 
 lms_portal.renderSummary = function (container, summary) {
@@ -509,18 +575,6 @@ lms_portal.initLoansPage = function () {
 		method: "lms_saas.api.portal.get_my_loans",
 		args: { limit_start: 0, limit_page_length: lms_portal._loansState.pageSize },
 		callback: function (r) {
-			if (r.message && r.message.no_customer_linked) {
-				if (summaryEl) summaryEl.innerHTML = "";
-				if (riskEl) riskEl.innerHTML = "";
-				if (loanMixEl) loanMixEl.innerHTML = "";
-				if (upcomingEl) upcomingEl.innerHTML = "";
-				el.innerHTML =
-					'<div class="lms-empty" role="status">' +
-					"<h3>No borrower profile linked</h3>" +
-					"<p>Your login is active, but no Customer record is connected to this account.</p>" +
-					'<p class="lms-empty-hint">Ask your loan officer/admin to link this user to a Customer profile.</p></div>';
-				return;
-			}
 			lms_portal._loansState.total = (r.message && r.message.total_count) || 0;
 			lms_portal._loansState.allLoans = (r.message && r.message.loans) || [];
 			lms_portal._loansState.offset = lms_portal._loansState.allLoans.length;
@@ -1107,12 +1161,6 @@ lms_portal.initPayPage = function () {
 	frappe.call({
 		method: "lms_saas.api.portal.get_my_loans",
 		callback: function (r) {
-			if (r.message && r.message.no_customer_linked) {
-				root.innerHTML =
-					'<div class="lms-panel"><p>No borrower profile linked to this account yet.</p>' +
-					"<p class=\"lms-muted\">Please ask your loan officer/admin to link your user to a Customer record.</p></div>";
-				return;
-			}
 			var loans = (r.message && r.message.loans) || [];
 			if (!loans.length) {
 				root.innerHTML = '<div class="lms-panel"><p>No active loans to pay.</p></div>';
@@ -1270,7 +1318,57 @@ frappe.ready(function () {
 	}
 	lms_portal._initNotificationCenter();
 	lms_portal._initMobileMenu();
+	lms_portal._initUserMenu();
 });
+
+/* User menu (topbar avatar button) — toggles a small dropdown with
+   the current user's name + Logout link. Previously the button rendered
+   but had no click handler, so it was inert. */
+lms_portal._initUserMenu = function () {
+	var trigger = document.querySelector(".lms-user-menu__trigger");
+	var wrap = document.getElementById("lms-user-menu");
+	if (!trigger || !wrap) return;
+	var built = false;
+	function buildDropdown() {
+		if (built) return;
+		built = true;
+		var dd = document.createElement("div");
+		dd.className = "lms-user-menu__dropdown";
+		dd.setAttribute("role", "menu");
+		dd.innerHTML =
+			'<div class="lms-user-menu__item lms-user-menu__item--info" role="presentation">' +
+			'<div class="lms-user-menu__name">' +
+			lms_portal.escape((trigger.querySelector(".lms-user-menu__name") || {}).textContent || "User") +
+			"</div>" +
+			'<div class="lms-user-menu__email">' +
+			lms_portal.escape((window.frappe && frappe.session && frappe.session.user) || "") +
+			"</div></div>" +
+			'<a class="lms-user-menu__item lms-user-menu__item--action" role="menuitem" href="/lms/account">My account</a>' +
+			'<a class="lms-user-menu__item lms-user-menu__item--action" role="menuitem" href="/desk">Open desk</a>' +
+			'<a class="lms-user-menu__item lms-user-menu__item--action lms-user-menu__item--danger" role="menuitem" href="/?cmd=web_logout">Log out</a>';
+		wrap.appendChild(dd);
+	}
+	function close() {
+		wrap.classList.remove("is-open");
+		trigger.setAttribute("aria-expanded", "false");
+	}
+	function open() {
+		buildDropdown();
+		wrap.classList.add("is-open");
+		trigger.setAttribute("aria-expanded", "true");
+	}
+	trigger.addEventListener("click", function (e) {
+		e.stopPropagation();
+		if (wrap.classList.contains("is-open")) close();
+		else open();
+	});
+	document.addEventListener("click", function (e) {
+		if (!wrap.contains(e.target)) close();
+	});
+	document.addEventListener("keydown", function (e) {
+		if (e.key === "Escape") close();
+	});
+};
 
 lms_portal._initNotificationCenter = function () {
 	var bell = document.getElementById("lms-notification-bell");
@@ -1353,82 +1451,16 @@ lms_portal._initNotificationCenter = function () {
 	});
 };
 
-lms_portal._initSidebarDrawer = function () {
-	var sidebar = document.getElementById("lms-sidebar");
-	var appBody = document.querySelector(".lms-app-body, .lms-main");
-	var topbarBtn = document.getElementById("lms-topbar-menu-btn");
-	var sidebarToggle = document.getElementById("lms-sidebar-toggle");
-	if (!sidebar) return;
-
-	// Create backdrop element for mobile overlay
-	var backdrop = document.createElement("div");
-	backdrop.className = "lms-sidebar-backdrop";
-	backdrop.id = "lms-sidebar-backdrop";
-	document.body.appendChild(backdrop);
-
-	// Restore persisted state (desktop collapse only)
-	try {
-		var saved = localStorage.getItem("lms_sidebar_collapsed");
-		if (saved === "1" && window.innerWidth > 900) {
-			sidebar.classList.add("is-collapsed");
-			if (appBody) appBody.classList.add("is-expanded");
-		}
-	} catch (e) {
-		// localStorage may be unavailable
-	}
-
-	function isMobile() {
-		return window.innerWidth <= 900;
-	}
-
-	function toggleSidebar() {
-		if (isMobile()) {
-			// Mobile: overlay drawer with backdrop
-			var isOpen = sidebar.classList.contains("is-open");
-			if (isOpen) {
-				sidebar.classList.remove("is-open");
-				backdrop.classList.remove("is-visible");
-			} else {
-				sidebar.classList.add("is-open");
-				backdrop.classList.add("is-visible");
-			}
-		} else {
-			// Desktop: collapse to icon rail or expand to full
-			var isCollapsed = sidebar.classList.contains("is-collapsed");
-			if (isCollapsed) {
-				sidebar.classList.remove("is-collapsed");
-				if (appBody) appBody.classList.remove("is-expanded");
-				try { localStorage.setItem("lms_sidebar_collapsed", "0"); } catch (e) {}
-			} else {
-				sidebar.classList.add("is-collapsed");
-				if (appBody) appBody.classList.add("is-expanded");
-				try { localStorage.setItem("lms_sidebar_collapsed", "1"); } catch (e) {}
-			}
-		}
-	}
-
-	function closeMobileSidebar() {
-		sidebar.classList.remove("is-open");
-		backdrop.classList.remove("is-visible");
-	}
-
-	if (topbarBtn) {
-		topbarBtn.addEventListener("click", toggleSidebar);
-	}
-	if (sidebarToggle) {
-		sidebarToggle.addEventListener("click", toggleSidebar);
-	}
-	backdrop.addEventListener("click", closeMobileSidebar);
-
-	// Close mobile sidebar on window resize to desktop
-	window.addEventListener("resize", function () {
-		if (!isMobile()) {
-			closeMobileSidebar();
-		}
+lms_portal._initMobileMenu = function () {
+	var toggle = document.getElementById("lms-portal-menu-toggle");
+	var nav = document.getElementById("lms-portal-nav");
+	if (!toggle || !nav) return;
+	toggle.addEventListener("click", function () {
+		var expanded = toggle.getAttribute("aria-expanded") === "true";
+		toggle.setAttribute("aria-expanded", String(!expanded));
+		nav.classList.toggle("is-open");
 	});
 };
-
-lms_portal._initMobileMenu = lms_portal._initSidebarDrawer;
 
 lms_portal.initAccountOverview = function () {
 	var el = document.getElementById("lms-account-overview");
@@ -1572,7 +1604,13 @@ lms_portal.modal = function (opts) {
 	}
 	var overlay = document.createElement("div");
 	overlay.className = "lms-modal-overlay";
-	var sizeClass = opts.size === "lg" ? " lms-modal--lg" : "";
+	// Allow callers to request an explicit size. Default keeps the canonical
+	// width (480px) so existing 1-2 field modals stay compact. "lg" = 720px
+	// for short forms with a couple of fields, "xl" = 960px for detail modals
+	// that hold a summary grid plus data tables.
+	var sizeClass = "";
+	if (opts.size === "xl") sizeClass = " lms-modal--xl";
+	else if (opts.size === "lg") sizeClass = " lms-modal--lg";
 	overlay.innerHTML =
 		'<div class="lms-modal' + sizeClass + '">' +
 		'<div class="lms-modal__header"><h3>' + lms_portal.escape(opts.title || "") + "</h3>" +

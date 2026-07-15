@@ -49,6 +49,15 @@ def apply_default_route(bootinfo):
     if PORTAL_STAFF_ROLE in roles and not _is_desk_admin(roles):
         bootinfo.portal_default_route = _portal_staff_landing(user)
 
+    # ── Addon routes ──
+    # Expose enabled addon metadata in the boot payload so the portal JS
+    # can dynamically render addon pages without a server round-trip.
+    try:
+        from lms_saas.utils.addons import get_enabled_addons
+        bootinfo.lms_addons = get_enabled_addons()
+    except Exception:
+        bootinfo.lms_addons = []
+
 
 def get_lms_home_page(user=None):
     """Hook: get_website_user_home_page — return the correct post-login URL.

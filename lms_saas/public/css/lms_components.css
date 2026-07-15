@@ -1,6 +1,20 @@
 /* LMS shared UI components — desk + portal (theme via CSS variables) */
 
 /* ------------------------------------------------------------------ */
+/* Page content root (used by every portal page)                       */
+/* ------------------------------------------------------------------ */
+.lms-portal-root,
+[id$="-root"] {
+	margin: 0;
+}
+
+/* Page content inner container (used by manager, HR, etc.) */
+.lms-portal-content,
+[id$="-tab-content"] {
+	padding: 0.5rem 0;
+}
+
+/* ------------------------------------------------------------------ */
 /* Canvas & panel                                                      */
 /* ------------------------------------------------------------------ */
 .lms-canvas,
@@ -16,6 +30,8 @@ body.lms-desk-enhanced.lms-nav-screen .layout-main-section {
 	border: 1px solid var(--lms-border);
 	border-radius: var(--lms-radius-panel);
 	box-shadow: var(--lms-shadow-panel);
+	padding: 1.5rem 1.75rem;
+	overflow: hidden;
 }
 
 /* Workspace canvas uses Frappe .layout-main-section card — avoid nested panel */
@@ -110,12 +126,12 @@ body.lms-desk-enhanced.lms-nav-screen .lms-workspace-hero .h4 b {
 body.lms-desk-enhanced.lms-nav-screen .ce-block:first-child .text-muted,
 body.lms-desk-enhanced.lms-nav-screen .lms-workspace-hero .text-muted,
 body.lms-desk-enhanced.lms-nav-screen .lms-workspace-hero .lms-hero__subtitle {
-	margin: 0.35rem 0 0 !important;
+	margin: 0.5rem 0 0 !important;
 	padding: 0 !important;
-	font-size: clamp(0.875rem, 0.5vw + 0.75rem, 0.975rem);
+	font-size: clamp(0.9rem, 0.5vw + 0.75rem, 1rem);
 	color: var(--lms-text-muted);
 	line-height: 1.55;
-	max-width: min(56ch, 100%);
+	max-width: min(60ch, 100%);
 }
 
 body.lms-desk-enhanced.lms-nav-screen .lms-workspace-hero .h4,
@@ -133,9 +149,9 @@ body.lms-desk-enhanced.lms-nav-screen .lms-workspace-hero .lms-hero__title-wrap 
 body.lms-desk-enhanced.lms-nav-screen .lms-section-head .h5 {
 	display: inline-flex;
 	align-items: center;
-	margin: 0;
-	padding: 0.35rem 0.75rem;
-	font-size: 0.6875rem;
+	margin: 0 0 0.75rem;
+	padding: 0.4rem 0.85rem;
+	font-size: 0.7rem;
 	font-weight: 700;
 	text-transform: uppercase;
 	letter-spacing: 0.08em;
@@ -307,31 +323,22 @@ body.lms-desk-enhanced.lms-nav-screen .widget.shortcut-widget-box .widget-subtit
 	border: 1px solid var(--lms-border);
 	border-radius: var(--lms-radius-lg);
 	box-shadow: var(--lms-tile-shadow);
+	padding: 1.5rem 1.75rem;
+	/* Prevent long values (emails, IDs, names) from overflowing the
+	 * card boundary. */
+	overflow: hidden;
+	min-width: 0;
 }
 
 .lms-summary-card,
 .lms-stat {
-	padding: 1.1rem 1.25rem;
-}
-
-/* Stat card with icon on the right (manager KPI grid) */
-.lms-stat-card--row {
-	display: flex;
-	align-items: flex-start;
-	justify-content: space-between;
-	gap: 0.5rem;
-	padding: 1.1rem 1.25rem;
-}
-
-.lms-stat-card__body {
-	flex: 1;
+	padding: 1.25rem 1.5rem;
+	/* Allow long values (emails, IDs, names) to wrap inside the card
+	 * instead of overflowing. min-width: 0 lets the grid cell shrink
+	 * to fit its content; overflow: hidden clips anything that does
+	 * overflow (e.g. very long strings). */
 	min-width: 0;
-}
-
-.lms-stat-card__icon {
-	flex-shrink: 0;
-	color: var(--lms-text-muted);
-	opacity: 0.5;
+	overflow: hidden;
 }
 
 .lms-summary-label,
@@ -340,16 +347,25 @@ body.lms-desk-enhanced.lms-nav-screen .widget.shortcut-widget-box .widget-subtit
 	text-transform: uppercase;
 	letter-spacing: 0.06em;
 	color: var(--lms-text-muted);
-	margin-bottom: 0.35rem;
+	margin-bottom: 0.5rem;
 	font-weight: 600;
 }
 
 .lms-summary-value,
 .lms-stat-value {
-	font-size: 1.35rem;
+	/* Card values need to read at a glance but should not dominate the
+	 * card. 1.1rem (17.6px) is large enough to be the primary visual
+	 * element without forcing 4-5 line wraps on long values. */
+	font-size: 1.1rem;
 	font-weight: 700;
 	color: var(--lms-primary);
-	line-height: 1.2;
+	line-height: 1.3;
+	letter-spacing: -0.01em;
+	/* Wrap long values (emails, IDs, names) inside the card so they
+	 * don't overflow the card boundary. */
+	overflow-wrap: anywhere;
+	word-break: break-word;
+	min-width: 0;
 }
 
 .lms-home-panel h3 {
@@ -828,7 +844,7 @@ body.lms-themed *:focus-visible {
 	color: var(--lms-text-muted);
 	font-weight: 600;
 	text-align: left;
-	padding: 0.7rem 1rem;
+	padding: 0.875rem 1.25rem;
 	border-bottom: 1px solid var(--lms-border);
 	white-space: nowrap;
 	font-size: 0.75rem;
@@ -837,7 +853,7 @@ body.lms-themed *:focus-visible {
 }
 
 .lms-data-table td {
-	padding: 0.7rem 1rem;
+	padding: 0.875rem 1.25rem;
 	border-bottom: 1px solid var(--lms-border);
 	color: var(--lms-text);
 }
@@ -856,7 +872,7 @@ body.lms-themed *:focus-visible {
 
 .lms-data-table__actions {
 	display: flex;
-	gap: 0.4rem;
+	gap: 0.5rem;
 	flex-wrap: wrap;
 }
 
@@ -894,27 +910,72 @@ body.lms-themed *:focus-visible {
 	border-radius: var(--lms-radius-lg);
 	box-shadow: var(--lms-shadow-lg);
 	width: 100%;
-	max-width: 480px;
-	padding: 1.5rem;
+	max-width: 560px;
+	padding: 0;
+	overflow: hidden;
 	animation: lms-modal-slide 0.2s ease;
+}
+
+/* Brand accent stripe across the top of the modal — a 3px gradient bar
+ * gives the dialog a subtle visual identity and helps separate header
+ * from body without adding extra DOM. */
+.lms-modal::before {
+	content: "";
+	display: block;
+	height: 3px;
+	background: linear-gradient(90deg, var(--lms-primary) 0%, var(--lms-accent, var(--lms-primary)) 100%);
 }
 
 .lms-modal--lg {
 	max-width: 720px;
 }
 
+/* Wide detail modals (loan detail, policy detail, applicant detail) that
+   contain a summary grid + data tables. The 480/720px variants above are
+   too narrow for the auto-fit summary grid to engage — it collapses to a
+   single column and wastes the viewport. */
+.lms-modal--xl {
+	max-width: 960px;
+}
+
+.lms-modal--xl .lms-summary {
+	grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+	gap: 0.875rem 1rem;
+	margin-bottom: 1.25rem;
+}
+
+.lms-modal--xl .lms-summary-card {
+	padding: 0.85rem 1rem;
+}
+
+.lms-modal--xl .lms-summary-value {
+	font-size: 1.15rem;	/* loan detail cards */
+}
+
+.lms-modal--lg .lms-summary-value {
+	font-size: 1rem;
+}
+
+/* Primary financial metrics (Amount, Outstanding) read visually heavier. */
+.lms-modal--xl .lms-summary-card--primary .lms-summary-value {
+	font-size: 1.5rem;
+	color: var(--lms-accent, var(--lms-primary));
+}
+
 .lms-modal__header {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	margin-bottom: 1.25rem;
+	padding: 1.25rem 1.5rem 0.5rem 1.5rem;
+	margin: 0;
 }
 
 .lms-modal__header h3 {
 	margin: 0;
-	font-size: 1.1rem;
+	font-size: 1.15rem;
 	font-weight: 700;
 	color: var(--lms-text);
+	letter-spacing: -0.01em;
 }
 
 .lms-modal__close {
@@ -938,13 +999,18 @@ body.lms-themed *:focus-visible {
 }
 
 .lms-modal__body {
-	margin-bottom: 1.25rem;
+	padding: 0.5rem 1.5rem 1.25rem 1.5rem;
+	margin: 0;
 }
 
 .lms-modal__actions {
 	display: flex;
 	justify-content: flex-end;
 	gap: 0.75rem;
+	padding: 1rem 1.5rem 1.25rem 1.5rem;
+	border-top: 1px solid var(--lms-border);
+	background: var(--lms-surface-alt, var(--lms-surface));
+	margin: 0;
 }
 
 @keyframes lms-modal-fade {
@@ -1113,19 +1179,31 @@ body.lms-themed *:focus-visible {
 /* ------------------------------------------------------------------ */
 /* Section header (panel title + optional action)                      */
 /* ------------------------------------------------------------------ */
+/* .lms-section-header — used as the form section dividers (e.g. the
+ * borrower KYC form has Identity / Contact / KYC & consent sections).
+ * Headers may use h3 or h4 depending on surrounding hierarchy. */
 .lms-section-header {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	margin-bottom: 1rem;
+	margin: 1.5rem 0 0.75rem;
+	padding: 0 0.15rem 0.55rem;
 	gap: 1rem;
+	border-bottom: 1px solid var(--lms-border);
 }
 
-.lms-section-header h3 {
+.lms-section-header:first-child {
+	margin-top: 0.5rem;
+}
+
+.lms-section-header h3,
+.lms-section-header h4 {
 	margin: 0;
-	font-size: 1rem;
+	font-size: 0.95rem;
 	font-weight: 700;
 	color: var(--lms-text);
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
 }
 
 .lms-section-header .lms-btn {
@@ -1137,23 +1215,66 @@ body.lms-themed *:focus-visible {
 /* ------------------------------------------------------------------ */
 .lms-grid-2 {
 	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-	gap: 1rem;
-	grid-auto-rows: 1fr;
+	grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+	gap: 0.85rem 1rem;
+}
+
+/* Inside a modal the form is narrower — collapse to 1-col on small
+ * modals, 2-col on medium+ to make every form field readable without
+ * horizontal scrolling. 3 fields per row only when the modal is wide. */
+.lms-modal .lms-grid-2 {
+	grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+	gap: 0.75rem 0.85rem;
+}
+.lms-modal--lg .lms-grid-2 {
+	grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+.lms-grid-2__full,
+.lms-grid-2 > .lms-grid-2__full {
+	grid-column: 1 / -1;
 }
 
 .lms-grid-3 {
 	display: grid;
 	grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
 	gap: 1rem;
-	grid-auto-rows: 1fr;
 }
 
 .lms-grid-4 {
 	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+	grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
 	gap: 1rem;
-	grid-auto-rows: 1fr;
+}
+
+/* Form layout — labels stack their inputs and run full-width by default
+   unless the parent uses .lms-grid-2/3/4 (then label fills a single cell). */
+.lms-form {
+	display: flex;
+	flex-direction: column;
+	gap: 0.85rem;
+}
+.lms-form > label {
+	display: flex;
+	flex-direction: column;
+	gap: 0.3rem;
+	font-size: 0.85rem;
+	font-weight: 600;
+	color: var(--lms-text, #111827);
+}
+.lms-form > label .lms-input,
+.lms-form > label select {
+	font-weight: 400;
+}
+.lms-form .lms-section-header {
+	margin: 0.5rem 0 0.25rem;
+}
+.lms-form .lms-section-header h4 {
+	margin: 0;
+	font-size: 0.85rem;
+	font-weight: 700;
+	color: var(--lms-text-muted, #6b7280);
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
 }
 
 @media (max-width: 600px) {
@@ -1168,4 +1289,228 @@ body.lms-themed *:focus-visible {
 	.lms-notification-panel {
 		width: 100%;
 	}
+}
+
+/* ------------------------------------------------------------------ */
+/* Cross-portal polish — fill in classes referenced by portal JS but  */
+/* not yet defined. (Audited 2026-07-15.)                              */
+/* ------------------------------------------------------------------ */
+
+/* Chart slot — wraps a Chart.js canvas with a header + sized body.
+   The previous audit found the officer portal putting the id on a <div>,
+   so Chart.js had no 2D context to acquire. */
+.lms-chart-slot {
+	background: var(--lms-surface, #fff);
+	border: 1px solid var(--lms-border, #e5e7eb);
+	border-radius: var(--lms-radius-lg, 12px);
+	padding: 1.25rem 1.5rem;
+	margin-bottom: 1.5rem;
+	box-shadow: var(--lms-shadow-sm, 0 1px 2px rgba(0, 0, 0, 0.04));
+}
+.lms-chart-slot--lg {
+	min-height: 320px;
+}
+.lms-chart-slot__head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 0.85rem;
+}
+.lms-chart-slot__head h3 {
+	margin: 0;
+	font-size: 1rem;
+	font-weight: 700;
+	color: var(--lms-text, #111827);
+}
+.lms-chart-slot__body {
+	position: relative;
+	width: 100%;
+	min-height: 220px;
+}
+.lms-chart-slot__body canvas {
+	display: block;
+	width: 100% !important;
+	max-width: 100%;
+	height: 220px !important;
+}
+.lms-chart-slot--lg .lms-chart-slot__body,
+.lms-chart-slot--lg .lms-chart-slot__body canvas {
+	min-height: 280px;
+	height: 280px !important;
+}
+
+/* Tall modals — cap height and scroll on overflow content (loan detail,
+   borrower detail, policy detail) so tables never overflow the viewport. */
+.lms-modal {
+	max-height: 90vh;
+	display: flex;
+	flex-direction: column;
+	/* When the body grows past available space, the body scrolls while
+	 * the header (with brand stripe) and the actions bar stay pinned. */
+}
+.lms-modal__body {
+	overflow-y: auto;
+	flex: 1 1 auto;
+	min-height: 0;
+	max-height: 100%;
+}
+
+/* Section header — used on the officer Loans tab ("Pending Disbursement" /
+   "Active Loans"). Was rendering as unstyled inline content. */
+.lms-section-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1rem;
+	margin-bottom: 0.85rem;
+}
+.lms-section-header h3 {
+	margin: 0;
+	font-size: 1.05rem;
+	font-weight: 700;
+	color: var(--lms-text, #111827);
+}
+.lms-section-header__title {
+	font-size: 1.05rem;
+	font-weight: 700;
+	color: var(--lms-text, #111827);
+}
+.lms-section-header__controls {
+	display: flex;
+	gap: 0.5rem;
+	align-items: center;
+}
+
+/* Badge variants referenced by officer JS (--muted) and the pending-
+   disbursement count (--warning). .lms-badge--success / --danger / --info
+   are already defined elsewhere; --warning and --muted were not. */
+.lms-badge--warning {
+	background: rgba(245, 158, 11, 0.12);
+	color: #b45309;
+	border: 1px solid rgba(245, 158, 11, 0.3);
+}
+.lms-badge--muted {
+	background: var(--lms-surface-alt, #f3f4f6);
+	color: var(--lms-text-muted, #6b7280);
+	border: 1px solid var(--lms-border, #e5e7eb);
+}
+.lms-badge--success {
+	background: rgba(34, 197, 94, 0.12);
+	color: #15803d;
+	border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+/* Form helper — gives modal forms consistent spacing. */
+.lms-form {
+	display: flex;
+	flex-direction: column;
+	gap: 0.85rem;
+}
+
+/* Custom select arrow — replaces native browser arrow so the select
+   looks consistent with the rest of the themed inputs. */
+.lms-fallback-select {
+	appearance: none;
+	-webkit-appearance: none;
+	-moz-appearance: none;
+	background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+	background-repeat: no-repeat;
+	background-position: right 0.6rem center;
+	background-size: 14px 14px;
+	padding-right: 2rem;
+}
+.lms-fallback-select::-ms-expand {
+	display: none;
+}
+
+/* Quick-action tiles used in the officer topbar. */
+.lms-quick-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+	margin-bottom: 1rem;
+}
+.lms-quick-action {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.4rem;
+	padding: 0.5rem 0.85rem;
+	background: var(--lms-surface, #fff);
+	border: 1px solid var(--lms-border, #e5e7eb);
+	border-radius: var(--lms-radius, 8px);
+	font-size: 0.875rem;
+	font-weight: 600;
+	cursor: pointer;
+	color: var(--lms-text, #111827);
+	transition: background 0.12s, border-color 0.12s;
+}
+.lms-quick-action:hover {
+	background: var(--lms-surface-alt, #f9fafb);
+	border-color: var(--lms-primary, #2f4f46);
+}
+.lms-quick-action svg {
+	width: 16px;
+	height: 16px;
+}
+
+/* Generic stack used by officer and manager portal lists. */
+.lms-stack {
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+}
+
+/* ------------------------------------------------------------------ */
+/* User menu dropdown (topbar avatar)                                 */
+/* ------------------------------------------------------------------ */
+.lms-user-menu {
+	position: relative;
+}
+.lms-user-menu.is-open .lms-user-menu__dropdown {
+	display: block;
+}
+.lms-user-menu__dropdown {
+	display: none;
+	position: absolute;
+	right: 0;
+	top: calc(100% + 0.5rem);
+	min-width: 220px;
+	background: var(--lms-surface, #fff);
+	border: 1px solid var(--lms-border, #e5e7eb);
+	border-radius: var(--lms-radius, 8px);
+	box-shadow: var(--lms-shadow-lg, 0 8px 30px rgba(0, 0, 0, 0.07));
+	padding: 0.4rem 0;
+	z-index: 1100;
+}
+.lms-user-menu__item {
+	display: block;
+	padding: 0.55rem 0.95rem;
+	color: var(--lms-text, #111827);
+	font-size: 0.875rem;
+	text-decoration: none;
+	cursor: pointer;
+}
+.lms-user-menu__item--info {
+	cursor: default;
+	border-bottom: 1px solid var(--lms-border, #e5e7eb);
+	margin-bottom: 0.3rem;
+	padding-bottom: 0.7rem;
+}
+.lms-user-menu__name {
+	font-weight: 700;
+	color: var(--lms-text, #111827);
+}
+.lms-user-menu__email {
+	font-size: 0.75rem;
+	color: var(--lms-text-muted, #6b7280);
+	margin-top: 0.15rem;
+}
+.lms-user-menu__item--action:hover {
+	background: var(--lms-surface-alt, #f9fafb);
+}
+.lms-user-menu__item--danger {
+	color: var(--lms-danger, #dc2626);
+}
+.lms-user-menu__item--danger:hover {
+	background: rgba(220, 38, 38, 0.06);
 }

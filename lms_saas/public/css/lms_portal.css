@@ -20,12 +20,11 @@ body.lms-portal {
 /* ------------------------------------------------------------------ */
 /* App shell: sidebar + topbar + main                                 */
 /* ------------------------------------------------------------------ */
-.lms-app-shell {
+.lms-shell {
 	display: flex;
 	min-height: 100vh;
 }
 
-.lms-app-body,
 .lms-main {
 	flex: 1 1 auto;
 	display: flex;
@@ -35,197 +34,47 @@ body.lms-portal {
 	transition: margin-left 0.2s ease;
 }
 
-.lms-app-body.is-expanded,
-.lms-main.is-expanded {
-	margin-left: var(--lms-sidebar-collapsed-width, 56px);
-}
-
-.lms-sidebar-backdrop {
-	display: none;
-	position: fixed;
-	inset: 0;
-	background: rgba(0, 0, 0, 0.4);
-	z-index: 99;
-	opacity: 0;
-	transition: opacity 0.2s ease;
-}
-
-.lms-sidebar-backdrop.is-visible {
-	display: block;
-	opacity: 1;
-}
-
-.lms-main {
-	flex: 1 1 auto;
-	padding: var(--lms-content-padding-y) var(--lms-content-padding-x);
-	overflow-x: hidden;
+.lms-main.is-mini {
+	margin-left: var(--lms-sidebar-collapsed-width);
 }
 
 .lms-content {
 	flex: 1 1 auto;
-	width: 100%;
-	max-width: var(--lms-content-max, none);
-	padding: var(--lms-content-padding-y) 0;
+	padding: clamp(1.5rem, 3vw, 2.75rem) clamp(1.5rem, 3vw, 2.5rem);
+	overflow-x: hidden;
+	max-width: 100%;
 }
 
-/* ------------------------------------------------------------------ */
-/* Page header + primary action                                       */
-/* ------------------------------------------------------------------ */
-.lms-page-header {
-	display: flex;
-	flex-direction: column;
-	gap: 1rem;
-	margin-bottom: 1.25rem;
-	padding: 1.25rem 1.5rem;
-	background: var(--lms-surface);
-	border: 1px solid var(--lms-border);
-	border-radius: var(--lms-radius);
-	box-shadow: var(--lms-shadow-sm);
+/* Cards / panels should never stretch past ~1280px on wide screens */
+.lms-panel,
+.lms-card,
+.lms-bento {
+	max-width: 1320px;
+	margin-left: auto;
+	margin-right: auto;
 }
 
-.lms-page-header__text {
-	flex: 1;
+.lms-content > h1:first-child,
+.lms-content > h2:first-child {
+	margin-top: 0;
+	margin-bottom: 1.5rem;
+	letter-spacing: -0.015em;
 }
 
-.lms-page-header__title {
-	margin: 0 0 0.35rem;
-	font-size: 1.5rem;
-	font-weight: 700;
-	color: var(--lms-text);
-}
-
-.lms-page-header__subtitle {
-	margin: 0;
-	color: var(--lms-text-muted);
-	font-size: 0.92rem;
-}
-
-.lms-page-header__action {
-	display: inline-flex;
-	align-items: center;
-	gap: 0.5rem;
-	align-self: flex-start;
-}
-
-@media (min-width: 640px) {
-	.lms-page-header {
-		flex-direction: row;
-		align-items: center;
-		justify-content: space-between;
-	}
-
-	.lms-page-header__action {
-		align-self: center;
-	}
-}
-
-/* ------------------------------------------------------------------ */
-/* Quick-action bar (replaces page header for staff portals)           */
-/* ------------------------------------------------------------------ */
-.lms-quick-actions {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 0.6rem;
-	margin-bottom: 1.25rem;
-	padding: 0.85rem 1.1rem;
-	background: var(--lms-surface);
-	border: 1px solid var(--lms-border);
-	border-radius: var(--lms-radius);
-	box-shadow: var(--lms-shadow-sm);
-}
-
-.lms-quick-action {
-	display: inline-flex;
-	align-items: center;
-	gap: 0.5rem;
-	padding: 0.6rem 1.1rem;
-	font-size: 0.875rem;
-	font-weight: 600;
-	border-radius: var(--lms-radius-sm);
-	border: 1px solid var(--lms-border);
-	background: var(--lms-surface);
-	color: var(--lms-text);
-	cursor: pointer;
-	transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
-}
-
-.lms-quick-action:hover {
-	background: var(--lms-surface-alt);
-	border-color: var(--lms-primary);
-	color: var(--lms-primary);
-}
-
-.lms-quick-action:active {
-	transform: scale(0.97);
-}
-
-.lms-quick-action.lms-btn--primary {
-	border-color: var(--lms-primary);
-}
-
-.lms-quick-action svg {
-	flex-shrink: 0;
-}
-
-/* ------------------------------------------------------------------ */
-/* Vertical stack rhythm for panels/cards inside a tab                */
-/* ------------------------------------------------------------------ */
-.lms-stack {
-	display: flex;
-	flex-direction: column;
-	gap: 1.25rem;
-}
-
-.lms-stack > .lms-panel,
-.lms-stack > .lms-chart-slot,
-.lms-stack > .lms-summary,
-.lms-stack > .lms-grid,
-.lms-stack > .lms-grid-2,
-.lms-stack > .lms-grid-4 {
-	margin-bottom: 0;
-}
-
-/* ------------------------------------------------------------------ */
-/* Tab navigation                                                     */
-/* ------------------------------------------------------------------ */
-.lms-tab-nav {
-	display: flex;
-	gap: 0.25rem;
-	border-bottom: 2px solid var(--lms-border);
-	margin-bottom: 1.25rem;
-	flex-wrap: wrap;
-}
-
-.lms-tab {
-	padding: 0.6rem 1rem;
-	border: none;
-	background: none;
-	border-bottom: 2px solid transparent;
-	color: var(--lms-text-muted);
-	font-weight: 400;
-	cursor: pointer;
-	transition: color 0.15s ease, border-color 0.15s ease;
-}
-
-.lms-tab:hover {
-	color: var(--lms-primary);
-}
-
-.lms-tab--active,
-.lms-tab.is-active {
-	color: var(--lms-primary);
-	border-bottom-color: var(--lms-primary);
-	font-weight: 600;
-}
-
-/* ------------------------------------------------------------------ */
-/* Report tabs                                                        */
-/* ------------------------------------------------------------------ */
-.lms-report-tabs {
-	display: flex;
-	gap: 0.5rem;
-	flex-wrap: wrap;
+.lms-content > h3:first-child {
+	margin-top: 0.75rem;
 	margin-bottom: 1rem;
+}
+
+.lms-content p {
+	line-height: 1.6;
+	color: var(--lms-text);
+}
+
+/* Page root (used by most portal pages) — give it a nice inner margin */
+.lms-portal-root,
+[id$="-root"] {
+	padding-top: 0.5rem;
 }
 
 /* ------------------------------------------------------------------ */
@@ -241,38 +90,45 @@ body.lms-portal {
 	flex-direction: column;
 	z-index: 100;
 	transition: transform 0.2s ease, width 0.2s ease;
-	overflow: hidden;
 }
 
-.lms-sidebar.is-collapsed {
-	width: var(--lms-sidebar-collapsed-width, 56px);
+.lms-sidebar.is-mini {
+	width: var(--lms-sidebar-collapsed-width);
 }
 
-.lms-sidebar.is-collapsed .lms-sidebar__brand-text,
-.lms-sidebar.is-collapsed .lms-sidebar__label,
-.lms-sidebar.is-collapsed .lms-sidebar__footer .lms-sidebar__item .lms-sidebar__label {
+.lms-sidebar.is-mini .lms-sidebar__brand-text,
+.lms-sidebar.is-mini .lms-sidebar__item span:not(.lms-sidebar__icon),
+.lms-sidebar.is-mini .lms-sidebar__role,
+.lms-sidebar.is-mini .lms-sidebar__toggle-label,
+.lms-sidebar.is-mini .lms-sidebar__nav-heading {
 	display: none;
 }
 
-.lms-sidebar.is-collapsed .lms-sidebar__brand {
+.lms-sidebar.is-mini .lms-sidebar__item {
+	justify-content: center;
+	padding: 0.65rem;
+	gap: 0;
+}
+
+.lms-sidebar.is-mini .lms-sidebar__brand {
 	justify-content: center;
 	padding: 1rem 0.5rem;
+	gap: 0;
 }
 
-.lms-sidebar.is-collapsed .lms-sidebar__item {
+.lms-sidebar.is-mini .lms-sidebar__footer {
+	padding: 0.5rem;
+}
+
+.lms-sidebar.is-mini .lms-sidebar__toggle {
 	justify-content: center;
-	padding: 0.65rem 0.5rem;
-}
-
-.lms-sidebar.is-collapsed .lms-sidebar__footer {
-	padding: 0.75rem 0.5rem;
 }
 
 .lms-sidebar__brand {
 	display: flex;
 	align-items: center;
-	gap: 0.75rem;
-	padding: 1rem 1.1rem;
+	gap: 0.85rem;
+	padding: 1.1rem 1.25rem;
 	border-bottom: 1px solid var(--lms-border);
 	min-height: 64px;
 }
@@ -312,7 +168,8 @@ body.lms-portal {
 	font-size: 1rem;
 	font-weight: 700;
 	color: var(--lms-text);
-	line-height: 1.2;
+	line-height: 1.3;
+	letter-spacing: 0.01em;
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -324,19 +181,20 @@ body.lms-portal {
 	text-transform: uppercase;
 	letter-spacing: 0.05em;
 	margin-top: 0.15rem;
+	margin-bottom: 0.35rem;
 }
 
 .lms-sidebar__nav {
 	flex: 1 1 auto;
-	padding: 0.75rem 0.65rem;
+	padding: 1rem 0.75rem;
 	overflow-y: auto;
 }
 
 .lms-sidebar__item {
 	display: flex;
 	align-items: center;
-	gap: 0.75rem;
-	padding: 0.65rem 0.85rem;
+	gap: 0.85rem;
+	padding: 0.75rem 1rem;
 	border-radius: var(--lms-radius);
 	color: var(--lms-text-muted);
 	text-decoration: none;
@@ -357,6 +215,7 @@ body.lms-portal {
 	background: var(--lms-nav-active-bg);
 	border-left-color: var(--lms-accent);
 	font-weight: 600;
+	box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.06);
 }
 
 .lms-sidebar__icon {
@@ -376,70 +235,76 @@ body.lms-portal {
 }
 
 .lms-sidebar__toggle {
-	display: none;
-	position: fixed;
-	top: 1rem;
-	left: 1rem;
-	z-index: 110;
-	width: 40px;
-	height: 40px;
+	display: flex;
+	width: 100%;
+	align-items: center;
+	gap: 0.65rem;
+	padding: 0.7rem 0.85rem;
 	border-radius: var(--lms-radius);
-	background: var(--lms-surface);
+	background: var(--lms-surface-alt);
 	border: 1px solid var(--lms-border);
 	color: var(--lms-text);
-	align-items: center;
-	justify-content: center;
 	cursor: pointer;
-	box-shadow: var(--lms-shadow-sm);
+	font-size: 0.8rem;
+	font-weight: 500;
+	transition: background 0.15s ease, color 0.15s ease;
 }
 
-/* Section header — two-row responsive layout */
-.lms-section-header {
-	display: flex;
-	flex-direction: column;
-	gap: 0.75rem;
-	margin-bottom: 1rem;
+.lms-sidebar__toggle:hover {
+	background: var(--lms-nav-active-bg);
+	color: var(--lms-primary);
 }
 
-.lms-section-header__title {
-	display: flex;
-	align-items: center;
-	gap: 0.5rem;
-	flex-wrap: wrap;
+.lms-sidebar__toggle svg {
+	flex-shrink: 0;
+	stroke-width: 2;
 }
 
-.lms-section-header__title h2,
-.lms-section-header__title h3 {
+.lms-sidebar__toggle-label {
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+/* ------------------------------------------------------------------ */
+/* Backdrop (mobile only)                                             */
+/* ------------------------------------------------------------------ */
+.lms-sidebar-backdrop {
+	position: fixed;
+	inset: 0;
+	background: rgba(15, 23, 42, 0.5);
+	opacity: 0;
+	pointer-events: none;
+	transition: opacity 0.2s ease;
+	z-index: 95;
+}
+
+.lms-sidebar-backdrop.is-visible {
+	opacity: 1;
+	pointer-events: auto;
+}
+
+/* ------------------------------------------------------------------ */
+/* Footer                                                             */
+/* ------------------------------------------------------------------ */
+.lms-footer {
+	padding: 1.5rem clamp(1.25rem, 2.5vw, 2.25rem);
+	color: var(--lms-text-muted);
+	font-size: 0.85rem;
+	text-align: center;
+	border-top: 1px solid var(--lms-border);
+	background: var(--lms-surface);
+}
+
+.lms-footer p {
 	margin: 0;
-	font-size: 1.15rem;
-	font-weight: 700;
-	color: var(--lms-text);
+	letter-spacing: 0.01em;
 }
 
-.lms-section-header__controls {
-	display: flex;
-	gap: 0.5rem;
-	align-items: center;
-	flex-wrap: wrap;
-}
-
-.lms-section-header__controls .lms-input {
-	flex: 1 1 200px;
-	min-width: 180px;
-	max-width: 360px;
-}
-
-.lms-section-header__controls .lms-fallback-select {
-	min-width: 140px;
-	width: auto;
-	flex: 0 1 auto;
-}
-
-@media (min-width: 768px) {
-	.lms-section-header {
-		flex-direction: row;
-		align-items: center;
-		justify-content: space-between;
+@media (min-width: 1025px) {
+	/* Backdrop is meaningless on desktop — keep it inert. */
+	.lms-sidebar-backdrop {
+		display: none;
 	}
 }
 
@@ -449,29 +314,28 @@ body.lms-portal {
 .lms-topbar {
 	position: sticky;
 	top: 0;
-	height: 56px;
+	height: 64px;
 	background: var(--lms-surface);
 	border-bottom: 1px solid var(--lms-border);
 	box-shadow: var(--lms-shadow-sm);
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	padding: 0 clamp(1rem, 2vw, 1.5rem);
+	padding: 0 clamp(1rem, 2.5vw, 1.75rem);
 	z-index: 90;
-	gap: 1rem;
+	gap: 1.25rem;
 }
 
 .lms-topbar__left,
 .lms-topbar__right {
 	display: flex;
 	align-items: center;
-	gap: 0.75rem;
+	gap: 1rem;
 	min-width: 0;
 }
 
 .lms-topbar__menu-btn {
 	display: inline-flex;
-	flex-shrink: 0;
 	width: 36px;
 	height: 36px;
 	border-radius: var(--lms-radius-sm);
@@ -495,19 +359,21 @@ body.lms-portal {
 }
 
 .lms-topbar__title h1 {
-	font-size: 1.1rem;
+	font-size: 1.15rem;
 	font-weight: 700;
 	color: var(--lms-text);
 	margin: 0;
-	line-height: 1.2;
+	line-height: 1.3;
+	letter-spacing: -0.01em;
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
 }
 
 .lms-topbar__disclosure {
-	font-size: 0.7rem;
+	font-size: 0.72rem;
 	color: var(--lms-text-muted);
+	margin-top: 0.1rem;
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -593,34 +459,60 @@ body.lms-portal {
 /* ------------------------------------------------------------------ */
 /* Responsive                                                         */
 /* ------------------------------------------------------------------ */
-@media (max-width: 900px) {
+
+/* Tablet & mobile: sidebar slides over the content (no auto margin) */
+@media (max-width: 1024px) {
+	.lms-main {
+		margin-left: 0;
+	}
+
+	.lms-main.is-mini {
+		margin-left: 0;
+	}
+
 	.lms-sidebar {
 		transform: translateX(-100%);
-		width: var(--lms-sidebar-width);
 	}
 
 	.lms-sidebar.is-open {
 		transform: translateX(0);
+		box-shadow: var(--lms-shadow-lg, 0 10px 40px rgba(0, 0, 0, 0.15));
 	}
 
-	.lms-sidebar.is-collapsed {
-		transform: translateX(-100%);
+	.lms-sidebar.is-mini {
+		/* Mini mode is desktop-only; force full width when sliding out. */
 		width: var(--lms-sidebar-width);
 	}
 
-	.lms-app-body,
-	.lms-app-body.is-expanded,
-	.lms-main,
-	.lms-main.is-expanded {
-		margin-left: 0;
+	.lms-sidebar.is-mini .lms-sidebar__brand-text,
+	.lms-sidebar.is-mini .lms-sidebar__item span:not(.lms-sidebar__icon),
+	.lms-sidebar.is-mini .lms-sidebar__role,
+	.lms-sidebar.is-mini .lms-sidebar__toggle-label,
+	.lms-sidebar.is-mini .lms-sidebar__nav-heading {
+		display: initial;
 	}
 
-	.lms-sidebar__toggle {
-		display: inline-flex;
+	.lms-sidebar.is-mini .lms-sidebar__item {
+		justify-content: flex-start;
+		padding: 0.65rem 0.85rem;
+		gap: 0.75rem;
 	}
 
-	.lms-topbar__disclosure {
-		display: none;
+	.lms-sidebar.is-mini .lms-sidebar__brand {
+		justify-content: flex-start;
+		padding: 1rem 1.1rem;
+		gap: 0.75rem;
+	}
+
+	.lms-sidebar__toggle-label {
+		display: initial;
+	}
+}
+
+/* On large screens, mini mode is sticky: shrink the body margin too. */
+@media (min-width: 1025px) {
+	.lms-main.is-mini {
+		margin-left: var(--lms-sidebar-collapsed-width);
 	}
 }
 
@@ -635,12 +527,65 @@ body.lms-portal {
 }
 
 /* ------------------------------------------------------------------ */
+/* ------------------------------------------------------------------ */
+/* Tabs (used by manager, HR, payroll, support, etc.)                 */
+/* ------------------------------------------------------------------ */
+.lms-tab-nav {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+	margin: 0 0 1.75rem;
+	padding: 0 0 0.5rem;
+	border-bottom: 1px solid var(--lms-border);
+}
+
+.lms-tab {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.5rem;
+	padding: 0.75rem 1.15rem;
+	margin-bottom: -1px;
+	background: transparent;
+	border: none;
+	border-bottom: 3px solid transparent;
+	color: var(--lms-text-muted);
+	font-size: 0.9rem;
+	font-weight: 500;
+	cursor: pointer;
+	border-radius: var(--lms-radius-sm) var(--lms-radius-sm) 0 0;
+	transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+	text-decoration: none;
+	white-space: nowrap;
+}
+
+.lms-tab:hover {
+	color: var(--lms-primary);
+	background: var(--lms-surface-alt);
+}
+
+.lms-tab:focus-visible {
+	outline: 2px solid var(--lms-accent);
+	outline-offset: 2px;
+}
+
+.lms-tab.is-active {
+	color: var(--lms-primary);
+	background: var(--lms-surface);
+	border-bottom-color: var(--lms-primary);
+	font-weight: 600;
+}
+
+.lms-tab--sm {
+	padding: 0.5rem 0.85rem;
+	font-size: 0.85rem;
+}
+
 /* Legacy portal wrap (kept for pages not yet migrated)               */
 /* ------------------------------------------------------------------ */
 .lms-portal-wrap {
 	max-width: 1120px;
 	margin: 0 auto;
-	padding: var(--lms-content-padding-y) var(--lms-content-padding-x) 3rem;
+	padding: 0 1.25rem 3rem;
 }
 
 .lms-portal-header {
@@ -683,30 +628,11 @@ body.lms-portal {
 	letter-spacing: -0.02em;
 }
 
-.lms-home-hero,
-.lms-hero {
-	background: var(--lms-surface);
-	border: 1px solid var(--lms-border);
-	border-radius: var(--lms-radius);
-	box-shadow: var(--lms-shadow-sm);
-	padding: 1.25rem 1.5rem;
-	margin-bottom: 1rem;
-}
-
 .lms-home-hero {
-	margin-bottom: 1rem;
+	margin-bottom: 0;
 }
 
-.lms-hero__title,
-.lms-home-hero h2 {
-	margin: 0 0 0.35rem;
-	font-size: 1.25rem;
-	font-weight: 700;
-	color: var(--lms-text);
-}
-
-.lms-hero__subtitle,
-.lms-home-hero p {
+.lms-home-subtitle {
 	margin: 0;
 	color: var(--lms-text-muted);
 	font-size: 0.92rem;
@@ -715,58 +641,17 @@ body.lms-portal {
 .lms-home-grid {
 	display: grid;
 	grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-	gap: 1rem;
-	margin-bottom: 1.25rem;
-}
-
-.lms-home-panel,
-.lms-panel {
-	background: var(--lms-surface);
-	border: 1px solid var(--lms-border);
-	border-radius: var(--lms-radius);
-	box-shadow: var(--lms-shadow-sm);
-	padding: 1.25rem 1.5rem;
-	margin-bottom: 1rem;
-}
-
-.lms-chart-slot {
-	padding: 0;
-	background: transparent;
-	border: none;
-	box-shadow: none;
-	margin-bottom: 1rem;
+	gap: 1.25rem;
+	margin-bottom: 1.5rem;
 }
 
 .lms-home-panel {
-	padding: 1rem 1.1rem;
+	padding: 1.25rem 1.5rem;
+	margin-bottom: 0;
 }
 
-.lms-panel > h3,
-.lms-panel > h4,
-.lms-chart-slot__head h3 {
-	margin: 0 0 1rem;
-	font-size: 1.05rem;
-	font-weight: 600;
-	color: var(--lms-text);
-}
-
-.lms-home-panel h3,
-.lms-chart-slot__head h3,
-.lms-chart-slot__title {
-	margin: 0 0 0.75rem;
-	font-size: 1rem;
-	font-weight: 600;
-	color: var(--lms-text);
-}
-
-.lms-chart-slot__body {
-	min-height: 80px;
-}
-
-.lms-chart-slot__body:empty::before {
-	content: "";
-	display: block;
-	min-height: 80px;
+.lms-home-panel h3 {
+	margin: 0 0 0.85rem;
 }
 
 .lms-mini-bars {
@@ -798,13 +683,17 @@ body.lms-portal {
 /* Account summary strip */
 .lms-summary {
 	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-	gap: 1rem;
-	margin-bottom: 1.75rem;
+	grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+	gap: 1.125rem;
+	margin-bottom: 2rem;
 }
 
 .lms-summary-card {
-	padding: 1.1rem 1.25rem;
+	padding: 1.25rem 1.5rem;
+	/* Allow long values (emails, IDs, names) to wrap inside the card
+	 * instead of overflowing the card boundary. */
+	min-width: 0;
+	overflow: hidden;
 }
 
 .lms-summary-card--wide {
@@ -822,15 +711,22 @@ body.lms-portal {
 	text-transform: uppercase;
 	letter-spacing: 0.06em;
 	color: var(--lms-text-muted);
-	margin-bottom: 0.35rem;
+	margin-bottom: 0.5rem;
 	font-weight: 600;
 }
 
 .lms-summary-value {
-	font-size: 1.35rem;
+	font-size: 1.1rem;
 	font-weight: 700;
 	color: var(--lms-primary);
-	line-height: 1.2;
+	line-height: 1.3;
+	/* Wrap long values (emails, IDs, names) so they don't overflow
+	 * the card. word-break: break-word wraps at any character; the
+	 * min-width: 0 on .lms-summary-card lets the grid cell shrink so
+	 * the value can wrap rather than pushing the layout wider. */
+	overflow-wrap: anywhere;
+	word-break: break-word;
+	min-width: 0;
 }
 
 .lms-summary-next {
@@ -848,8 +744,7 @@ body.lms-portal {
 .lms-grid {
 	display: grid;
 	grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-	gap: var(--lms-tile-gap, 1rem);
-	margin-bottom: 1rem;
+	gap: 1.25rem;
 }
 
 .lms-card-link {
@@ -954,9 +849,10 @@ body.lms-portal {
 }
 
 .lms-stat-value {
-	font-size: 1.2rem;
+	font-size: 1.1rem;
 	font-weight: 700;
 	color: var(--lms-primary);
+	line-height: 1.3;
 }
 
 .lms-stat-value--sm {
@@ -978,7 +874,6 @@ body.lms-portal {
 	background: var(--lms-surface);
 	box-shadow: var(--lms-shadow-sm);
 	-webkit-overflow-scrolling: touch;
-	margin-bottom: 1rem;
 }
 
 .lms-table {
@@ -992,13 +887,13 @@ body.lms-portal {
 	color: var(--lms-text-muted);
 	font-weight: 600;
 	text-align: left;
-	padding: 0.85rem 1.1rem;
+	padding: 0.875rem 1.25rem;
 	border-bottom: 1px solid var(--lms-border);
 	white-space: nowrap;
 }
 
 .lms-table td {
-	padding: 0.8rem 1.1rem;
+	padding: 0.875rem 1.25rem;
 	border-bottom: 1px solid var(--lms-border);
 }
 
@@ -1032,7 +927,7 @@ body.lms-portal {
 	align-items: center;
 	justify-content: center;
 	gap: 0.5rem;
-	padding: 0.65rem 1.25rem;
+	padding: 0.7rem 1.4rem;
 	border-radius: var(--lms-radius-sm);
 	font-weight: 600;
 	font-size: 0.9rem;
@@ -1081,14 +976,14 @@ body.lms-portal {
 .lms-loading,
 .lms-error {
 	text-align: center;
-	padding: 2.5rem 1.5rem;
+	padding: 3rem 2rem;
 	border-radius: var(--lms-radius-lg);
 	background: var(--lms-surface);
 	border: 1px dashed var(--lms-border);
 }
 
 .lms-empty h3 {
-	margin: 0.5rem 0 0.35rem;
+	margin: 0.65rem 0 0.5rem;
 	font-size: 1.1rem;
 }
 
@@ -1146,8 +1041,9 @@ body.lms-portal {
 .lms-section-title {
 	font-size: 1.05rem;
 	font-weight: 600;
-	margin: 1.5rem 0 0.75rem;
+	margin: 1.75rem 0 1rem;
 	color: var(--lms-text);
+	letter-spacing: -0.005em;
 }
 
 /* Skeleton */
@@ -1523,7 +1419,7 @@ body.lms-portal-borrower .form-control:focus {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	padding: 1rem 1.25rem;
+	padding: 1.1rem 1.5rem;
 	border-bottom: 1px solid var(--lms-border);
 }
 .lms-notification-panel__header h3 {
@@ -1531,6 +1427,8 @@ body.lms-portal-borrower .form-control:focus {
 	font-size: 1rem;
 	font-weight: 700;
 	color: var(--lms-text);
+	letter-spacing: -0.01em;
+}
 }
 .lms-notification-panel__close {
 	background: none;
@@ -1547,7 +1445,7 @@ body.lms-portal-borrower .form-control:focus {
 	padding: 0.5rem 0;
 }
 .lms-notification-item {
-	padding: 0.75rem 1.25rem;
+	padding: 1rem 1.5rem;
 	border-bottom: 1px solid var(--lms-border);
 }
 .lms-notification-item--unread {
@@ -1910,35 +1808,15 @@ body.lms-portal-borrower .form-control:focus {
 	border-top: 1px solid var(--lms-border);
 }
 
-/* Modal */
-.lms-modal-overlay {
-	position: fixed;
-	inset: 0;
-	background: rgba(0, 0, 0, 0.5);
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	z-index: 1000;
-	padding: 1rem;
-}
-.lms-modal {
-	background: var(--lms-surface);
-	border-radius: var(--lms-radius);
-	box-shadow: var(--lms-shadow-lg);
-	padding: 1.5rem;
-	max-width: 420px;
-	width: 100%;
-}
-.lms-modal h3 {
-	margin: 0 0 1rem;
-	font-size: 1.1rem;
-	font-weight: 700;
-}
+/* Modal styles removed — canonical definition lives in lms_components.css.
+   The block below was a duplicate that loaded later and silently downgraded
+   .lms-modal--lg (720px) back to 420px, breaking the loan / policy / applicant
+   detail modals that rely on the wider variant. */
 .lms-modal-actions {
 	display: flex;
-	gap: 0.75rem;
+	gap: 0.85rem;
 	justify-content: flex-end;
-	margin-top: 1.25rem;
+	margin-top: 1.5rem;
 }
 .lms-sync-error-list {
 	margin: 0.75rem 0;

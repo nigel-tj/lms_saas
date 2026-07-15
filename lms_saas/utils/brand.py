@@ -1,11 +1,53 @@
 """Portal branding defaults and context helpers."""
 
-from urllib.parse import urlparse
-
 from lms_saas.utils.frappe_version import desk_url, lending_home_url
 
 BRAND_LOGO_PATH = "/assets/lms_saas/images/lms-logo.svg"
 BRAND_FAVICON_PATH = "/assets/lms_saas/images/lms-favicon.svg"
+
+DESK_ADMIN_ROLES = frozenset({
+	"System Manager",
+	"Administrator",
+	"Desk User",
+})
+
+
+def _get_user_persona(user: str | None = None) -> str | None:
+	"""Resolve the LMS persona for ``user`` (defaults to current session).
+
+	Thin wrapper around ``lms_saas.utils.portal.resolve_portal_persona`` kept
+	here so other utils (and addons that may import from brand directly) have
+	a stable import path. Returns one of ``"Loan Officer"``, ``"Branch Manager"``,
+	``"Collector"``, ``"Borrower"`` (website Customer), or ``None`` for guests /
+	users without a persona.
+	"""
+	from lms_saas.utils.portal import resolve_portal_persona
+
+	return resolve_portal_persona(user)
+
+
+def _get_user_permissions(persona: str | None, roles: set) -> dict:
+	"""Return a dict of boolean permission flags for the current user.
+
+	Mirrors the permission flags consumed by templates and JS bootinfo.
+	Admins (System Manager / Administrator / Desk User) get every flag.
+	"""
+	roles = roles or set()
+	is_admin = bool(roles & DESK_ADMIN_ROLES)
+	is_borrower = "Customer" in roles and not is_admin
+	is_staff = bool(persona in {"Loan Officer", "Branch Manager", "Collector"}) and not is_admin
+
+	return {
+		"is_admin": is_admin,
+		"is_portal_borrower": is_borrower,
+		"is_portal_staff": is_staff,
+		"can_borrower": is_borrower or is_admin,
+		"can_officer": (persona == "Loan Officer") or is_admin,
+		"can_manager": (persona == "Branch Manager") or is_admin,
+		"can_collect": (persona in {"Loan Officer", "Branch Manager", "Collector"}) or is_admin,
+		"persona": persona,
+	}
+
 
 DEFAULT_BRAND = {
 	"portal_title": "Kesari",
@@ -22,19 +64,6 @@ DEFAULT_BRAND = {
 VALID_LMS_THEMES = frozenset({"default", "midnight", "dark", "auto"})
 
 
-def _is_private_asset_url(value: str | None) -> bool:
-	"""True when URL/path points to private files that website users cannot access."""
-	if not value:
-		return False
-	raw = str(value).strip()
-	if not raw:
-		return False
-
-	path = urlparse(raw).path if "://" in raw else raw
-	path = path.strip().lower()
-	return path.startswith("/private/") or path.startswith("private/")
-
-
 def get_lms_theme():
 	"""Active UI theme id (switch via site_config.json → lms_theme)."""
 	import frappe
@@ -49,7 +78,7 @@ def get_brand_logo_url() -> str:
 
 	try:
 		logo = frappe.get_single_value("Website Settings", "app_logo")
-		if logo and not _is_private_asset_url(logo):
+		if logo:
 			return logo
 	except Exception:
 		pass
@@ -62,7 +91,7 @@ def get_brand_favicon_url() -> str:
 
 	try:
 		favicon = frappe.get_single_value("Website Settings", "favicon")
-		if favicon and not _is_private_asset_url(favicon):
+		if favicon:
 			return favicon
 	except Exception:
 		pass
@@ -75,7 +104,7 @@ def get_brand_splash_url() -> str:
 
 	try:
 		splash = frappe.get_single_value("Website Settings", "splash_image")
-		if splash and not _is_private_asset_url(splash):
+		if splash:
 			return splash
 	except Exception:
 		pass
@@ -160,7 +189,6 @@ def apply_portal_context(context, nav_active="loans", page_js=None):
 	context.lms_js_stack = _lms_portal_js_stack(page_js)
 	context.lms_nav = _build_lms_nav(context)
 	context.lms_page_title = _lms_page_title(nav_active, context)
-	context.lms_page_subtitle = _lms_page_subtitle(nav_active, context)
 
 	# Frappe web bundle expects boot data + build version to be present.
 	from frappe.website.utils import get_boot_data
@@ -178,17 +206,29 @@ def _lms_portal_css_stack():
 
 	return _lms_css_stack(
 		_versioned_asset("css/lms_portal.css", "/assets/lms_saas/css/lms_portal.css"),
+		# Form primitives + popout combobox styles. Without this the
+		# <select> popout triggers and inputs inside modals fall back
+		# to raw browser defaults (2008 grey `2px outset` buttons).
+		_versioned_asset("css/lms_form.css", "/assets/lms_saas/css/lms_form.css"),
 	)
 
 
 def _lms_portal_js_stack(page_js=None):
-	"""JS files for the standalone LMS portal shell."""
+	"""JS files for the standalone LMS portal shell.
+
+	Order matters: lms_modal.js (LMSModal namespace) and lms_forms.js
+	(LMSForms namespace) must load BEFORE any page-specific portal JS
+	that uses LMSModal.open(...) or LMSForms.bindAll(...) — the officer,
+	collector and borrower portals all reference both.
+	"""
 	from lms_saas.hooks import _versioned_asset
 
 	stack = [
 		_versioned_asset("js/lms_brand.js", "/assets/lms_saas/js/lms_brand.js"),
 		_versioned_asset("js/lms_theme.js", "/assets/lms_saas/js/lms_theme.js"),
 		_versioned_asset("js/vendor/chart.min.js", "/assets/lms_saas/js/vendor/chart.min.js"),
+		_versioned_asset("js/lms_modal.js", "/assets/lms_saas/js/lms_modal.js"),
+		_versioned_asset("js/lms_forms.js", "/assets/lms_saas/js/lms_forms.js"),
 		_versioned_asset("js/lms_charts.js", "/assets/lms_saas/js/lms_charts.js"),
 		_versioned_asset("js/lms_portal.js", "/assets/lms_saas/js/lms_portal.js"),
 	]
@@ -198,8 +238,15 @@ def _lms_portal_js_stack(page_js=None):
 
 
 def _build_lms_nav(context):
-	"""Build persona-filtered navigation items for the portal sidebar."""
+	"""Build persona-filtered navigation items for the portal sidebar.
+
+	Addon nav items are appended after the core nav, before the account link.
+	Each addon is only shown if it is enabled in site_config and the user's
+	persona is in the addon's allowed-personas list.
+	"""
 	import frappe
+
+	from lms_saas.utils.addons import addon_nav_items
 
 	items = []
 	persona = context.get("lms_persona")
@@ -220,6 +267,16 @@ def _build_lms_nav(context):
 			items.append({"key": "manager", "label": "Manager", "route": "/lms/manager", "icon": "manager"})
 		items.append({"key": "collect", "label": "Collection Run", "route": "/lms/collect", "icon": "collect"})
 
+	# ── Addon nav items ──
+	# Borrowers see borrower-tagged addons; staff see persona-matched addons.
+	addon_persona = persona
+	if is_borrower and not is_staff:
+		addon_persona = "Borrower"
+	elif not is_staff and not is_borrower:
+		# Admins (desk users) browsing the portal — show all staff addons.
+		addon_persona = "Admin"
+	items.extend(addon_nav_items(addon_persona))
+
 	if frappe.session.user != "Guest":
 		items.append({"key": "account", "label": "My Account", "route": "/lms/account", "icon": "account"})
 
@@ -236,30 +293,29 @@ def _lms_page_title(nav_active, context):
 		"officer": "Loan Officer Dashboard",
 		"manager": "Branch Manager Dashboard",
 		"collect": "Collection Run",
+		# ── Addon page titles ──
+		"announcements": "Announcements",
+		"tasks": "Tasks",
+		"documents": "Document Center",
+		"support": "Support",
+		"hr": "HR Management",
+		"analytics": "Branch Analytics",
+		"regulatory": "Regulatory Hub",
+		"payroll": "Payroll",
+		"appraisals": "Appraisals",
+		"training": "Training & Development",
+		"recruitment": "Recruitment",
+		"procurement": "Procurement",
+		"savings": "Savings Club",
+		"feedback": "Customer Feedback",
+		"visits": "Field Visits",
+		"inventory": "Inventory & Assets",
+		"budgeting": "Budgeting",
+		"insurance": "Insurance",
+		"whatsapp": "WhatsApp",
+		"reconciliation": "Wallet Reconciliation",
 	}
 	return labels.get(nav_active, context.get("brand", {}).get("portal_title", "Kesari"))
-
-
-def _lms_page_subtitle(nav_active, context):
-	"""Return a short per-page description shown in the topbar under the title.
-
-	Falls back to the risk disclosure line when no subtitle is defined for
-	the active page (e.g. borrower-facing pages keep the compliance text).
-	"""
-	import frappe
-
-	subtitles = {
-		"officer": "Track applications, manage your loan portfolio, and onboard borrowers.",
-		"manager": "Branch metrics, loan approvals, and team performance.",
-		"collect": "Field collections and repayment tracking.",
-	}
-	if nav_active in subtitles:
-		return subtitles[nav_active]
-	return (
-		frappe.conf.get("lms_risk_disclosure")
-		or frappe.conf.get("lms_email_legal_footer")
-		or frappe._("Lending involves credit risk. Terms apply to approved borrowers only.")
-	)
 
 
 def update_website_context(context):

@@ -69,7 +69,7 @@
 </section>
 {% endblock %}
 
-{% block script %}
+{% block sidebar_script %}{{ super() }}
 <script>
 frappe.ready(function() {
   if (typeof lms_portal !== 'undefined') {

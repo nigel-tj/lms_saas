@@ -100,6 +100,7 @@ app_include_js = [
 web_include_css = _lms_css_stack(
 	_versioned_asset("css/lms_portal.css", "/assets/lms_saas/css/lms_portal.css"),
 	_versioned_asset("css/lms_staff_portal.css", "/assets/lms_saas/css/lms_staff_portal.css"),
+	_versioned_asset("css/lms_form.css", "/assets/lms_saas/css/lms_form.css"),
 	_versioned_asset("css/lms_login.css", "/assets/lms_saas/css/lms_login.css"),
 	_versioned_asset("css/lms_help.css", "/assets/lms_saas/css/lms_help.css"),
 )
@@ -136,6 +137,27 @@ website_route_rules = [
     {"from_route": "/lms/manager", "to_route": "lms/manager"},
     {"from_route": "/lms-help", "to_route": "lms-help"},
     {"from_route": "/lms-help/<slug>", "to_route": "lms-help"},
+    # ── Addon routes ──
+    {"from_route": "/lms/announcements", "to_route": "lms/announcements"},
+    {"from_route": "/lms/tasks", "to_route": "lms/tasks"},
+    {"from_route": "/lms/documents", "to_route": "lms/documents"},
+    {"from_route": "/lms/support", "to_route": "lms/support"},
+    {"from_route": "/lms/hr", "to_route": "lms/hr"},
+    {"from_route": "/lms/analytics", "to_route": "lms/analytics"},
+    {"from_route": "/lms/regulatory", "to_route": "lms/regulatory"},
+    {"from_route": "/lms/payroll", "to_route": "lms/payroll"},
+    {"from_route": "/lms/appraisals", "to_route": "lms/appraisals"},
+    {"from_route": "/lms/training", "to_route": "lms/training"},
+    {"from_route": "/lms/recruitment", "to_route": "lms/recruitment"},
+    {"from_route": "/lms/procurement", "to_route": "lms/procurement"},
+    {"from_route": "/lms/savings", "to_route": "lms/savings"},
+    {"from_route": "/lms/feedback", "to_route": "lms/feedback"},
+    {"from_route": "/lms/visits", "to_route": "lms/visits"},
+    {"from_route": "/lms/inventory", "to_route": "lms/inventory"},
+    {"from_route": "/lms/budgeting", "to_route": "lms/budgeting"},
+    {"from_route": "/lms/insurance", "to_route": "lms/insurance"},
+    {"from_route": "/lms/whatsapp", "to_route": "lms/whatsapp"},
+    {"from_route": "/lms/reconciliation", "to_route": "lms/reconciliation"},
 ]
 
 standard_portal_menu_items = [
@@ -229,5 +251,13 @@ doc_events = {
             "lms_saas.api.investors.cancel_investor_gl_entry",
             "lms_saas.api.compliance.record_money_event",
         ],
+    },
+    # ── Addon doctype events ──
+    "LMS Announcement": {
+        "validate": "lms_saas.lms_saas.doctype.lms_announcement.lms_announcement.validate",
+        "on_update": "lms_saas.lms_saas.doctype.lms_announcement.lms_announcement.on_update",
+    },
+    "LMS Addon Settings": {
+        "on_update": "lms_saas.lms_saas.doctype.lms_addon_settings.lms_addon_settings.on_update",
     },
 }
