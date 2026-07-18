@@ -201,7 +201,7 @@ LMS_NAV_SPEC = (
         "greeting": "Toggle portal addons on or off. Enabled addons appear in the portal sidebar for users with the matching persona.",
         "shortcut_heading": "Addons",
         "shortcuts": [
-            {"label": "Addon Settings", "type": "DocType", "link_to": "LMS Addon Settings", "doc_view": "Form", "color": "Blue"},
+            {"label": "Addon Settings", "type": "DocType", "link_to": "LMS Addon Settings", "color": "Blue"},
             {"label": "Announcements", "type": "DocType", "link_to": "LMS Announcement", "doc_view": "List", "color": "Cyan"},
             {"label": "Tasks", "type": "URL", "url": "/app/task", "color": "Green"},
             {"label": "Document Categories", "type": "DocType", "link_to": "LMS Document Category", "doc_view": "List", "color": "Orange"},
