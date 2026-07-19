@@ -3,7 +3,7 @@
  "name": "LMS Addon Settings",
  "module": "Lms Saas",
  "custom": 0,
- "is_single": 1,
+ "issingle": 1,
  "track_changes": 1,
  "fields": [
   {
