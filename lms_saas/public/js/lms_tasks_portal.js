@@ -9,13 +9,11 @@ lms_tasks.init = function () {
 	var root = document.getElementById("lms-tasks-root");
 	if (!root) return;
 
-	var html = '<div class="lms-tasks-header" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem;">';
-	html += '<h2 style="margin:0;font-size:var(--lms-fs-xl);font-weight:700;">Tasks</h2>';
-	html += '<div style="display:flex;gap:0.5rem;">';
-	html += '<button type="button" class="lms-btn lms-btn--primary" id="lms-task-new">+ New Task</button>';
-	html += '</div></div>';
-	html += '<div id="lms-task-stats" style="margin-bottom:1rem;"></div>';
-	html += '<div id="lms-task-board"></div>';
+	var html = lms_portal.pageStart() +
+		lms_portal.pageHeader({ title: "Tasks", actions: [{ label: "+ New Task", id: "lms-task-new", primary: true }] }) +
+		'<div id="lms-task-stats"></div>' +
+		'<div id="lms-task-board"></div>' +
+		lms_portal.pageEnd();
 	root.innerHTML = html;
 
 	lms_tasks._loadStats();
@@ -36,20 +34,19 @@ lms_tasks._loadStats = function () {
 		method: "lms_saas.api.tasks.get_task_stats",
 		callback: function (r) {
 			var s = (r && r.message) || {};
-			var html = '<section class="lms-grid-4" aria-label="Task stats">';
-			html += lms_tasks._statCard("Total", s.total || 0);
-			html += lms_tasks._statCard("In Progress", s.in_progress || 0);
-			html += lms_tasks._statCard("Overdue", s.overdue || 0, "danger");
-			html += lms_tasks._statCard("Completed", s.completed || 0, "success");
-			html += "</section>";
-			el.innerHTML = html;
+			el.innerHTML = lms_portal.kpiStrip([
+				{ label: "Total", value: s.total || 0 },
+				{ label: "In Progress", value: s.in_progress || 0 },
+				{ label: "Overdue", value: s.overdue || 0, tone: "danger" },
+				{ label: "Completed", value: s.completed || 0, tone: "success" },
+			]);
 		},
 	});
 };
 
 lms_tasks._statCard = function (label, value, tone) {
 	var cls = tone ? " lms-stat--" + tone : "";
-	return '<div class="lms-stat-card lms-stat' + cls + '" style="padding:1rem;"><div class="lms-stat-label">' +
+	return '<div class="lms-stat-card lms-stat' + cls + '"><div class="lms-stat-label">' +
 		lms_portal.escape(label) + '</div><div class="lms-stat-value">' + value + '</div></div>';
 };
 
@@ -77,31 +74,31 @@ lms_tasks._renderBoard = function (el, data) {
 	// Grid layout with auto-fit so columns wrap into multiple rows on
 	// narrow viewports (no horizontal scroll). Each column min 240px;
 	// grows to fill available space up to ~360px.
-	var html = '<div class="lms-kanban-board" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1rem;align-items:start;padding-bottom:1rem;">';
+	var html = '<div class="lms-kanban-board">';
 	columns.forEach(function (col) {
 		var tasks = board[col.key] || [];
-		html += '<div class="lms-kanban-col" style="min-width:0;">';
-		html += '<div class="lms-kanban-col-header" style="display:flex;justify-content:space-between;align-items:center;padding:0.75rem;background:var(--lms-surface-2);border-radius:var(--lms-radius) var(--lms-radius) 0 0;border:1px solid var(--lms-border);">';
-		html += '<strong style="font-size:var(--lms-fs-sm);">' + lms_portal.escape(col.label) + '</strong>';
+		html += '<div class="lms-kanban-col">';
+		html += '<div class="lms-kanban-col-header">';
+		html += '<strong>' + lms_portal.escape(col.label) + '</strong>';
 		html += '<span class="lms-badge">' + tasks.length + '</span>';
 		html += '</div>';
-		html += '<div class="lms-kanban-col-body" style="background:var(--lms-surface-1);border:1px solid var(--lms-border);border-top:none;border-radius:0 0 var(--lms-radius) var(--lms-radius);padding:0.5rem;min-height:200px;">';
+		html += '<div class="lms-kanban-col-body">';
 		if (!tasks.length) {
-			html += '<p class="lms-muted" style="text-align:center;padding:1.5rem 0;font-size:var(--lms-fs-sm);">No tasks</p>';
+			html += '<p class="lms-muted lms-kanban-empty">No tasks</p>';
 		} else {
 			tasks.forEach(function (t) {
 				var priorityClass = t.priority === "High" ? "lms-badge--danger" : (t.priority === "Medium" ? "lms-badge--warning" : "");
-				html += '<div class="lms-kanban-card lms-panel" style="margin-bottom:0.5rem;padding:0.75rem;cursor:pointer;" data-task="' + lms_portal.escape(t.name) + '" data-status="' + col.key + '">';
-				html += '<div style="font-weight:600;font-size:var(--lms-fs-sm);margin-bottom:0.25rem;">' + lms_portal.escape(t.subject) + '</div>';
+				html += '<div class="lms-kanban-card lms-panel" data-task="' + lms_portal.escape(t.name) + '" data-status="' + col.key + '">';
+				html += '<div class="lms-kanban-card__title">' + lms_portal.escape(t.subject) + '</div>';
 				if (t.reference_name) {
-					html += '<div class="lms-muted" style="font-size:var(--lms-fs-xs);">' + lms_portal.escape(t.reference_type || "") + ": " + lms_portal.escape(t.reference_name) + '</div>';
+					html += '<div class="lms-muted lms-kanban-card__ref">' + lms_portal.escape(t.reference_type || "") + ": " + lms_portal.escape(t.reference_name) + '</div>';
 				}
-				html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:0.5rem;">';
+				html += '<div class="lms-kanban-card__footer">';
 				if (t.priority) {
 					html += '<span class="lms-badge ' + priorityClass + '">' + lms_portal.escape(t.priority) + '</span>';
 				}
 				if (t.exp_end_date) {
-					html += '<span class="lms-muted" style="font-size:var(--lms-fs-xs);">' + lms_portal.formatDate(t.exp_end_date) + '</span>';
+					html += '<span class="lms-muted lms-kanban-card__date">' + lms_portal.formatDate(t.exp_end_date) + '</span>';
 				}
 				html += '</div>';
 				html += '</div>';

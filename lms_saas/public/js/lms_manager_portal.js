@@ -348,15 +348,21 @@ lms_manager._refreshDashboardData = function () {
 lms_manager._loadBorrowers = function (content) {
 	content.innerHTML = lms_portal.loading("Loading borrowers…");
 
-	var html = '<div class="lms-panel">';
-	html += '<div class="lms-section-header"><h3>Borrowers</h3>';
-	html += '<div style="display:flex;gap:0.5rem;align-items:center;">';
-	html += '<input type="text" id="lms-borrower-search" class="lms-input" placeholder="Search by name, mobile, email, ID…" style="flex:1;min-width:200px;">';
-	html += '<button type="button" class="lms-btn lms-btn--primary lms-btn--sm" id="lms-borrower-search-btn">Search</button>';
-	html += '<button type="button" class="lms-btn lms-btn--ghost lms-btn--sm" id="lms-borrower-list-all">List All</button>';
-	html += '</div></div>';
-	html += '<div id="lms-borrower-results"></div>';
-	html += '</div>';
+	// KPI cards are populated by _renderBorrowerTable from the same dataset.
+	var kpis = lms_portal.kpiStrip([
+		{ label: "Total borrowers", value: "—", id: "lms-mn-bk-total" },
+		{ label: "Active loans", value: "—", id: "lms-mn-bk-active" },
+		{ label: "KYC approved", value: "—", id: "lms-mn-bk-kyc" },
+		{ label: "Total outstanding", value: "—", id: "lms-mn-bk-outstanding" },
+	]);
+	var controls =
+		'<input type="text" id="lms-borrower-search" class="lms-input" placeholder="Search by name, mobile, email, ID…">' +
+		'<button type="button" class="lms-btn lms-btn--primary lms-btn--sm" id="lms-borrower-search-btn">Search</button>' +
+		'<button type="button" class="lms-btn lms-btn--ghost lms-btn--sm" id="lms-borrower-list-all">List All</button>';
+	var html = lms_portal.pageStart() +
+		kpis +
+		lms_portal.panel({ title: "Borrowers", controls: controls, body: '<div id="lms-borrower-results"></div>' }) +
+		lms_portal.pageEnd();
 	content.innerHTML = html;
 
 	lms_manager._fetchBorrowers(content, "");
@@ -394,6 +400,26 @@ lms_manager._fetchBorrowers = function (content, query) {
 };
 
 lms_manager._renderBorrowerTable = function (el, borrowers) {
+	// Update KPI cards from the same dataset. Done before the empty-state
+	// check so a "no results" search still shows 0 / — rather than stale
+	// counts from a previous list.
+	var root = document.getElementById("lms-manager-root");
+	if (root) {
+		var totalActive = 0;
+		var totalKyc = 0;
+		var totalOutstanding = 0;
+		borrowers.forEach(function (b) {
+			totalActive += (b.active_loans || 0);
+			if (b.kyc_status === "Approved") totalKyc += 1;
+			totalOutstanding += (b.total_outstanding || 0);
+		});
+		var setKpi = function (id, val) { var n = root.querySelector("#" + id); if (n) n.textContent = val; };
+		setKpi("lms-mn-bk-total", borrowers.length);
+		setKpi("lms-mn-bk-active", totalActive);
+		setKpi("lms-mn-bk-kyc", totalKyc);
+		setKpi("lms-mn-bk-outstanding", format_currency(totalOutstanding));
+	}
+
 	if (!borrowers.length) {
 		el.innerHTML = '<div class="lms-empty"><div class="lms-empty-icon">👤</div><h3>No borrowers found</h3><p>Try a different search or add a new borrower.</p></div>';
 		return;
@@ -483,21 +509,27 @@ lms_manager._showBorrowerModal = function (b) {
 // Loans tab
 // ---------------------------------------------------------------------------
 lms_manager._loadLoans = function (content) {
-	var html = '<div class="lms-panel">';
-	html += '<div class="lms-section-header"><h3>All Loans</h3>';
-	html += '<div style="display:flex;gap:0.5rem;align-items:center;">';
-	html += '<select id="lms-loan-status-filter" class="lms-input lms-fallback-select" style="width:auto;">';
-	html += '<option value="">All Statuses</option>';
-	html += '<option value="Disbursed">Disbursed</option>';
-	html += '<option value="Active">Active</option>';
-	html += '<option value="Partially Disbursed">Partially Disbursed</option>';
-	html += '<option value="Closed">Closed</option>';
-	html += '<option value="Written Off">Written Off</option>';
-	html += '</select>';
-	html += '<button type="button" class="lms-btn lms-btn--primary lms-btn--sm" id="lms-loans-refresh">Refresh</button>';
-	html += '</div></div>';
-	html += '<div id="lms-loan-results"></div>';
-	html += '</div>';
+	// KPIs are populated by _renderLoanTable from the same dataset.
+	var kpis = lms_portal.kpiStrip([
+		{ label: "Total loans", value: "—", id: "lms-mn-ln-total" },
+		{ label: "Active", value: "—", id: "lms-mn-ln-active" },
+		{ label: "Disbursed amount", value: "—", id: "lms-mn-ln-disbursed" },
+		{ label: "Outstanding", value: "—", id: "lms-mn-ln-outstanding" },
+	]);
+	var controls =
+		'<select id="lms-loan-status-filter" class="lms-input lms-fallback-select">' +
+		'<option value="">All Statuses</option>' +
+		'<option value="Disbursed">Disbursed</option>' +
+		'<option value="Active">Active</option>' +
+		'<option value="Partially Disbursed">Partially Disbursed</option>' +
+		'<option value="Closed">Closed</option>' +
+		'<option value="Written Off">Written Off</option>' +
+		'</select>' +
+		'<button type="button" class="lms-btn lms-btn--primary lms-btn--sm" id="lms-loans-refresh">Refresh</button>';
+	var html = lms_portal.pageStart() +
+		kpis +
+		lms_portal.panel({ title: "All Loans", controls: controls, body: '<div id="lms-loan-results"></div>' }) +
+		lms_portal.pageEnd();
 	content.innerHTML = html;
 
 	lms_manager._fetchLoans(content, "");
@@ -530,6 +562,24 @@ lms_manager._fetchLoans = function (content, status) {
 };
 
 lms_manager._renderLoanTable = function (el, loans) {
+	// Update KPI cards from the same dataset.
+	var root = document.getElementById("lms-manager-root");
+	if (root) {
+		var activeCount = 0;
+		var totalDisbursed = 0;
+		var totalOutstanding = 0;
+		loans.forEach(function (l) {
+			if (l.status === "Active" || l.status === "Disbursed" || l.status === "Partially Disbursed") activeCount += 1;
+			totalDisbursed += l.loan_amount || 0;
+			totalOutstanding += l.outstanding || 0;
+		});
+		var setKpi = function (id, val) { var n = root.querySelector("#" + id); if (n) n.textContent = val; };
+		setKpi("lms-mn-ln-total", loans.length);
+		setKpi("lms-mn-ln-active", activeCount);
+		setKpi("lms-mn-ln-disbursed", format_currency(totalDisbursed));
+		setKpi("lms-mn-ln-outstanding", format_currency(totalOutstanding));
+	}
+
 	if (!loans.length) {
 		el.innerHTML = '<div class="lms-empty"><div class="lms-empty-icon">💰</div><h3>No loans found</h3><p>No loans match the current filter.</p></div>';
 		return;
@@ -648,16 +698,18 @@ lms_manager._showLoanModal = function (data) {
 // Reports tab
 // ---------------------------------------------------------------------------
 lms_manager._loadReports = function (content) {
-	var html = '<div class="lms-panel">';
-	html += '<div class="lms-section-header"><h3>Reports</h3></div>';
-	html += '<div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1rem;">';
-	html += '<button type="button" class="lms-btn lms-btn--primary lms-btn--sm lms-report-btn" data-report="arrears">Arrears Aging</button>';
-	html += '<button type="button" class="lms-btn lms-btn--ghost lms-btn--sm lms-report-btn" data-report="disbursement">Disbursement Report</button>';
-	html += '<button type="button" class="lms-btn lms-btn--ghost lms-btn--sm lms-report-btn" data-report="collections">Collections Report</button>';
-	html += '<button type="button" class="lms-btn lms-btn--ghost lms-btn--sm lms-report-btn" data-report="portfolio">Portfolio Summary</button>';
-	html += '</div>';
-	html += '<div id="lms-report-content"></div>';
-	html += '</div>';
+	// Report switcher on top, full-width results panel below. The KPIs live
+	// inside the report content itself (rendered by _loadReport) so they
+	// stay in sync with the active report.
+	var controls =
+		'<button type="button" class="lms-btn lms-btn--primary lms-btn--sm lms-report-btn" data-report="arrears">Arrears Aging</button>' +
+		'<button type="button" class="lms-btn lms-btn--ghost lms-btn--sm lms-report-btn" data-report="disbursement">Disbursement Report</button>' +
+		'<button type="button" class="lms-btn lms-btn--ghost lms-btn--sm lms-report-btn" data-report="collections">Collections Report</button>' +
+		'<button type="button" class="lms-btn lms-btn--ghost lms-btn--sm lms-report-btn" data-report="portfolio">Portfolio Summary</button>';
+	var html = lms_portal.pageStart() +
+		lms_portal.panel({ title: "Reports", controls: controls }) +
+		'<div class="lms-panel" id="lms-report-content"></div>' +
+		lms_portal.pageEnd();
 	content.innerHTML = html;
 
 	lms_manager._loadReport(content, "arrears");
@@ -830,26 +882,47 @@ lms_manager._loadCollateral = function (content) {
 };
 
 lms_manager._renderCollateralRegister = function (el, collateral) {
+	// Compute KPIs from the dataset so the strip and table stay in sync.
+	var totalMarket = 0;
+	var totalNrv = 0;
+	var linkedLoans = 0;
+	collateral.forEach(function (c) {
+		totalMarket += c.market_value || 0;
+		totalNrv += c.net_realizable_value || 0;
+		linkedLoans += ((c.linked_loans || []).length);
+	});
+
+	var html = lms_portal.pageStart() +
+		lms_portal.kpiStrip([
+			{ label: "Items", value: collateral.length },
+			{ label: "Market value", value: format_currency(totalMarket) },
+			{ label: "Net realisable", value: format_currency(totalNrv) },
+			{ label: "Linked loans", value: linkedLoans },
+		]);
+
 	if (!collateral.length) {
-		el.innerHTML = '<div class="lms-panel"><div class="lms-empty"><div class="lms-empty-icon">🏠</div><h3>No collateral registered</h3><p>Collateral will appear here once loans have pledged assets.</p></div></div>';
+		html += lms_portal.emptyPanel("🏠", "No collateral registered", "Collateral will appear here once loans have pledged assets.");
+		html += lms_portal.pageEnd();
+		el.innerHTML = html;
 		return;
 	}
-	var html = '<div class="lms-panel">';
-	html += '<div class="lms-section-header"><h3>Collateral Register</h3><span class="lms-muted">' + collateral.length + ' items</span></div>';
-	html += '<div class="lms-data-table__wrap"><table class="lms-data-table">';
-	html += "<thead><tr><th>Collateral #</th><th>Type</th><th>Description</th><th>Market Value</th><th>NRV</th><th>Status</th><th>Linked Loans</th></tr></thead><tbody>";
+
+	var body = '<div class="lms-data-table__wrap"><table class="lms-data-table">' +
+		"<thead><tr><th>Collateral #</th><th>Type</th><th>Description</th><th>Market Value</th><th>NRV</th><th>Status</th><th>Linked Loans</th></tr></thead><tbody>";
 	collateral.forEach(function (c) {
-		html += "<tr>";
-		html += "<td><strong>" + lms_portal.escape(c.name || "") + "</strong></td>";
-		html += "<td>" + lms_portal.escape(c.collateral_type || "—") + "</td>";
-		html += "<td>" + lms_portal.escape(c.collateral_title || "—") + "</td>";
-		html += "<td>" + format_currency(c.market_value || 0) + "</td>";
-		html += "<td>" + format_currency(c.net_realizable_value || 0) + "</td>";
-		html += "<td>" + lms_portal.escape(c.status || "—") + "</td>";
-		html += "<td>" + ((c.linked_loans || []).length) + "</td>";
-		html += "</tr>";
+		body += "<tr>";
+		body += "<td><strong>" + lms_portal.escape(c.name || "") + "</strong></td>";
+		body += "<td>" + lms_portal.escape(c.collateral_type || "—") + "</td>";
+		body += "<td>" + lms_portal.escape(c.collateral_title || "—") + "</td>";
+		body += "<td>" + format_currency(c.market_value || 0) + "</td>";
+		body += "<td>" + format_currency(c.net_realizable_value || 0) + "</td>";
+		body += "<td>" + lms_portal.escape(c.status || "—") + "</td>";
+		body += "<td>" + ((c.linked_loans || []).length) + "</td>";
+		body += "</tr>";
 	});
-	html += "</tbody></table></div></div>";
+	body += "</tbody></table></div>";
+	html += lms_portal.panel({ title: "Collateral Register", badge: collateral.length + " items", body: body });
+	html += lms_portal.pageEnd();
 	el.innerHTML = html;
 };
 
@@ -871,23 +944,49 @@ lms_manager._loadTeam = function (content) {
 };
 
 lms_manager._renderTeam = function (el, staff) {
+	// Compute KPIs from the dataset.
+	var totalLoans = 0;
+	var byPersona = {};
+	staff.forEach(function (s) {
+		totalLoans += s.loan_count || 0;
+		var p = s.persona || "—";
+		byPersona[p] = (byPersona[p] || 0) + 1;
+	});
+	// Pick the dominant persona for the "Top role" card.
+	var topPersona = "—";
+	var topCount = 0;
+	Object.keys(byPersona).forEach(function (k) {
+		if (byPersona[k] > topCount) { topCount = byPersona[k]; topPersona = k; }
+	});
+
+	var html = lms_portal.pageStart() +
+		lms_portal.kpiStrip([
+			{ label: "Members", value: staff.length },
+			{ label: "Loans managed", value: totalLoans },
+			{ label: "Avg per member", value: staff.length ? Math.round(totalLoans / staff.length) : 0 },
+			{ label: "Top role", value: topPersona },
+		]);
+
 	if (!staff.length) {
-		el.innerHTML = '<div class="lms-panel"><div class="lms-empty"><div class="lms-empty-icon">👥</div><h3>No staff found</h3><p>No active staff in your branch.</p></div></div>';
+		html += lms_portal.emptyPanel("👥", "No staff found", "No active staff in your branch.");
+		html += lms_portal.pageEnd();
+		el.innerHTML = html;
 		return;
 	}
-	var html = '<div class="lms-panel">';
-	html += '<div class="lms-section-header"><h3>Branch Team</h3><span class="lms-muted">' + staff.length + ' members</span></div>';
-	html += '<div class="lms-data-table__wrap"><table class="lms-data-table">';
-	html += "<thead><tr><th>Name</th><th>Designation</th><th>Persona</th><th>Loans</th><th>User</th></tr></thead><tbody>";
+
+	var body = '<div class="lms-data-table__wrap"><table class="lms-data-table">' +
+		"<thead><tr><th>Name</th><th>Designation</th><th>Persona</th><th>Loans</th><th>User</th></tr></thead><tbody>";
 	staff.forEach(function (s) {
-		html += "<tr>";
-		html += "<td><strong>" + lms_portal.escape(s.employee_name || s.name) + "</strong></td>";
-		html += "<td>" + lms_portal.escape(s.designation || "—") + "</td>";
-		html += '<td><span class="lms-badge">' + lms_portal.escape(s.persona || "—") + "</span></td>";
-		html += "<td>" + (s.loan_count || 0) + "</td>";
-		html += "<td>" + lms_portal.escape(s.user_id || "—") + "</td>";
-		html += "</tr>";
+		body += "<tr>";
+		body += "<td><strong>" + lms_portal.escape(s.employee_name || s.name) + "</strong></td>";
+		body += "<td>" + lms_portal.escape(s.designation || "—") + "</td>";
+		body += '<td><span class="lms-badge">' + lms_portal.escape(s.persona || "—") + "</span></td>";
+		body += "<td>" + (s.loan_count || 0) + "</td>";
+		body += "<td>" + lms_portal.escape(s.user_id || "—") + "</td>";
+		body += "</tr>";
 	});
-	html += "</tbody></table></div></div>";
+	body += "</tbody></table></div>";
+	html += lms_portal.panel({ title: "Branch Team", badge: staff.length + " members", body: body });
+	html += lms_portal.pageEnd();
 	el.innerHTML = html;
 };

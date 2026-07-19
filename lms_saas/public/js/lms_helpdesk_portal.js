@@ -14,12 +14,14 @@ lms_helpdesk.init = function () {
 		frappe.boot.user_roles.indexOf("Customer") >= 0 &&
 		frappe.boot.user_roles.indexOf("LMS Portal Staff") < 0);
 
-	var html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem;">';
-	html += '<h2 style="margin:0;font-size:var(--lms-fs-xl);font-weight:700;">' + (isBorrower ? "My Support Tickets" : "Support Desk") + '</h2>';
-	html += '<button type="button" class="lms-btn lms-btn--primary" id="lms-hd-new">+ New Ticket</button>';
-	html += '</div>';
-	html += '<div id="lms-hd-stats" style="margin-bottom:1rem;"></div>';
-	html += '<div id="lms-hd-queue"></div>';
+	var html = lms_portal.pageStart() +
+		lms_portal.pageHeader({
+			title: isBorrower ? "My Support Tickets" : "Support Desk",
+			actions: [{ label: "+ New Ticket", id: "lms-hd-new", primary: true }],
+		}) +
+		'<div id="lms-hd-stats"></div>' +
+		'<div id="lms-hd-queue"></div>' +
+		lms_portal.pageEnd();
 	root.innerHTML = html;
 
 	lms_helpdesk._loadStats(isBorrower);
@@ -40,20 +42,19 @@ lms_helpdesk._loadStats = function (isBorrower) {
 		method: "lms_saas.api.helpdesk.get_ticket_stats",
 		callback: function (r) {
 			var s = (r && r.message) || {};
-			var html = '<section class="lms-grid-4">';
-			html += lms_helpdesk._statCard("Total", s.total || 0);
-			html += lms_helpdesk._statCard("Open", s.open || 0, "warning");
-			html += lms_helpdesk._statCard("Replied", s.replied || 0, "info");
-			html += lms_helpdesk._statCard("Closed", s.closed || 0, "success");
-			html += "</section>";
-			el.innerHTML = html;
+			el.innerHTML = lms_portal.kpiStrip([
+				{ label: "Total", value: s.total || 0 },
+				{ label: "Open", value: s.open || 0, tone: "warning" },
+				{ label: "Replied", value: s.replied || 0 },
+				{ label: "Closed", value: s.closed || 0, tone: "success" },
+			]);
 		},
 	});
 };
 
 lms_helpdesk._statCard = function (label, value, tone) {
 	var cls = tone ? " lms-stat--" + tone : "";
-	return '<div class="lms-stat-card lms-stat' + cls + '" style="padding:1rem;"><div class="lms-stat-label">' +
+	return '<div class="lms-stat-card lms-stat' + cls + '"><div class="lms-stat-label">' +
 		lms_portal.escape(label) + '</div><div class="lms-stat-value">' + value + '</div></div>';
 };
 
