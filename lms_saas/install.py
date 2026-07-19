@@ -1337,6 +1337,32 @@ def _seed_addon_settings():
     if not frappe.db.exists("DocType", "LMS Addon Settings"):
         return
 
+    # Force the DocType record to match the JSON's issingle flag. Older sites
+    # installed from a JSON that used the wrong key (``is_single`` instead of
+    # ``issingle``), so the DocType was created as a normal table-backed type
+    # and frappe.get_single() raises DoesNotExistError. Reload from JSON fixes
+    # the record; this is idempotent and cheap.
+    meta = frappe.get_meta("LMS Addon Settings")
+    if not meta.issingle:
+        from frappe.modules.import_file import import_file_by_path
+
+        path = frappe.get_app_path("lms_saas") + (
+            "/lms_saas/doctype/lms_addon_settings/lms_addon_settings.json"
+        )
+        import_file_by_path(path, force=True, ignore_version=True)
+        frappe.db.commit()
+        frappe.clear_cache(doctype="LMS Addon Settings")
+
+        # Drop the stale table-backed copy created when the DocType was
+        # wrongly treated as a normal (non-single) type. It only ever held
+        # the standard Frappe meta columns (no real field data, since the
+        # JSON fields were never synced into it), so it is safe to remove.
+        # Single DocTypes store their values in tabSingles instead.
+        table_name = "tabLMS Addon Settings"
+        if frappe.db.sql("SHOW TABLES LIKE %s", table_name):
+            frappe.db.sql_ddl("DROP TABLE IF EXISTS `%s`" % table_name)
+            frappe.db.commit()
+
     doc = frappe.get_single("LMS Addon Settings")
     existing_keys = {row.addon_key for row in (doc.addons or [])}
     if existing_keys == set(ADDON_REGISTRY.keys()):
