@@ -1337,13 +1337,14 @@ def _seed_addon_settings():
     if not frappe.db.exists("DocType", "LMS Addon Settings"):
         return
 
-    # Force the DocType record to match the JSON's issingle flag. Older sites
-    # installed from a JSON that used the wrong key (``is_single`` instead of
-    # ``issingle``), so the DocType was created as a normal table-backed type
-    # and frappe.get_single() raises DoesNotExistError. Reload from JSON fixes
-    # the record; this is idempotent and cheap.
-    meta = frappe.get_meta("LMS Addon Settings")
-    if not meta.issingle:
+    # Older sites installed from a JSON that used the wrong key (``is_single``
+    # instead of ``issingle``), so the DocType was created as a normal
+    # table-backed type and frappe.get_single() raises DoesNotExistError.
+    # Read the flag straight from the DB (the meta cache can lag the record)
+    # and, if it is not single, force-reload the DocType from the corrected
+    # JSON and drop the stale table-backed copy.
+    issingle = frappe.db.get_value("DocType", "LMS Addon Settings", "issingle")
+    if not frappe.utils.cint(issingle):
         from frappe.modules.import_file import import_file_by_path
 
         path = frappe.get_app_path("lms_saas") + (
@@ -1363,7 +1364,15 @@ def _seed_addon_settings():
             frappe.db.sql_ddl("DROP TABLE IF EXISTS `%s`" % table_name)
             frappe.db.commit()
 
-    doc = frappe.get_single("LMS Addon Settings")
+    # Load the single. Fall back to new_doc if the meta cache still thinks
+    # the DocType is non-single (can happen mid-migrate before the cache
+    # catches up); new_doc never hits the DB so it cannot raise.
+    try:
+        doc = frappe.get_single("LMS Addon Settings")
+    except frappe.DoesNotExistError:
+        frappe.clear_cache(doctype="LMS Addon Settings")
+        doc = frappe.new_doc("LMS Addon Settings")
+
     existing_keys = {row.addon_key for row in (doc.addons or [])}
     if existing_keys == set(ADDON_REGISTRY.keys()):
         return  # already fully populated
