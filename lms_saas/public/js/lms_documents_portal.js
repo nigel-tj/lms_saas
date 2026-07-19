@@ -9,14 +9,15 @@ lms_documents.init = function () {
 	var root = document.getElementById("lms-documents-root");
 	if (!root) return;
 
-	var html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem;">';
-	html += '<h2 style="margin:0;font-size:var(--lms-fs-xl);font-weight:700;">Document Center</h2>';
-	html += '<div style="display:flex;gap:0.5rem;">';
-	html += '<select id="lms-doc-cat-filter" class="lms-input lms-fallback-select" style="width:auto;"><option value="">All Categories</option></select>';
-	html += '<button type="button" class="lms-btn lms-btn--primary" id="lms-doc-refresh">Refresh</button>';
-	html += '</div></div>';
-	html += '<div id="lms-doc-stats" style="margin-bottom:1rem;"></div>';
-	html += '<div id="lms-doc-list"></div>';
+	// Header panel with category filter + refresh action.
+	var controls =
+		'<select id="lms-doc-cat-filter" class="lms-input lms-fallback-select"><option value="">All Categories</option></select>' +
+		'<button type="button" class="lms-btn lms-btn--primary lms-btn--sm" id="lms-doc-refresh">Refresh</button>';
+	var html = lms_portal.pageStart() +
+		lms_portal.panel({ title: "Document Center", controls: controls }) +
+		'<div id="lms-doc-stats"></div>' +
+		'<div id="lms-doc-list"></div>' +
+		lms_portal.pageEnd();
 	root.innerHTML = html;
 
 	lms_documents._loadStats();
@@ -45,13 +46,12 @@ lms_documents._loadStats = function () {
 		method: "lms_saas.api.documents_center.get_document_stats",
 		callback: function (r) {
 			var s = (r && r.message) || {};
-			var html = '<section class="lms-grid-4">';
-			html += lms_documents._statCard("Total Documents", s.total_documents || 0);
-			html += lms_documents._statCard("Categories", s.categories || 0);
-			html += lms_documents._statCard("Expiring (30d)", s.expiring_30_days || 0, "warning");
-			html += lms_documents._statCard("Expired", s.expired || 0, "danger");
-			html += "</section>";
-			el.innerHTML = html;
+			el.innerHTML = lms_portal.kpiStrip([
+				{ label: "Total Documents", value: s.total_documents || 0 },
+				{ label: "Categories", value: s.categories || 0 },
+				{ label: "Expiring (30d)", value: s.expiring_30_days || 0, tone: "warning" },
+				{ label: "Expired", value: s.expired || 0, tone: "danger" },
+			]);
 		},
 	});
 };
@@ -99,12 +99,12 @@ lms_documents._loadDocuments = function (category) {
 
 lms_documents._renderList = function (el, docs) {
 	if (!docs.length) {
-		el.innerHTML = '<div class="lms-panel"><div class="lms-empty"><div class="lms-empty-icon">📁</div><h3>No documents</h3><p>Documents will appear here once uploaded.</p></div></div>';
+		el.innerHTML = lms_portal.emptyPanel("📁", "No documents", "Documents will appear here once uploaded.");
 		return;
 	}
 
-	var html = '<div class="lms-panel"><div class="lms-data-table__wrap"><table class="lms-data-table">';
-	html += "<thead><tr><th>Name</th><th>Category</th><th>Linked To</th><th>Size</th><th>Modified</th><th>Status</th><th>Action</th></tr></thead><tbody>";
+	var body = '<div class="lms-data-table__wrap"><table class="lms-data-table">';
+	body += "<thead><tr><th>Name</th><th>Category</th><th>Linked To</th><th>Size</th><th>Modified</th><th>Status</th><th>Action</th></tr></thead><tbody>";
 	docs.forEach(function (d) {
 		var size = d.file_size ? (d.file_size / 1024).toFixed(1) + " KB" : "—";
 		var linked = d.attached_to_doctype ? d.attached_to_doctype + ": " + (d.attached_to_name || "") : "—";
@@ -117,16 +117,16 @@ lms_documents._renderList = function (el, docs) {
 			status = "Expires " + lms_portal.formatDate(d.expiry_date);
 			statusClass = "lms-badge--warning";
 		}
-		html += "<tr>";
-		html += "<td><strong>" + lms_portal.escape(d.file_name || "") + "</strong></td>";
-		html += "<td>" + lms_portal.escape(d.category || "Uncategorized") + "</td>";
-		html += "<td>" + lms_portal.escape(linked) + "</td>";
-		html += "<td>" + size + "</td>";
-		html += "<td>" + lms_portal.formatDate(d.modified) + "</td>";
-		html += '<td><span class="lms-badge ' + statusClass + '">' + lms_portal.escape(status) + "</span></td>";
-		html += '<td><a href="' + lms_portal.escape(d.file_url || "#") + '" target="_blank" class="lms-btn lms-btn--ghost lms-btn--sm">Download</a></td>';
-		html += "</tr>";
+		body += "<tr>";
+		body += "<td><strong>" + lms_portal.escape(d.file_name || "") + "</strong></td>";
+		body += "<td>" + lms_portal.escape(d.category || "Uncategorized") + "</td>";
+		body += "<td>" + lms_portal.escape(linked) + "</td>";
+		body += "<td>" + size + "</td>";
+		body += "<td>" + lms_portal.formatDate(d.modified) + "</td>";
+		body += '<td><span class="lms-badge ' + statusClass + '">' + lms_portal.escape(status) + "</span></td>";
+		body += '<td><a href="' + lms_portal.escape(d.file_url || "#") + '" target="_blank" class="lms-btn lms-btn--ghost lms-btn--sm">Download</a></td>';
+		body += "</tr>";
 	});
-	html += "</tbody></table></div></div>";
-	el.innerHTML = html;
+	body += "</tbody></table></div>";
+	el.innerHTML = lms_portal.panel({ body: body });
 };

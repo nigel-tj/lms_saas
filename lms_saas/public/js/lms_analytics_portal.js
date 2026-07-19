@@ -16,16 +16,16 @@ lms_analytics.init = function () {
 		{ id: "leaderboard", label: "Leaderboard", icon: "🏆" },
 		{ id: "trends", label: "Trends", icon: "📈" },
 	];
-	var html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem;">';
-	html += '<h2 style="margin:0;font-size:var(--lms-fs-xl);font-weight:700;">Branch Analytics</h2>';
-	html += '</div>';
-	html += '<nav class="lms-tab-nav" role="tablist">';
+	var html = lms_portal.pageStart() +
+		lms_portal.pageHeader({ title: "Branch Analytics" }) +
+		'<nav class="lms-tab-nav" role="tablist">';
 	tabs.forEach(function (t) {
 		var active = lms_analytics._currentTab === t.id ? " is-active" : "";
 		html += '<button type="button" class="lms-tab' + active + '" data-tab="' + t.id + '" role="tab" aria-selected="' + (active ? "true" : "false") + '">' + t.icon + " " + lms_portal.escape(t.label) + "</button>";
 	});
 	html += "</nav>";
 	html += '<div id="lms-analytics-tab-content"></div>';
+	html += lms_portal.pageEnd();
 	root.innerHTML = html;
 
 	root.querySelectorAll(".lms-tab").forEach(function (btn) {
@@ -36,9 +36,7 @@ lms_analytics.init = function () {
 				b.setAttribute("aria-selected", "false");
 			});
 			btn.classList.add("is-active");
-			btn.style.borderBottom = "2px solid var(--lms-primary)";
-			btn.style.color = "var(--lms-primary)";
-			btn.style.fontWeight = "600";
+			btn.setAttribute("aria-selected", "true");
 			lms_analytics._showTab(lms_analytics._currentTab);
 		});
 	});
@@ -101,7 +99,7 @@ lms_analytics._loadComparison = function (content) {
 			html += "</tbody></table></div></div>";
 
 			// Benchmark alerts
-			html += '<div id="lms-analytics-alerts" style="margin-top:1.5rem;"></div>';
+			html += '<div id="lms-analytics-alerts"></div>';
 			content.innerHTML = html;
 			lms_analytics._loadAlerts();
 		},
@@ -119,20 +117,22 @@ lms_analytics._loadAlerts = function () {
 		callback: function (r) {
 			var alerts = (r && r.message && r.message.alerts) || [];
 			if (!alerts.length) {
-				el.innerHTML = '<div class="lms-panel" style="margin-top:1rem;"><div class="lms-empty"><div class="lms-empty-icon">✓</div><h3>All clear</h3><p>No benchmark alerts.</p></div></div>';
+				el.innerHTML = '<div class="lms-panel"><div class="lms-empty"><div class="lms-empty-icon">✓</div><h3>All clear</h3><p>No benchmark alerts.</p></div></div>';
 				return;
 			}
-			var html = '<h3 style="margin:1rem 0 0.5rem;font-size:var(--lms-fs-lg);">Benchmark Alerts</h3>';
+			var html = '<div class="lms-stack" style="margin-top:1rem;">';
+			html += '<h3 style="margin:0;font-size:var(--lms-fs-lg);">Benchmark Alerts</h3>';
 			alerts.forEach(function (a) {
 				var cls = a.severity === "danger" ? "lms-badge--danger" : "lms-badge--warning";
-				html += '<div class="lms-panel" style="margin-bottom:0.75rem;padding:0.75rem;">';
-				html += '<div style="display:flex;justify-content:space-between;align-items:center;">';
+				html += '<div class="lms-panel">';
+				html += '<div class="lms-section-header">';
 				html += '<div><strong>' + lms_portal.escape(a.branch) + '</strong> — ' + lms_portal.escape(a.metric) + '</div>';
 				html += '<span class="lms-badge ' + cls + '">' + lms_portal.escape(a.value) + ' / ' + lms_portal.escape(a.threshold) + '</span>';
 				html += '</div>';
-				html += '<div class="lms-muted" style="margin-top:0.25rem;font-size:var(--lms-fs-sm);">' + lms_portal.escape(a.message) + '</div>';
+				html += '<div class="lms-muted">' + lms_portal.escape(a.message) + '</div>';
 				html += '</div>';
 			});
+			html += '</div>';
 			el.innerHTML = html;
 		},
 	});
@@ -143,18 +143,19 @@ lms_analytics._loadAlerts = function () {
 lms_analytics._leaderboardMetric = "disbursements";
 
 lms_analytics._loadLeaderboard = function (content) {
-	var html = '<div style="display:flex;gap:0.5rem;margin-bottom:1rem;">';
+	// Metric switcher buttons built as controls HTML, then passed to panel().
 	var metrics = [
 		{ id: "disbursements", label: "Disbursements" },
 		{ id: "collections", label: "Collections" },
 		{ id: "par", label: "PAR (30+)" },
 	];
+	var controls = "";
 	metrics.forEach(function (m) {
 		var active = lms_analytics._leaderboardMetric === m.id;
-		html += '<button type="button" class="lms-btn ' + (active ? "lms-btn--primary" : "lms-btn--ghost") + ' lms-btn--sm lms-analytic-metric" data-metric="' + m.id + '">' + lms_portal.escape(m.label) + "</button>";
+		controls += '<button type="button" class="lms-btn ' + (active ? "lms-btn--primary" : "lms-btn--ghost") + ' lms-btn--sm lms-analytic-metric" data-metric="' + m.id + '">' + lms_portal.escape(m.label) + "</button>";
 	});
-	html += '</div>';
-	html += '<div id="lms-analytics-leaderboard-table"></div>';
+	var html = lms_portal.panel({ title: "Leaderboard", controls: controls }) +
+		'<div id="lms-analytics-leaderboard-table"></div>';
 	content.innerHTML = html;
 
 	content.querySelectorAll(".lms-analytic-metric").forEach(function (btn) {
@@ -219,18 +220,18 @@ lms_analytics._loadTrends = function (content) {
 	];
 	var periods = [3, 6, 12];
 
-	var html = '<div style="display:flex;gap:0.5rem;margin-bottom:1rem;flex-wrap:wrap;">';
+	// Metric + period switcher buttons as controls HTML.
+	var controls = "";
 	metrics.forEach(function (m) {
 		var active = lms_analytics._trendMetric === m.id;
-		html += '<button type="button" class="lms-btn ' + (active ? "lms-btn--primary" : "lms-btn--ghost") + ' lms-btn--sm lms-trend-metric" data-metric="' + m.id + '">' + lms_portal.escape(m.label) + "</button>";
+		controls += '<button type="button" class="lms-btn ' + (active ? "lms-btn--primary" : "lms-btn--ghost") + ' lms-btn--sm lms-trend-metric" data-metric="' + m.id + '">' + lms_portal.escape(m.label) + "</button>";
 	});
-	html += '<span style="flex:1;"></span>';
 	periods.forEach(function (p) {
 		var active = lms_analytics._trendMonths === p;
-		html += '<button type="button" class="lms-btn ' + (active ? "lms-btn--primary" : "lms-btn--ghost") + ' lms-btn--sm lms-trend-period" data-months="' + p + '">' + p + "M</button>";
+		controls += '<button type="button" class="lms-btn ' + (active ? "lms-btn--primary" : "lms-btn--ghost") + ' lms-btn--sm lms-trend-period" data-months="' + p + '">' + p + "M</button>";
 	});
-	html += '</div>';
-	html += '<div id="lms-analytics-trend-chart"></div>';
+	var html = lms_portal.panel({ title: "Trends", controls: controls }) +
+		'<div id="lms-analytics-trend-chart"></div>';
 	content.innerHTML = html;
 
 	content.querySelectorAll(".lms-trend-metric").forEach(function (btn) {

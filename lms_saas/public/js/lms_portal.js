@@ -146,6 +146,104 @@ lms_portal.error = function (message, retryFn) {
 	return html;
 };
 
+/* ------------------------------------------------------------------ */
+/* lms_portal layout helpers (DRY — shared by every portal)             */
+/* ------------------------------------------------------------------ */
+/* Every portal page follows the same skeleton:                        */
+/*   <div class="lms-stack">                                            */
+/*     <header panel with title + actions>                              */
+/*     <KPI summary strip>                                              */
+/*     <content panels>                                                 */
+/*   </div>                                                             */
+/* These helpers build that skeleton so each portal only declares its   */
+/* title, KPIs, and content — no repeated boilerplate.                  */
+
+/* Open a .lms-stack wrapper. Returns the opening HTML. Pair with       */
+/* lms_portal.pageEnd().                                                */
+lms_portal.pageStart = function () {
+	return '<div class="lms-stack">';
+};
+
+/* Close a .lms-stack wrapper opened by pageStart().                   */
+lms_portal.pageEnd = function () {
+	return '</div>';
+};
+
+/* A header panel with a title and optional action buttons.             */
+/* opts: { title, actions: [ {label, id, primary, ghost, sm} ] }        */
+lms_portal.pageHeader = function (opts) {
+	opts = opts || {};
+	var html = '<div class="lms-panel">';
+	html += '<div class="lms-section-header">';
+	html += '<div class="lms-section-header__title"><h2 style="margin:0;font-size:var(--lms-fs-xl);font-weight:700;">' + lms_portal.escape(opts.title || "") + '</h2></div>';
+	var actions = opts.actions || [];
+	if (actions.length) {
+		html += '<div class="lms-section-header__controls">';
+		actions.forEach(function (a) {
+			var cls = "lms-btn " + (a.primary ? "lms-btn--primary" : "lms-btn--ghost");
+			if (a.sm !== false) cls += " lms-btn--sm";
+			html += '<button type="button" class="' + cls + '"';
+			if (a.id) html += ' id="' + lms_portal.escape(a.id) + '"';
+			html += '>' + lms_portal.escape(a.label || "") + '</button>';
+		});
+		html += '</div>';
+	}
+	html += '</div></div>';
+	return html;
+};
+
+/* A KPI summary strip. Pass an array of {label, value, tone, id}.          */
+/* tone is optional: "warning" | "danger" | "success" | "info".          */
+/* id is optional: if set, the value cell gets id="<id>" so callers can  */
+/* update it in place after async loads.                                */
+lms_portal.kpiStrip = function (cards) {
+	if (!cards || !cards.length) return "";
+	var html = '<section class="lms-summary" aria-label="KPIs">';
+	cards.forEach(function (c) {
+		var cls = "lms-summary-card";
+		if (c.tone === "warning") cls += " lms-summary-card--warning";
+		else if (c.tone === "danger") cls += " lms-summary-card--danger";
+		else if (c.tone === "success") cls += " lms-summary-card--success";
+		html += '<div class="' + cls + '">';
+		html += '<div class="lms-summary-label">' + lms_portal.escape(c.label || "") + '</div>';
+		var val = (c.value === undefined || c.value === null) ? "—" : c.value;
+		var idAttr = c.id ? ' id="' + lms_portal.escape(c.id) + '"' : "";
+		html += '<div class="lms-summary-value"' + idAttr + '>' + val + '</div>';
+		html += '</div>';
+	});
+	html += '</section>';
+	return html;
+};
+
+/* A full-width content panel with an optional section header.          */
+/* opts: { title, badge, controls: "<html>", body: "<html>" }           */
+/* If only body is given, renders a plain panel.                         */
+lms_portal.panel = function (opts) {
+	opts = opts || {};
+	var html = '<div class="lms-panel">';
+	if (opts.title) {
+		html += '<div class="lms-section-header">';
+		html += '<div class="lms-section-header__title"><h3>' + lms_portal.escape(opts.title) + '</h3></div>';
+		if (opts.badge || opts.controls) {
+			html += '<div class="lms-section-header__controls">';
+			if (opts.badge) html += '<span class="lms-badge ' + (opts.badgeClass || "") + '">' + lms_portal.escape(opts.badge) + '</span>';
+			if (opts.controls) html += opts.controls;
+			html += '</div>';
+		}
+		html += '</div>';
+	}
+	if (opts.body) html += opts.body;
+	html += '</div>';
+	return html;
+};
+
+/* An empty-state panel. icon + title + message.                        */
+lms_portal.emptyPanel = function (icon, title, message) {
+	return '<div class="lms-panel"><div class="lms-empty"><div class="lms-empty-icon">' +
+		(icon || "📋") + '</div><h3>' + lms_portal.escape(title || "Nothing here") +
+		'</h3><p>' + lms_portal.escape(message || "") + '</p></div></div>';
+};
+
 lms_portal.badgeClass = function (dpd, status) {
 	if ((dpd || 0) > 90) return "lms-badge--npa";
 	if ((dpd || 0) > 30) return "lms-badge--watch";

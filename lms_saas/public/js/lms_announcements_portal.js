@@ -14,13 +14,11 @@ lms_announcements.init = function () {
 		(frappe.boot.user_roles.indexOf("System Manager") >= 0 ||
 		 frappe.boot.user_roles.indexOf("Administrator") >= 0));
 
-	var html = '<div class="lms-announcements-header" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem;">';
-	html += '<h2 style="margin:0;font-size:var(--lms-fs-xl);font-weight:700;">Announcements</h2>';
-	if (isAdmin) {
-		html += '<button type="button" class="lms-btn lms-btn--primary" id="lms-ann-new">+ New Announcement</button>';
-	}
-	html += '</div>';
-	html += '<div id="lms-ann-list"></div>';
+	var actions = isAdmin ? [{ label: "+ New Announcement", id: "lms-ann-new", primary: true }] : [];
+	var html = lms_portal.pageStart() +
+		lms_portal.pageHeader({ title: "Announcements", actions: actions }) +
+		'<div id="lms-ann-list"></div>' +
+		lms_portal.pageEnd();
 	root.innerHTML = html;
 
 	lms_announcements._loadList();
@@ -58,20 +56,20 @@ lms_announcements._renderList = function (el, items) {
 		return;
 	}
 
-	var html = "";
+	var html = '<div class="lms-stack">';
 	items.forEach(function (ann) {
 		var date = lms_portal.formatDate(ann.publish_date);
 		var ackBadge = "";
 		if (ann.requires_acknowledgement && !ann.acknowledged) {
-			ackBadge = ' <span class="lms-badge lms-badge--warning" style="margin-left:0.5rem;">Action required</span>';
+			ackBadge = ' <span class="lms-badge lms-badge--warning">Action required</span>';
 		} else if (ann.acknowledged) {
-			ackBadge = ' <span class="lms-badge lms-badge--success" style="margin-left:0.5rem;">✓ Acknowledged</span>';
+			ackBadge = ' <span class="lms-badge lms-badge--success">✓ Acknowledged</span>';
 		}
 
-		html += '<div class="lms-panel" style="margin-bottom:1rem;">';
+		html += '<div class="lms-panel">';
 		html += '<div class="lms-section-header"><h3 style="margin:0;">' + lms_portal.escape(ann.title) + ackBadge + '</h3>';
 		html += '<span class="lms-muted">' + date + '</span></div>';
-		html += '<div style="margin-top:0.75rem;line-height:1.6;">' + (ann.body || "") + "</div>";
+		html += '<div class="lms-ann-body">' + (ann.body || "") + "</div>";
 
 		if (ann.requires_acknowledgement && !ann.acknowledged) {
 			html += '<div style="margin-top:1rem;">';
@@ -81,6 +79,7 @@ lms_announcements._renderList = function (el, items) {
 
 		html += '</div>';
 	});
+	html += '</div>'; // .lms-stack
 	el.innerHTML = html;
 
 	// Bind acknowledge buttons

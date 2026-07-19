@@ -687,16 +687,24 @@ lms_officer._openBorrowerModal = function () {
 // Borrowers tab
 // ---------------------------------------------------------------------------
 lms_officer._loadBorrowers = function (content) {
-	var html = '<div class="lms-panel">';
-	html += '<div class="lms-section-header">';
-	html += '<div class="lms-section-header__title"><h3>Borrowers</h3></div>';
-	html += '<div class="lms-section-header__controls">';
-	html += '<input type="text" id="lms-of-borrower-search" class="lms-input" placeholder="Search by name, mobile, email, ID…">';
-	html += '<button type="button" class="lms-btn lms-btn--primary lms-btn--sm" id="lms-of-borrower-search-btn">Search</button>';
-	html += '<button type="button" class="lms-btn lms-btn--ghost lms-btn--sm" id="lms-of-borrower-list-all">List All</button>';
-	html += '</div></div>';
-	html += '<div id="lms-of-borrower-results"></div>';
-	html += '</div>';
+	// KPI cards are populated by _renderBorrowerTable from the same dataset
+	// the table uses, so they never go out of sync. The ids are referenced
+	// there, so keep them stable.
+	var kpis = lms_portal.kpiStrip([
+		{ label: "Total borrowers", value: "—", id: "lms-of-bk-total" },
+		{ label: "Active loans", value: "—", id: "lms-of-bk-active" },
+		{ label: "KYC approved", value: "—", id: "lms-of-bk-kyc" },
+		{ label: "KYC pending", value: "—", id: "lms-of-bk-kyc-pending" },
+	]);
+
+	var controls =
+		'<input type="text" id="lms-of-borrower-search" class="lms-input" placeholder="Search by name, mobile, email, ID…">' +
+		'<button type="button" class="lms-btn lms-btn--primary lms-btn--sm" id="lms-of-borrower-search-btn">Search</button>' +
+		'<button type="button" class="lms-btn lms-btn--ghost lms-btn--sm" id="lms-of-borrower-list-all">List All</button>';
+	var html = lms_portal.pageStart() +
+		kpis +
+		lms_portal.panel({ title: "Borrowers", controls: controls, body: '<div id="lms-of-borrower-results"></div>' }) +
+		lms_portal.pageEnd();
 	content.innerHTML = html;
 
 	lms_officer._fetchBorrowers(content, "");
@@ -733,6 +741,27 @@ lms_officer._fetchBorrowers = function (content, query) {
 };
 
 lms_officer._renderBorrowerTable = function (el, borrowers) {
+	// Update KPI cards from the same dataset. Done before the empty-state
+	// check so a "no results" search still shows 0 / — rather than stale
+	// counts from a previous list.
+	var root = document.getElementById("lms-officer-root");
+	if (root) {
+		var total = borrowers.length;
+		var activeLoans = 0;
+		var kycApproved = 0;
+		var kycPending = 0;
+		borrowers.forEach(function (b) {
+			activeLoans += (b.active_loans || 0);
+			if (b.kyc_status === "Approved") kycApproved += 1;
+			else kycPending += 1;
+		});
+		var setKpi = function (id, val) { var n = root.querySelector("#" + id); if (n) n.textContent = val; };
+		setKpi("lms-of-bk-total", total);
+		setKpi("lms-of-bk-active", activeLoans);
+		setKpi("lms-of-bk-kyc", kycApproved);
+		setKpi("lms-of-bk-kyc-pending", kycPending);
+	}
+
 	if (!borrowers.length) {
 		el.innerHTML = '<div class="lms-empty"><div class="lms-empty-icon">👤</div><h3>No borrowers found</h3><p>Try a different search.</p></div>';
 		return;
@@ -827,60 +856,88 @@ lms_officer._loadLoans = function (content) {
 };
 
 lms_officer._renderLoansTab = function (el, pending, active) {
-	var hasAny = pending.length || active.length;
-	if (!hasAny) {
-		el.innerHTML = '<div class="lms-panel"><div class="lms-empty"><div class="lms-empty-icon">💰</div><h3>No loans assigned</h3><p>You have no loans assigned. Approved applications will appear here for disbursement.</p></div></div>';
+	// KPI summary — pending / active / total outstanding / avg ticket. Computed
+	// once from the same data the tables render so the cards never drift.
+	var totalOutstanding = 0;
+	var totalDisbursed = 0;
+	active.forEach(function (l) {
+		totalOutstanding += l.outstanding || 0;
+		totalDisbursed += l.loan_amount || 0;
+	});
+	pending.forEach(function (l) {
+		totalDisbursed += l.loan_amount || 0;
+	});
+	var avgTicket = (pending.length + active.length)
+		? totalDisbursed / (pending.length + active.length)
+		: 0;
+
+	var html = lms_portal.pageStart() +
+		lms_portal.kpiStrip([
+			{ label: "Pending disbursement", value: pending.length, tone: pending.length ? "warning" : "" },
+			{ label: "Active loans", value: active.length },
+			{ label: "Total outstanding", value: format_currency(totalOutstanding) },
+			{ label: "Avg ticket", value: format_currency(avgTicket) },
+		]);
+
+	if (!pending.length && !active.length) {
+		html += lms_portal.emptyPanel("💰", "No loans assigned", "You have no loans assigned. Approved applications will appear here for disbursement.");
+		html += lms_portal.pageEnd();
+		el.innerHTML = html;
 		return;
 	}
 
-	var html = "";
-
 	// Pending disbursement section — manager has approved, officer acts next.
 	if (pending.length) {
-		html += '<div class="lms-panel" style="margin-bottom:1.25rem;">';
-		html += '<div class="lms-section-header"><h3>Pending Disbursement</h3>';
-		html += '<span class="lms-badge lms-badge--warning">' + pending.length + ' awaiting</span></div>';
-		html += '<p class="lms-muted" style="margin-top:-0.5rem;">Manager-approved loans waiting for you to disburse funds.</p>';
-		html += '<div class="lms-data-table__wrap"><table class="lms-data-table">';
-		html += "<thead><tr><th>Loan #</th><th>Borrower</th><th>Product</th><th>Amount</th><th>Tenure</th><th>Rate</th><th>Actions</th></tr></thead><tbody>";
+		var pendingBody = '<p class="lms-muted">Manager-approved loans waiting for you to disburse funds.</p>' +
+			'<div class="lms-data-table__wrap"><table class="lms-data-table">' +
+			"<thead><tr><th>Loan #</th><th>Borrower</th><th>Product</th><th>Amount</th><th>Tenure</th><th>Rate</th><th>Actions</th></tr></thead><tbody>";
 		pending.forEach(function (l) {
-			html += "<tr>";
-			html += "<td><strong>" + lms_portal.escape(l.name) + "</strong></td>";
-			html += "<td>" + lms_portal.escape(l.customer_name || l.applicant || "—") + "</td>";
-			html += "<td>" + lms_portal.escape(l.loan_product || "—") + "</td>";
-			html += "<td>" + format_currency(l.loan_amount || 0) + "</td>";
-			html += "<td>" + (l.repayment_periods || 0) + " mo</td>";
-			html += "<td>" + (l.rate_of_interest || 0) + "%</td>";
-			html += '<td><div class="lms-data-table__actions">';
-			html += '<button type="button" class="lms-btn lms-btn--success lms-btn--sm lms-of-disburse-btn" data-loan="' + lms_portal.escape(l.name) + '">Disburse</button>';
-			html += '<button type="button" class="lms-btn lms-btn--ghost lms-btn--sm lms-of-loan-view" data-loan="' + lms_portal.escape(l.name) + '">View</button>';
-			html += '</div></td>';
-			html += "</tr>";
+			pendingBody += "<tr>";
+			pendingBody += "<td><strong>" + lms_portal.escape(l.name) + "</strong></td>";
+			pendingBody += "<td>" + lms_portal.escape(l.customer_name || l.applicant || "—") + "</td>";
+			pendingBody += "<td>" + lms_portal.escape(l.loan_product || "—") + "</td>";
+			pendingBody += "<td>" + format_currency(l.loan_amount || 0) + "</td>";
+			pendingBody += "<td>" + (l.repayment_periods || 0) + " mo</td>";
+			pendingBody += "<td>" + (l.rate_of_interest || 0) + "%</td>";
+			pendingBody += '<td><div class="lms-data-table__actions">';
+			pendingBody += '<button type="button" class="lms-btn lms-btn--success lms-btn--sm lms-of-disburse-btn" data-loan="' + lms_portal.escape(l.name) + '">Disburse</button>';
+			pendingBody += '<button type="button" class="lms-btn lms-btn--ghost lms-btn--sm lms-of-loan-view" data-loan="' + lms_portal.escape(l.name) + '">View</button>';
+			pendingBody += '</div></td>';
+			pendingBody += "</tr>";
 		});
-		html += "</tbody></table></div></div>";
+		pendingBody += "</tbody></table></div>";
+		html += lms_portal.panel({
+			title: "Pending Disbursement",
+			badge: pending.length + " awaiting",
+			badgeClass: "lms-badge--warning",
+			body: pendingBody,
+		});
 	}
 
 	// Active loans section — already disbursed, in repayment.
 	if (active.length) {
-		html += '<div class="lms-panel">';
-		html += '<div class="lms-section-header"><h3>Active Loans</h3>';
-		html += '<span class="lms-muted">' + active.length + ' loans</span></div>';
-		html += '<div class="lms-data-table__wrap"><table class="lms-data-table">';
-		html += "<thead><tr><th>Loan #</th><th>Borrower</th><th>Amount</th><th>Outstanding</th><th>Status</th><th>DPD</th><th>Actions</th></tr></thead><tbody>";
+		var activeBody = '<div class="lms-data-table__wrap"><table class="lms-data-table">' +
+			"<thead><tr><th>Loan #</th><th>Borrower</th><th>Amount</th><th>Outstanding</th><th>Status</th><th>DPD</th><th>Actions</th></tr></thead><tbody>";
 		active.forEach(function (l) {
-			html += "<tr>";
-			html += "<td><strong>" + lms_portal.escape(l.name) + "</strong></td>";
-			html += "<td>" + lms_portal.escape(l.customer_name || l.applicant || "—") + "</td>";
-			html += "<td>" + format_currency(l.loan_amount || 0) + "</td>";
-			html += "<td>" + format_currency(l.outstanding || 0) + "</td>";
-			html += '<td><span class="lms-badge ' + lms_portal.badgeClass(l.dpd, l.status) + '">' + lms_portal.escape(l.status || "") + "</span></td>";
-			html += "<td>" + (l.dpd || 0) + "</td>";
-			html += '<td><button type="button" class="lms-btn lms-btn--ghost lms-btn--sm lms-of-loan-view" data-loan="' + lms_portal.escape(l.name) + '">View</button></td>';
-			html += "</tr>";
+			activeBody += "<tr>";
+			activeBody += "<td><strong>" + lms_portal.escape(l.name) + "</strong></td>";
+			activeBody += "<td>" + lms_portal.escape(l.customer_name || l.applicant || "—") + "</td>";
+			activeBody += "<td>" + format_currency(l.loan_amount || 0) + "</td>";
+			activeBody += "<td>" + format_currency(l.outstanding || 0) + "</td>";
+			activeBody += '<td><span class="lms-badge ' + lms_portal.badgeClass(l.dpd, l.status) + '">' + lms_portal.escape(l.status || "") + "</span></td>";
+			activeBody += "<td>" + (l.dpd || 0) + "</td>";
+			activeBody += '<td><button type="button" class="lms-btn lms-btn--ghost lms-btn--sm lms-of-loan-view" data-loan="' + lms_portal.escape(l.name) + '">View</button></td>';
+			activeBody += "</tr>";
 		});
-		html += "</tbody></table></div></div>";
+		activeBody += "</tbody></table></div>";
+		html += lms_portal.panel({
+			title: "Active Loans",
+			badge: active.length + " loans",
+			body: activeBody,
+		});
 	}
 
+	html += lms_portal.pageEnd();
 	el.innerHTML = html;
 
 	el.querySelectorAll(".lms-of-loan-view").forEach(function (btn) {
@@ -1047,36 +1104,48 @@ lms_officer._loadLeads = function (content) {
 };
 
 lms_officer._renderLeadsTab = function (el, leads) {
-	var html = '<div class="lms-panel">';
-	html += '<div class="lms-section-header">';
-	html += '<div class="lms-section-header__title"><h3>Leads</h3></div>';
-	html += '<div class="lms-section-header__controls">';
-	html += '<button type="button" class="lms-btn lms-btn--primary lms-btn--sm" id="lms-of-new-lead">+ New Lead</button>';
-	html += '</div></div>';
+	// KPI summary — total / consented / convert-ready. Computed once from
+	// the same dataset the table renders.
+	var consented = 0;
+	var convertReady = 0;
+	leads.forEach(function (l) {
+		if (l.custom_consent_given) consented += 1;
+		if (l.custom_consent_given && l.status !== "Converted") convertReady += 1;
+	});
 
+	var controls = '<button type="button" class="lms-btn lms-btn--primary lms-btn--sm" id="lms-of-new-lead">+ New Lead</button>';
+	var body = "";
 	if (!leads.length) {
-		html += '<div class="lms-empty"><div class="lms-empty-icon">📞</div><h3>No leads</h3><p>No leads in your branch yet.</p></div>';
+		body = '<div class="lms-empty"><div class="lms-empty-icon">📞</div><h3>No leads</h3><p>No leads in your branch yet.</p></div>';
 	} else {
-		html += '<div class="lms-data-table__wrap"><table class="lms-data-table">';
-		html += "<thead><tr><th>Name</th><th>Mobile</th><th>Email</th><th>Status</th><th>Source</th><th>Consent</th><th>Actions</th></tr></thead><tbody>";
+		body = '<div class="lms-data-table__wrap"><table class="lms-data-table">' +
+			"<thead><tr><th>Name</th><th>Mobile</th><th>Email</th><th>Status</th><th>Source</th><th>Consent</th><th>Actions</th></tr></thead><tbody>";
 		leads.forEach(function (l) {
-			html += "<tr>";
-			html += "<td><strong>" + lms_portal.escape(l.lead_name || l.name) + "</strong></td>";
-			html += "<td>" + lms_portal.escape(l.mobile_no || "—") + "</td>";
-			html += "<td>" + lms_portal.escape(l.email_id || "—") + "</td>";
-			html += "<td>" + lms_portal.escape(l.status || "—") + "</td>";
-			html += "<td>" + lms_portal.escape(l.source || "—") + "</td>";
-			html += '<td><span class="lms-badge ' + (l.custom_consent_given ? "lms-badge--success" : "lms-badge--muted") + '">' + (l.custom_consent_given ? "Yes" : "No") + "</span></td>";
-			html += '<td><div class="lms-data-table__actions">';
+			body += "<tr>";
+			body += "<td><strong>" + lms_portal.escape(l.lead_name || l.name) + "</strong></td>";
+			body += "<td>" + lms_portal.escape(l.mobile_no || "—") + "</td>";
+			body += "<td>" + lms_portal.escape(l.email_id || "—") + "</td>";
+			body += "<td>" + lms_portal.escape(l.status || "—") + "</td>";
+			body += "<td>" + lms_portal.escape(l.source || "—") + "</td>";
+			body += '<td><span class="lms-badge ' + (l.custom_consent_given ? "lms-badge--success" : "lms-badge--muted") + '">' + (l.custom_consent_given ? "Yes" : "No") + "</span></td>";
+			body += '<td><div class="lms-data-table__actions">';
 			if (l.custom_consent_given) {
-				html += '<button type="button" class="lms-btn lms-btn--success lms-btn--sm lms-of-convert-lead" data-lead="' + lms_portal.escape(l.name) + '">Convert</button>';
+				body += '<button type="button" class="lms-btn lms-btn--success lms-btn--sm lms-of-convert-lead" data-lead="' + lms_portal.escape(l.name) + '">Convert</button>';
 			}
-			html += '</div></td>';
-			html += "</tr>";
+			body += '</div></td>';
+			body += "</tr>";
 		});
-		html += "</tbody></table></div>";
+		body += "</tbody></table></div>";
 	}
-	html += '</div>';
+
+	var html = lms_portal.pageStart() +
+		lms_portal.kpiStrip([
+			{ label: "Total leads", value: leads.length },
+			{ label: "With consent", value: consented, tone: "success" },
+			{ label: "Ready to convert", value: convertReady, tone: "warning" },
+		]) +
+		lms_portal.panel({ title: "Leads", controls: controls, body: body }) +
+		lms_portal.pageEnd();
 	el.innerHTML = html;
 
 	var newLeadBtn = el.querySelector("#lms-of-new-lead");
@@ -1164,15 +1233,18 @@ lms_officer._convertLead = function (leadName) {
 // Reports tab
 // ---------------------------------------------------------------------------
 lms_officer._loadReports = function (content) {
-	var html = '<div class="lms-panel">';
-	html += '<div class="lms-section-header"><h3>My Reports</h3></div>';
-	html += '<div class="lms-report-tabs">';
-	html += '<button type="button" class="lms-btn lms-btn--primary lms-btn--sm lms-of-report-btn" data-report="portfolio">Portfolio Summary</button>';
-	html += '<button type="button" class="lms-btn lms-btn--ghost lms-btn--sm lms-of-report-btn" data-report="arrears">Arrears Aging</button>';
-	html += '<button type="button" class="lms-btn lms-btn--ghost lms-btn--sm lms-of-report-btn" data-report="collections">Collections Report</button>';
-	html += '</div>';
-	html += '<div id="lms-of-report-content"></div>';
-	html += '</div>';
+	// Same lms-stack pattern as the other tabs: report-switcher panel first,
+	// then a full-width results panel below. The KPIs live inside the report
+	// content itself (rendered by _loadReport) so they stay in sync with the
+	// active report.
+	var controls =
+		'<button type="button" class="lms-btn lms-btn--primary lms-btn--sm lms-of-report-btn" data-report="portfolio">Portfolio Summary</button>' +
+		'<button type="button" class="lms-btn lms-btn--ghost lms-btn--sm lms-of-report-btn" data-report="arrears">Arrears Aging</button>' +
+		'<button type="button" class="lms-btn lms-btn--ghost lms-btn--sm lms-of-report-btn" data-report="collections">Collections Report</button>';
+	var html = lms_portal.pageStart() +
+		lms_portal.panel({ title: "My Reports", controls: controls }) +
+		'<div class="lms-panel" id="lms-of-report-content"></div>' +
+		lms_portal.pageEnd();
 	content.innerHTML = html;
 
 	lms_officer._loadReport(content, "portfolio");

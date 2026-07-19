@@ -696,6 +696,14 @@ body.lms-portal {
 	overflow: hidden;
 }
 
+/* Tone variants for KPI cards — used by lms_portal.kpiStrip(). */
+.lms-summary-card--warning { border-left: 3px solid var(--lms-warning, #f59e0b); }
+.lms-summary-card--danger  { border-left: 3px solid var(--lms-danger, #dc2626); }
+.lms-summary-card--success { border-left: 3px solid var(--lms-success, #16a34a); }
+.lms-summary-card--warning .lms-summary-value { color: var(--lms-warning, #b45309); }
+.lms-summary-card--danger  .lms-summary-value { color: var(--lms-danger, #dc2626); }
+.lms-summary-card--success .lms-summary-value { color: var(--lms-success, #15803d); }
+
 .lms-summary-card--wide {
 	grid-column: 1 / -1;
 }
