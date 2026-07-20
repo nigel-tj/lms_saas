@@ -56,12 +56,6 @@ lms_documents._loadStats = function () {
 	});
 };
 
-lms_documents._statCard = function (label, value, tone) {
-	var cls = tone ? " lms-stat--" + tone : "";
-	return '<div class="lms-stat-card lms-stat' + cls + '" style="padding:1rem;"><div class="lms-stat-label">' +
-		lms_portal.escape(label) + '</div><div class="lms-stat-value">' + value + '</div></div>';
-};
-
 lms_documents._loadCategories = function () {
 	lms_portal.safeCall({
 		method: "lms_saas.api.documents_center.get_categories",

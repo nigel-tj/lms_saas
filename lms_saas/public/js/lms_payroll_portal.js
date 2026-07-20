@@ -47,16 +47,16 @@ lms_payroll._loadOverview = function (content) {
 		method: "lms_saas.api.payroll.get_payroll_overview",
 		callback: function (r) {
 			var d = (r && r.message) || {};
-			var html = '<section class="lms-grid-4">';
-			html += lms_payroll._statCard("Team Members", d.team_count || 0);
-			html += lms_payroll._statCard("Payslips", d.slip_count || 0);
-			html += lms_payroll._statCard("Submitted", d.submitted || 0, "success");
-			html += lms_payroll._statCard("Draft", d.draft || 0, "warning");
-			html += lms_payroll._statCard("Gross Pay", format_currency(d.total_gross || 0));
-			html += lms_payroll._statCard("Net Pay", format_currency(d.total_net || 0));
-			html += lms_payroll._statCard("Deductions", format_currency(d.total_deductions || 0), "warning");
-			html += lms_payroll._statCard("Loan Deductions", format_currency(d.loan_deductions || 0), "danger");
-			html += "</section>";
+			var html = lms_portal.kpiStrip([
+				{ label: "Team Members", value: d.team_count || 0 },
+				{ label: "Payslips", value: d.slip_count || 0 },
+				{ label: "Submitted", value: d.submitted || 0, tone: "success" },
+				{ label: "Draft", value: d.draft || 0, tone: "warning" },
+				{ label: "Gross Pay", value: format_currency(d.total_gross || 0) },
+				{ label: "Net Pay", value: format_currency(d.total_net || 0) },
+				{ label: "Deductions", value: format_currency(d.total_deductions || 0), tone: "warning" },
+				{ label: "Loan Deductions", value: format_currency(d.loan_deductions || 0), tone: "danger" },
+			]);
 
 			// Payroll entries
 			var entries = d.payroll_entries || [];

@@ -135,30 +135,31 @@ lms_training._loadMine = function (content) {
 		method: "lms_saas.api.training.get_my_training_results",
 		callback: function (r) {
 			var results = (r && r.message && r.message.results) || [];
-			var html = '<section class="lms-grid-4" style="margin-bottom:1rem;">';
-			html += lms_training._statCard("Training Completed", results.length, "success");
-			html += "</section>";
+			var html = lms_portal.kpiStrip([
+				{ label: "Training Completed", value: results.length, tone: "success" },
+			]);
 
 			if (!results.length) {
-				html += '<div class="lms-panel"><div class="lms-empty"><div class="lms-empty-icon">🎓</div><h3>No results</h3><p>You have no training results yet.</p></div></div>';
+				html += lms_portal.emptyPanel("🎓", "No results", "You have no training results yet.");
 				content.innerHTML = html;
 				return;
 			}
 
-			html += '<div class="lms-panel"><div class="lms-data-table__wrap"><table class="lms-data-table">';
-			html += "<thead><tr><th>Event</th><th>Status</th><th>Result</th><th>Score</th><th>Date</th><th>Feedback</th></tr></thead><tbody>";
+			var body = '<div class="lms-data-table__wrap"><table class="lms-data-table">';
+			body += "<thead><tr><th>Event</th><th>Status</th><th>Result</th><th>Score</th><th>Date</th><th>Feedback</th></tr></thead><tbody>";
 			results.forEach(function (res) {
 				var statusClass = res.status === "Completed" ? "lms-badge--success" : (res.status === "Failed" ? "lms-badge--danger" : "lms-badge--warning");
-				html += "<tr>";
-				html += "<td><strong>" + lms_portal.escape(res.training_event || res.name) + "</strong></td>";
-				html += '<td><span class="lms-badge ' + statusClass + '">' + lms_portal.escape(res.status || "") + "</span></td>";
-				html += "<td>" + lms_portal.escape(res.result || "—") + "</td>";
-				html += "<td>" + (res.score || "—") + "</td>";
-				html += "<td>" + lms_portal.formatDate(res.posting_date) + "</td>";
-				html += '<td><button type="button" class="lms-btn lms-btn--ghost lms-btn--sm lms-tr-feedback" data-event="' + lms_portal.escape(res.training_event || res.name) + '">Give Feedback</button></td>';
-				html += "</tr>";
+				body += "<tr>";
+				body += "<td><strong>" + lms_portal.escape(res.training_event || res.name) + "</strong></td>";
+				body += '<td><span class="lms-badge ' + statusClass + '">' + lms_portal.escape(res.status || "") + "</span></td>";
+				body += "<td>" + lms_portal.escape(res.result || "—") + "</td>";
+				body += "<td>" + (res.score || "—") + "</td>";
+				body += "<td>" + lms_portal.formatDate(res.posting_date) + "</td>";
+				body += '<td><button type="button" class="lms-btn lms-btn--ghost lms-btn--sm lms-tr-feedback" data-event="' + lms_portal.escape(res.training_event || res.name) + '">Give Feedback</button></td>';
+				body += "</tr>";
 			});
-			html += "</tbody></table></div></div>";
+			body += "</tbody></table></div>";
+			html += lms_portal.panel({ body: body });
 			content.innerHTML = html;
 
 			content.querySelectorAll(".lms-tr-feedback").forEach(function (btn) {

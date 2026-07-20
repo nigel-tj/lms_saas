@@ -241,10 +241,10 @@ lms_feedback._loadDashboard = function (content) {
 		method: "lms_saas.api.feedback.get_feedback_dashboard",
 		callback: function (r) {
 			var d = (r && r.message) || {};
-			var html = '<section class="lms-grid-4" style="margin-bottom:1.5rem;">';
-			html += lms_feedback._statCard("Total Responses", d.total_responses || 0);
-			html += lms_feedback._statCard("Overall NPS", (d.overall_nps || 0).toFixed(1), d.overall_nps >= 0 ? "success" : "danger");
-			html += "</section>";
+			var html = lms_portal.kpiStrip([
+				{ label: "Total Responses", value: d.total_responses || 0 },
+				{ label: "Overall NPS", value: (d.overall_nps || 0).toFixed(1), tone: d.overall_nps >= 0 ? "success" : "danger" },
+			]);
 
 			// By survey
 			var bySurvey = d.by_survey || [];

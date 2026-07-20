@@ -44,12 +44,6 @@ lms_tasks._loadStats = function () {
 	});
 };
 
-lms_tasks._statCard = function (label, value, tone) {
-	var cls = tone ? " lms-stat--" + tone : "";
-	return '<div class="lms-stat-card lms-stat' + cls + '"><div class="lms-stat-label">' +
-		lms_portal.escape(label) + '</div><div class="lms-stat-value">' + value + '</div></div>';
-};
-
 lms_tasks._loadBoard = function () {
 	var el = document.getElementById("lms-task-board");
 	if (!el) return;

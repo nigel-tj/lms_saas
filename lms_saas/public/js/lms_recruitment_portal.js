@@ -259,10 +259,10 @@ lms_recruitment._loadStaffing = function (content) {
 			var actual = data.actual_headcount || 0;
 			var branch = data.branch || "—";
 
-			var html = '<section class="lms-grid-4" style="margin-bottom:1rem;">';
-			html += lms_recruitment._statCard("Actual Headcount", actual);
-			html += lms_recruitment._statCard("Branch", lms_portal.escape(branch));
-			html += "</section>";
+			var html = lms_portal.kpiStrip([
+				{ label: "Actual Headcount", value: actual },
+				{ label: "Branch", value: lms_portal.escape(branch) },
+			]);
 
 			if (!plans.length) {
 				html += '<div class="lms-panel"><div class="lms-empty"><div class="lms-empty-icon">📊</div><h3>No staffing plan</h3><p>No active staffing plans for your branch.</p></div></div>';
