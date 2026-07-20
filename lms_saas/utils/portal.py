@@ -239,6 +239,102 @@ def require_persona_for_page(perm: str):
 	raise frappe.Redirect
 
 
+def _persona_permissions(persona: str | None, roles: set) -> dict:
+	"""Alias for mixins/tests — same bitmask as brand._get_user_permissions."""
+	from lms_saas.utils.brand import _get_user_permissions
+
+	return _get_user_permissions(persona, roles)
+
+
+# Default page_js for each addon key (SSoT for get_lms_page_context).
+ADDON_PAGE_JS: dict[str, str] = {
+	"announcements": "js/lms_announcements_portal.js",
+	"task_management": "js/lms_tasks_portal.js",
+	"document_center": "js/lms_documents_portal.js",
+	"helpdesk": "js/lms_helpdesk_portal.js",
+	"hr_management": "js/lms_hr_portal.js",
+	"branch_analytics": "js/lms_analytics_portal.js",
+	"regulatory_hub": "js/lms_regulatory_portal.js",
+	"payroll": "js/lms_payroll_portal.js",
+	"appraisals": "js/lms_appraisals_portal.js",
+	"training": "js/lms_training_portal.js",
+	"recruitment": "js/lms_recruitment_portal.js",
+	"procurement": "js/lms_procurement_portal.js",
+	"savings_club": "js/lms_savings_portal.js",
+	"customer_feedback": "js/lms_feedback_portal.js",
+	"field_visits": "js/lms_visits_portal.js",
+	"inventory": "js/lms_inventory_portal.js",
+	"budgeting": "js/lms_budgeting_portal.js",
+	"insurance": "js/lms_insurance_portal.js",
+	"whatsapp": "js/lms_whatsapp_portal.js",
+	"wallet_recon": "js/lms_recon_portal.js",
+}
+
+
+def get_lms_page_context(
+	context,
+	*,
+	nav_key: str | None = None,
+	page_js: str | None = None,
+	addon: str | None = None,
+	perm: str | None = None,
+	login_path: str | None = None,
+):
+	"""Guest login → optional addon gate → optional persona gate → portal shell.
+
+	If ``addon`` is set, ``nav_key`` defaults to the registry key and
+	``page_js`` defaults to ``ADDON_PAGE_JS[addon]``.
+	``nav_key`` must match ADDON_REGISTRY / sidebar ``item.key`` so the
+	active nav highlight and page title stay in sync.
+	"""
+	from lms_saas.utils.brand import apply_portal_context
+
+	path = login_path or ("/" + (getattr(frappe.local, "path", None) or "lms").lstrip("/"))
+
+	if frappe.session.user == "Guest":
+		frappe.local.flags.redirect_location = f"/login?redirect-to={path}"
+		raise frappe.Redirect
+
+	if addon:
+		from lms_saas.utils.addons import ADDON_REGISTRY, require_addon
+
+		require_addon(addon)
+		nav_key = nav_key or addon
+		page_js = page_js or ADDON_PAGE_JS.get(addon)
+		# Page-level persona gate for addons (nav already filters; this
+		# blocks deep links by wrong persona). Admins always pass.
+		_require_addon_persona_page(addon, ADDON_REGISTRY.get(addon) or {})
+
+	if perm:
+		require_persona_for_page(perm)
+
+	return apply_portal_context(
+		context,
+		nav_active=nav_key or "loans",
+		page_js=page_js,
+	)
+
+
+def _require_addon_persona_page(addon_key: str, spec: dict) -> None:
+	"""Redirect wrong personas away from addon pages (Admins exempt)."""
+	if frappe.session.user in (None, "Guest", "Administrator"):
+		return
+	roles = set(frappe.get_roles())
+	if roles.intersection({"System Manager", "Administrator"}):
+		return
+
+	allowed = spec.get("personas") or []
+	persona = resolve_portal_persona()
+	if persona and persona in allowed:
+		return
+	if "Borrower" in allowed and is_portal_borrower():
+		return
+
+	landing = PERSONA_LANDING.get(persona or "", "/lms")
+	frappe.local.flags.redirect_location = landing
+	raise frappe.Redirect
+
+
 # ---------------------------------------------------------------------------
 # Loader for the hyphen-named www/lms-portal/mixins.py (Python can't import
 # modules whose path contains a dash). The file is loaded by file path and

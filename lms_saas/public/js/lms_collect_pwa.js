@@ -68,6 +68,11 @@ lms_collect._loadCharts = function () {
 					);
 				});
 			},
+			error: function () {
+				trendEl.innerHTML = lms_portal.error("Could not load 7-day trend.", function () {
+					lms_collect._loadCharts();
+				});
+			},
 		});
 	}
 
@@ -96,6 +101,11 @@ lms_collect._loadCharts = function () {
 					leaderEl.innerHTML = lms_portal.simpleBars(
 						rows.map(function (r) { return { label: r.collector, value: r.amount }; })
 					);
+				});
+			},
+			error: function () {
+				leaderEl.innerHTML = lms_portal.error("Could not load leaderboard.", function () {
+					lms_collect._loadCharts();
 				});
 			},
 		});

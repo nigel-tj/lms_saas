@@ -130,9 +130,10 @@ website_route_rules = [
     {"from_route": "/lms/applications", "to_route": "lms/applications"},
     {"from_route": "/lms/pay", "to_route": "lms/pay"},
     {"from_route": "/lms/collect", "to_route": "lms/collect"},
+    # Legacy staff shells — keep www handlers that redirect to /lms/*
     {"from_route": "/lms-portal/collector", "to_route": "lms-portal/collector"},
     {"from_route": "/lms-portal/officer", "to_route": "lms-portal/officer"},
-    {"from_route": "/lms-portal/manager", "to_route": "lms-portal/manager"},
+    {"from_route": "/lms-portal/manager", "to_route": "lms/manager"},
     {"from_route": "/lms/officer", "to_route": "lms/officer"},
     {"from_route": "/lms/manager", "to_route": "lms/manager"},
     {"from_route": "/lms-help", "to_route": "lms-help"},

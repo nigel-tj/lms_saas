@@ -342,6 +342,7 @@ lms_portal.renderSummary = function (container, summary) {
 		if (container) container.innerHTML = "";
 		return;
 	}
+	const borrowerView = document.body.classList.contains("lms-portal-borrower");
 	const next = summary.next_due;
 	let nextHtml = '<span class="lms-summary-next">No upcoming payment</span>';
 	if (next && next.payment_date) {
@@ -353,8 +354,7 @@ lms_portal.renderSummary = function (container, summary) {
 			(next.loan ? ' · <a href="/lms/loan?name=' + encodeURIComponent(next.loan) + '">View loan</a>' : "") +
 			"</span>";
 	}
-	container.innerHTML =
-		'<section class="lms-summary" aria-label="Account overview">' +
+	let cards =
 		'<div class="lms-summary-card">' +
 		'<div class="lms-summary-label">Total outstanding</div>' +
 		'<div class="lms-summary-value">' +
@@ -364,21 +364,27 @@ lms_portal.renderSummary = function (container, summary) {
 		'<div class="lms-summary-label">Active loans</div>' +
 		'<div class="lms-summary-value">' +
 		lms_portal.escape(summary.active_count || 0) +
-		"</div></div>" +
-		'<div class="lms-summary-card">' +
-		'<div class="lms-summary-label">At risk accounts</div>' +
-		'<div class="lms-summary-value">' +
-		lms_portal.escape(summary.at_risk_count || 0) +
-		"</div></div>" +
-		'<div class="lms-summary-card">' +
-		'<div class="lms-summary-label">Delinquency ratio</div>' +
-		'<div class="lms-summary-value">' +
-		lms_portal.escape(((summary.delinquency_ratio || 0) * 100).toFixed(1)) +
-		"%</div></div>" +
+		"</div></div>";
+	if (!borrowerView) {
+		cards +=
+			'<div class="lms-summary-card">' +
+			'<div class="lms-summary-label">At risk accounts</div>' +
+			'<div class="lms-summary-value">' +
+			lms_portal.escape(summary.at_risk_count || 0) +
+			"</div></div>" +
+			'<div class="lms-summary-card">' +
+			'<div class="lms-summary-label">Delinquency ratio</div>' +
+			'<div class="lms-summary-value">' +
+			lms_portal.escape(((summary.delinquency_ratio || 0) * 100).toFixed(1)) +
+			"%</div></div>";
+	}
+	cards +=
 		'<div class="lms-summary-card lms-summary-card--wide">' +
 		'<div class="lms-summary-label">Upcoming</div>' +
 		nextHtml +
-		"</div></section>";
+		"</div>";
+	container.innerHTML =
+		'<section class="lms-summary" aria-label="Account overview">' + cards + "</section>";
 };
 
 lms_portal.renderDashboardPanels = function (payload) {
@@ -386,7 +392,8 @@ lms_portal.renderDashboardPanels = function (payload) {
 	const riskEl = document.getElementById("lms-portal-risk");
 	const loanMixEl = document.getElementById("lms-portal-loan-mix");
 	const upcomingEl = document.getElementById("lms-portal-upcoming");
-	if (riskEl) {
+	const borrowerView = document.body.classList.contains("lms-portal-borrower");
+	if (riskEl && !borrowerView) {
 		const buckets = dashboard.bucket_totals || {};
 		riskEl.innerHTML = lms_portal.simpleBars([
 			{ label: "Current", value: buckets.current || 0 },
@@ -395,7 +402,7 @@ lms_portal.renderDashboardPanels = function (payload) {
 			{ label: "PAR 90+", value: buckets.par90 || 0 },
 		]);
 	}
-	if (loanMixEl) {
+	if (loanMixEl && !borrowerView) {
 		const mix = dashboard.loan_mix || {};
 		loanMixEl.innerHTML = lms_portal.simpleBars(
 			[

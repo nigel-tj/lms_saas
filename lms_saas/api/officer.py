@@ -45,6 +45,10 @@ def _officer_employee() -> str | None:
 	return frappe.db.get_value("Employee", {"user_id": user, "status": "Active"}, "name")
 
 
+def _is_admin() -> bool:
+	return bool(set(frappe.get_roles()).intersection({"System Manager", "Administrator"}))
+
+
 @frappe.whitelist()
 def get_officer_dashboard():
 	"""Branch-scoped KPIs for the Loan Officer portal landing."""
@@ -53,9 +57,15 @@ def get_officer_dashboard():
 	employee = _officer_employee()
 	company = frappe.db.get_single_value("Global Defaults", "default_company")
 
-	# Pending applications in officer's branch
-	app_filters = {"docstatus": 0, "custom_lms_branch": branch} if branch else {"docstatus": 0}
-	pending_apps = frappe.db.count("Loan Application", app_filters)
+	# Pending applications in officer's branch — fail closed if unscoped.
+	if branch:
+		pending_apps = frappe.db.count(
+			"Loan Application", {"docstatus": 0, "custom_lms_branch": branch}
+		)
+	elif _is_admin():
+		pending_apps = frappe.db.count("Loan Application", {"docstatus": 0})
+	else:
+		pending_apps = 0
 
 	# Active loans assigned to this officer
 	loan_filters = {
@@ -102,9 +112,13 @@ def get_officer_dashboard():
 
 	par_ratio = flt(par_count) / flt(my_active_loans) if my_active_loans else 0
 
-	# Leads in branch
-	lead_filters = {"custom_lms_branch": branch} if branch else {}
-	branch_leads = frappe.db.count("Lead", lead_filters)
+	# Leads in branch — fail closed if unscoped.
+	if branch:
+		branch_leads = frappe.db.count("Lead", {"custom_lms_branch": branch})
+	elif _is_admin():
+		branch_leads = frappe.db.count("Lead")
+	else:
+		branch_leads = 0
 
 	return {
 		"branch": branch,
@@ -123,51 +137,35 @@ def get_officer_dashboard():
 
 @frappe.whitelist()
 def get_pending_applications():
-	"""Loan Applications pending review — prefers branch, falls back to all."""
+	"""Loan Applications pending review — branch-scoped; fail closed if unscoped."""
 	_require_officer()
 	branch = _officer_branch()
 
-	applications = []
-	if branch:
-		applications = frappe.get_all(
-			"Loan Application",
-			filters={"docstatus": 0, "custom_lms_branch": branch},
-			fields=[
-				"name",
-				"applicant",
-				"applicant_type",
-				"loan_amount",
-				"loan_product",
-				"repayment_periods",
-				"status",
-				"creation",
-				"custom_lms_branch",
-				"custom_loan_officer",
-			],
-			order_by="creation desc",
-			limit_page_length=50,
-		)
+	if not branch and not _is_admin():
+		return {"applications": []}
 
-	# Fallback: if no apps in branch, show all pending
-	if not applications:
-		applications = frappe.get_all(
-			"Loan Application",
-			filters={"docstatus": 0},
-			fields=[
-				"name",
-				"applicant",
-				"applicant_type",
-				"loan_amount",
-				"loan_product",
-				"repayment_periods",
-				"status",
-				"creation",
-				"custom_lms_branch",
-				"custom_loan_officer",
-			],
-			order_by="creation desc",
-			limit_page_length=50,
-		)
+	filters = {"docstatus": 0}
+	if branch:
+		filters["custom_lms_branch"] = branch
+
+	applications = frappe.get_all(
+		"Loan Application",
+		filters=filters,
+		fields=[
+			"name",
+			"applicant",
+			"applicant_type",
+			"loan_amount",
+			"loan_product",
+			"repayment_periods",
+			"status",
+			"creation",
+			"custom_lms_branch",
+			"custom_loan_officer",
+		],
+		order_by="creation desc",
+		limit_page_length=50,
+	)
 
 	for app in applications:
 		app["customer_name"] = (
@@ -371,72 +369,29 @@ def disburse_assigned_loan(loan_name: str, disbursed_amount: float | None = None
 		loan.reload()
 
 	# Phase 2: create + submit a Loan Disbursement.
-	# Two permission concerns:
-	#   1. The officer only has LMS Portal Staff role, which lacks create/
-	#      submit perms on Loan Disbursement (only Loan Manager / System
-	#      Manager do). We switch to a system context to bypass.
-	#   2. Four-eyes control (compliance.enforce_four_eyes) requires
-	#      doc.owner (maker) ≠ submitter. We tag the disbursement as
-	#      "owned" by the officer (so they're the maker) and submit as
-	#      the manager (a different user, who already approved the
-	#      underlying application — natural second pair of eyes).
-	original_user = frappe.session.user
-	disbursement_name = None
+	# Portal staff lack create/submit perms on Loan Disbursement and nested
+	# Loan Repayment Schedule docs. Bypass via ignore_permissions / flags —
+	# never swap session user to Administrator.
+	disb = frappe.get_doc(
+		{
+			"doctype": "Loan Disbursement",
+			"against_loan": loan.name,
+			"applicant_type": loan.applicant_type,
+			"applicant": loan.applicant,
+			"company": loan.company,
+			"disbursed_amount": amount,
+			"posting_date": today(),
+			"disbursement_date": today(),
+		}
+	)
+	disb.flags.ignore_permissions = True
+	prev_ignore = frappe.flags.get("ignore_permissions")
+	frappe.flags.ignore_permissions = True
 	try:
-		# Create as the officer (becomes doc.owner = maker).
-		frappe.set_user(original_user)
-		disb = frappe.get_doc(
-			{
-				"doctype": "Loan Disbursement",
-				"against_loan": loan.name,
-				"applicant_type": loan.applicant_type,
-				"applicant": loan.applicant,
-				"company": loan.company,
-				"disbursed_amount": amount,
-				"posting_date": today(),
-				"disbursement_date": today(),
-			}
-		)
-		# Insert as officer (LMS Portal Staff CAN create via the api
-		# path's own whitelist check, but the lending app's on_update
-		# tries to create a Loan Repayment Schedule which needs
-		# create perm on that doctype). Use the lending helper which
-		# runs as a system context.
-		try:
-			from lending.loan_management.doctype.loan.loan import make_loan_disbursement
-
-			# Create the draft disbursement in a system context (the
-			# lending helper + on_update hooks need perms that the
-			# officer doesn't have).
-			frappe.set_user("Administrator")
-			disbursement = make_loan_disbursement(
-				loan=loan.name,
-				disbursement_amount=amount,
-				submit=False,  # we set owner, then submit as system
-				posting_date=today(),
-				disbursement_date=today(),
-			)
-			# Reassign owner to the officer (maker). Frappe blocks
-			# in-memory changes to `owner` after insert, so use db_set.
-			frappe.db.set_value(
-				"Loan Disbursement", disbursement.name, "owner", original_user
-			)
-			# Now submit — still as Administrator so the lending
-			# app's submit hooks (which create Loan Repayment Schedule
-			# + other related docs) have the perms they need.
-			# Four-eyes passes: doc.owner=officer ≠ session.user=Administrator.
-			disbursement.reload()
-			disbursement.submit()
-			disbursement_name = disbursement.name
-		except Exception:
-			frappe.set_user("Administrator")
-			disb.insert(ignore_permissions=True)
-			frappe.db.set_value("Loan Disbursement", disb.name, "owner", original_user)
-			disb.reload()
-			disb.submit()
-			disbursement_name = disb.name
+		disb.insert()
+		disb.submit()
 	finally:
-		frappe.set_user(original_user)
+		frappe.flags.ignore_permissions = prev_ignore
 
 	# Invalidate dashboard cache so KPIs reflect the new active loan.
 	from lms_saas.api.dashboard import invalidate_dashboard_cache
@@ -445,9 +400,9 @@ def disburse_assigned_loan(loan_name: str, disbursed_amount: float | None = None
 	return {
 		"status": "disbursed",
 		"loan": loan.name,
-		"disbursement": disbursement_name,
+		"disbursement": disb.name,
 		"amount": amount,
-		"message": _("Loan {0} disbursed — {1}.").format(loan.name, disbursement_name),
+		"message": _("Loan {0} disbursed — {1}.").format(loan.name, disb.name),
 	}
 
 
@@ -517,46 +472,35 @@ def submit_application_on_behalf(
 
 @frappe.whitelist()
 def get_officer_leads():
-	"""Leads for the officer — prefers branch, falls back to all."""
+	"""Leads for the officer — branch-scoped; fail closed if unscoped."""
 	_require_officer()
 	branch = _officer_branch()
 
-	leads = []
-	if branch:
-		leads = frappe.get_all(
-			"Lead",
-			filters={"custom_lms_branch": branch},
-			fields=[
-				"name",
-				"lead_name",
-				"email_id",
-				"mobile_no",
-				"status",
-				"source",
-				"custom_consent_given",
-				"custom_lms_branch",
-			],
-			order_by="creation desc",
-			limit_page_length=50,
-		)
+	if not branch and not _is_admin():
+		return {"leads": []}
 
-	if not leads:
-		leads = frappe.get_all(
-			"Lead",
-			filters={"status": ["not in", ["Converted", "Do Not Contact"]]},
-			fields=[
-				"name",
-				"lead_name",
-				"email_id",
-				"mobile_no",
-				"status",
-				"source",
-				"custom_consent_given",
-				"custom_lms_branch",
-			],
-			order_by="creation desc",
-			limit_page_length=50,
-		)
+	filters = {}
+	if branch:
+		filters["custom_lms_branch"] = branch
+	else:
+		filters["status"] = ["not in", ["Converted", "Do Not Contact"]]
+
+	leads = frappe.get_all(
+		"Lead",
+		filters=filters,
+		fields=[
+			"name",
+			"lead_name",
+			"email_id",
+			"mobile_no",
+			"status",
+			"source",
+			"custom_consent_given",
+			"custom_lms_branch",
+		],
+		order_by="creation desc",
+		limit_page_length=50,
+	)
 
 	return {"leads": leads}
 
@@ -572,33 +516,26 @@ def convert_lead(lead_name: str):
 
 @frappe.whitelist()
 def get_officer_customers():
-	"""List customers for the application form.
-
-	Prefers customers in the officer's branch; falls back to all customers
-	if none are found in the branch (e.g. demo data without branch tags).
-	"""
+	"""List customers for the application form — branch-scoped; fail closed."""
 	_require_officer()
 	branch = _officer_branch()
 
-	customers = []
-	if branch:
-		customers = frappe.get_all(
-			"Customer",
-			filters={"disabled": 0, "custom_lms_branch": branch},
-			fields=["name", "customer_name", "email_id", "mobile_no"],
-			order_by="customer_name asc",
-			limit_page_length=100,
-		)
+	if not branch and not _is_admin():
+		return {"customers": []}
 
-	# Fallback: if no customers in branch, show all non-test customers
-	if not customers:
-		customers = frappe.get_all(
-			"Customer",
-			filters={"disabled": 0, "customer_name": ["not like", "_Test%"]},
-			fields=["name", "customer_name", "email_id", "mobile_no"],
-			order_by="customer_name asc",
-			limit_page_length=100,
-		)
+	filters = {"disabled": 0}
+	if branch:
+		filters["custom_lms_branch"] = branch
+	else:
+		filters["customer_name"] = ["not like", "_Test%"]
+
+	customers = frappe.get_all(
+		"Customer",
+		filters=filters,
+		fields=["name", "customer_name", "email_id", "mobile_no"],
+		order_by="customer_name asc",
+		limit_page_length=100,
+	)
 
 	return {"customers": customers}
 
@@ -761,6 +698,9 @@ def search_borrowers(query: str = "", limit: int = 50):
 	query = (query or "").strip()
 	limit = cint(limit) or 50
 
+	if not branch and not _is_admin():
+		return {"borrowers": []}
+
 	filters = {"disabled": 0}
 	if branch:
 		filters["custom_lms_branch"] = branch
@@ -807,6 +747,13 @@ def get_borrower_detail(customer_name: str):
 		frappe.throw(_("Customer {0} not found.").format(customer_name))
 
 	cust = frappe.get_doc("Customer", customer_name)
+	branch = _officer_branch()
+	if not _is_admin():
+		if not branch:
+			frappe.throw(_("No branch assigned — cannot view borrower."), frappe.PermissionError)
+		if (cust.get("custom_lms_branch") or "") != branch:
+			frappe.throw(_("Customer is not in your branch."), frappe.PermissionError)
+
 	customer = {
 		"name": cust.name,
 		"customer_name": cust.customer_name,

@@ -344,7 +344,9 @@ def get_collections_overview(company=None):
 @frappe.whitelist()
 def get_system_health():
     """Admin system health: scheduler, integrations, errors, backup."""
-    _guard()
+    roles = set(frappe.get_roles())
+    if not roles.intersection({"System Manager", "Administrator"}):
+        frappe.throw("Not permitted", frappe.PermissionError)
     import json
 
     # Scheduler status
@@ -386,5 +388,14 @@ def get_system_health():
 
 
 def _guard():
+    """Require portal staff or desk admin — not merely a logged-in user."""
     if frappe.session.user == "Guest":
         frappe.throw("Please log in", frappe.PermissionError)
+    roles = set(frappe.get_roles())
+    if roles.intersection({"System Manager", "Administrator"}):
+        return
+    from lms_saas.install import PORTAL_STAFF_ROLE
+
+    if PORTAL_STAFF_ROLE in roles:
+        return
+    frappe.throw("Not permitted", frappe.PermissionError)

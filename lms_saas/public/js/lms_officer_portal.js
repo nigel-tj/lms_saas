@@ -36,21 +36,16 @@ lms_officer._pageHeader = function () {
 	);
 };
 
+lms_officer._tabs = [
+	{ id: "dashboard", label: "Dashboard", icon: "📊" },
+	{ id: "borrowers", label: "Borrowers", icon: "👤" },
+	{ id: "loans", label: "My Loans", icon: "💰" },
+	{ id: "leads", label: "Leads", icon: "📞" },
+	{ id: "reports", label: "Reports", icon: "📈" },
+];
+
 lms_officer._tabNav = function () {
-	var tabs = [
-		{ id: "dashboard", label: "Dashboard", icon: "📊" },
-		{ id: "borrowers", label: "Borrowers", icon: "👤" },
-		{ id: "loans", label: "My Loans", icon: "💰" },
-		{ id: "leads", label: "Leads", icon: "📞" },
-		{ id: "reports", label: "Reports", icon: "📈" },
-	];
-	var html = '<nav class="lms-tab-nav" role="tablist">';
-	tabs.forEach(function (t) {
-		var active = lms_officer._currentTab === t.id ? " is-active" : "";
-		html += '<button type="button" class="lms-tab' + active + '" data-tab="' + t.id + '" role="tab">' + t.icon + " " + lms_portal.escape(t.label) + "</button>";
-	});
-	html += "</nav>";
-	return html;
+	return lms_portal.tabNav(lms_officer._tabs, lms_officer._currentTab);
 };
 
 lms_officer._bindPrimaryAction = function () {
@@ -76,6 +71,7 @@ lms_officer._bindPrimaryAction = function () {
 			lms_officer._currentTab = "loans";
 			root.querySelectorAll(".lms-tab").forEach(function (b) {
 				b.classList.toggle("is-active", b.getAttribute("data-tab") === "loans");
+				b.setAttribute("aria-selected", b.getAttribute("data-tab") === "loans" ? "true" : "false");
 			});
 			lms_officer._showTab("loans");
 		});
@@ -83,17 +79,13 @@ lms_officer._bindPrimaryAction = function () {
 };
 
 lms_officer._bindTabs = function () {
-	var root = document.getElementById("lms-officer-root");
-	if (!root) return;
-	root.querySelectorAll(".lms-tab").forEach(function (btn) {
-		btn.addEventListener("click", function () {
-			lms_officer._currentTab = btn.getAttribute("data-tab");
-			root.querySelectorAll(".lms-tab").forEach(function (b) {
-				b.classList.remove("is-active");
-			});
-			btn.classList.add("is-active");
-			lms_officer._showTab(lms_officer._currentTab);
-		});
+	lms_portal.bindTabs({
+		root: document.getElementById("lms-officer-root"),
+		tabs: lms_officer._tabs,
+		onTab: function (tabId) {
+			lms_officer._currentTab = tabId;
+			lms_officer._showTab(tabId);
+		},
 	});
 };
 
@@ -203,54 +195,62 @@ lms_officer._loadDashboard = function (content) {
 
 lms_officer._renderAll = function (root, dash, apps, loans, branch, collections, customers, products) {
 	var html = '<div class="lms-stack">';
-
-	// KPI cards
 	var k = dash.kpis || {};
-	html += '<section class="lms-summary" aria-label="Officer KPIs">';
-	html += lms_officer._kpiCard("Pending applications", k.pending_applications || 0);
-	html += lms_officer._kpiCard("Awaiting disbursement", k.pending_disbursement || 0);
-	html += lms_officer._kpiCard("My active loans", k.my_active_loans || 0);
-	html += lms_officer._kpiCard("Disbursed this month", k.disbursed_this_month || 0);
-	html += lms_officer._kpiCard("PAR count", k.par_count || 0);
-	html += lms_officer._kpiCard("Branch leads", k.branch_leads || 0);
-	html += "</section>";
+	var appRows = (apps.applications || []);
 
-	// Today vs PAR gauge
+	// 1) Work queue first — pending applications (actionable)
+	if (!appRows.length) {
+		html += lms_portal.emptyPanel(
+			"📋",
+			"No pending applications",
+			"When a borrower submits an application, it will appear here."
+		);
+	} else {
+		html += '<div class="lms-panel">';
+		html += '<div class="lms-section-header"><h3>Pending applications</h3>';
+		html += '<span class="lms-muted">' + appRows.length + " pending</span></div>";
+		html += '<ul class="lms-list">';
+		appRows.forEach(function (row) {
+			var borrower = row.customer_name || row.applicant || "—";
+			html +=
+				'<li class="lms-list__item">' +
+				'<div class="lms-list__info">' +
+				"<strong>" + lms_portal.escape(borrower) + "</strong>" +
+				" — " + lms_portal.escape(row.product_name || row.loan_product || "") +
+				" — " + format_currency(row.loan_amount || 0) +
+				" — " + lms_portal.escape(row.status || "Draft") +
+				"</div>" +
+				'<div class="lms-data-table__actions">' +
+				'<button type="button" class="lms-btn lms-btn--primary lms-btn--sm lms-of-app-review" ' +
+				'data-app="' + lms_portal.escape(row.name || "") + '" ' +
+				'data-borrower="' + lms_portal.escape(borrower) + '" ' +
+				'data-product="' + lms_portal.escape(row.product_name || row.loan_product || "") + '" ' +
+				'data-amount="' + lms_portal.escape(String(row.loan_amount || 0)) + '" ' +
+				'data-status="' + lms_portal.escape(row.status || "Draft") + '">' +
+				"Review</button>" +
+				"</div></li>";
+		});
+		html += "</ul></div>";
+	}
+
+	// 2) Compact KPI strip (max 4) — below the queue
+	html += lms_portal.kpiStrip([
+		{ label: "Pending applications", value: k.pending_applications || 0, tone: (k.pending_applications || 0) ? "warning" : "" },
+		{ label: "Awaiting disbursement", value: k.pending_disbursement || 0, tone: (k.pending_disbursement || 0) ? "warning" : "" },
+		{ label: "My active loans", value: k.my_active_loans || 0 },
+		{ label: "PAR count", value: k.par_count || 0, tone: (k.par_count || 0) ? "danger" : "" },
+	]);
+
+	// 3) Charts below
 	html += '<div class="lms-chart-slot">';
 	html += '<div class="lms-chart-slot__head"><h3>Today\'s collections</h3></div>';
 	html += '<div class="lms-chart-slot__body"><canvas id="lms-officer-today-gauge" aria-live="polite"></canvas></div>';
 	html += '</div>';
 
-	// Officer performance bar
 	html += '<div class="lms-chart-slot lms-chart-slot--lg">';
 	html += '<div class="lms-chart-slot__head"><h3>Officer performance</h3></div>';
 	html += '<div class="lms-chart-slot__body"><canvas id="lms-officer-performance" aria-live="polite"></canvas></div>';
 	html += '</div>';
-
-	// Pending applications
-	html += '<div class="lms-panel">';
-	html += "<h3>Pending applications</h3>";
-	var appRows = (apps.applications || []);
-	if (!appRows.length) {
-		html +=
-			'<div class="staff-empty-state">' +
-			"<p>No pending applications. When a borrower submits an application, it will appear here.</p>" +
-			"</div>";
-	} else {
-		html += '<ul class="lms-list">';
-		appRows.forEach(function (row) {
-			html +=
-				'<li class="lms-list__item">' +
-				'<div class="lms-list__info">' +
-				"<strong>" + lms_portal.escape(row.customer_name || row.applicant || "—") + "</strong>" +
-				" — " + lms_portal.escape(row.product_name || row.loan_product || "") +
-				" — " + format_currency(row.loan_amount || 0) +
-				" — " + lms_portal.escape(row.status || "Draft") +
-				"</div></li>";
-		});
-		html += "</ul>";
-	}
-	html += "</div>";
 
 	// Active loans summary (counts only — the full list lives on the My
 	// Loans tab to avoid duplicating the table and the disburse actions).
@@ -279,6 +279,19 @@ lms_officer._renderAll = function (root, dash, apps, loans, branch, collections,
 	html += "</div>"; // .lms-stack
 
 	root.innerHTML = html;
+
+	// Review buttons — open application detail modal
+	root.querySelectorAll(".lms-of-app-review").forEach(function (btn) {
+		btn.addEventListener("click", function () {
+			lms_officer._reviewApplication({
+				name: btn.getAttribute("data-app"),
+				borrower: btn.getAttribute("data-borrower"),
+				product: btn.getAttribute("data-product"),
+				amount: parseFloat(btn.getAttribute("data-amount")) || 0,
+				status: btn.getAttribute("data-status"),
+			});
+		});
+	});
 
 	// -------- Charts ------------------------------------------------
 	// Wire the dashboard's "View all" loan shortcut to jump to the My Loans tab.
@@ -338,6 +351,30 @@ lms_officer._renderAll = function (root, dash, apps, loans, branch, collections,
 			}
 		}
 	}
+};
+
+lms_officer._reviewApplication = function (app) {
+	app = app || {};
+	var deskHref = "/app/loan-application/" + encodeURIComponent(app.name || "");
+	lms_portal.modal({
+		title: "Application — " + (app.borrower || app.name || ""),
+		size: "lg",
+		body:
+			'<div class="lms-form">' +
+			'<div class="lms-summary" style="margin-bottom:1rem;">' +
+			'<div class="lms-summary-card lms-summary-card--primary"><div class="lms-summary-label">Borrower</div><div class="lms-summary-value">' + lms_portal.escape(app.borrower || "—") + "</div></div>" +
+			'<div class="lms-summary-card lms-summary-card--primary"><div class="lms-summary-label">Amount</div><div class="lms-summary-value">' + format_currency(app.amount || 0) + "</div></div>" +
+			'<div class="lms-summary-card"><div class="lms-summary-label">Product</div><div class="lms-summary-value">' + lms_portal.escape(app.product || "—") + "</div></div>" +
+			'<div class="lms-summary-card"><div class="lms-summary-label">Status</div><div class="lms-summary-value">' + lms_portal.escape(app.status || "—") + "</div></div>" +
+			'<div class="lms-summary-card"><div class="lms-summary-label">Application #</div><div class="lms-summary-value">' + lms_portal.escape(app.name || "—") + "</div></div>" +
+			"</div>" +
+			'<p class="lms-muted">Open the full record in Desk to edit or submit for manager approval.</p>' +
+			'<p><a class="lms-btn lms-btn--ghost lms-btn--sm" href="' + deskHref + '" target="_blank" rel="noopener">Open in Desk</a></p>' +
+			"</div>",
+		confirmText: "Close",
+		confirmVariant: "primary",
+		onConfirm: function () {},
+	});
 };
 
 lms_officer._openApplicationModalFromHeader = function () {

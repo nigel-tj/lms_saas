@@ -1,14 +1,11 @@
-import frappe
-
-from lms_saas.utils.addons import require_addon
-from lms_saas.utils.brand import apply_portal_context
+from lms_saas.utils.portal import get_lms_page_context
 
 no_cache = 1
 
 
 def get_context(context):
-	if frappe.session.user == "Guest":
-		frappe.local.flags.redirect_location = "/login?redirect-to=/lms/visits"
-		raise frappe.Redirect
-	require_addon("field_visits")
-	return apply_portal_context(context, nav_active="field_visits", page_js="js/lms_visits_portal.js")
+	return get_lms_page_context(
+		context,
+		addon="field_visits",
+		login_path="/lms/visits",
+	)

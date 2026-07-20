@@ -4,13 +4,18 @@
 
 {% block lms_content %}
 <section class="lms-hero lms-home-hero">
+  {% if is_portal_borrower %}
+  <h2 class="lms-hero__title">My loans</h2>
+  <p class="lms-hero__subtitle">See your balance, next payment, and pay in one place.</p>
+  {% else %}
   <h2 class="lms-hero__title">Portfolio Dashboard</h2>
   <p class="lms-hero__subtitle">Track obligations, payment momentum, and account health from one board.</p>
+  {% endif %}
 </section>
 
 <div id="lms-portal-summary" aria-live="polite"></div>
 
-<div class="lms-bento" aria-label="Borrower dashboard">
+<div class="lms-bento" aria-label="{% if is_portal_borrower %}My loan home{% else %}Borrower dashboard{% endif %}">
   <article class="lms-bento__region lms-bento__region--next-action" aria-label="Next payment action">
     <div class="lms-chart-slot__head">
       <h3 class="lms-section-pill">Next payment</h3>
@@ -51,6 +56,7 @@
     <div class="lms-chart-slot__body" id="lms-portal-upcoming" aria-live="polite"></div>
   </article>
 
+  {% if not is_portal_borrower %}
   <article class="lms-bento__region lms-bento__region--risk lms-chart-slot lms-chart-slot--lg" aria-label="Risk mix">
     <div class="lms-chart-slot__head">
       <h3 class="lms-section-pill">Risk mix</h3>
@@ -59,14 +65,17 @@
   </article>
 
   <span class="lms-bento__region lms-bento__region--empty" aria-hidden="true"></span>
+  {% endif %}
 </div>
 
+{% if not is_portal_borrower %}
 <section class="lms-home-panel lms-chart-slot lms-chart-slot--lg" aria-label="Collections trend">
   <div class="lms-chart-slot__head">
     <h3 class="lms-section-pill">Collections trend</h3>
   </div>
   <div class="lms-chart-slot__body" id="lms-portal-collections-trend" aria-live="polite"></div>
 </section>
+{% endif %}
 {% endblock %}
 
 {% block sidebar_script %}{{ super() }}

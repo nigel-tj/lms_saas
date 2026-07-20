@@ -10,6 +10,7 @@ Each addon entry in ``ADDON_REGISTRY`` declares:
     label      — display name for nav + settings
     icon       — sidebar icon key (matched in base.html SVG set)
     route      — portal URL (``/lms/<key>``)
+    nav_group  — optional sidebar group label (``Field`` / ``Ops`` / ``Admin``)
     personas   — list of personas allowed to see/use the addon
     description — short text for the settings page
 
@@ -47,6 +48,7 @@ ADDON_REGISTRY: dict[str, dict] = {
         "label": _("Announcements"),
         "icon": "megaphone",
         "route": "/lms/announcements",
+        "nav_group": "Ops",
         "personas": ["Admin", "Branch Manager", "Loan Officer", "Collector"],
         "description": _("Internal announcement board with acknowledgement tracking."),
         "new_doctypes": ["LMS Announcement"],
@@ -55,6 +57,7 @@ ADDON_REGISTRY: dict[str, dict] = {
         "label": _("Task Management"),
         "icon": "check-square",
         "route": "/lms/tasks",
+        "nav_group": "Ops",
         "personas": ["Admin", "Branch Manager", "Loan Officer", "Collector"],
         "description": _("Kanban task board linked to loans, borrowers, and projects."),
         "new_doctypes": [],
@@ -63,6 +66,7 @@ ADDON_REGISTRY: dict[str, dict] = {
         "label": _("Document Center"),
         "icon": "folder",
         "route": "/lms/documents",
+        "nav_group": "Ops",
         "personas": ["Admin", "Branch Manager", "Loan Officer", "Collector", "Borrower"],
         "description": _("Centralised document repository with categories and expiry tracking."),
         "new_doctypes": ["LMS Document Category"],
@@ -71,6 +75,7 @@ ADDON_REGISTRY: dict[str, dict] = {
         "label": _("Support / Helpdesk"),
         "icon": "life-buoy",
         "route": "/lms/support",
+        "nav_group": "Ops",
         "personas": ["Admin", "Branch Manager", "Loan Officer", "Collector", "Borrower"],
         "description": _("Borrower ticket system with SLA tracking and complaint escalation."),
         "new_doctypes": [],
@@ -79,6 +84,7 @@ ADDON_REGISTRY: dict[str, dict] = {
         "label": _("HR Management"),
         "icon": "users",
         "route": "/lms/hr",
+        "nav_group": "Admin",
         "personas": ["Admin", "Branch Manager"],
         "description": _("Leave approvals, attendance, expense claims, shifts, team directory."),
         "new_doctypes": [],
@@ -88,6 +94,7 @@ ADDON_REGISTRY: dict[str, dict] = {
         "label": _("Branch Analytics"),
         "icon": "bar-chart",
         "route": "/lms/analytics",
+        "nav_group": "Admin",
         "personas": ["Admin", "Branch Manager"],
         "description": _("Cross-branch KPI comparison, officer leaderboard, trend analysis."),
         "new_doctypes": [],
@@ -96,6 +103,7 @@ ADDON_REGISTRY: dict[str, dict] = {
         "label": _("Regulatory Hub"),
         "icon": "shield",
         "route": "/lms/regulatory",
+        "nav_group": "Admin",
         "personas": ["Admin"],
         "description": _("Centralised regulatory reporting with deadline calendar and archive."),
         "new_doctypes": ["LMS Regulatory Submission"],
@@ -104,6 +112,7 @@ ADDON_REGISTRY: dict[str, dict] = {
         "label": _("Payroll"),
         "icon": "wallet",
         "route": "/lms/payroll",
+        "nav_group": "Admin",
         "personas": ["Admin", "Branch Manager"],
         "description": _("Payroll runs, payslip distribution, loan deduction tracking."),
         "new_doctypes": [],
@@ -112,6 +121,7 @@ ADDON_REGISTRY: dict[str, dict] = {
         "label": _("Appraisals"),
         "icon": "star",
         "route": "/lms/appraisals",
+        "nav_group": "Ops",
         "personas": ["Admin", "Branch Manager", "Loan Officer", "Collector"],
         "description": _("Appraisal cycles, goal setting, KRA scoring, performance feedback."),
         "new_doctypes": [],
@@ -120,6 +130,7 @@ ADDON_REGISTRY: dict[str, dict] = {
         "label": _("Training & Development"),
         "icon": "book-open",
         "route": "/lms/training",
+        "nav_group": "Ops",
         "personas": ["Admin", "Branch Manager", "Loan Officer", "Collector"],
         "description": _("Training programs, event registration, feedback, compliance tracking."),
         "new_doctypes": [],
@@ -128,6 +139,7 @@ ADDON_REGISTRY: dict[str, dict] = {
         "label": _("Recruitment"),
         "icon": "user-plus",
         "route": "/lms/recruitment",
+        "nav_group": "Admin",
         "personas": ["Admin", "Branch Manager"],
         "description": _("Job openings, applicant tracking, interview scheduling, onboarding."),
         "new_doctypes": [],
@@ -136,6 +148,7 @@ ADDON_REGISTRY: dict[str, dict] = {
         "label": _("Procurement"),
         "icon": "shopping-cart",
         "route": "/lms/procurement",
+        "nav_group": "Admin",
         "personas": ["Admin", "Branch Manager"],
         "description": _("Purchase requests, PO tracking, supplier directory, spend dashboard."),
         "new_doctypes": [],
@@ -144,6 +157,7 @@ ADDON_REGISTRY: dict[str, dict] = {
         "label": _("Savings Club"),
         "icon": "piggy-bank",
         "route": "/lms/savings",
+        "nav_group": "Ops",
         "personas": ["Admin", "Branch Manager", "Loan Officer", "Borrower"],
         "description": _("Group savings goals, voluntary deposits, savings statements, withdrawals."),
         "new_doctypes": ["LMS Savings Goal"],
@@ -152,6 +166,7 @@ ADDON_REGISTRY: dict[str, dict] = {
         "label": _("Customer Feedback"),
         "icon": "message-circle",
         "route": "/lms/feedback",
+        "nav_group": "Ops",
         "personas": ["Admin", "Branch Manager", "Borrower"],
         "description": _("NPS surveys, post-disbursement feedback, complaint auto-routing."),
         "new_doctypes": ["LMS Survey", "LMS Survey Response"],
@@ -160,6 +175,7 @@ ADDON_REGISTRY: dict[str, dict] = {
         "label": _("Field Visits"),
         "icon": "map-pin",
         "route": "/lms/visits",
+        "nav_group": "Field",
         "personas": ["Admin", "Branch Manager", "Loan Officer", "Collector"],
         "description": _("Visit scheduling, geo-tagged check-in, checklists, visit reports."),
         "new_doctypes": ["LMS Field Visit"],
@@ -169,6 +185,7 @@ ADDON_REGISTRY: dict[str, dict] = {
         "label": _("Inventory & Assets"),
         "icon": "package",
         "route": "/lms/inventory",
+        "nav_group": "Admin",
         "personas": ["Admin", "Branch Manager"],
         "description": _("Asset register, stock items, field equipment checkout, depreciation."),
         "new_doctypes": [],
@@ -177,6 +194,7 @@ ADDON_REGISTRY: dict[str, dict] = {
         "label": _("Budgeting"),
         "icon": "trending-up",
         "route": "/lms/budgeting",
+        "nav_group": "Admin",
         "personas": ["Admin", "Branch Manager"],
         "description": _("Branch budgets, budget vs. actual, forecasting, variance analysis."),
         "new_doctypes": [],
@@ -185,6 +203,7 @@ ADDON_REGISTRY: dict[str, dict] = {
         "label": _("Insurance"),
         "icon": "umbrella",
         "route": "/lms/insurance",
+        "nav_group": "Ops",
         "personas": ["Admin", "Branch Manager", "Loan Officer", "Borrower"],
         "description": _("Loan insurance policies, premium tracking, claims management."),
         "new_doctypes": ["LMS Insurance Policy", "LMS Insurance Claim"],
@@ -193,6 +212,7 @@ ADDON_REGISTRY: dict[str, dict] = {
         "label": _("WhatsApp Business"),
         "icon": "message-square",
         "route": "/lms/whatsapp",
+        "nav_group": "Ops",
         "personas": ["Admin", "Branch Manager", "Loan Officer"],
         "description": _("WhatsApp notifications, two-way messaging, broadcast campaigns."),
         "new_doctypes": ["LMS WhatsApp Template"],
@@ -201,6 +221,7 @@ ADDON_REGISTRY: dict[str, dict] = {
         "label": _("Wallet Reconciliation"),
         "icon": "refresh-cw",
         "route": "/lms/reconciliation",
+        "nav_group": "Admin",
         "personas": ["Admin", "Branch Manager"],
         "description": _("Mobile money statement import, auto-matching, reconciliation dashboard."),
         "new_doctypes": ["LMS Wallet Statement"],
@@ -319,19 +340,30 @@ def require_addon_persona(key: str) -> None:
     frappe.throw("Not permitted", frappe.PermissionError)
 
 
+_NAV_GROUP_ORDER = {"Field": 0, "Ops": 1, "Admin": 2}
+
+
 def addon_nav_items(persona: str | None = None) -> list[dict]:
     """Build nav items for enabled addons matching the persona.
 
-    Returns a list of ``{key, label, route, icon}`` dicts suitable for
-    ``_build_lms_nav`` in ``utils/brand.py``.
+    Returns a list of ``{key, label, route, icon, group?}`` dicts suitable for
+    ``_build_lms_nav`` in ``utils/brand.py``. Items are ordered by ``nav_group``
+    (Field → Ops → Admin) then registry order within each group.
     """
     addons = get_addons_for_persona(persona)
-    return [
-        {
+    addons = sorted(
+        addons,
+        key=lambda a: (_NAV_GROUP_ORDER.get(a.get("nav_group") or "", 99),),
+    )
+    items = []
+    for a in addons:
+        item = {
             "key": a["key"],
             "label": a["label"],
             "route": a["route"],
             "icon": a["icon"],
         }
-        for a in addons
-    ]
+        if a.get("nav_group"):
+            item["group"] = a["nav_group"]
+        items.append(item)
+    return items

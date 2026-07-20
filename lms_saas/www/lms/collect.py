@@ -1,12 +1,13 @@
-import frappe
-
-from lms_saas.utils.brand import apply_portal_context
+from lms_saas.utils.portal import get_lms_page_context
 
 no_cache = 1
 
 
 def get_context(context):
-	if frappe.session.user == "Guest":
-		frappe.local.flags.redirect_location = "/login?redirect-to=/lms/collect"
-		raise frappe.Redirect
-	return apply_portal_context(context, nav_active="collect", page_js="js/lms_collect_pwa.js")
+	return get_lms_page_context(
+		context,
+		nav_key="collect",
+		page_js="js/lms_collect_pwa.js",
+		perm="can_collect",
+		login_path="/lms/collect",
+	)

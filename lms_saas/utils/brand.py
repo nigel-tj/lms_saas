@@ -172,6 +172,7 @@ def apply_portal_context(context, nav_active="loans", page_js=None):
 	# Resolve persona so the nav shows only the relevant items per role.
 	context.lms_persona = resolve_portal_persona()
 	context.is_portal_borrower = "Customer" in user_roles and not context.is_portal_staff and not show_staff_desk_link()
+	context.lms_user_permissions = _get_user_permissions(context.lms_persona, user_roles)
 	context.lms_desk_home = lending_home_url()
 	context.lms_risk_disclosure = (
 		frappe.conf.get("lms_risk_disclosure")
@@ -182,7 +183,8 @@ def apply_portal_context(context, nav_active="loans", page_js=None):
 	context.no_header = True
 	context.no_cache = 1
 	body_class = getattr(context, "body_class", None) or ""
-	context.body_class = f"{body_class} lms-portal lms-themed".strip()
+	borrower_class = " lms-portal-borrower" if context.is_portal_borrower else ""
+	context.body_class = f"{body_class} lms-portal{borrower_class} lms-themed".strip()
 
 	# Prepare the standalone shell's CSS/JS stacks.
 	context.lms_css_stack = _lms_portal_css_stack()
@@ -254,6 +256,7 @@ def _build_lms_nav(context):
 	is_staff = context.get("is_portal_staff")
 
 	if is_borrower or not is_staff:
+		# Borrower core stays ungrouped (primary home links).
 		items.extend([
 			{"key": "loans", "label": "My Loans", "route": "/lms", "icon": "loans"},
 			{"key": "apply", "label": "Apply", "route": "/lms/apply", "icon": "apply"},
@@ -262,13 +265,32 @@ def _build_lms_nav(context):
 
 	if is_staff:
 		if persona == "Loan Officer":
-			items.append({"key": "officer", "label": "Officer", "route": "/lms/officer", "icon": "officer"})
+			items.append({
+				"key": "officer",
+				"label": "Officer",
+				"route": "/lms/officer",
+				"icon": "officer",
+				"group": "Lending",
+			})
 		elif persona == "Branch Manager":
-			items.append({"key": "manager", "label": "Manager", "route": "/lms/manager", "icon": "manager"})
-		items.append({"key": "collect", "label": "Collection Run", "route": "/lms/collect", "icon": "collect"})
+			items.append({
+				"key": "manager",
+				"label": "Manager",
+				"route": "/lms/manager",
+				"icon": "manager",
+				"group": "Lending",
+			})
+		items.append({
+			"key": "collect",
+			"label": "Collection Run",
+			"route": "/lms/collect",
+			"icon": "collect",
+			"group": "Lending",
+		})
 
 	# ── Addon nav items ──
 	# Borrowers see borrower-tagged addons; staff see persona-matched addons.
+	# Groups come from ADDON_REGISTRY ``nav_group`` (Field / Ops / Admin).
 	addon_persona = persona
 	if is_borrower and not is_staff:
 		addon_persona = "Borrower"
@@ -278,44 +300,33 @@ def _build_lms_nav(context):
 	items.extend(addon_nav_items(addon_persona))
 
 	if frappe.session.user != "Guest":
+		# Account stays last and ungrouped.
 		items.append({"key": "account", "label": "My Account", "route": "/lms/account", "icon": "account"})
 
 	return items
 
 
+CORE_PAGE_TITLES = {
+	"loans": "My Loans",
+	"apply": "Apply for a Loan",
+	"pay": "Make a Payment",
+	"account": "My Account",
+	"officer": "Loan Officer Dashboard",
+	"manager": "Branch Manager Dashboard",
+	"collect": "Collection Run",
+}
+
+
 def _lms_page_title(nav_active, context):
-	"""Return a human-readable page title based on active nav key."""
-	labels = {
-		"loans": "My Loans",
-		"apply": "Apply for a Loan",
-		"pay": "Make a Payment",
-		"account": "My Account",
-		"officer": "Loan Officer Dashboard",
-		"manager": "Branch Manager Dashboard",
-		"collect": "Collection Run",
-		# ── Addon page titles ──
-		"announcements": "Announcements",
-		"tasks": "Tasks",
-		"documents": "Document Center",
-		"support": "Support",
-		"hr": "HR Management",
-		"analytics": "Branch Analytics",
-		"regulatory": "Regulatory Hub",
-		"payroll": "Payroll",
-		"appraisals": "Appraisals",
-		"training": "Training & Development",
-		"recruitment": "Recruitment",
-		"procurement": "Procurement",
-		"savings": "Savings Club",
-		"feedback": "Customer Feedback",
-		"visits": "Field Visits",
-		"inventory": "Inventory & Assets",
-		"budgeting": "Budgeting",
-		"insurance": "Insurance",
-		"whatsapp": "WhatsApp",
-		"reconciliation": "Wallet Reconciliation",
-	}
-	return labels.get(nav_active, context.get("brand", {}).get("portal_title", "Kesari"))
+	"""Return a human-readable page title from core map or ADDON_REGISTRY."""
+	from lms_saas.utils.addons import ADDON_REGISTRY
+
+	if nav_active in CORE_PAGE_TITLES:
+		return CORE_PAGE_TITLES[nav_active]
+	spec = ADDON_REGISTRY.get(nav_active)
+	if spec:
+		return str(spec.get("label") or nav_active)
+	return context.get("brand", {}).get("portal_title", "Kesari")
 
 
 def update_website_context(context):
