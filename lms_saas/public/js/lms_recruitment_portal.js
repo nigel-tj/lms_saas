@@ -16,28 +16,17 @@ lms_recruitment.init = function () {
 		{ id: "applicants", label: "Applicants", icon: "👤" },
 		{ id: "staffing", label: "Staffing Plan", icon: "📊" },
 	];
-	var html = '<nav class="lms-tab-nav" role="tablist">';
-	tabs.forEach(function (t) {
-		var active = lms_recruitment._currentTab === t.id ? " is-active" : "";
-		html += '<button type="button" class="lms-tab' + active + '" data-tab="' + t.id + '" role="tab" aria-selected="' + (active ? "true" : "false") + '">' + t.icon + " " + lms_portal.escape(t.label) + "</button>";
-	});
-	html += "</nav>";
-	html += '<div id="lms-recruitment-tab-content"></div>';
+	var html = lms_portal.pageStart() +
+		lms_portal.pageHeader({ title: "Recruitment" }) +
+		lms_portal.tabNav(tabs, lms_recruitment._currentTab) +
+		'<div id="lms-recruitment-tab-content"></div>' +
+		lms_portal.pageEnd();
 	root.innerHTML = html;
 
-	root.querySelectorAll(".lms-tab").forEach(function (btn) {
-		btn.addEventListener("click", function () {
-			lms_recruitment._currentTab = btn.getAttribute("data-tab");
-			root.querySelectorAll(".lms-tab").forEach(function (b) {
-				b.classList.remove("is-active");
-				b.setAttribute("aria-selected", "false");
-			});
-			btn.classList.add("is-active");
-			btn.style.borderBottom = "2px solid var(--lms-primary)";
-			btn.style.color = "var(--lms-primary)";
-			btn.style.fontWeight = "600";
-			lms_recruitment._showTab(lms_recruitment._currentTab);
-		});
+	lms_portal.bindTabs({
+		root: root,
+		tabs: tabs,
+		onTab: function (tabId) { lms_recruitment._currentTab = tabId; lms_recruitment._showTab(tabId); },
 	});
 
 	lms_recruitment._showTab(lms_recruitment._currentTab);
@@ -51,12 +40,6 @@ lms_recruitment._showTab = function (tabId) {
 	if (tabId === "openings") lms_recruitment._loadOpenings(content);
 	else if (tabId === "applicants") lms_recruitment._loadApplicants(content);
 	else if (tabId === "staffing") lms_recruitment._loadStaffing(content);
-};
-
-lms_recruitment._statCard = function (label, value, tone) {
-	var cls = tone ? " lms-stat--" + tone : "";
-	return '<div class="lms-stat-card lms-stat' + cls + '" style="padding:1rem;"><div class="lms-stat-label">' +
-		lms_portal.escape(label) + '</div><div class="lms-stat-value">' + value + '</div></div>';
 };
 
 lms_recruitment._loadOpenings = function (content) {

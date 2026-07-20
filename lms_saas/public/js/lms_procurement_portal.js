@@ -17,28 +17,17 @@ lms_procurement.init = function () {
 		{ id: "suppliers", label: "Suppliers", icon: "🏢" },
 		{ id: "stats", label: "Stats", icon: "📊" },
 	];
-	var html = '<nav class="lms-tab-nav" role="tablist">';
-	tabs.forEach(function (t) {
-		var active = lms_procurement._currentTab === t.id ? " is-active" : "";
-		html += '<button type="button" class="lms-tab' + active + '" data-tab="' + t.id + '" role="tab" aria-selected="' + (active ? "true" : "false") + '">' + t.icon + " " + lms_portal.escape(t.label) + "</button>";
-	});
-	html += "</nav>";
-	html += '<div id="lms-proc-tab-content"></div>';
+	var html = lms_portal.pageStart() +
+		lms_portal.pageHeader({ title: "Procurement" }) +
+		lms_portal.tabNav(tabs, lms_procurement._currentTab) +
+		'<div id="lms-proc-tab-content"></div>' +
+		lms_portal.pageEnd();
 	root.innerHTML = html;
 
-	root.querySelectorAll(".lms-tab").forEach(function (btn) {
-		btn.addEventListener("click", function () {
-			lms_procurement._currentTab = btn.getAttribute("data-tab");
-			root.querySelectorAll(".lms-tab").forEach(function (b) {
-				b.classList.remove("is-active");
-				b.setAttribute("aria-selected", "false");
-			});
-			btn.classList.add("is-active");
-			btn.style.borderBottom = "2px solid var(--lms-primary)";
-			btn.style.color = "var(--lms-primary)";
-			btn.style.fontWeight = "600";
-			lms_procurement._showTab(lms_procurement._currentTab);
-		});
+	lms_portal.bindTabs({
+		root: root,
+		tabs: tabs,
+		onTab: function (tabId) { lms_procurement._currentTab = tabId; lms_procurement._showTab(tabId); },
 	});
 
 	lms_procurement._showTab(lms_procurement._currentTab);

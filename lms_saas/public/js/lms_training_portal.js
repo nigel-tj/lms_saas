@@ -16,28 +16,17 @@ lms_training.init = function () {
 		{ id: "events", label: "Events", icon: "📅" },
 		{ id: "mine", label: "My Training", icon: "🎓" },
 	];
-	var html = '<nav class="lms-tab-nav" role="tablist">';
-	tabs.forEach(function (t) {
-		var active = lms_training._currentTab === t.id ? " is-active" : "";
-		html += '<button type="button" class="lms-tab' + active + '" data-tab="' + t.id + '" role="tab" aria-selected="' + (active ? "true" : "false") + '">' + t.icon + " " + lms_portal.escape(t.label) + "</button>";
-	});
-	html += "</nav>";
-	html += '<div id="lms-training-tab-content"></div>';
+	var html = lms_portal.pageStart() +
+		lms_portal.pageHeader({ title: "Training" }) +
+		lms_portal.tabNav(tabs, lms_training._currentTab) +
+		'<div id="lms-training-tab-content"></div>' +
+		lms_portal.pageEnd();
 	root.innerHTML = html;
 
-	root.querySelectorAll(".lms-tab").forEach(function (btn) {
-		btn.addEventListener("click", function () {
-			lms_training._currentTab = btn.getAttribute("data-tab");
-			root.querySelectorAll(".lms-tab").forEach(function (b) {
-				b.classList.remove("is-active");
-				b.setAttribute("aria-selected", "false");
-			});
-			btn.classList.add("is-active");
-			btn.style.borderBottom = "2px solid var(--lms-primary)";
-			btn.style.color = "var(--lms-primary)";
-			btn.style.fontWeight = "600";
-			lms_training._showTab(lms_training._currentTab);
-		});
+	lms_portal.bindTabs({
+		root: root,
+		tabs: tabs,
+		onTab: function (tabId) { lms_training._currentTab = tabId; lms_training._showTab(tabId); },
 	});
 
 	lms_training._showTab(lms_training._currentTab);
@@ -51,12 +40,6 @@ lms_training._showTab = function (tabId) {
 	if (tabId === "programs") lms_training._loadPrograms(content);
 	else if (tabId === "events") lms_training._loadEvents(content);
 	else if (tabId === "mine") lms_training._loadMine(content);
-};
-
-lms_training._statCard = function (label, value, tone) {
-	var cls = tone ? " lms-stat--" + tone : "";
-	return '<div class="lms-stat-card lms-stat' + cls + '" style="padding:1rem;"><div class="lms-stat-label">' +
-		lms_portal.escape(label) + '</div><div class="lms-stat-value">' + value + '</div></div>';
 };
 
 lms_training._loadPrograms = function (content) {

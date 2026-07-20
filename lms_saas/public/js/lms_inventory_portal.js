@@ -16,29 +16,18 @@ lms_inventory.init = function () {
 		{ id: "stock", label: "Stock", icon: "📋" },
 		{ id: "lowstock", label: "Low Stock Alerts", icon: "⚠️" },
 	];
-	var html = '<nav class="lms-tab-nav" role="tablist">';
-	tabs.forEach(function (t) {
-		var active = lms_inventory._currentTab === t.id ? " is-active" : "";
-		html += '<button type="button" class="lms-tab' + active + '" data-tab="' + t.id + '" role="tab" aria-selected="' + (active ? "true" : "false") + '">' + t.icon + " " + lms_portal.escape(t.label) + "</button>";
-	});
-	html += "</nav>";
-	html += '<div id="lms-inv-stats" style="margin-bottom:1rem;"></div>';
-	html += '<div id="lms-inv-tab-content"></div>';
+	var html = lms_portal.pageStart() +
+		lms_portal.pageHeader({ title: "Inventory & Assets" }) +
+		lms_portal.tabNav(tabs, lms_inventory._currentTab) +
+		'<div id="lms-inv-stats"></div>' +
+		'<div id="lms-inv-tab-content"></div>' +
+		lms_portal.pageEnd();
 	root.innerHTML = html;
 
-	root.querySelectorAll(".lms-tab").forEach(function (btn) {
-		btn.addEventListener("click", function () {
-			lms_inventory._currentTab = btn.getAttribute("data-tab");
-			root.querySelectorAll(".lms-tab").forEach(function (b) {
-				b.classList.remove("is-active");
-				b.setAttribute("aria-selected", "false");
-			});
-			btn.classList.add("is-active");
-			btn.style.borderBottom = "2px solid var(--lms-primary)";
-			btn.style.color = "var(--lms-primary)";
-			btn.style.fontWeight = "600";
-			lms_inventory._showTab(lms_inventory._currentTab);
-		});
+	lms_portal.bindTabs({
+		root: root,
+		tabs: tabs,
+		onTab: function (tabId) { lms_inventory._currentTab = tabId; lms_inventory._showTab(tabId); },
 	});
 
 	lms_inventory._loadStats();
@@ -55,12 +44,6 @@ lms_inventory._showTab = function (tabId) {
 	else if (tabId === "lowstock") lms_inventory._loadLowStock(content);
 };
 
-lms_inventory._statCard = function (label, value, tone) {
-	var cls = tone ? " lms-stat--" + tone : "";
-	return '<div class="lms-stat-card lms-stat' + cls + '" style="padding:1rem;"><div class="lms-stat-label">' +
-		lms_portal.escape(label) + '</div><div class="lms-stat-value">' + value + '</div></div>';
-};
-
 lms_inventory._loadStats = function () {
 	var el = document.getElementById("lms-inv-stats");
 	if (!el) return;
@@ -68,13 +51,12 @@ lms_inventory._loadStats = function () {
 		method: "lms_saas.api.inventory.get_inventory_stats",
 		callback: function (r) {
 			var s = (r && r.message) || {};
-			var html = '<section class="lms-grid-4">';
-			html += lms_inventory._statCard("Total Assets", s.total_assets || 0);
-			html += lms_inventory._statCard("Active Assets", s.active_assets || 0, "success");
-			html += lms_inventory._statCard("Stock Items", s.stock_items || 0);
-			html += lms_inventory._statCard("Low Stock", s.low_stock_items || 0, "danger");
-			html += "</section>";
-			el.innerHTML = html;
+			el.innerHTML = lms_portal.kpiStrip([
+				{ label: "Total Assets", value: s.total_assets || 0 },
+				{ label: "Active Assets", value: s.active_assets || 0, tone: "success" },
+				{ label: "Stock Items", value: s.stock_items || 0 },
+				{ label: "Low Stock", value: s.low_stock_items || 0, tone: "danger" },
+			]);
 		},
 	});
 };

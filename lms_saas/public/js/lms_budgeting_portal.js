@@ -17,29 +17,18 @@ lms_budgeting.init = function () {
 		{ id: "forecast", label: "Forecast", icon: "📈" },
 		{ id: "variance", label: "Variance", icon: "⚠️" },
 	];
-	var html = '<nav class="lms-tab-nav" role="tablist">';
-	tabs.forEach(function (t) {
-		var active = lms_budgeting._currentTab === t.id ? " is-active" : "";
-		html += '<button type="button" class="lms-tab' + active + '" data-tab="' + t.id + '" role="tab" aria-selected="' + (active ? "true" : "false") + '">' + t.icon + " " + lms_portal.escape(t.label) + "</button>";
-	});
-	html += "</nav>";
-	html += '<div id="lms-bud-stats" style="margin-bottom:1rem;"></div>';
-	html += '<div id="lms-bud-tab-content"></div>';
+	var html = lms_portal.pageStart() +
+		lms_portal.pageHeader({ title: "Budgeting" }) +
+		lms_portal.tabNav(tabs, lms_budgeting._currentTab) +
+		'<div id="lms-bud-stats"></div>' +
+		'<div id="lms-bud-tab-content"></div>' +
+		lms_portal.pageEnd();
 	root.innerHTML = html;
 
-	root.querySelectorAll(".lms-tab").forEach(function (btn) {
-		btn.addEventListener("click", function () {
-			lms_budgeting._currentTab = btn.getAttribute("data-tab");
-			root.querySelectorAll(".lms-tab").forEach(function (b) {
-				b.classList.remove("is-active");
-				b.setAttribute("aria-selected", "false");
-			});
-			btn.classList.add("is-active");
-			btn.style.borderBottom = "2px solid var(--lms-primary)";
-			btn.style.color = "var(--lms-primary)";
-			btn.style.fontWeight = "600";
-			lms_budgeting._showTab(lms_budgeting._currentTab);
-		});
+	lms_portal.bindTabs({
+		root: root,
+		tabs: tabs,
+		onTab: function (tabId) { lms_budgeting._currentTab = tabId; lms_budgeting._showTab(tabId); },
 	});
 
 	lms_budgeting._loadStats();
@@ -57,12 +46,6 @@ lms_budgeting._showTab = function (tabId) {
 	else if (tabId === "variance") lms_budgeting._loadVariance(content);
 };
 
-lms_budgeting._statCard = function (label, value, tone) {
-	var cls = tone ? " lms-stat--" + tone : "";
-	return '<div class="lms-stat-card lms-stat' + cls + '" style="padding:1rem;"><div class="lms-stat-label">' +
-		lms_portal.escape(label) + '</div><div class="lms-stat-value">' + value + '</div></div>';
-};
-
 lms_budgeting._loadStats = function () {
 	var el = document.getElementById("lms-bud-stats");
 	if (!el) return;
@@ -70,13 +53,12 @@ lms_budgeting._loadStats = function () {
 		method: "lms_saas.api.budgeting.get_budgeting_stats",
 		callback: function (r) {
 			var s = (r && r.message) || {};
-			var html = '<section class="lms-grid-4">';
-			html += lms_budgeting._statCard("Total Budgets", s.total_budgets || 0);
-			html += lms_budgeting._statCard("Fiscal Years", s.active_fiscal_years || 0);
-			html += lms_budgeting._statCard("Total Budgeted", format_currency(s.total_budgeted || 0));
-			html += lms_budgeting._statCard("Over Budget", s.accounts_over_budget || 0, "danger");
-			html += "</section>";
-			el.innerHTML = html;
+			el.innerHTML = lms_portal.kpiStrip([
+				{ label: "Total Budgets", value: s.total_budgets || 0 },
+				{ label: "Fiscal Years", value: s.active_fiscal_years || 0 },
+				{ label: "Total Budgeted", value: format_currency(s.total_budgeted || 0) },
+				{ label: "Over Budget", value: s.accounts_over_budget || 0, tone: "danger" },
+			]);
 		},
 	});
 };
@@ -152,9 +134,10 @@ lms_budgeting._loadForecast = function (content) {
 			var forecast = data.forecast || [];
 			var growth = data.avg_growth_rate || 0;
 
-			var html = '<div class="lms-panel" style="margin-bottom:1rem;">';
-			html += '<div class="lms-summary"><div class="lms-summary-card"><div class="lms-summary-label">Avg Growth Rate</div><div class="lms-summary-value">' + (growth > 0 ? "+" : "") + growth + "%</div></div></div>';
-			html += '</div>';
+			var html = lms_portal.panel({ body: '<div class="lms-section-header"><h3>Forecast</h3></div>' });
+			html += lms_portal.kpiStrip([
+				{ label: "Avg Growth Rate", value: (growth > 0 ? "+" : "") + growth + "%" },
+			]);
 
 			if (historical.length) {
 				html += '<div class="lms-panel" style="margin-bottom:1rem;"><h3>Historical Disbursements</h3>';
