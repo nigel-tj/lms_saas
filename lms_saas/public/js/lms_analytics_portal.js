@@ -54,12 +54,6 @@ lms_analytics._showTab = function (tabId) {
 	else if (tabId === "trends") lms_analytics._loadTrends(content);
 };
 
-lms_analytics._statCard = function (label, value, tone) {
-	var cls = tone ? " lms-stat--" + tone : "";
-	return '<div class="lms-stat-card lms-stat' + cls + '" style="padding:1rem;"><div class="lms-stat-label">' +
-		lms_portal.escape(label) + '</div><div class="lms-stat-value">' + value + '</div></div>';
-};
-
 lms_analytics._fmtCurrency = function (v) {
 	if (v === null || v === undefined) return "—";
 	return format_currency(v);

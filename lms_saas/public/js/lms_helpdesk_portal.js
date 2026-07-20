@@ -52,12 +52,6 @@ lms_helpdesk._loadStats = function (isBorrower) {
 	});
 };
 
-lms_helpdesk._statCard = function (label, value, tone) {
-	var cls = tone ? " lms-stat--" + tone : "";
-	return '<div class="lms-stat-card lms-stat' + cls + '"><div class="lms-stat-label">' +
-		lms_portal.escape(label) + '</div><div class="lms-stat-value">' + value + '</div></div>';
-};
-
 lms_helpdesk._loadQueue = function (isBorrower) {
 	var el = document.getElementById("lms-hd-queue");
 	if (!el) return;

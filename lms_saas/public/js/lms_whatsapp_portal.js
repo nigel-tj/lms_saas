@@ -48,11 +48,6 @@ lms_whatsapp._showTab = function (tabId) {
 	else if (tabId === "stats") lms_whatsapp._loadStats(content);
 };
 
-lms_whatsapp._statCard = function (label, value, tone) {
-	var cls = tone ? " lms-stat--" + tone : "";
-	return '<div class="lms-stat-card lms-stat' + cls + '" style="padding:1rem;"><div class="lms-stat-label">' +
-		lms_portal.escape(label) + '</div><div class="lms-stat-value">' + value + '</div></div>';
-};
 
 lms_whatsapp._loadSend = function (content) {
 	// Load templates for the dropdown first
