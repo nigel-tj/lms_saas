@@ -66,9 +66,38 @@ def _address_for_applicant(applicant_type, applicant):
 	return ""
 
 
+def _is_admin() -> bool:
+	return bool(set(frappe.get_roles()).intersection({"System Manager", "Administrator"}))
+
+
+def _collector_branch() -> str | None:
+	from lms_saas.api.staff import get_current_user_branch
+
+	return get_current_user_branch()
+
+
+def _assert_loan_in_scope(loan_name: str) -> None:
+	"""Fail closed: collectors may only act on loans in their branch.
+
+	Admins bypass. Branch Managers / Officers without a branch cannot collect
+	cross-branch by guessing loan names.
+	"""
+	if _is_admin():
+		return
+	if not frappe.db.exists("Loan", loan_name):
+		frappe.throw("Loan not found.", frappe.DoesNotExistError)
+	branch = _collector_branch()
+	if not branch:
+		frappe.throw("No branch assigned — cannot record collections.", frappe.PermissionError)
+	loan_branch = frappe.db.get_value("Loan", loan_name, "custom_lms_branch") or ""
+	if loan_branch != branch:
+		frappe.throw("Loan is not in your branch.", frappe.PermissionError)
+
+
 @frappe.whitelist()
 def record_field_repayment(loan: str, amount: float, payment_mode: str = "Cash"):
 	_require_collector()
+	_assert_loan_in_scope(loan)
 	amount = flt(amount)
 	if amount <= 0:
 		frappe.throw("Amount must be positive")
@@ -99,6 +128,7 @@ def record_field_repayment(loan: str, amount: float, payment_mode: str = "Cash")
 def record_partial_repayment(loan: str, amount: float, payment_mode: str = "Cash", note: str = ""):
 	"""Record a partial field collection (amount < outstanding)."""
 	_require_collector()
+	_assert_loan_in_scope(loan)
 	amount = flt(amount)
 	if amount <= 0:
 		frappe.throw("Amount must be positive")
@@ -131,6 +161,7 @@ def record_partial_repayment(loan: str, amount: float, payment_mode: str = "Cash
 def create_promise_to_pay(loan: str, promised_date, promised_amount=None, note: str = ""):
 	"""Create a ToDo tracking a borrower's promise to pay."""
 	_require_collector()
+	_assert_loan_in_scope(loan)
 	loan_doc = frappe.get_doc("Loan", loan)
 	todo = frappe.get_doc(
 		{

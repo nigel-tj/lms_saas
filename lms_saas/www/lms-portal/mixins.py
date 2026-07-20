@@ -127,10 +127,10 @@ def get_staff_nav():
 	persona = _get_active_persona()
 	# Loan Officer and Branch Manager can also see Manager.
 	if persona in ("Loan Officer", "Branch Manager"):
-		nav.append({"key": "officer", "label": _("Loans"), "route": "/lms-portal/officer"})
-		nav.append({"key": "manager", "label": _("Management"), "route": "/lms-portal/manager"})
+		nav.append({"key": "officer", "label": _("Loans"), "route": "/lms/officer"})
+		nav.append({"key": "manager", "label": _("Management"), "route": "/lms/manager"})
 	if persona in ("Collector", "Loan Officer", "Branch Manager"):
-		nav.append({"key": "collector", "label": _("Collections"), "route": "/lms-portal/collector"})
+		nav.append({"key": "collector", "label": _("Collections"), "route": "/lms/collect"})
 	return nav
 
 

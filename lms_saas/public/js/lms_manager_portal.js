@@ -18,39 +18,27 @@ lms_manager.init = function () {
 	lms_manager._showTab(lms_manager._currentTab);
 };
 
+lms_manager._tabs = [
+	{ id: "dashboard", label: "Dashboard", icon: "📊" },
+	{ id: "borrowers", label: "Borrowers", icon: "👤" },
+	{ id: "loans", label: "Loans", icon: "💰" },
+	{ id: "reports", label: "Reports", icon: "📈" },
+	{ id: "collateral", label: "Collateral", icon: "🏠" },
+	{ id: "team", label: "Team", icon: "👥" },
+];
+
 lms_manager._tabNav = function () {
-	var tabs = [
-		{ id: "dashboard", label: "Dashboard", icon: "📊" },
-		{ id: "borrowers", label: "Borrowers", icon: "👤" },
-		{ id: "loans", label: "Loans", icon: "💰" },
-		{ id: "reports", label: "Reports", icon: "📈" },
-		{ id: "collateral", label: "Collateral", icon: "🏠" },
-		{ id: "team", label: "Team", icon: "👥" },
-	];
-	var html = '<nav class="lms-tab-nav" role="tablist">';
-	tabs.forEach(function (t) {
-		var active = lms_manager._currentTab === t.id ? " is-active" : "";
-		html += '<button type="button" class="lms-tab' + active + '" data-tab="' + t.id + '" role="tab" aria-selected="' + (active ? "true" : "false") + '">' + t.icon + " " + lms_portal.escape(t.label) + "</button>";
-	});
-	html += "</nav>";
-	return html;
+	return lms_portal.tabNav(lms_manager._tabs, lms_manager._currentTab);
 };
 
 lms_manager._bindTabs = function () {
-	var root = document.getElementById("lms-manager-root");
-	if (!root) return;
-	root.querySelectorAll(".lms-tab").forEach(function (btn) {
-		btn.addEventListener("click", function () {
-			lms_manager._currentTab = btn.getAttribute("data-tab");
-			// Update active styles via class
-			root.querySelectorAll(".lms-tab").forEach(function (b) {
-				b.classList.remove("is-active");
-				b.setAttribute("aria-selected", "false");
-			});
-			btn.classList.add("is-active");
-			btn.setAttribute("aria-selected", "true");
-			lms_manager._showTab(lms_manager._currentTab);
-		});
+	lms_portal.bindTabs({
+		root: document.getElementById("lms-manager-root"),
+		tabs: lms_manager._tabs,
+		onTab: function (tabId) {
+			lms_manager._currentTab = tabId;
+			lms_manager._showTab(tabId);
+		},
 	});
 };
 
@@ -120,62 +108,59 @@ lms_manager._loadDashboard = function (content) {
 };
 
 lms_manager._renderAll = function (root, dash, queue) {
-	var html = "";
-
-	/* ---- KPI stat cards ---- */
+	var html = '<div class="lms-stack">';
 	var k = dash.kpis || {};
-	html += '<section class="lms-grid-4" aria-label="Branch KPIs">';
-	html += lms_manager._statCard("Portfolio Outstanding", format_currency(k.portfolio_outstanding || 0), "bank");
-	html += lms_manager._statCard("Active Loans", k.active_loans || 0, "file");
-	html += lms_manager._statCard("PAR 30+ Outstanding", format_currency(k.par30_outstanding || 0), "alert", "danger");
-	html += lms_manager._statCard("NPA Count", k.npa_count || 0, "x-circle", "warning");
-	html += lms_manager._statCard("Approval Queue", k.approval_queue_count || 0, "clock", k.approval_queue_count ? "warning" : "");
-	html += lms_manager._statCard("Team Members", k.team_count || 0, "users");
-	html += "</section>";
-
-	/* ---- Charts row: risk donut + team bars ---- */
-	html += '<div class="lms-grid-2" style="margin-top:1.25rem;">';
-
-	/* Risk mix donut */
-	var buckets = dash.risk_buckets || {};
-	html += '<div class="lms-panel lms-portal-board">';
-	html += '<div class="lms-section-header"><h3>Risk Mix</h3></div>';
-	html += '<div class="lms-chart-wrap"><canvas id="lms-risk-chart"></canvas></div>';
-	html += "</div>";
-
-	/* Team performance bars */
-	html += '<div class="lms-panel lms-portal-board">';
-	html += '<div class="lms-section-header"><h3>Team Performance</h3></div>';
-	html += '<div class="lms-chart-wrap"><canvas id="lms-team-chart"></canvas></div>';
-	html += "</div>";
-
-	html += "</div>";
-
-	/* ---- Approval queue table ---- */
-	html += '<div class="lms-panel lms-portal-board" style="margin-top:1.25rem;">';
-	html += '<div class="lms-section-header"><h3>Approval Queue</h3>';
-	html += '<span class="lms-muted">' + ((queue.applications || []).length) + " pending</span></div>";
 	var apps = queue.applications || [];
+	var buckets = dash.risk_buckets || {};
+
+	/* ---- 1) Approval queue first (primary work) ---- */
 	if (!apps.length) {
-		html += '<div class="lms-empty"><div class="lms-empty-icon">✓</div>';
-		html += "<h3>All caught up</h3><p>No applications pending approval.</p></div>";
+		html += lms_portal.emptyPanel("✓", "All caught up", "No applications pending approval.");
 	} else {
+		html += '<div class="lms-panel lms-portal-board">';
+		html += '<div class="lms-section-header"><h3>Approval Queue</h3>';
+		html += '<span class="lms-muted">' + apps.length + " pending</span></div>";
 		html += '<div class="lms-data-table__wrap"><table class="lms-data-table">';
 		html += "<thead><tr><th>Applicant</th><th>Product</th><th>Amount</th><th>Officer</th><th>Actions</th></tr></thead><tbody>";
 		apps.forEach(function (app) {
+			var borrower = app.customer_name || app.applicant || "—";
 			html += "<tr>";
-			html += "<td><strong>" + lms_portal.escape(app.customer_name || app.applicant || "—") + "</strong></td>";
+			html += "<td><strong>" + lms_portal.escape(borrower) + "</strong></td>";
 			html += "<td>" + lms_portal.escape(app.product_name || app.loan_product || "") + "</td>";
 			html += "<td>" + format_currency(app.loan_amount || 0) + "</td>";
 			html += "<td>" + lms_portal.escape(app.officer_name || "—") + "</td>";
 			html += '<td><div class="lms-data-table__actions">';
-			html += '<button type="button" class="lms-btn lms-btn--success lms-btn--sm lms-approve-btn" data-app="' + lms_portal.escape(app.name) + '">Approve</button>';
+			html += '<button type="button" class="lms-btn lms-btn--success lms-btn--sm lms-approve-btn" ' +
+				'data-app="' + lms_portal.escape(app.name) + '" ' +
+				'data-borrower="' + lms_portal.escape(borrower) + '" ' +
+				'data-amount="' + lms_portal.escape(String(app.loan_amount || 0)) + '">Approve</button>';
 			html += '<button type="button" class="lms-btn lms-btn--ghost lms-btn--sm lms-reject-btn" data-app="' + lms_portal.escape(app.name) + '">Reject</button>';
 			html += "</div></td></tr>";
 		});
-		html += "</tbody></table></div>";
+		html += "</tbody></table></div></div>";
 	}
+
+	/* ---- 2) Compact KPI strip (max 4) ---- */
+	html += lms_portal.kpiStrip([
+		{ label: "Approval queue", value: k.approval_queue_count || 0, tone: (k.approval_queue_count || 0) ? "warning" : "" },
+		{ label: "Active loans", value: k.active_loans || 0 },
+		{ label: "PAR 30+ outstanding", value: format_currency(k.par30_outstanding || 0), tone: (k.par30_outstanding || 0) ? "danger" : "" },
+		{ label: "Portfolio outstanding", value: format_currency(k.portfolio_outstanding || 0) },
+	]);
+
+	/* ---- 3) Charts below ---- */
+	html += '<div class="lms-grid-2">';
+	html += '<div class="lms-panel lms-portal-board">';
+	html += '<div class="lms-section-header"><h3>Risk Mix</h3></div>';
+	html += '<div class="lms-chart-wrap"><canvas id="lms-risk-chart"></canvas></div>';
 	html += "</div>";
+	html += '<div class="lms-panel lms-portal-board">';
+	html += '<div class="lms-section-header"><h3>Team Performance</h3></div>';
+	html += '<div class="lms-chart-wrap"><canvas id="lms-team-chart"></canvas></div>';
+	html += "</div>";
+	html += "</div>";
+
+	html += "</div>"; // .lms-stack
 
 	root.innerHTML = html;
 
@@ -199,7 +184,11 @@ lms_manager._renderAll = function (root, dash, queue) {
 	/* ---- Bind approve/reject buttons ---- */
 	root.querySelectorAll(".lms-approve-btn").forEach(function (btn) {
 		btn.addEventListener("click", function () {
-			lms_manager._approve(btn.getAttribute("data-app"));
+			lms_manager._approve(
+				btn.getAttribute("data-app"),
+				btn.getAttribute("data-borrower"),
+				parseFloat(btn.getAttribute("data-amount")) || 0
+			);
 		});
 	});
 	root.querySelectorAll(".lms-reject-btn").forEach(function (btn) {
@@ -245,10 +234,18 @@ lms_manager._icon = function (name) {
 	return icons[name] || icons.file;
 };
 
-lms_manager._approve = function (appName) {
+lms_manager._approve = function (appName, borrowerName, loanAmount) {
+	var borrower = borrowerName || "—";
+	var amountLabel = format_currency(loanAmount || 0);
 	lms_portal.modal({
 		title: "Approve Application",
-		body: '<p class="lms-muted">Confirm approval of <strong>' + lms_portal.escape(appName) + "</strong>. A loan will be created and disbursed.</p>",
+		body:
+			'<p class="lms-muted">Confirm approval. A loan will be created for disbursement.</p>' +
+			'<div class="lms-summary" style="margin:1rem 0;">' +
+			'<div class="lms-summary-card lms-summary-card--primary"><div class="lms-summary-label">Borrower</div><div class="lms-summary-value">' + lms_portal.escape(borrower) + "</div></div>" +
+			'<div class="lms-summary-card lms-summary-card--primary"><div class="lms-summary-label">Amount</div><div class="lms-summary-value">' + amountLabel + "</div></div>" +
+			'<div class="lms-summary-card"><div class="lms-summary-label">Application #</div><div class="lms-summary-value">' + lms_portal.escape(appName || "") + "</div></div>" +
+			"</div>",
 		confirmText: "Approve",
 		confirmVariant: "success",
 		onConfirm: function () {
