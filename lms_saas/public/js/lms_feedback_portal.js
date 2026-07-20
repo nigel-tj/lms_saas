@@ -34,34 +34,18 @@ lms_feedback.init = function () {
 		}
 	}
 
-	var html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem;">';
-	html += '<h2 style="margin:0;font-size:var(--lms-fs-xl);font-weight:700;">Customer Feedback</h2>';
-	if (isAdmin) {
-		html += '<button type="button" class="lms-btn lms-btn--primary" id="lms-fb-new-survey">+ New Survey</button>';
-	}
-	html += '</div>';
-	html += '<nav class="lms-tab-nav" role="tablist">';
-	tabs.forEach(function (t) {
-		var active = lms_feedback._currentTab === t.id ? " is-active" : "";
-		html += '<button type="button" class="lms-tab' + active + '" data-tab="' + t.id + '" role="tab" aria-selected="' + (active ? "true" : "false") + '">' + t.icon + " " + lms_portal.escape(t.label) + "</button>";
-	});
-	html += "</nav>";
-	html += '<div id="lms-feedback-tab-content"></div>';
+	var actions = isAdmin ? [{ label: "+ New Survey", id: "lms-fb-new-survey", primary: true }] : [];
+	var html = lms_portal.pageStart() +
+		lms_portal.pageHeader({ title: "Customer Feedback", actions: actions }) +
+		lms_portal.tabNav(tabs, lms_feedback._currentTab) +
+		'<div id="lms-feedback-tab-content"></div>' +
+		lms_portal.pageEnd();
 	root.innerHTML = html;
 
-	root.querySelectorAll(".lms-tab").forEach(function (btn) {
-		btn.addEventListener("click", function () {
-			lms_feedback._currentTab = btn.getAttribute("data-tab");
-			root.querySelectorAll(".lms-tab").forEach(function (b) {
-				b.classList.remove("is-active");
-				b.setAttribute("aria-selected", "false");
-			});
-			btn.classList.add("is-active");
-			btn.style.borderBottom = "2px solid var(--lms-primary)";
-			btn.style.color = "var(--lms-primary)";
-			btn.style.fontWeight = "600";
-			lms_feedback._showTab(lms_feedback._currentTab);
-		});
+	lms_portal.bindTabs({
+		root: root,
+		tabs: tabs,
+		onTab: function (tabId) { lms_feedback._currentTab = tabId; lms_feedback._showTab(tabId); },
 	});
 
 	if (isAdmin) {
@@ -74,12 +58,6 @@ lms_feedback.init = function () {
 	}
 
 	lms_feedback._showTab(lms_feedback._currentTab);
-};
-
-lms_feedback._statCard = function (label, value, tone) {
-	var cls = tone ? " lms-stat--" + tone : "";
-	return '<div class="lms-stat-card lms-stat' + cls + '" style="padding:1rem;"><div class="lms-stat-label">' +
-		lms_portal.escape(label) + '</div><div class="lms-stat-value">' + value + '</div></div>';
 };
 
 lms_feedback._showTab = function (tabId) {

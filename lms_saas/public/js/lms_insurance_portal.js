@@ -20,38 +20,23 @@ lms_insurance.init = function () {
 		{ id: "claims", label: "Claims", icon: "📋" },
 		{ id: "stats", label: "Stats", icon: "📊" },
 	];
-	var html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem;">';
-	html += '<nav class="lms-tab-nav" role="tablist" style="display:flex;gap:0.25rem;border-bottom:2px solid var(--lms-border);flex-wrap:wrap;">';
-	tabs.forEach(function (t) {
-		var active = lms_insurance._currentTab === t.id ? " is-active" : "";
-		html += '<button type="button" class="lms-tab' + active + '" data-tab="' + t.id + '" role="tab" aria-selected="' + (active ? "true" : "false") + '">' + t.icon + " " + lms_portal.escape(t.label) + "</button>";
-	});
-	html += "</nav>";
-	if (isAdmin) {
-		html += '<div style="display:flex;gap:0.5rem;">';
-		html += '<button type="button" class="lms-btn lms-btn--primary" id="lms-ins-new-policy">+ New Policy</button>';
-		html += '<button type="button" class="lms-btn lms-btn--ghost" id="lms-ins-file-claim">File Claim</button>';
-		html += '</div>';
-	} else {
-		html += '<button type="button" class="lms-btn lms-btn--ghost" id="lms-ins-file-claim">File Claim</button>';
-	}
-	html += '</div>';
-	html += '<div id="lms-ins-tab-content"></div>';
+	var actions = isAdmin
+		? [
+			{ label: "+ New Policy", id: "lms-ins-new-policy", primary: true },
+			{ label: "File Claim", id: "lms-ins-file-claim" },
+		  ]
+		: [{ label: "File Claim", id: "lms-ins-file-claim" }];
+	var html = lms_portal.pageStart() +
+		lms_portal.pageHeader({ title: "Insurance", actions: actions }) +
+		lms_portal.tabNav(tabs, lms_insurance._currentTab) +
+		'<div id="lms-ins-tab-content"></div>' +
+		lms_portal.pageEnd();
 	root.innerHTML = html;
 
-	root.querySelectorAll(".lms-tab").forEach(function (btn) {
-		btn.addEventListener("click", function () {
-			lms_insurance._currentTab = btn.getAttribute("data-tab");
-			root.querySelectorAll(".lms-tab").forEach(function (b) {
-				b.classList.remove("is-active");
-				b.setAttribute("aria-selected", "false");
-			});
-			btn.classList.add("is-active");
-			btn.style.borderBottom = "2px solid var(--lms-primary)";
-			btn.style.color = "var(--lms-primary)";
-			btn.style.fontWeight = "600";
-			lms_insurance._showTab(lms_insurance._currentTab);
-		});
+	lms_portal.bindTabs({
+		root: root,
+		tabs: tabs,
+		onTab: function (tabId) { lms_insurance._currentTab = tabId; lms_insurance._showTab(tabId); },
 	});
 
 	var newPolicyBtn = root.querySelector("#lms-ins-new-policy");
@@ -78,12 +63,6 @@ lms_insurance._showTab = function (tabId) {
 	if (tabId === "policies") lms_insurance._loadPolicies(content);
 	else if (tabId === "claims") lms_insurance._loadClaims(content);
 	else if (tabId === "stats") lms_insurance._loadStats(content);
-};
-
-lms_insurance._statCard = function (label, value, tone) {
-	var cls = tone ? " lms-stat--" + tone : "";
-	return '<div class="lms-stat-card lms-stat' + cls + '" style="padding:1rem;"><div class="lms-stat-label">' +
-		lms_portal.escape(label) + '</div><div class="lms-stat-value">' + value + '</div></div>';
 };
 
 lms_insurance._loadPolicies = function (content) {
@@ -222,22 +201,24 @@ lms_insurance._loadStats = function (content) {
 		method: "lms_saas.api.insurance.get_insurance_stats",
 		callback: function (r) {
 			var s = (r && r.message) || {};
-			var html = '<section class="lms-grid-4" style="margin-bottom:1rem;">';
-			html += lms_insurance._statCard("Total Policies", s.total_policies || 0);
-			html += lms_insurance._statCard("Active Policies", s.active_policies || 0, "success");
-			html += lms_insurance._statCard("Lapsed", s.lapsed_policies || 0, "danger");
-			html += lms_insurance._statCard("Expired", s.expired_policies || 0, "warning");
-			html += "</section>";
-			html += '<section class="lms-grid-4" style="margin-bottom:1rem;">';
-			html += lms_insurance._statCard("Total Claims", s.total_claims || 0);
-			html += lms_insurance._statCard("Filed", s.filed_claims || 0, "warning");
-			html += lms_insurance._statCard("Approved", s.approved_claims || 0, "info");
-			html += lms_insurance._statCard("Paid", s.paid_claims || 0, "success");
-			html += "</section>";
-			html += '<section class="lms-grid-4">';
-			html += lms_insurance._statCard("Total Coverage", format_currency(s.total_coverage || 0));
-			html += lms_insurance._statCard("Total Premiums", format_currency(s.total_premiums || 0));
-			html += "</section>";
+			var html = lms_portal.pageStart() +
+				lms_portal.kpiStrip([
+					{ label: "Total Policies", value: s.total_policies || 0 },
+					{ label: "Active Policies", value: s.active_policies || 0, tone: "success" },
+					{ label: "Lapsed", value: s.lapsed_policies || 0, tone: "danger" },
+					{ label: "Expired", value: s.expired_policies || 0, tone: "warning" },
+				]) +
+				lms_portal.kpiStrip([
+					{ label: "Total Claims", value: s.total_claims || 0 },
+					{ label: "Filed", value: s.filed_claims || 0, tone: "warning" },
+					{ label: "Approved", value: s.approved_claims || 0 },
+					{ label: "Paid", value: s.paid_claims || 0, tone: "success" },
+				]) +
+				lms_portal.kpiStrip([
+					{ label: "Total Coverage", value: format_currency(s.total_coverage || 0) },
+					{ label: "Total Premiums", value: format_currency(s.total_premiums || 0) },
+				]) +
+				lms_portal.pageEnd();
 			content.innerHTML = html;
 		},
 		error: function () {

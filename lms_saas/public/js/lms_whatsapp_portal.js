@@ -21,28 +21,17 @@ lms_whatsapp.init = function () {
 		{ id: "log", label: "Log", icon: "📜" },
 		{ id: "stats", label: "Stats", icon: "📊" },
 	];
-	var html = '<nav class="lms-tab-nav" role="tablist">';
-	tabs.forEach(function (t) {
-		var active = lms_whatsapp._currentTab === t.id ? " is-active" : "";
-		html += '<button type="button" class="lms-tab' + active + '" data-tab="' + t.id + '" role="tab" aria-selected="' + (active ? "true" : "false") + '">' + t.icon + " " + lms_portal.escape(t.label) + "</button>";
-	});
-	html += "</nav>";
-	html += '<div id="lms-wa-tab-content"></div>';
+	var html = lms_portal.pageStart() +
+		lms_portal.pageHeader({ title: "WhatsApp Business" }) +
+		lms_portal.tabNav(tabs, lms_whatsapp._currentTab) +
+		'<div id="lms-wa-tab-content"></div>' +
+		lms_portal.pageEnd();
 	root.innerHTML = html;
 
-	root.querySelectorAll(".lms-tab").forEach(function (btn) {
-		btn.addEventListener("click", function () {
-			lms_whatsapp._currentTab = btn.getAttribute("data-tab");
-			root.querySelectorAll(".lms-tab").forEach(function (b) {
-				b.classList.remove("is-active");
-				b.setAttribute("aria-selected", "false");
-			});
-			btn.classList.add("is-active");
-			btn.style.borderBottom = "2px solid var(--lms-primary)";
-			btn.style.color = "var(--lms-primary)";
-			btn.style.fontWeight = "600";
-			lms_whatsapp._showTab(lms_whatsapp._currentTab);
-		});
+	lms_portal.bindTabs({
+		root: root,
+		tabs: tabs,
+		onTab: function (tabId) { lms_whatsapp._currentTab = tabId; lms_whatsapp._showTab(tabId); },
 	});
 
 	lms_whatsapp._showTab(lms_whatsapp._currentTab);
@@ -309,21 +298,23 @@ lms_whatsapp._loadStats = function (content) {
 		method: "lms_saas.api.whatsapp.get_whatsapp_stats",
 		callback: function (r) {
 			var s = (r && r.message) || {};
-			var html = '<section class="lms-grid-4" style="margin-bottom:1rem;">';
-			html += lms_whatsapp._statCard("Total Sent", s.total_sent || 0);
-			html += lms_whatsapp._statCard("Delivered", s.delivered || 0, "success");
-			html += lms_whatsapp._statCard("Failed", s.failed || 0, "danger");
-			html += lms_whatsapp._statCard("Skipped", s.skipped || 0, "warning");
-			html += "</section>";
-			html += '<section class="lms-grid-4" style="margin-bottom:1rem;">';
-			html += lms_whatsapp._statCard("Read", s.read || 0);
-			html += lms_whatsapp._statCard("Delivery Rate", (s.delivery_rate || 0) + "%");
-			html += lms_whatsapp._statCard("Read Rate", (s.read_rate || 0) + "%", "info");
-			html += "</section>";
-			html += '<section class="lms-grid-4">';
-			html += lms_whatsapp._statCard("Total Templates", s.total_templates || 0);
-			html += lms_whatsapp._statCard("Approved Templates", s.approved_templates || 0, "success");
-			html += "</section>";
+			var html = lms_portal.pageStart() +
+				lms_portal.kpiStrip([
+					{ label: "Total Sent", value: s.total_sent || 0 },
+					{ label: "Delivered", value: s.delivered || 0, tone: "success" },
+					{ label: "Failed", value: s.failed || 0, tone: "danger" },
+					{ label: "Skipped", value: s.skipped || 0, tone: "warning" },
+				]) +
+				lms_portal.kpiStrip([
+					{ label: "Read", value: s.read || 0 },
+					{ label: "Delivery Rate", value: (s.delivery_rate || 0) + "%" },
+					{ label: "Read Rate", value: (s.read_rate || 0) + "%" },
+				]) +
+				lms_portal.kpiStrip([
+					{ label: "Total Templates", value: s.total_templates || 0 },
+					{ label: "Approved Templates", value: s.approved_templates || 0, tone: "success" },
+				]) +
+				lms_portal.pageEnd();
 			content.innerHTML = html;
 		},
 		error: function () {

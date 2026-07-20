@@ -16,35 +16,24 @@ lms_savings.init = function () {
 		{ id: "goals", label: "Goals", icon: "🎯" },
 		{ id: "transactions", label: "Transactions", icon: "📋" },
 	];
-	var html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem;">';
-	html += '<h2 style="margin:0;font-size:var(--lms-fs-xl);font-weight:700;">Savings Club</h2>';
-	html += '<div style="display:flex;gap:0.5rem;">';
-	html += '<button type="button" class="lms-btn lms-btn--primary" id="lms-sav-deposit">+ Deposit</button>';
-	html += '<button type="button" class="lms-btn lms-btn--ghost" id="lms-sav-withdraw">Withdraw</button>';
-	html += '</div></div>';
-	html += '<div id="lms-sav-stats" style="margin-bottom:1rem;"></div>';
-	html += '<nav class="lms-tab-nav" role="tablist">';
-	tabs.forEach(function (t) {
-		var active = lms_savings._currentTab === t.id ? " is-active" : "";
-		html += '<button type="button" class="lms-tab' + active + '" data-tab="' + t.id + '" role="tab" aria-selected="' + (active ? "true" : "false") + '">' + t.icon + " " + lms_portal.escape(t.label) + "</button>";
-	});
-	html += "</nav>";
-	html += '<div id="lms-savings-tab-content"></div>';
+	var html = lms_portal.pageStart() +
+		lms_portal.pageHeader({
+			title: "Savings Club",
+			actions: [
+				{ label: "+ Deposit", id: "lms-sav-deposit", primary: true },
+				{ label: "Withdraw", id: "lms-sav-withdraw" },
+			],
+		}) +
+		'<div id="lms-sav-stats"></div>' +
+		lms_portal.tabNav(tabs, lms_savings._currentTab) +
+		'<div id="lms-savings-tab-content"></div>' +
+		lms_portal.pageEnd();
 	root.innerHTML = html;
 
-	root.querySelectorAll(".lms-tab").forEach(function (btn) {
-		btn.addEventListener("click", function () {
-			lms_savings._currentTab = btn.getAttribute("data-tab");
-			root.querySelectorAll(".lms-tab").forEach(function (b) {
-				b.classList.remove("is-active");
-				b.setAttribute("aria-selected", "false");
-			});
-			btn.classList.add("is-active");
-			btn.style.borderBottom = "2px solid var(--lms-primary)";
-			btn.style.color = "var(--lms-primary)";
-			btn.style.fontWeight = "600";
-			lms_savings._showTab(lms_savings._currentTab);
-		});
+	lms_portal.bindTabs({
+		root: root,
+		tabs: tabs,
+		onTab: function (tabId) { lms_savings._currentTab = tabId; lms_savings._showTab(tabId); },
 	});
 
 	lms_savings._loadStats();
@@ -65,12 +54,6 @@ lms_savings.init = function () {
 	lms_savings._showTab(lms_savings._currentTab);
 };
 
-lms_savings._statCard = function (label, value, tone) {
-	var cls = tone ? " lms-stat--" + tone : "";
-	return '<div class="lms-stat-card lms-stat' + cls + '" style="padding:1rem;"><div class="lms-stat-label">' +
-		lms_portal.escape(label) + '</div><div class="lms-stat-value">' + value + '</div></div>';
-};
-
 lms_savings._loadStats = function () {
 	var el = document.getElementById("lms-sav-stats");
 	if (!el) return;
@@ -78,12 +61,11 @@ lms_savings._loadStats = function () {
 		method: "lms_saas.api.savings_club.get_savings_stats",
 		callback: function (r) {
 			var s = (r && r.message) || {};
-			var html = '<section class="lms-grid-4">';
-			html += lms_savings._statCard("Total Saved", format_currency(s.total_saved || 0), "success");
-			html += lms_savings._statCard("Active Accounts", s.active_accounts || 0);
-			html += lms_savings._statCard("Active Goals", s.goals || 0, "info");
-			html += "</section>";
-			el.innerHTML = html;
+			el.innerHTML = lms_portal.kpiStrip([
+				{ label: "Total Saved", value: format_currency(s.total_saved || 0), tone: "success" },
+				{ label: "Active Accounts", value: s.active_accounts || 0 },
+				{ label: "Active Goals", value: s.goals || 0 },
+			]);
 		},
 	});
 };

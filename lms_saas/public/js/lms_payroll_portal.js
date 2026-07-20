@@ -16,28 +16,17 @@ lms_payroll.init = function () {
 		{ id: "slips", label: "Salary Slips", icon: "🧾" },
 		{ id: "loans", label: "Loan Deductions", icon: "💰" },
 	];
-	var html = '<nav class="lms-tab-nav" role="tablist">';
-	tabs.forEach(function (t) {
-		var active = lms_payroll._currentTab === t.id ? " is-active" : "";
-		html += '<button type="button" class="lms-tab' + active + '" data-tab="' + t.id + '" role="tab" aria-selected="' + (active ? "true" : "false") + '">' + t.icon + " " + lms_portal.escape(t.label) + "</button>";
-	});
-	html += "</nav>";
-	html += '<div id="lms-payroll-tab-content"></div>';
+	var html = lms_portal.pageStart() +
+		lms_portal.pageHeader({ title: "Payroll" }) +
+		lms_portal.tabNav(tabs, lms_payroll._currentTab) +
+		'<div id="lms-payroll-tab-content"></div>' +
+		lms_portal.pageEnd();
 	root.innerHTML = html;
 
-	root.querySelectorAll(".lms-tab").forEach(function (btn) {
-		btn.addEventListener("click", function () {
-			lms_payroll._currentTab = btn.getAttribute("data-tab");
-			root.querySelectorAll(".lms-tab").forEach(function (b) {
-				b.classList.remove("is-active");
-				b.setAttribute("aria-selected", "false");
-			});
-			btn.classList.add("is-active");
-			btn.style.borderBottom = "2px solid var(--lms-primary)";
-			btn.style.color = "var(--lms-primary)";
-			btn.style.fontWeight = "600";
-			lms_payroll._showTab(lms_payroll._currentTab);
-		});
+	lms_portal.bindTabs({
+		root: root,
+		tabs: tabs,
+		onTab: function (tabId) { lms_payroll._currentTab = tabId; lms_payroll._showTab(tabId); },
 	});
 
 	lms_payroll._showTab(lms_payroll._currentTab);
@@ -51,12 +40,6 @@ lms_payroll._showTab = function (tabId) {
 	if (tabId === "overview") lms_payroll._loadOverview(content);
 	else if (tabId === "slips") lms_payroll._loadSlips(content);
 	else if (tabId === "loans") lms_payroll._loadLoanDeductions(content);
-};
-
-lms_payroll._statCard = function (label, value, tone) {
-	var cls = tone ? " lms-stat--" + tone : "";
-	return '<div class="lms-stat-card lms-stat' + cls + '" style="padding:1rem;"><div class="lms-stat-label">' +
-		lms_portal.escape(label) + '</div><div class="lms-stat-value">' + value + '</div></div>';
 };
 
 lms_payroll._loadOverview = function (content) {

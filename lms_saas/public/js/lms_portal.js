@@ -244,6 +244,51 @@ lms_portal.emptyPanel = function (icon, title, message) {
 		'</h3><p>' + lms_portal.escape(message || "") + '</p></div></div>';
 };
 
+/* A tab navigation bar. Pass an array of {id, label, icon} and the      */
+/* currently-active tab id. Returns the <nav> HTML.                      */
+lms_portal.tabNav = function (tabs, currentId) {
+	var html = '<nav class="lms-tab-nav" role="tablist">';
+	(tabs || []).forEach(function (t) {
+		var active = currentId === t.id ? " is-active" : "";
+		var icon = t.icon ? t.icon + " " : "";
+		html += '<button type="button" class="lms-tab' + active + '" data-tab="' +
+			lms_portal.escape(t.id) + '" role="tab" aria-selected="' + (active ? "true" : "false") +
+			'">' + icon + lms_portal.escape(t.label || "") + "</button>";
+	});
+	html += "</nav>";
+	return html;
+};
+
+/* Bind click handlers to a tab nav rendered by tabNav().                 */
+/* opts: { root, tabs, onTab: function(tabId) }                          */
+/* `tabs` is the same array passed to tabNav (used to reset aria).       */
+lms_portal.bindTabs = function (opts) {
+	var root = opts.root;
+	if (!root) return;
+	var tabs = opts.tabs || [];
+	var onTab = opts.onTab;
+	root.querySelectorAll(".lms-tab").forEach(function (btn) {
+		btn.addEventListener("click", function () {
+			var tabId = btn.getAttribute("data-tab");
+			root.querySelectorAll(".lms-tab").forEach(function (b) {
+				b.classList.remove("is-active");
+				b.setAttribute("aria-selected", "false");
+			});
+			btn.classList.add("is-active");
+			btn.setAttribute("aria-selected", "true");
+			if (typeof onTab === "function") onTab(tabId);
+		});
+	});
+};
+
+/* A stat card (legacy — prefer kpiStrip). Kept for portals that still   */
+/* render individual cards outside a strip.                              */
+lms_portal.statCard = function (label, value, tone) {
+	var cls = tone ? " lms-stat--" + tone : "";
+	return '<div class="lms-stat-card lms-stat' + cls + '"><div class="lms-stat-label">' +
+		lms_portal.escape(label) + '</div><div class="lms-stat-value">' + value + '</div></div>';
+};
+
 lms_portal.badgeClass = function (dpd, status) {
 	if ((dpd || 0) > 90) return "lms-badge--npa";
 	if ((dpd || 0) > 30) return "lms-badge--watch";

@@ -16,42 +16,22 @@ lms_regulatory.init = function () {
 		{ id: "generate", label: "Generate", icon: "📋" },
 		{ id: "archive", label: "Archive", icon: "🗄️" },
 	];
-	var html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem;">';
-	html += '<h2 style="margin:0;font-size:var(--lms-fs-xl);font-weight:700;">Regulatory Hub</h2>';
-	html += '</div>';
-	html += '<div id="lms-reg-stats" style="margin-bottom:1rem;"></div>';
-	html += '<nav class="lms-tab-nav" role="tablist">';
-	tabs.forEach(function (t) {
-		var active = lms_regulatory._currentTab === t.id ? " is-active" : "";
-		html += '<button type="button" class="lms-tab' + active + '" data-tab="' + t.id + '" role="tab" aria-selected="' + (active ? "true" : "false") + '">' + t.icon + " " + lms_portal.escape(t.label) + "</button>";
-	});
-	html += "</nav>";
-	html += '<div id="lms-regulatory-tab-content"></div>';
+	var html = lms_portal.pageStart() +
+		lms_portal.pageHeader({ title: "Regulatory Hub" }) +
+		'<div id="lms-reg-stats"></div>' +
+		lms_portal.tabNav(tabs, lms_regulatory._currentTab) +
+		'<div id="lms-regulatory-tab-content"></div>' +
+		lms_portal.pageEnd();
 	root.innerHTML = html;
 
-	root.querySelectorAll(".lms-tab").forEach(function (btn) {
-		btn.addEventListener("click", function () {
-			lms_regulatory._currentTab = btn.getAttribute("data-tab");
-			root.querySelectorAll(".lms-tab").forEach(function (b) {
-				b.classList.remove("is-active");
-				b.setAttribute("aria-selected", "false");
-			});
-			btn.classList.add("is-active");
-			btn.style.borderBottom = "2px solid var(--lms-primary)";
-			btn.style.color = "var(--lms-primary)";
-			btn.style.fontWeight = "600";
-			lms_regulatory._showTab(lms_regulatory._currentTab);
-		});
+	lms_portal.bindTabs({
+		root: root,
+		tabs: tabs,
+		onTab: function (tabId) { lms_regulatory._currentTab = tabId; lms_regulatory._showTab(tabId); },
 	});
 
 	lms_regulatory._loadStats();
 	lms_regulatory._showTab(lms_regulatory._currentTab);
-};
-
-lms_regulatory._statCard = function (label, value, tone) {
-	var cls = tone ? " lms-stat--" + tone : "";
-	return '<div class="lms-stat-card lms-stat' + cls + '" style="padding:1rem;"><div class="lms-stat-label">' +
-		lms_portal.escape(label) + '</div><div class="lms-stat-value">' + value + '</div></div>';
 };
 
 lms_regulatory._loadStats = function () {
@@ -61,13 +41,12 @@ lms_regulatory._loadStats = function () {
 		method: "lms_saas.api.regulatory_hub.get_regulatory_stats",
 		callback: function (r) {
 			var s = (r && r.message) || {};
-			var html = '<section class="lms-grid-4">';
-			html += lms_regulatory._statCard("Total Submissions", s.total_submissions || 0);
-			html += lms_regulatory._statCard("Draft", s.draft || 0, "warning");
-			html += lms_regulatory._statCard("Submitted", s.submitted || 0, "info");
-			html += lms_regulatory._statCard("Upcoming Deadlines", s.upcoming_deadlines || 0, "warning");
-			html += "</section>";
-			el.innerHTML = html;
+			el.innerHTML = lms_portal.kpiStrip([
+				{ label: "Total Submissions", value: s.total_submissions || 0 },
+				{ label: "Draft", value: s.draft || 0, tone: "warning" },
+				{ label: "Submitted", value: s.submitted || 0 },
+				{ label: "Upcoming Deadlines", value: s.upcoming_deadlines || 0, tone: "warning" },
+			]);
 		},
 	});
 };

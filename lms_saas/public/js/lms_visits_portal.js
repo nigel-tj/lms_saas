@@ -16,34 +16,18 @@ lms_visits.init = function () {
 		{ id: "myvisits", label: "My Visits", icon: "🗺️" },
 		{ id: "stats", label: "Stats", icon: "📊" },
 	];
-	var html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem;">';
-	html += '<h2 style="margin:0;font-size:var(--lms-fs-xl);font-weight:700;">Field Visits</h2>';
-	html += '<div style="display:flex;gap:0.5rem;">';
-	html += '<button type="button" class="lms-btn lms-btn--primary" id="lms-vis-new">+ Schedule Visit</button>';
-	html += '</div></div>';
-	html += '<div id="lms-vis-stats" style="margin-bottom:1rem;"></div>';
-	html += '<nav class="lms-tab-nav" role="tablist">';
-	tabs.forEach(function (t) {
-		var active = lms_visits._currentTab === t.id ? " is-active" : "";
-		html += '<button type="button" class="lms-tab' + active + '" data-tab="' + t.id + '" role="tab" aria-selected="' + (active ? "true" : "false") + '">' + t.icon + " " + lms_portal.escape(t.label) + "</button>";
-	});
-	html += "</nav>";
-	html += '<div id="lms-visits-tab-content"></div>';
+	var html = lms_portal.pageStart() +
+		lms_portal.pageHeader({ title: "Field Visits", actions: [{ label: "+ Schedule Visit", id: "lms-vis-new", primary: true }] }) +
+		'<div id="lms-vis-stats"></div>' +
+		lms_portal.tabNav(tabs, lms_visits._currentTab) +
+		'<div id="lms-visits-tab-content"></div>' +
+		lms_portal.pageEnd();
 	root.innerHTML = html;
 
-	root.querySelectorAll(".lms-tab").forEach(function (btn) {
-		btn.addEventListener("click", function () {
-			lms_visits._currentTab = btn.getAttribute("data-tab");
-			root.querySelectorAll(".lms-tab").forEach(function (b) {
-				b.classList.remove("is-active");
-				b.setAttribute("aria-selected", "false");
-			});
-			btn.classList.add("is-active");
-			btn.style.borderBottom = "2px solid var(--lms-primary)";
-			btn.style.color = "var(--lms-primary)";
-			btn.style.fontWeight = "600";
-			lms_visits._showTab(lms_visits._currentTab);
-		});
+	lms_portal.bindTabs({
+		root: root,
+		tabs: tabs,
+		onTab: function (tabId) { lms_visits._currentTab = tabId; lms_visits._showTab(tabId); },
 	});
 
 	lms_visits._loadStats();
@@ -58,12 +42,6 @@ lms_visits.init = function () {
 	lms_visits._showTab(lms_visits._currentTab);
 };
 
-lms_visits._statCard = function (label, value, tone) {
-	var cls = tone ? " lms-stat--" + tone : "";
-	return '<div class="lms-stat-card lms-stat' + cls + '" style="padding:1rem;"><div class="lms-stat-label">' +
-		lms_portal.escape(label) + '</div><div class="lms-stat-value">' + value + '</div></div>';
-};
-
 lms_visits._loadStats = function () {
 	var el = document.getElementById("lms-vis-stats");
 	if (!el) return;
@@ -71,13 +49,12 @@ lms_visits._loadStats = function () {
 		method: "lms_saas.api.field_visits.get_visit_stats",
 		callback: function (r) {
 			var s = (r && r.message) || {};
-			var html = '<section class="lms-grid-4">';
-			html += lms_visits._statCard("Total", s.total || 0);
-			html += lms_visits._statCard("Today", s.today || 0, "info");
-			html += lms_visits._statCard("In Progress", s.in_progress || 0, "warning");
-			html += lms_visits._statCard("Completed", s.completed || 0, "success");
-			html += "</section>";
-			el.innerHTML = html;
+			el.innerHTML = lms_portal.kpiStrip([
+				{ label: "Total", value: s.total || 0 },
+				{ label: "Today", value: s.today || 0 },
+				{ label: "In Progress", value: s.in_progress || 0, tone: "warning" },
+				{ label: "Completed", value: s.completed || 0, tone: "success" },
+			]);
 		},
 	});
 };
@@ -197,15 +174,14 @@ lms_visits._loadStatsTab = function (content) {
 		method: "lms_saas.api.field_visits.get_visit_stats",
 		callback: function (r) {
 			var s = (r && r.message) || {};
-			var html = '<section class="lms-grid-4">';
-			html += lms_visits._statCard("Total Visits", s.total || 0);
-			html += lms_visits._statCard("Planned", s.planned || 0, "info");
-			html += lms_visits._statCard("In Progress", s.in_progress || 0, "warning");
-			html += lms_visits._statCard("Completed", s.completed || 0, "success");
-			html += lms_visits._statCard("Cancelled", s.cancelled || 0, "danger");
-			html += lms_visits._statCard("Today", s.today || 0, "info");
-			html += "</section>";
-			content.innerHTML = html;
+			content.innerHTML = lms_portal.kpiStrip([
+				{ label: "Total Visits", value: s.total || 0 },
+				{ label: "Planned", value: s.planned || 0 },
+				{ label: "In Progress", value: s.in_progress || 0, tone: "warning" },
+				{ label: "Completed", value: s.completed || 0, tone: "success" },
+				{ label: "Cancelled", value: s.cancelled || 0, tone: "danger" },
+				{ label: "Today", value: s.today || 0 },
+			]);
 		},
 		error: function () {
 			content.innerHTML = lms_portal.error("Could not load stats.");
