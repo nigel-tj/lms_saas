@@ -59,6 +59,35 @@ def _branch_cost_center():
     return branch  # Fall back to branch as the filter value
 
 
+def _has_table(name: str) -> bool:
+    """True if a Frappe table exists. ERPNext procurement doctypes are not
+    installed on every site; fall back to empty responses instead of 500ing."""
+    try:
+        return bool(frappe.db.table_exists(name))
+    except Exception:
+        return False
+
+
+def _missing_doctype_response(doctype: str) -> dict:
+    return {
+        "_missing": True,
+        "_missing_doctype": doctype,
+        "message": _(
+            "The {0} DocType is not installed on this site. "
+            "Install the ERPNext Buying module to enable Procurement."
+        ).format(doctype),
+        "requests": [],
+        "orders": [],
+        "suppliers": [],
+        "total_spend_this_month": 0,
+        "total_orders_this_month": 0,
+        "pending_requests": 0,
+        "supplier_count": 0,
+        "monthly_spend": [],
+        "spend_by_supplier": [],
+    }
+
+
 # ---------------------------------------------------------------------------
 # Purchase Requests (Material Requests)
 # ---------------------------------------------------------------------------
@@ -67,6 +96,9 @@ def _branch_cost_center():
 def get_purchase_requests(limit=100):
     """List Material Requests for the branch."""
     _require_procurement()
+
+    if not _has_table("tabMaterial Request"):
+        return _missing_doctype_response("Material Request")
 
     filters = {}
     cost_center = _branch_cost_center()
@@ -97,6 +129,9 @@ def get_purchase_orders(limit=100):
     """List Purchase Orders for the branch."""
     _require_procurement()
 
+    if not _has_table("tabPurchase Order"):
+        return _missing_doctype_response("Purchase Order")
+
     filters = {"docstatus": ["!=", 2]}
     cost_center = _branch_cost_center()
     if cost_center and not _is_admin():
@@ -126,6 +161,9 @@ def get_purchase_orders(limit=100):
 def get_suppliers(limit=200):
     """Return approved suppliers list."""
     _require_procurement()
+
+    if not _has_table("tabSupplier"):
+        return _missing_doctype_response("Supplier")
 
     suppliers = frappe.get_all(
         "Supplier",
@@ -196,6 +234,9 @@ def create_purchase_request(material_request_type="Purchase",
 def get_procurement_stats():
     """Spending by category and month for the branch."""
     _require_procurement()
+
+    if not _has_table("tabPurchase Order"):
+        return _missing_doctype_response("Purchase Order")
 
     cost_center = _branch_cost_center()
     filters = {"docstatus": 1}

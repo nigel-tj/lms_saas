@@ -46,7 +46,7 @@ lms_recon._showTab = function (tabId) {
 
 lms_recon._statCard = function (label, value, tone) {
 	var cls = tone ? " lms-stat--" + tone : "";
-	return '<div class="lms-stat-card lms-stat' + cls + '" style="padding:1rem;"><div class="lms-stat-label">' +
+	return '<div class="lms-stat-card lms-stat' + cls + '"><div class="lms-stat-label">' +
 		lms_portal.escape(label) + '</div><div class="lms-stat-value">' + value + '</div></div>';
 };
 
@@ -55,7 +55,7 @@ lms_recon._loadDashboard = function (content) {
 		method: "lms_saas.api.wallet_recon.get_recon_dashboard",
 		callback: function (r) {
 			var d = (r && r.message) || {};
-			var html = '<section class="lms-grid-4" style="margin-bottom:1rem;">';
+			var html = '<section class="lms-grid-4 lms-recon-kpis">';
 			html += lms_recon._statCard("Total Statements", d.total || 0);
 			html += lms_recon._statCard("Matched", d.matched || 0, "success");
 			html += lms_recon._statCard("Unmatched", d.unmatched || 0, "danger");
@@ -67,7 +67,7 @@ lms_recon._loadDashboard = function (content) {
 			html += "</section>";
 
 			// Auto-match button
-			html += '<div style="margin-top:1rem;"><button type="button" class="lms-btn lms-btn--primary" id="lms-recon-auto-match">Run Auto-Match</button></div>';
+			html += '<div class="lms-recon-actions"><button type="button" class="lms-btn lms-btn--primary" id="lms-recon-auto-match">Run Auto-Match</button></div>';
 			content.innerHTML = html;
 
 			var autoMatchBtn = content.querySelector("#lms-recon-auto-match");
@@ -150,7 +150,7 @@ lms_recon._loadUnmatched = function (content) {
 		callback: function (r) {
 			var statements = (r && r.message && r.message.statements) || [];
 			if (!statements.length) {
-				content.innerHTML = '<div class="lms-panel"><div class="lms-empty"><div class="lms-empty-icon">✓</div><h3>All matched</h3><p>No unmatched transactions.</p></div></div>';
+				content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("✓") + '<h3>All matched</h3><p>No unmatched transactions.</p></div></div>';
 				return;
 			}
 			var html = '<div class="lms-panel"><div class="lms-data-table__wrap"><table class="lms-data-table">';
@@ -218,7 +218,7 @@ lms_recon._loadMatched = function (content) {
 		method: "lms_saas.api.wallet_recon.get_recon_stats",
 		callback: function (r) {
 			var s = (r && r.message) || {};
-			var html = '<section class="lms-grid-4" style="margin-bottom:1rem;">';
+			var html = '<section class="lms-grid-4 lms-recon-kpis">';
 			html += lms_recon._statCard("Total Statements", s.total_statements || 0);
 			html += lms_recon._statCard("Matched", s.matched || 0, "success");
 			html += lms_recon._statCard("Match Rate", (s.match_rate || 0) + "%");

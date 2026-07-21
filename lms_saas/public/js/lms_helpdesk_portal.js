@@ -75,7 +75,7 @@ lms_helpdesk._loadQueue = function (isBorrower) {
 
 lms_helpdesk._renderQueue = function (el, tickets) {
 	if (!tickets.length) {
-		el.innerHTML = '<div class="lms-panel"><div class="lms-empty"><div class="lms-empty-icon">🎫</div><h3>No tickets</h3><p>No support tickets right now.</p></div></div>';
+		el.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("🎫") + '<h3>No tickets</h3><p>No support tickets right now.</p></div></div>';
 		return;
 	}
 

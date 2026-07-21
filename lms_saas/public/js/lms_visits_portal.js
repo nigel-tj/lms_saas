@@ -78,7 +78,7 @@ lms_visits._loadSchedule = function (content) {
 		callback: function (r) {
 			var visits = (r && r.message && r.message.visits) || [];
 			if (!visits.length) {
-				content.innerHTML = '<div class="lms-panel"><div class="lms-empty"><div class="lms-empty-icon">📅</div><h3>No scheduled visits</h3><p>No planned field visits.</p></div></div>';
+				content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("📅") + '<h3>No scheduled visits</h3><p>No planned field visits.</p></div></div>';
 				return;
 			}
 
@@ -125,7 +125,7 @@ lms_visits._loadMyVisits = function (content) {
 		callback: function (r) {
 			var visits = (r && r.message && r.message.visits) || [];
 			if (!visits.length) {
-				content.innerHTML = '<div class="lms-panel"><div class="lms-empty"><div class="lms-empty-icon">🗺️</div><h3>No visits</h3><p>No field visits found.</p></div></div>';
+				content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("🗺️") + '<h3>No visits</h3><p>No field visits found.</p></div></div>';
 				return;
 			}
 

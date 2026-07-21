@@ -34,7 +34,12 @@ add_to_apps_screen = [
 		"name": app_name,
 		"logo": "/assets/lms_saas/images/lms-logo.svg",
 		"title": app_title,
-		"route": lending_home_url(),
+		# The route must NOT match the desk pattern (`/desk(/.*)?$`) — otherwise
+		# `frappe.apps.get_default_path()` returns it as the post-login landing
+		# for website users (borrowers), 403-ing them on the desk. Routing the
+		# apps-screen entry to /lms (the portal) lets the per-role home_page
+		# (Role.home_page) take over and send the user to /lms or /lms/manager.
+		"route": "/lms",
 	},
 ]
 
@@ -112,6 +117,7 @@ web_include_js = [
 	_versioned_asset("js/lms_theme.js", "/assets/lms_saas/js/lms_theme.js"),
 	_versioned_asset("js/vendor/chart.min.js", "/assets/lms_saas/js/vendor/chart.min.js"),
 	_versioned_asset("js/lms_charts.js", "/assets/lms_saas/js/lms_charts.js"),
+	_versioned_asset("js/lms_icons.js", "/assets/lms_saas/js/lms_icons.js"),
 	_versioned_asset("js/lms_portal.js", "/assets/lms_saas/js/lms_portal.js"),
 ]
 

@@ -171,7 +171,7 @@ lms_whatsapp._renderTemplatesList = function () {
 		callback: function (r) {
 			var templates = (r && r.message && r.message.templates) || [];
 			if (!templates.length) {
-				el.innerHTML = '<div class="lms-panel"><div class="lms-empty"><div class="lms-empty-icon">📝</div><h3>No templates</h3><p>No WhatsApp templates found.</p></div></div>';
+				el.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("📝") + '<h3>No templates</h3><p>No WhatsApp templates found.</p></div></div>';
 				return;
 			}
 			var html = '<div class="lms-panel"><div class="lms-data-table__wrap"><table class="lms-data-table">';
@@ -262,7 +262,7 @@ lms_whatsapp._loadLog = function (content) {
 		callback: function (r) {
 			var logs = (r && r.message && r.message.logs) || [];
 			if (!logs.length) {
-				content.innerHTML = '<div class="lms-panel"><div class="lms-empty"><div class="lms-empty-icon">📜</div><h3>No messages</h3><p>No WhatsApp messages logged.</p></div></div>';
+				content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("📜") + '<h3>No messages</h3><p>No WhatsApp messages logged.</p></div></div>';
 				return;
 			}
 			var html = '<div class="lms-panel"><div class="lms-data-table__wrap"><table class="lms-data-table">';

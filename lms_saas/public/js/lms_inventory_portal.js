@@ -67,7 +67,7 @@ lms_inventory._loadAssets = function (content) {
 		callback: function (r) {
 			var assets = (r && r.message && r.message.assets) || [];
 			if (!assets.length) {
-				content.innerHTML = '<div class="lms-panel"><div class="lms-empty"><div class="lms-empty-icon">📦</div><h3>No assets</h3><p>No assets found for your branch.</p></div></div>';
+				content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("📦") + '<h3>No assets</h3><p>No assets found for your branch.</p></div></div>';
 				return;
 			}
 			var html = '<div class="lms-panel"><div class="lms-data-table__wrap"><table class="lms-data-table">';
@@ -157,7 +157,7 @@ lms_inventory._loadStock = function (content) {
 		callback: function (r) {
 			var items = (r && r.message && r.message.items) || [];
 			if (!items.length) {
-				content.innerHTML = '<div class="lms-panel"><div class="lms-empty"><div class="lms-empty-icon">📋</div><h3>No stock items</h3><p>No stock items found.</p></div></div>';
+				content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("📋") + '<h3>No stock items</h3><p>No stock items found.</p></div></div>';
 				return;
 			}
 			var html = '<div class="lms-panel"><div class="lms-data-table__wrap"><table class="lms-data-table">';
@@ -188,7 +188,7 @@ lms_inventory._loadLowStock = function (content) {
 		callback: function (r) {
 			var items = (r && r.message && r.message.items) || [];
 			if (!items.length) {
-				content.innerHTML = '<div class="lms-panel"><div class="lms-empty"><div class="lms-empty-icon">✓</div><h3>All stocked</h3><p>No items below reorder level.</p></div></div>';
+				content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("✓") + '<h3>All stocked</h3><p>No items below reorder level.</p></div></div>';
 				return;
 			}
 			var html = '<div class="lms-panel"><div class="lms-data-table__wrap"><table class="lms-data-table">';

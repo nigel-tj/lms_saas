@@ -44,10 +44,20 @@ def apply_default_route(bootinfo):
     # Non-desk customer users land on the borrower portal, not the desk.
     if "Customer" in roles and "Desk User" not in roles:
         bootinfo.portal_default_route = "/lms"
+        # Also force the default route — Frappe's get_home_page(user) falls
+        # through to Portal Settings / Role.home_page, which is the desk.
+        # Setting default_route here is what the web_logout redirect and the
+        # Frappe desk sidebar actually consult.
+        bootinfo.default_route = "lms"
 
     # Portal staff (Loan Officers, Collectors, Branch Managers) land on persona-based portal page.
     if PORTAL_STAFF_ROLE in roles and not _is_desk_admin(roles):
         bootinfo.portal_default_route = _portal_staff_landing(user)
+        # Mirror the persona landing into default_route so post-login redirect
+        # hits the right page (Frappe's home_page resolver checks default_route
+        # before Portal Settings).
+        persona_route = _portal_staff_landing(user).lstrip("/")
+        bootinfo.default_route = persona_route
 
     # ── Addon routes ──
     # Expose enabled addon metadata in the boot payload so the portal JS

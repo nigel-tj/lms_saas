@@ -46,12 +46,12 @@ lms_procurement._showTab = function (tabId) {
 
 lms_procurement._statCard = function (label, value, tone) {
 	var cls = tone ? " lms-stat--" + tone : "";
-	return '<div class="lms-stat-card lms-stat' + cls + '" style="padding:1rem;"><div class="lms-stat-label">' +
+	return '<div class="lms-stat-card lms-stat' + cls + '"><div class="lms-stat-label">' +
 		lms_portal.escape(label) + '</div><div class="lms-stat-value">' + value + '</div></div>';
 };
 
 lms_procurement._loadRequests = function (content) {
-	var html = '<div style="margin-bottom:1rem;"><button type="button" class="lms-btn lms-btn--primary" id="lms-proc-new-req">+ New Purchase Request</button></div>';
+	var html = '<div class="lms-proc-actions"><button type="button" class="lms-btn lms-btn--primary" id="lms-proc-new-req">+ New Purchase Request</button></div>';
 	content.innerHTML = html + '<div id="lms-proc-req-list"></div>';
 
 	var btn = content.querySelector("#lms-proc-new-req");
@@ -67,9 +67,14 @@ lms_procurement._loadRequests = function (content) {
 	lms_portal.safeCall({
 		method: "lms_saas.api.procurement.get_purchase_requests",
 		callback: function (r) {
-			var requests = (r && r.message && r.message.requests) || [];
+			var msg = r && r.message;
+			if (msg && msg._missing) {
+				listEl.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("📝") + '<h3>Procurement is unavailable</h3><p>' + lms_portal.escape(msg.message || "") + '</p></div></div>';
+				return;
+			}
+			var requests = (msg && msg.requests) || [];
 			if (!requests.length) {
-				listEl.innerHTML = '<div class="lms-panel"><div class="lms-empty"><div class="lms-empty-icon">📝</div><h3>No requests</h3><p>No purchase requests found for your branch.</p></div></div>';
+				listEl.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("📝") + '<h3>No requests</h3><p>No purchase requests found for your branch.</p></div></div>';
 				return;
 			}
 			var html = '<div class="lms-panel"><div class="lms-data-table__wrap"><table class="lms-data-table">';
@@ -188,9 +193,14 @@ lms_procurement._loadOrders = function (content) {
 	lms_portal.safeCall({
 		method: "lms_saas.api.procurement.get_purchase_orders",
 		callback: function (r) {
-			var orders = (r && r.message && r.message.orders) || [];
+			var msg = r && r.message;
+			if (msg && msg._missing) {
+				content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("📦") + '<h3>Procurement is unavailable</h3><p>' + lms_portal.escape(msg.message || "") + '</p></div></div>';
+				return;
+			}
+			var orders = (msg && msg.orders) || [];
 			if (!orders.length) {
-				content.innerHTML = '<div class="lms-panel"><div class="lms-empty"><div class="lms-empty-icon">📦</div><h3>No orders</h3><p>No purchase orders found for your branch.</p></div></div>';
+				content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("📦") + '<h3>No orders</h3><p>No purchase orders found for your branch.</p></div></div>';
 				return;
 			}
 			var html = '<div class="lms-panel"><div class="lms-data-table__wrap"><table class="lms-data-table">';
@@ -220,9 +230,14 @@ lms_procurement._loadSuppliers = function (content) {
 	lms_portal.safeCall({
 		method: "lms_saas.api.procurement.get_suppliers",
 		callback: function (r) {
-			var suppliers = (r && r.message && r.message.suppliers) || [];
+			var msg = r && r.message;
+			if (msg && msg._missing) {
+				content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("🏢") + '<h3>Procurement is unavailable</h3><p>' + lms_portal.escape(msg.message || "") + '</p></div></div>';
+				return;
+			}
+			var suppliers = (msg && msg.suppliers) || [];
 			if (!suppliers.length) {
-				content.innerHTML = '<div class="lms-panel"><div class="lms-empty"><div class="lms-empty-icon">🏢</div><h3>No suppliers</h3><p>No approved suppliers found.</p></div></div>';
+				content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("🏢") + '<h3>No suppliers</h3><p>No approved suppliers found.</p></div></div>';
 				return;
 			}
 			var html = '<div class="lms-panel"><div class="lms-data-table__wrap"><table class="lms-data-table">';
@@ -250,7 +265,11 @@ lms_procurement._loadStats = function (content) {
 		method: "lms_saas.api.procurement.get_procurement_stats",
 		callback: function (r) {
 			var s = (r && r.message) || {};
-			var html = '<section class="lms-grid-4" style="margin-bottom:1rem;">';
+			if (s._missing) {
+				content.innerHTML = lms_portal.emptyPanel("📊", "Procurement is unavailable", s.message || "");
+				return;
+			}
+			var html = '<section class="lms-grid-4 lms-proc-kpis">';
 			html += lms_procurement._statCard("Spend This Month", format_currency(s.total_spend_this_month || 0));
 			html += lms_procurement._statCard("Orders This Month", s.total_orders_this_month || 0);
 			html += lms_procurement._statCard("Pending Requests", s.pending_requests || 0, "warning");
@@ -260,7 +279,7 @@ lms_procurement._loadStats = function (content) {
 			// Monthly spend chart
 			var monthly = s.monthly_spend || [];
 			if (monthly.length) {
-				html += '<div class="lms-panel" style="margin-bottom:1rem;"><h3>Monthly Spend (6 months)</h3>';
+				html += '<div class="lms-panel lms-proc-chart-panel"><h3>Monthly Spend (6 months)</h3>';
 				html += lms_portal.simpleBars(monthly);
 				html += '</div>';
 			}

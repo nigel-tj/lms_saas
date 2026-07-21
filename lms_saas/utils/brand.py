@@ -1,11 +1,26 @@
 """Portal branding defaults and context helpers."""
 
+import frappe
 from lms_saas.utils.frappe_version import desk_url, lending_home_url
 
 BRAND_LOGO_PATH = "/assets/lms_saas/images/lms-logo.svg"
 BRAND_FAVICON_PATH = "/assets/lms_saas/images/lms-favicon.svg"
 
 DESK_ADMIN_ROLES = frozenset({
+	"System Manager",
+	"Administrator",
+})
+
+
+# Frappe assigns the `Desk User` role to every portal user by default. It
+# grants access to /desk but does NOT confer LMS admin rights — staff members
+# and borrowers get it just for logging in. Including it in DESK_ADMIN_ROLES
+# would incorrectly mark every Branch Manager as a system admin, hiding the
+# persona-landing redirect and the per-persona permission flags. The legacy
+# helper below keeps the wider definition for sites that historically relied
+# on Desk User = admin (set lms_treat_desk_user_as_admin = 1 in site_config
+# to opt back in).
+LEGACY_DESK_ADMIN_ROLES = frozenset({
 	"System Manager",
 	"Administrator",
 	"Desk User",
@@ -30,10 +45,15 @@ def _get_user_permissions(persona: str | None, roles: set) -> dict:
 	"""Return a dict of boolean permission flags for the current user.
 
 	Mirrors the permission flags consumed by templates and JS bootinfo.
-	Admins (System Manager / Administrator / Desk User) get every flag.
+	Admins (System Manager / Administrator) get every flag. Desk User alone
+	is not enough — see ``DESK_ADMIN_ROLES`` for the rationale.
 	"""
 	roles = roles or set()
-	is_admin = bool(roles & DESK_ADMIN_ROLES)
+	if frappe.conf.get("lms_treat_desk_user_as_admin"):
+		admin_roles = LEGACY_DESK_ADMIN_ROLES
+	else:
+		admin_roles = DESK_ADMIN_ROLES
+	is_admin = bool(roles & admin_roles)
 	is_borrower = "Customer" in roles and not is_admin
 	is_staff = bool(persona in {"Loan Officer", "Branch Manager", "Collector"}) and not is_admin
 
@@ -184,7 +204,8 @@ def apply_portal_context(context, nav_active="loans", page_js=None):
 	context.no_cache = 1
 	body_class = getattr(context, "body_class", None) or ""
 	borrower_class = " lms-portal-borrower" if context.is_portal_borrower else ""
-	context.body_class = f"{body_class} lms-portal{borrower_class} lms-themed".strip()
+	page_class = f" lms-page-{nav_active}" if nav_active else ""
+	context.body_class = f"{body_class} lms-portal{borrower_class}{page_class} lms-themed".strip()
 
 	# Prepare the standalone shell's CSS/JS stacks.
 	context.lms_css_stack = _lms_portal_css_stack()
@@ -232,6 +253,7 @@ def _lms_portal_js_stack(page_js=None):
 		_versioned_asset("js/lms_modal.js", "/assets/lms_saas/js/lms_modal.js"),
 		_versioned_asset("js/lms_forms.js", "/assets/lms_saas/js/lms_forms.js"),
 		_versioned_asset("js/lms_charts.js", "/assets/lms_saas/js/lms_charts.js"),
+		_versioned_asset("js/lms_icons.js", "/assets/lms_saas/js/lms_icons.js"),
 		_versioned_asset("js/lms_portal.js", "/assets/lms_saas/js/lms_portal.js"),
 	]
 	if page_js:

@@ -70,7 +70,7 @@ lms_regulatory._loadCalendar = function (content) {
 		callback: function (r) {
 			var deadlines = (r && r.message && r.message.deadlines) || [];
 			if (!deadlines.length) {
-				content.innerHTML = '<div class="lms-panel"><div class="lms-empty"><div class="lms-empty-icon">📅</div><h3>No deadlines</h3><p>No upcoming regulatory deadlines.</p></div></div>';
+				content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("📅") + '<h3>No deadlines</h3><p>No upcoming regulatory deadlines.</p></div></div>';
 				return;
 			}
 
@@ -213,7 +213,7 @@ lms_regulatory._loadArchive = function (content) {
 		callback: function (r) {
 			var submissions = (r && r.message && r.message.submissions) || [];
 			if (!submissions.length) {
-				content.innerHTML = '<div class="lms-panel"><div class="lms-empty"><div class="lms-empty-icon">🗄️</div><h3>No submissions</h3><p>No regulatory submissions archived yet.</p></div></div>';
+				content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("🗄️") + '<h3>No submissions</h3><p>No regulatory submissions archived yet.</p></div></div>';
 				return;
 			}
 

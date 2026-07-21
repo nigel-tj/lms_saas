@@ -71,7 +71,7 @@ lms_insurance._loadPolicies = function (content) {
 		callback: function (r) {
 			var policies = (r && r.message && r.message.policies) || [];
 			if (!policies.length) {
-				content.innerHTML = '<div class="lms-panel"><div class="lms-empty"><div class="lms-empty-icon">🛡️</div><h3>No policies</h3><p>No insurance policies found.</p></div></div>';
+				content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("🛡️") + '<h3>No policies</h3><p>No insurance policies found.</p></div></div>';
 				return;
 			}
 			var html = '<div class="lms-panel"><div class="lms-data-table__wrap"><table class="lms-data-table">';
@@ -171,7 +171,7 @@ lms_insurance._loadClaims = function (content) {
 		callback: function (r) {
 			var claims = (r && r.message && r.message.claims) || [];
 			if (!claims.length) {
-				content.innerHTML = '<div class="lms-panel"><div class="lms-empty"><div class="lms-empty-icon">📋</div><h3>No claims</h3><p>No insurance claims found.</p></div></div>';
+				content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("📋") + '<h3>No claims</h3><p>No insurance claims found.</p></div></div>';
 				return;
 			}
 			var html = '<div class="lms-panel"><div class="lms-data-table__wrap"><table class="lms-data-table">';

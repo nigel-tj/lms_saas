@@ -37,11 +37,11 @@ lms_officer._pageHeader = function () {
 };
 
 lms_officer._tabs = [
-	{ id: "dashboard", label: "Dashboard", icon: "📊" },
-	{ id: "borrowers", label: "Borrowers", icon: "👤" },
-	{ id: "loans", label: "My Loans", icon: "💰" },
-	{ id: "leads", label: "Leads", icon: "📞" },
-	{ id: "reports", label: "Reports", icon: "📈" },
+	{ id: "dashboard", label: "Dashboard", icon: "bar-chart" },
+	{ id: "borrowers", label: "Borrowers", icon: "users" },
+	{ id: "loans", label: "My Loans", icon: "wallet" },
+	{ id: "leads", label: "Leads", icon: "phone" },
+	{ id: "reports", label: "Reports", icon: "trending-up" },
 ];
 
 lms_officer._tabNav = function () {
@@ -800,7 +800,7 @@ lms_officer._renderBorrowerTable = function (el, borrowers) {
 	}
 
 	if (!borrowers.length) {
-		el.innerHTML = '<div class="lms-empty"><div class="lms-empty-icon">👤</div><h3>No borrowers found</h3><p>Try a different search.</p></div>';
+		el.innerHTML = '<div class="lms-empty">' + lms_icons.empty("👤") + '<h3>No borrowers found</h3><p>Try a different search.</p></div>';
 		return;
 	}
 	var html = '<div class="lms-data-table__wrap"><table class="lms-data-table">';
@@ -1153,7 +1153,7 @@ lms_officer._renderLeadsTab = function (el, leads) {
 	var controls = '<button type="button" class="lms-btn lms-btn--primary lms-btn--sm" id="lms-of-new-lead">+ New Lead</button>';
 	var body = "";
 	if (!leads.length) {
-		body = '<div class="lms-empty"><div class="lms-empty-icon">📞</div><h3>No leads</h3><p>No leads in your branch yet.</p></div>';
+		body = '<div class="lms-empty">' + lms_icons.empty("📞") + '<h3>No leads</h3><p>No leads in your branch yet.</p></div>';
 	} else {
 		body = '<div class="lms-data-table__wrap"><table class="lms-data-table">' +
 			"<thead><tr><th>Name</th><th>Mobile</th><th>Email</th><th>Status</th><th>Source</th><th>Consent</th><th>Actions</th></tr></thead><tbody>";
@@ -1346,7 +1346,7 @@ lms_officer._loadReport = function (content, reportType) {
 					html += "</tbody></table></div>";
 				});
 				if (!html.match(/<h5/)) {
-					html += '<div class="lms-empty"><div class="lms-empty-icon">✅</div><h3>No arrears</h3><p>All loans are current.</p></div>';
+					html += '<div class="lms-empty">' + lms_icons.empty("✅") + '<h3>No arrears</h3><p>All loans are current.</p></div>';
 				}
 				return html;
 			},
@@ -1371,7 +1371,7 @@ lms_officer._loadReport = function (content, reportType) {
 					html += "</tbody></table></div>";
 				}
 				if (!data.repayments || !data.repayments.length) {
-					html += '<div class="lms-empty"><div class="lms-empty-icon">📭</div><h3>No collections yet</h3><p>Once repayments are recorded they will appear here.</p></div>';
+					html += '<div class="lms-empty">' + lms_icons.empty("📭") + '<h3>No collections yet</h3><p>Once repayments are recorded they will appear here.</p></div>';
 				}
 				return html;
 			},

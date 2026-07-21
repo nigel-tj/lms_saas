@@ -113,7 +113,15 @@ lms_manager._renderAll = function (root, dash, queue) {
 	var apps = queue.applications || [];
 	var buckets = dash.risk_buckets || {};
 
-	/* ---- 1) Approval queue first (primary work) ---- */
+	/* ---- 1) KPI strip FIRST (at-a-glance overview) ---- */
+	html += lms_portal.kpiStrip([
+		{ label: "Approval queue", value: k.approval_queue_count || 0, tone: (k.approval_queue_count || 0) ? "warning" : "" },
+		{ label: "Active loans", value: k.active_loans || 0 },
+		{ label: "PAR 30+ outstanding", value: format_currency(k.par30_outstanding || 0), tone: (k.par30_outstanding || 0) ? "danger" : "" },
+		{ label: "Portfolio outstanding", value: format_currency(k.portfolio_outstanding || 0) },
+	]);
+
+	/* ---- 2) Approval queue (primary work) ---- */
 	if (!apps.length) {
 		html += lms_portal.emptyPanel("✓", "All caught up", "No applications pending approval.");
 	} else {
@@ -139,14 +147,6 @@ lms_manager._renderAll = function (root, dash, queue) {
 		});
 		html += "</tbody></table></div></div>";
 	}
-
-	/* ---- 2) Compact KPI strip (max 4) ---- */
-	html += lms_portal.kpiStrip([
-		{ label: "Approval queue", value: k.approval_queue_count || 0, tone: (k.approval_queue_count || 0) ? "warning" : "" },
-		{ label: "Active loans", value: k.active_loans || 0 },
-		{ label: "PAR 30+ outstanding", value: format_currency(k.par30_outstanding || 0), tone: (k.par30_outstanding || 0) ? "danger" : "" },
-		{ label: "Portfolio outstanding", value: format_currency(k.portfolio_outstanding || 0) },
-	]);
 
 	/* ---- 3) Charts below ---- */
 	html += '<div class="lms-grid-2">';
@@ -418,7 +418,7 @@ lms_manager._renderBorrowerTable = function (el, borrowers) {
 	}
 
 	if (!borrowers.length) {
-		el.innerHTML = '<div class="lms-empty"><div class="lms-empty-icon">👤</div><h3>No borrowers found</h3><p>Try a different search or add a new borrower.</p></div>';
+		el.innerHTML = '<div class="lms-empty">' + lms_icons.empty("👤") + '<h3>No borrowers found</h3><p>Try a different search or add a new borrower.</p></div>';
 		return;
 	}
 	var html = '<div class="lms-data-table__wrap"><table class="lms-data-table">';
@@ -578,7 +578,7 @@ lms_manager._renderLoanTable = function (el, loans) {
 	}
 
 	if (!loans.length) {
-		el.innerHTML = '<div class="lms-empty"><div class="lms-empty-icon">💰</div><h3>No loans found</h3><p>No loans match the current filter.</p></div>';
+		el.innerHTML = '<div class="lms-empty">' + lms_icons.empty("💰") + '<h3>No loans found</h3><p>No loans match the current filter.</p></div>';
 		return;
 	}
 	var html = '<div class="lms-data-table__wrap"><table class="lms-data-table">';
@@ -791,7 +791,7 @@ lms_manager._renderDisbursementReport = function (el, data) {
 	html += '</div>';
 	var hasAny = (data.by_officer && data.by_officer.length) || (data.disbursements && data.disbursements.length);
 	if (!hasAny) {
-		html += '<div class="lms-empty"><div class="lms-empty-icon">💸</div><h3>No disbursements in this period</h3><p>Once the manager / officer disburses a loan it will appear here.</p></div>';
+		html += '<div class="lms-empty">' + lms_icons.empty("💸") + '<h3>No disbursements in this period</h3><p>Once the manager / officer disburses a loan it will appear here.</p></div>';
 		el.innerHTML = html;
 		return;
 	}
@@ -823,7 +823,7 @@ lms_manager._renderCollectionsReport = function (el, data) {
 	// Empty state: a report can be perfectly valid with zero rows.
 	var hasAny = (data.by_officer && data.by_officer.length) || (data.repayments && data.repayments.length);
 	if (!hasAny) {
-		html += '<div class="lms-empty"><div class="lms-empty-icon">📭</div><h3>No collections in this period</h3><p>Once repayments are recorded they will appear here.</p></div>';
+		html += '<div class="lms-empty">' + lms_icons.empty("📭") + '<h3>No collections in this period</h3><p>Once repayments are recorded they will appear here.</p></div>';
 		el.innerHTML = html;
 		return;
 	}
