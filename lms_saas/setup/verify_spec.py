@@ -59,6 +59,7 @@ def _check_addons():
     """Verify the addon registry, settings doctype, and core addon modules."""
     import frappe
     from lms_saas.utils.addons import ADDON_REGISTRY
+    from lms_saas.utils.portal import ADDON_PAGE_JS
 
     # 1. Registry must have entries
     if not ADDON_REGISTRY:
@@ -72,17 +73,46 @@ def _check_addons():
     if not (settings.addons or []):
         return {"ok": False, "error": "LMS Addon Settings has no rows — run after_install"}
 
-    # 3. Verify each registered addon has its API module
+    # 3. Verify each registered addon has its API module.
+    #    Registry key → API module short name. Both share the same
+    #    "business" name, but the filename is often shortened
+    #    (e.g. "task_management" → "tasks").
+    #    SSoT: ADDON_API_MODULE — keep in sync with the API directory.
+    import os
+    api_dir = os.path.join(os.path.dirname(__file__), "..", "api")
+    ADDON_API_MODULE = {
+        "announcements":     "announcements",
+        "task_management":   "tasks",
+        "document_center":   "documents_center",  # also has documents.py
+        "helpdesk":          "helpdesk",
+        "hr_management":     "hr",
+        "branch_analytics":  "branch_analytics",
+        "regulatory_hub":    "regulatory_hub",
+        "payroll":           "payroll",
+        "appraisals":        "appraisals",
+        "training":          "training",
+        "recruitment":       "recruitment",
+        "procurement":       "procurement",
+        "savings_club":      "savings_club",
+        "customer_feedback": "feedback",
+        "field_visits":      "field_visits",
+        "inventory":         "inventory",
+        "budgeting":         "budgeting",
+        "insurance":         "insurance",
+        "whatsapp":          "whatsapp",
+        "wallet_recon":      "wallet_recon",
+    }
     missing_modules = []
     for key, spec in ADDON_REGISTRY.items():
-        api_module = f"lms_saas.api.{key}"
-        try:
-            __import__(api_module)
-        except Exception:
-            missing_modules.append(api_module)
+        module_short = ADDON_API_MODULE.get(key)
+        if not module_short:
+            missing_modules.append(f"(no API module mapping for {key!r})")
+            continue
+        module_path = os.path.join(api_dir, f"{module_short}.py")
+        if not os.path.exists(module_path):
+            missing_modules.append(f"lms_saas.api.{module_short}")
 
     # 4. Verify portal pages exist for each addon
-    import os
     missing_pages = []
     www_dir = os.path.join(os.path.dirname(__file__), "..", "www", "lms")
     for key, spec in ADDON_REGISTRY.items():
@@ -91,13 +121,18 @@ def _check_addons():
         if not os.path.exists(page):
             missing_pages.append(route + ".py")
 
-    # 5. Verify portal JS files exist
+    # 5. Verify portal JS files exist (SSoT: ADDON_PAGE_JS in utils/portal.py)
     missing_js = []
     public_dir = os.path.join(os.path.dirname(__file__), "..", "public", "js")
     for key in ADDON_REGISTRY.keys():
-        js = os.path.join(public_dir, f"lms_{key}_portal.js")
-        if not os.path.exists(js):
-            missing_js.append(f"lms_{key}_portal.js")
+        js_rel = ADDON_PAGE_JS.get(key)  # e.g. "js/lms_tasks_portal.js"
+        if not js_rel:
+            missing_js.append(f"(no ADDON_PAGE_JS entry for {key!r})")
+            continue
+        js_basename = os.path.basename(js_rel)  # e.g. "lms_tasks_portal.js"
+        js_path = os.path.join(public_dir, js_basename)
+        if not os.path.exists(js_path):
+            missing_js.append(js_basename)
 
     result = {
         "ok": not (missing_modules or missing_pages or missing_js),
