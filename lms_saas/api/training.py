@@ -48,6 +48,31 @@ def _current_employee():
     return frappe.db.get_value("Employee", {"user_id": user, "status": "Active"}, "name")
 
 
+def _has_table(name: str) -> bool:
+    """True if a Frappe table exists. Used to gracefully fall back when the
+    HRMS Training/Event doctypes are not installed in this site (e.g. ERPNext
+    only, or stripped-down HRMS)."""
+    try:
+        return bool(frappe.db.table_exists(name))
+    except Exception:
+        return False
+
+
+def _missing_doctype_response(doctype: str) -> dict:
+    """Empty-but-valid response for a missing doctype so the front-end can
+    render an empty state instead of an infinite loading spinner."""
+    return {
+        "_missing": True,
+        "_missing_doctype": doctype,
+        "message": _(
+            "The {0} DocType is not installed on this site. "
+            "Install the HRMS app to enable Training features."
+        ).format(doctype),
+        "programs": [],
+        "events": [],
+    }
+
+
 # ---------------------------------------------------------------------------
 # Programs
 # ---------------------------------------------------------------------------
@@ -56,6 +81,9 @@ def _current_employee():
 def get_training_programs(limit=50):
     """List available training programs."""
     _require_training()
+
+    if not _has_table("tabTraining Program"):
+        return _missing_doctype_response("Training Program")
 
     programs = frappe.get_all(
         "Training Program",
@@ -77,6 +105,9 @@ def get_training_events(upcoming=True, limit=50):
     """Return upcoming (or all) training events."""
     _require_training()
 
+    if not _has_table("tabTraining Event"):
+        return _missing_doctype_response("Training Event")
+
     filters = {"docstatus": ["!=", 2]}
     if upcoming:
         filters["start_time"] = [">=", today()]
@@ -91,11 +122,15 @@ def get_training_events(upcoming=True, limit=50):
         limit_page_length=int(limit),
     )
 
-    # Attach registration counts
-    for ev in events:
-        ev["registered_count"] = frappe.db.count("Training Event Employee", {
-            "parent": ev["name"],
-        })
+    # Attach registration counts (only if the child table exists)
+    if events and _has_table("tabTraining Event Employee"):
+        for ev in events:
+            ev["registered_count"] = frappe.db.count("Training Event Employee", {
+                "parent": ev["name"],
+            })
+    else:
+        for ev in events:
+            ev["registered_count"] = 0
 
     return {"events": events}
 
@@ -190,6 +225,9 @@ def submit_training_feedback(event_name, feedback, rating=3):
 def get_my_training_results():
     """View training results for the current employee."""
     _require_training()
+
+    if not _has_table("tabTraining Result"):
+        return _missing_doctype_response("Training Result")
 
     employee = _current_employee()
     if not employee:

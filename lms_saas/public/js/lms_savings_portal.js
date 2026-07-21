@@ -88,7 +88,7 @@ lms_savings._loadAccounts = function (content) {
 		callback: function (r) {
 			var accounts = (r && r.message && r.message.accounts) || [];
 			if (!accounts.length) {
-				content.innerHTML = '<div class="lms-panel"><div class="lms-empty"><div class="lms-empty-icon">🏦</div><h3>No savings accounts</h3><p>You have no savings accounts yet.</p></div></div>';
+				content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("🏦") + '<h3>No savings accounts</h3><p>You have no savings accounts yet.</p></div></div>';
 				return;
 			}
 
@@ -175,7 +175,7 @@ lms_savings._loadGoals = function (content) {
 		callback: function (r) {
 			var goals = (r && r.message && r.message.goals) || [];
 			if (!goals.length) {
-				content.innerHTML = '<div class="lms-panel"><div class="lms-empty"><div class="lms-empty-icon">🎯</div><h3>No savings goals</h3><p>No savings goals set yet.</p></div></div>';
+				content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("🎯") + '<h3>No savings goals</h3><p>No savings goals set yet.</p></div></div>';
 				return;
 			}
 
@@ -220,7 +220,7 @@ lms_savings._loadTransactions = function (content) {
 		callback: function (r) {
 			var accounts = (r && r.message && r.message.accounts) || [];
 			if (!accounts.length) {
-				content.innerHTML = '<div class="lms-panel"><div class="lms-empty"><div class="lms-empty-icon">📋</div><h3>No accounts</h3><p>No savings accounts to show transactions for.</p></div></div>';
+				content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("📋") + '<h3>No accounts</h3><p>No savings accounts to show transactions for.</p></div></div>';
 				return;
 			}
 
@@ -232,7 +232,7 @@ lms_savings._loadTransactions = function (content) {
 					var data = (r2 && r.message) || {};
 					var txns = (r2 && r2.message && r2.message.transactions) || [];
 					if (!txns.length) {
-						content.innerHTML = '<div class="lms-panel"><div class="lms-empty"><div class="lms-empty-icon">📋</div><h3>No transactions</h3><p>No transactions yet.</p></div></div>';
+						content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("📋") + '<h3>No transactions</h3><p>No transactions yet.</p></div></div>';
 						return;
 					}
 

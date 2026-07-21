@@ -91,7 +91,7 @@ lms_payroll._loadSlips = function (content) {
 		callback: function (r) {
 			var slips = (r && r.message && r.message.slips) || [];
 			if (!slips.length) {
-				content.innerHTML = '<div class="lms-panel"><div class="lms-empty"><div class="lms-empty-icon">🧾</div><h3>No payslips</h3><p>No salary slips found for your branch.</p></div></div>';
+				content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("🧾") + '<h3>No payslips</h3><p>No salary slips found for your branch.</p></div></div>';
 				return;
 			}
 			var html = '<div class="lms-panel"><div class="lms-data-table__wrap"><table class="lms-data-table">';
@@ -200,7 +200,7 @@ lms_payroll._loadLoanDeductions = function (content) {
 			});
 
 			if (!loanSlips.length) {
-				content.innerHTML = '<div class="lms-panel"><div class="lms-empty"><div class="lms-empty-icon">💰</div><h3>No loan deductions</h3><p>No salary slips with deductions found.</p></div></div>';
+				content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("💰") + '<h3>No loan deductions</h3><p>No salary slips with deductions found.</p></div></div>';
 				return;
 			}
 

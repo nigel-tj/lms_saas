@@ -1088,18 +1088,20 @@ body.lms-themed *:focus-visible {
 /* ------------------------------------------------------------------ */
 .lms-notification-panel {
 	position: fixed;
-	top: 56px;
-	right: 0;
+	top: 64px;
+	right: 1rem;
 	width: 340px;
-	max-width: 90vw;
+	max-width: calc(100vw - 2rem);
+	max-height: calc(100vh - 80px);
+	overflow-y: auto;
 	background: var(--lms-surface);
 	border: 1px solid var(--lms-border);
 	border-top: none;
 	box-shadow: var(--lms-shadow-lg);
-	z-index: 95;
-	transform: translateX(100%);
+	z-index: 120;
+	transform: translateX(120%);
 	transition: transform 0.2s ease;
-	border-radius: 0 0 0 var(--lms-radius-lg);
+	border-radius: 0 0 var(--lms-radius-lg) var(--lms-radius-lg);
 }
 
 .lms-notification-panel.is-open {
@@ -1126,6 +1128,18 @@ body.lms-themed *:focus-visible {
 	font-size: 1.3rem;
 	color: var(--lms-text-muted);
 	cursor: pointer;
+	padding: 0.25rem 0.5rem;
+	border-radius: var(--lms-radius-sm);
+	min-width: 32px;
+	min-height: 32px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.lms-notification-panel__close:hover {
+	background: var(--lms-surface-alt);
+	color: var(--lms-text);
 }
 
 .lms-notification-panel__body {

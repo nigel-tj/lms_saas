@@ -95,6 +95,26 @@ lms_portal.formatDate = function (value) {
 	return String(value).slice(0, 10);
 };
 
+/* Format a currency value using the browser's Intl.NumberFormat so the
+ * display adapts to the user's locale (ZAR, KES, NGN, USD, etc.). Falls
+ * back to Frappe's format_currency if available, then to a plain number. */
+lms_portal.formatCurrency = function (value, currency) {
+	currency = currency || (typeof frappe !== "undefined" && frappe.boot && frappe.boot.sysdefaults && frappe.boot.sysdefaults.currency) || "ZAR";
+	if (typeof Intl !== "undefined" && Intl.NumberFormat) {
+		try {
+			return new Intl.NumberFormat(undefined, {
+				style: "currency",
+				currency: currency,
+				minimumFractionDigits: 2,
+			}).format(value || 0);
+		} catch (e) { /* fall through */ }
+	}
+	if (typeof format_currency === "function") {
+		return format_currency(value || 0);
+	}
+	return (currency || "") + " " + Number(value || 0).toFixed(2);
+};
+
 lms_portal.skeleton = function (rows) {
 	let html = '<div class="lms-skeleton-grid" aria-hidden="true">';
 	for (let i = 0; i < (rows || 2); i++) {
@@ -169,26 +189,24 @@ lms_portal.pageEnd = function () {
 	return '</div>';
 };
 
-/* A header panel with a title and optional action buttons.             */
-/* opts: { title, actions: [ {label, id, primary, ghost, sm} ] }        */
+/* An action row (no title — the topbar's <h1> already shows the page    */
+/* title, so duplicating it here as a floating card looked like a       */
+/* duplicated "tag" badge). Used to host primary action buttons.        */
+/* opts: { actions: [ {label, id, primary, ghost, sm} ] }               */
 lms_portal.pageHeader = function (opts) {
 	opts = opts || {};
-	var html = '<div class="lms-panel">';
-	html += '<div class="lms-section-header">';
-	html += '<div class="lms-section-header__title"><h2 style="margin:0;font-size:var(--lms-fs-xl);font-weight:700;">' + lms_portal.escape(opts.title || "") + '</h2></div>';
 	var actions = opts.actions || [];
-	if (actions.length) {
-		html += '<div class="lms-section-header__controls">';
-		actions.forEach(function (a) {
-			var cls = "lms-btn " + (a.primary ? "lms-btn--primary" : "lms-btn--ghost");
-			if (a.sm !== false) cls += " lms-btn--sm";
-			html += '<button type="button" class="' + cls + '"';
-			if (a.id) html += ' id="' + lms_portal.escape(a.id) + '"';
-			html += '>' + lms_portal.escape(a.label || "") + '</button>';
-		});
-		html += '</div>';
-	}
-	html += '</div></div>';
+	if (!actions.length) return ""; // Nothing to render if no actions
+	var html = '<div class="lms-page-header">';
+	html += '<div class="lms-page-header__controls">';
+	actions.forEach(function (a) {
+		var cls = "lms-btn " + (a.primary ? "lms-btn--primary" : "lms-btn--ghost");
+		if (a.sm !== false) cls += " lms-btn--sm";
+		html += '<button type="button" class="' + cls + '"';
+		if (a.id) html += ' id="' + lms_portal.escape(a.id) + '"';
+		html += ">" + lms_portal.escape(a.label || "") + "</button>";
+	});
+	html += "</div></div>";
 	return html;
 };
 
@@ -239,8 +257,11 @@ lms_portal.panel = function (opts) {
 
 /* An empty-state panel. icon + title + message.                        */
 lms_portal.emptyPanel = function (icon, title, message) {
-	return '<div class="lms-panel"><div class="lms-empty"><div class="lms-empty-icon">' +
-		(icon || "📋") + '</div><h3>' + lms_portal.escape(title || "Nothing here") +
+	var iconHtml = (window.lms_icons && lms_icons.empty)
+		? lms_icons.empty(icon || "inbox")
+		: '<div class="lms-empty-icon">' + (icon || "📋") + '</div>';
+	return '<div class="lms-panel"><div class="lms-empty">' + iconHtml +
+		'<h3>' + lms_portal.escape(title || "Nothing here") +
 		'</h3><p>' + lms_portal.escape(message || "") + '</p></div></div>';
 };
 
@@ -250,7 +271,12 @@ lms_portal.tabNav = function (tabs, currentId) {
 	var html = '<nav class="lms-tab-nav" role="tablist">';
 	(tabs || []).forEach(function (t) {
 		var active = currentId === t.id ? " is-active" : "";
-		var icon = t.icon ? t.icon + " " : "";
+		var icon = "";
+		if (t.icon) {
+			icon = (window.lms_icons && lms_icons.icon)
+				? lms_icons.icon(t.icon, { size: 16, cls: "lms-tab-icon" })
+				: (t.icon + " ");
+		}
 		html += '<button type="button" class="lms-tab' + active + '" data-tab="' +
 			lms_portal.escape(t.id) + '" role="tab" aria-selected="' + (active ? "true" : "false") +
 			'">' + icon + lms_portal.escape(t.label || "") + "</button>";
@@ -300,6 +326,45 @@ lms_portal.badgeLabel = function (dpd, status) {
 	if ((dpd || 0) > 90) return "NPA";
 	if ((dpd || 0) > 30) return "Watchlist";
 	return status || "Active";
+};
+
+lms_portal._renderOrFallback = function (el, primary, fallback) {
+	// Try the primary renderer (e.g. LMSChart.*). If it returns a falsy value
+	// or throws, fall back to a simple HTML rendering. Used by older PWA
+	// bundles that predate the LMSChart refactor.
+	if (!el) return;
+	// If the target is a div with no inner canvas, the chart helpers will
+	// fail with "can't acquire context from the given item". Insert a
+	// fresh canvas first so the chart gets a valid 2D context. Keep the
+	// same ID on the canvas so LMSChart.line(el, ...) → toCanvasId(el)
+	// → getElementById(el.id) finds the canvas.
+	if (el.tagName !== "CANVAS" && !el.querySelector("canvas")) {
+		var canvas = document.createElement("canvas");
+		if (el.id) canvas.id = el.id;
+		// Chart.js needs explicit dimensions to acquire a 2D context.
+		// The parent div's offsetWidth/Height may be 0 if inside a
+		// collapsed <details>, so fall back to sensible defaults.
+		canvas.width = el.offsetWidth || 300;
+		canvas.height = el.offsetHeight || 180;
+		canvas.style.width = "100%";
+		canvas.style.height = "180px";
+		// Accessibility: Chart.js renders to canvas which is invisible
+		// to screen readers. Add role="img" + aria-label so AT users
+		// get a text description of the chart.
+		canvas.setAttribute("role", "img");
+		canvas.setAttribute("aria-label", el.getAttribute("aria-label") || "Chart");
+		el.innerHTML = "";
+		el.appendChild(canvas);
+	}
+	try {
+		const result = primary(el);
+		if (result) return;
+	} catch (e) {
+		// fall through
+	}
+	if (typeof fallback === "function") {
+		try { fallback(el); } catch (e2) { /* swallow */ }
+	}
 };
 
 lms_portal.simpleBars = function (rows, options) {
@@ -429,7 +494,7 @@ lms_portal.renderLoans = function (container, payload) {
 	if (!loans || !loans.length) {
 		container.innerHTML =
 			'<div class="lms-empty" role="status">' +
-			'<div class="lms-empty-icon" aria-hidden="true">◇</div>' +
+			lms_icons.empty("inbox") +
 			"<h3>No loans yet</h3>" +
 			"<p>When a loan is linked to your account, it will appear here.</p>" +
 			'<p class="lms-empty-hint">Need help? Contact your lender support team.</p></div>';
@@ -1246,7 +1311,7 @@ lms_portal.initApplicationsPage = function () {
 			var apps = (r.message && r.message.applications) || [];
 			if (!apps.length) {
 				el.innerHTML =
-					'<div class="lms-empty"><div class="lms-empty-icon">◇</div><h3>No applications yet</h3>' +
+					'<div class="lms-empty">' + lms_icons.empty("inbox") + '<h3>No applications yet</h3>' +
 					'<p>When you submit a loan application, it will appear here.</p>' +
 					'<a class="lms-btn lms-btn--primary" href="/lms/apply">Apply for a loan</a></div>';
 				return;

@@ -237,6 +237,7 @@ def after_install():
     _seed_payment_providers()
     _retire_legacy_roles_and_profile()
     _set_admin_home_page()
+    _set_portal_role_home_pages()
     _seed_addon_settings()
 
 
@@ -802,6 +803,49 @@ def _set_admin_home_page():
     for role_name in ("System Manager", "Administrator"):
         if frappe.db.exists("Role", role_name):
             frappe.db.set_value("Role", role_name, "home_page", admin_home)
+
+
+def _set_portal_role_home_pages():
+    """Route non-admin roles to the right landing page after login.
+
+    Without this, a borrower or portal-staff user logs in and Frappe's
+    default home-page logic falls through to Portal Settings
+    (default_portal_home = /desk) which 403s them.
+
+    Sets BOTH ``Role.home_page`` (used by ``get_home_page``) AND
+    ``User.default_app = ""`` for the role users (used by
+    ``get_default_path`` — which is what ``auth.py`` calls first and
+    which would otherwise resolve to ``/desk/lending`` because the
+    Lending app is a desk app and a website user with no ``default_app``
+    lands on the only desk app installed).
+    """
+    pairs = [
+        ("Customer", "/lms"),
+        ("LMS Portal Staff", "/lms/manager"),
+    ]
+    for role_name, home in pairs:
+        if not frappe.db.exists("Role", role_name):
+            continue
+        current = frappe.db.get_value("Role", role_name, "home_page")
+        # Don't clobber a value the site admin has set explicitly.
+        if not current or current in (None, "", "/desk", "/app"):
+            frappe.db.set_value("Role", role_name, "home_page", home)
+
+    # Clear default_app for every user carrying one of the portal roles
+    # so get_default_path() falls through to the role-derived home page
+    # instead of returning /desk/lending. We do this here at install time
+    # to keep the path consistent for already-existing demo users.
+    for role_name in ("Customer", "LMS Portal Staff"):
+        users = frappe.get_all(
+            "User",
+            filters={"enabled": 1},
+            fields=["name", "default_app"],
+        )
+        # Pull roles in a single pass to avoid N+1.
+        for u in users:
+            user_roles = set(frappe.get_roles(u.name))
+            if role_name in user_roles and u.default_app:
+                frappe.db.set_value("User", u.name, "default_app", "")
 
 
 def _upsert_workspace(spec):

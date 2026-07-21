@@ -46,9 +46,14 @@ lms_training._loadPrograms = function (content) {
 	lms_portal.safeCall({
 		method: "lms_saas.api.training.get_training_programs",
 		callback: function (r) {
-			var programs = (r && r.message && r.message.programs) || [];
+			var msg = r && r.message;
+			if (msg && msg._missing) {
+				content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("📚") + '<h3>Training is unavailable</h3><p>' + lms_portal.escape(msg.message || "") + '</p></div></div>';
+				return;
+			}
+			var programs = (msg && msg.programs) || [];
 			if (!programs.length) {
-				content.innerHTML = '<div class="lms-panel"><div class="lms-empty"><div class="lms-empty-icon">📚</div><h3>No programs</h3><p>No training programs available.</p></div></div>';
+				content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("📚") + '<h3>No programs</h3><p>No training programs available.</p></div></div>';
 				return;
 			}
 			var html = '<div class="lms-panel"><div class="lms-data-table__wrap"><table class="lms-data-table">';
@@ -76,9 +81,14 @@ lms_training._loadEvents = function (content) {
 		method: "lms_saas.api.training.get_training_events",
 		args: { upcoming: true },
 		callback: function (r) {
-			var events = (r && r.message && r.message.events) || [];
+			var msg = r && r.message;
+			if (msg && msg._missing) {
+				content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("📅") + '<h3>Training is unavailable</h3><p>' + lms_portal.escape(msg.message || "") + '</p></div></div>';
+				return;
+			}
+			var events = (msg && msg.events) || [];
 			if (!events.length) {
-				content.innerHTML = '<div class="lms-panel"><div class="lms-empty"><div class="lms-empty-icon">📅</div><h3>No events</h3><p>No upcoming training events.</p></div></div>';
+				content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("📅") + '<h3>No events</h3><p>No upcoming training events.</p></div></div>';
 				return;
 			}
 			var html = '<div class="lms-panel"><div class="lms-data-table__wrap"><table class="lms-data-table">';
@@ -134,7 +144,12 @@ lms_training._loadMine = function (content) {
 	lms_portal.safeCall({
 		method: "lms_saas.api.training.get_my_training_results",
 		callback: function (r) {
-			var results = (r && r.message && r.message.results) || [];
+			var msg = r && r.message;
+			if (msg && msg._missing) {
+				content.innerHTML = lms_portal.emptyPanel("🎓", "Training is unavailable", msg.message || "");
+				return;
+			}
+			var results = (msg && msg.results) || [];
 			var html = lms_portal.kpiStrip([
 				{ label: "Training Completed", value: results.length, tone: "success" },
 			]);

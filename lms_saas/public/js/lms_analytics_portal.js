@@ -12,16 +12,17 @@ lms_analytics.init = function () {
 	if (!root) return;
 
 	var tabs = [
-		{ id: "comparison", label: "Comparison", icon: "📊" },
-		{ id: "leaderboard", label: "Leaderboard", icon: "🏆" },
-		{ id: "trends", label: "Trends", icon: "📈" },
+		{ id: "comparison", label: "Comparison", icon: "bar-chart" },
+		{ id: "leaderboard", label: "Leaderboard", icon: "trophy" },
+		{ id: "trends", label: "Trends", icon: "trending-up" },
 	];
 	var html = lms_portal.pageStart() +
 		lms_portal.pageHeader({ title: "Branch Analytics" }) +
 		'<nav class="lms-tab-nav" role="tablist">';
 	tabs.forEach(function (t) {
 		var active = lms_analytics._currentTab === t.id ? " is-active" : "";
-		html += '<button type="button" class="lms-tab' + active + '" data-tab="' + t.id + '" role="tab" aria-selected="' + (active ? "true" : "false") + '">' + t.icon + " " + lms_portal.escape(t.label) + "</button>";
+		var iconHtml = (window.lms_icons && lms_icons.icon) ? lms_icons.icon(t.icon, { size: 16, cls: "lms-tab-icon" }) : "";
+		html += '<button type="button" class="lms-tab' + active + '" data-tab="' + t.id + '" role="tab" aria-selected="' + (active ? "true" : "false") + '">' + iconHtml + lms_portal.escape(t.label) + "</button>";
 	});
 	html += "</nav>";
 	html += '<div id="lms-analytics-tab-content"></div>';
@@ -68,7 +69,7 @@ lms_analytics._loadComparison = function (content) {
 			var data = (r && r.message) || {};
 			var branches = data.branches || [];
 			if (!branches.length) {
-				content.innerHTML = '<div class="lms-panel"><div class="lms-empty"><div class="lms-empty-icon">📊</div><h3>No data</h3><p>No branch data available.</p></div></div>';
+				content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("📊") + '<h3>No data</h3><p>No branch data available.</p></div></div>';
 				return;
 			}
 
@@ -111,7 +112,7 @@ lms_analytics._loadAlerts = function () {
 		callback: function (r) {
 			var alerts = (r && r.message && r.message.alerts) || [];
 			if (!alerts.length) {
-				el.innerHTML = '<div class="lms-panel"><div class="lms-empty"><div class="lms-empty-icon">✓</div><h3>All clear</h3><p>No benchmark alerts.</p></div></div>';
+				el.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("✓") + '<h3>All clear</h3><p>No benchmark alerts.</p></div></div>';
 				return;
 			}
 			var html = '<div class="lms-stack" style="margin-top:1rem;">';
@@ -174,7 +175,7 @@ lms_analytics._fetchLeaderboard = function () {
 			var data = (r && r.message) || {};
 			var officers = data.officers || [];
 			if (!officers.length) {
-				el.innerHTML = '<div class="lms-panel"><div class="lms-empty"><div class="lms-empty-icon">🏆</div><h3>No data</h3><p>No officer data for this metric.</p></div></div>';
+				el.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("🏆") + '<h3>No data</h3><p>No officer data for this metric.</p></div></div>';
 				return;
 			}
 
@@ -257,7 +258,7 @@ lms_analytics._fetchTrend = function () {
 			var branches = data.branches || [];
 			var labels = data.labels || [];
 			if (!branches.length) {
-				el.innerHTML = '<div class="lms-panel"><div class="lms-empty"><div class="lms-empty-icon">📈</div><h3>No data</h3><p>No trend data available.</p></div></div>';
+				el.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("📈") + '<h3>No data</h3><p>No trend data available.</p></div></div>';
 				return;
 			}
 

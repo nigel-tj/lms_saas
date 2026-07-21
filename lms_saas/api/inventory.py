@@ -62,16 +62,40 @@ def get_asset_register(limit=100):
                     filters[field] = branch
                     break
 
+    # Pick the actual Asset fields that exist in the installed ERPNext version
+    asset_meta = frappe.get_meta("Asset")
+    wanted = ["name", "asset_name", "asset_category", "status",
+              "purchase_date", "gross_purchase_amount", "location",
+              "custodian", "department", "cost_center", "is_existing_asset"]
+    # Depreciation columns: prefer opening_accumulated_depreciation (always present)
+    # over accumulated_depreciation (removed in some ERPNext releases).
+    if asset_meta.has_field("opening_accumulated_depreciation"):
+        wanted.append("opening_accumulated_depreciation")
+    if asset_meta.has_field("value_after_depreciation"):
+        wanted.append("value_after_depreciation")
+    if asset_meta.has_field("asset_value"):
+        wanted.append("asset_value")
+
     assets = frappe.get_all(
         "Asset",
         filters=filters,
-        fields=["name", "asset_name", "asset_category", "status",
-                "purchase_date", "gross_purchase_amount",
-                "accumulated_depreciation", "asset_value", "location",
-                "custodian", "department", "cost_center", "is_existing_asset"],
+        fields=wanted,
         order_by="purchase_date desc",
         limit_page_length=int(limit),
     )
+    # Backfill: surface accumulated_depreciation and asset_value aliases for the
+    # front-end, regardless of which column the schema exposes.
+    for a in assets:
+        if "accumulated_depreciation" not in a:
+            a["accumulated_depreciation"] = (
+                a.get("opening_accumulated_depreciation") or 0
+            )
+        if "asset_value" not in a:
+            a["asset_value"] = (
+                a.get("value_after_depreciation")
+                or (a.get("gross_purchase_amount") or 0)
+                - (a.get("opening_accumulated_depreciation") or 0)
+            )
     return {"assets": assets}
 
 
@@ -224,21 +248,38 @@ def get_inventory_stats():
     active_assets = frappe.db.count("Asset", {"status": "Submitted"})
     stock_items = frappe.db.count("Item", {"is_stock_item": 1, "disabled": 0})
 
-    # Low stock count
+    # Low stock count. ERPNext stores reorder thresholds in the Item Reorder
+    # child table (Item.reorder_levels) — the legacy Item.reorder_level column
+    # was removed. If the child table is present, use it; otherwise fall back
+    # to a no-thresholds scan (returns 0 low-stock items, but doesn't 500).
     low_stock = 0
-    items = frappe.get_all(
-        "Item",
-        filters={"is_stock_item": 1, "disabled": 0},
-        fields=["name", "reorder_level"],
-    )
-    for item in items:
-        reorder = item.get("reorder_level") or 0
-        if not reorder:
-            continue
-        bin_qty = frappe.db.get_all("Bin", filters={"item_code": item["name"]}, fields=["actual_qty"])
-        total_qty = sum(b["actual_qty"] or 0 for b in bin_qty)
-        if total_qty <= reorder:
-            low_stock += 1
+    item_meta = frappe.get_meta("Item")
+    if item_meta.has_field("reorder_levels"):
+        items = frappe.get_all(
+            "Item",
+            filters={"is_stock_item": 1, "disabled": 0},
+            fields=["name"],
+            limit_page_length=500,
+        )
+        for item in items:
+            rows = frappe.get_all(
+                "Item Reorder",
+                filters={"parent": item["name"]},
+                fields=["warehouse_reorder_level"],
+                limit_page_length=10,
+            )
+            thresholds = [r["warehouse_reorder_level"] for r in rows if r.get("warehouse_reorder_level")]
+            if not thresholds:
+                continue
+            threshold = max(thresholds)
+            if threshold <= 0:
+                continue
+            bin_qty = frappe.db.get_all("Bin", filters={"item_code": item["name"]}, fields=["actual_qty"])
+            total_qty = sum(b["actual_qty"] or 0 for b in bin_qty)
+            if total_qty <= threshold:
+                low_stock += 1
+    # Else: schema lacks reorder_levels entirely — skip the low-stock check
+    # rather than crash. Most installs without it are pre-ERPNext-13 anyway.
 
     return {
         "total_assets": total_assets,

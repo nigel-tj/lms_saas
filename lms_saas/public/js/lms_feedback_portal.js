@@ -78,7 +78,7 @@ lms_feedback._loadSurveys = function (content) {
 		callback: function (r) {
 			var surveys = (r && r.message && r.message.surveys) || [];
 			if (!surveys.length) {
-				content.innerHTML = '<div class="lms-panel"><div class="lms-empty"><div class="lms-empty-icon">📝</div><h3>No surveys</h3><p>There are no active surveys right now.</p></div></div>';
+				content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("📝") + '<h3>No surveys</h3><p>There are no active surveys right now.</p></div></div>';
 				return;
 			}
 
@@ -210,7 +210,7 @@ lms_feedback._loadResponses = function (content) {
 		callback: function (r) {
 			var responses = (r && r.message && r.message.responses) || [];
 			if (!responses.length) {
-				content.innerHTML = '<div class="lms-panel"><div class="lms-empty"><div class="lms-empty-icon">💬</div><h3>No responses</h3><p>No feedback responses yet.</p></div></div>';
+				content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("💬") + '<h3>No responses</h3><p>No feedback responses yet.</p></div></div>';
 				return;
 			}
 
@@ -295,7 +295,7 @@ lms_feedback._loadDashboard = function (content) {
 			}
 
 			if (!bySurvey.length && !byBranch.length && !byOfficer.length) {
-				html += '<div class="lms-panel"><div class="lms-empty"><div class="lms-empty-icon">📊</div><h3>No data</h3><p>No feedback data to display yet.</p></div></div>';
+				html += '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("📊") + '<h3>No data</h3><p>No feedback data to display yet.</p></div></div>';
 			}
 
 			content.innerHTML = html;

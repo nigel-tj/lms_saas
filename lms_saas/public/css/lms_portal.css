@@ -45,10 +45,19 @@ body.lms-portal {
 	max-width: 100%;
 }
 
-/* Cards / panels should never stretch past ~1280px on wide screens */
+/* Cards / panels — full-width by default so they align with the      */
+/* KPI strip and other wide elements. Use `.lms-panel--narrow` for    */
+/* centered narrow cards (e.g. login, single-column forms).            */
 .lms-panel,
 .lms-card,
 .lms-bento {
+	width: 100%;
+	max-width: 100%;
+}
+
+.lms-panel--narrow,
+.lms-card--narrow,
+.lms-bento--narrow {
 	max-width: 1320px;
 	margin-left: auto;
 	margin-right: auto;
@@ -191,14 +200,20 @@ body.lms-portal {
 }
 
 .lms-sidebar__group {
-	margin: 0.85rem 1rem 0.35rem;
-	padding: 0;
-	font-size: 0.68rem;
-	font-weight: 600;
-	letter-spacing: 0.06em;
+	margin: 1.25rem 1rem 0.35rem;
+	padding: 0 0.25rem 0.35rem;
+	font-size: 0.65rem;
+	font-weight: 700;
+	letter-spacing: 0.08em;
 	text-transform: uppercase;
 	color: var(--lms-text-muted);
-	opacity: 0.85;
+	opacity: 0.7;
+	border-bottom: 1px solid var(--lms-border);
+	line-height: 1;
+}
+
+.lms-sidebar__group:first-child {
+	margin-top: 0.5rem;
 }
 
 .lms-sidebar.is-mini .lms-sidebar__group {
@@ -337,7 +352,7 @@ body.lms-portal {
 	align-items: center;
 	justify-content: space-between;
 	padding: 0 clamp(1rem, 2.5vw, 1.75rem);
-	z-index: 90;
+	z-index: 80;
 	gap: 1.25rem;
 }
 
@@ -548,10 +563,11 @@ body.lms-portal {
 .lms-tab-nav {
 	display: flex;
 	flex-wrap: wrap;
-	gap: 0.5rem;
-	margin: 0 0 1.75rem;
-	padding: 0 0 0.5rem;
+	gap: 0.25rem;
+	margin: 0 0 1.5rem;
+	padding: 0;
 	border-bottom: 1px solid var(--lms-border);
+	align-items: flex-end;
 }
 
 .lms-tab {
@@ -1022,6 +1038,32 @@ body.lms-portal {
 
 .lms-empty-icon {
 	font-size: 2rem;
+	color: var(--lms-primary);
+	opacity: 0.35;
+}
+
+/* Flat minimal SVG icons (lms_icons.js) — inherit color via currentColor. */
+.lms-icon {
+	display: inline-block;
+	vertical-align: middle;
+	flex: 0 0 auto;
+	color: inherit;
+	line-height: 0;
+}
+
+/* Tab icons: subtle, align with the label baseline. */
+.lms-tab-icon {
+	color: var(--lms-text-muted);
+	transition: color 0.15s ease;
+}
+
+.lms-tab:hover .lms-tab-icon,
+.lms-tab.is-active .lms-tab-icon {
+	color: var(--lms-primary);
+}
+
+/* Empty-state icons render larger and muted. */
+.lms-empty .lms-icon.lms-empty-icon {
 	color: var(--lms-primary);
 	opacity: 0.35;
 }
@@ -1935,4 +1977,223 @@ body.lms-portal-borrower .form-control:focus {
 	padding: 0 1rem 1rem;
 	display: grid;
 	gap: 1rem;
+}
+
+/* ------------------------------------------------------------------ */
+/* Cross-portal alignment fixes (2026-07-21 board review)             */
+/* ------------------------------------------------------------------ */
+
+/* KPI strips: force equal-height cards so a row of 4 KPIs never has
+ * one card taller than the others (the #1 visual-balance complaint). */
+.lms-grid-2,
+.lms-grid-3,
+.lms-grid-4 {
+	align-items: stretch;
+}
+
+.lms-grid-2 > *,
+.lms-grid-3 > *,
+.lms-grid-4 > * {
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	min-height: 88px;
+}
+
+/* When the grid contains panels (not just KPI cards), stretch to equal
+ * height so side-by-side panels (Risk Mix + Team Performance) align. */
+.lms-grid-2 > .lms-panel,
+.lms-grid-3 > .lms-panel,
+.lms-grid-4 > .lms-panel {
+	justify-content: flex-start;
+	min-height: 0;
+}
+
+.lms-grid-2 > .lms-panel > :last-child,
+.lms-grid-3 > .lms-panel > :last-child,
+.lms-grid-4 > .lms-panel > :last-child {
+	flex: 1 1 auto;
+}
+
+/* Panels: consistent bottom margin so stacked panels breathe evenly. */
+.lms-panel {
+	margin-bottom: 1.25rem;
+}
+
+.lms-panel:last-child {
+	margin-bottom: 0;
+}
+
+/* Quick-action row: ensure it never overlaps the tab nav below it. */
+.lms-quick-actions {
+	position: relative;
+	z-index: 1;
+	margin-bottom: 1.25rem;
+}
+
+.lms-tab-nav {
+	position: relative;
+	z-index: 1;
+}
+
+/* Risk disclosure: hide on non-lending portals so HR / Insurance / Feedback
+ * don't show "Loans involve credit risk." in their headers. */
+body:not(.lms-portal-borrower):not(.lms-page-loans):not(.lms-page-apply):not(.lms-page-pay) .lms-topbar__disclosure {
+	display: none;
+}
+
+/* Page section heading (h2 in main) — consistent spacing. */
+.lms-content > h2:first-child {
+	margin: 0 0 1.25rem;
+	font-size: 1.5rem;
+	font-weight: 700;
+	color: var(--lms-text);
+	letter-spacing: -0.02em;
+}
+
+/* Ensure the main content has consistent vertical rhythm. */
+.lms-content > .lms-panel:first-child,
+.lms-content > section:first-child,
+.lms-content > .lms-grid-4:first-child,
+.lms-content > .lms-grid-3:first-child,
+.lms-content > .lms-grid-2:first-child {
+	margin-top: 0;
+}
+
+/* Reconciliation portal — KPI strip + action button spacing. */
+.lms-recon-kpis {
+	margin-bottom: 1.25rem;
+}
+
+.lms-recon-actions {
+	margin-top: 1.25rem;
+	display: flex;
+	gap: 0.75rem;
+}
+
+/* Procurement portal — action button + KPI strip spacing. */
+.lms-proc-actions {
+	margin-bottom: 1.25rem;
+}
+
+.lms-proc-kpis {
+	margin-bottom: 1.25rem;
+}
+
+.lms-proc-chart-panel {
+	margin-bottom: 1.25rem;
+}
+
+/* ------------------------------------------------------------------ */
+/* Page-header (action row only — title is in the topbar)              */
+/* ------------------------------------------------------------------ */
+.lms-page-header {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	margin: 0 0 1.25rem;
+	padding: 0;
+	gap: 0.5rem;
+}
+
+.lms-page-header__controls {
+	display: flex;
+	gap: 0.5rem;
+	align-items: center;
+}
+
+/* ------------------------------------------------------------------ */
+/* Clean visual hierarchy — KPIs above tables, charts below            */
+/* ------------------------------------------------------------------ */
+
+/* Main content: consistent vertical rhythm with clear sectioning. */
+.lms-content {
+	display: flex;
+	flex-direction: column;
+	gap: 1.25rem;
+}
+
+.lms-content > * {
+	margin: 0; /* gap handles spacing */
+}
+
+/* Section heading (h2 in main) — the only visible page-level title. */
+.lms-content > h2:first-child {
+	margin: 0;
+	font-size: 1.5rem;
+	font-weight: 700;
+	color: var(--lms-text);
+	letter-spacing: -0.02em;
+}
+
+/* KPI strip is the primary "at-a-glance" element — put it FIRST. */
+.lms-content > .lms-kpi-strip:first-child,
+.lms-content > .lms-grid-4:first-child,
+.lms-content > .lms-grid-3:first-child,
+.lms-content > .lms-grid-2:first-child {
+	margin-top: 0;
+}
+
+/* Data tables: clean, breathable rows that fit their panel. */
+.lms-data-table th {
+	background: var(--lms-surface-alt, #f9fafb);
+	color: var(--lms-text-muted, #6b7280);
+	font-weight: 600;
+	text-align: left;
+	padding: 0.75rem 1.1rem;
+	border-bottom: 1px solid var(--lms-border, #e5e7eb);
+	white-space: nowrap;
+	font-size: 0.72rem;
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+}
+
+.lms-data-table td {
+	padding: 0.85rem 1.1rem;
+	border-bottom: 1px solid var(--lms-border, #e5e7eb);
+	color: var(--lms-text, #111827);
+	font-size: 0.875rem;
+	vertical-align: middle;
+}
+
+.lms-data-table tbody tr:last-child td {
+	border-bottom: none;
+}
+
+.lms-data-table {
+	width: 100%;
+	border-collapse: separate;
+	border-spacing: 0;
+	table-layout: auto;
+}
+
+.lms-data-table__wrap {
+	width: 100%;
+	overflow-x: auto;
+	border-radius: var(--lms-radius-lg, 12px);
+	border: 1px solid var(--lms-border, #e5e7eb);
+	background: var(--lms-surface, #fff);
+}
+
+/* Action cell — keep buttons on one line, no wrap. */
+.lms-data-table__actions {
+	display: inline-flex;
+	gap: 0.5rem;
+	flex-wrap: nowrap;
+	white-space: nowrap;
+}
+
+/* Empty-state inside a data table (e.g. "No applications pending") */
+.lms-data-table__empty {
+	padding: 2rem 1rem;
+	text-align: center;
+	color: var(--lms-text-muted, #6b7280);
+}
+
+/* Numeric columns should right-align and tabular-numbers for clean    */
+/* columns of figures (e.g. amounts, counts).                          */
+.lms-data-table td.is-num,
+.lms-data-table th.is-num {
+	text-align: right;
+	font-variant-numeric: tabular-nums;
 }
