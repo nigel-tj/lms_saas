@@ -224,6 +224,7 @@ def after_install():
     _sync_number_cards()
     _sync_dashboard_charts()
     _sync_loan_dashboard_extensions()
+    _reconcile_loan_dashboard()  # self-heal: re-link any missing LMS cards/charts
     _sync_lms_workspaces()
     _setup_navbar_branding()
     _seed_print_formats()
@@ -759,6 +760,14 @@ def _retire_legacy_workspaces():
         if frappe.db.exists("Workspace", name):
             frappe.delete_doc("Workspace", name, ignore_permissions=True, force=True)
 
+    # Remove the legacy "LMS Staff" Module Profile that pre-dated the
+    # portal-only role design. It's referenced in api.staff.apply_lms_module_profile
+    # but is no longer needed because LMS Portal Staff has desk_access=0 and
+    # the desk is admin-only. Leaving it in place causes verify_access to
+    # flag "lingering_module_profile" and confuses the desk sidebar.
+    if frappe.db.exists("Module Profile", "LMS Staff"):
+        frappe.delete_doc("Module Profile", "LMS Staff", ignore_permissions=True, force=True)
+
 
 def _retire_legacy_roles_and_profile():
     """Remove superseded LMS staff roles and the LMS Staff module profile.
@@ -1109,6 +1118,35 @@ def _sync_loan_dashboard_extensions():
         ):
             card_name = card["label"]
         _append_loan_dashboard_card(card_name)
+
+    for chart in LOAN_DASHBOARD_CHARTS:
+        _append_loan_dashboard_chart(chart["name"], chart["width"])
+
+
+def _reconcile_loan_dashboard():
+    """Self-heal: ensure every LMS Number Card and Chart is linked to Loan Dashboard.
+
+    On Frappe Cloud, the standard Loan Dashboard shipped by Lending can be
+    installed BEFORE lms_saas runs after_install, and the dashboard may
+    already have 10+ standard lending cards linked. Our existing
+    _sync_loan_dashboard_extensions() only appends the LMS ones, but if the
+    script was ever run against a half-installed state some LMS cards may
+    be missing. This function re-asserts the link idempotently so verify_spec
+    and the live dashboard always show LMS metrics.
+    """
+    if not frappe.db.exists("Dashboard", LOAN_DASHBOARD_NAME):
+        return
+
+    # Ensure the Number Card and Chart records exist before linking.
+    _sync_number_cards()
+    _sync_dashboard_charts()
+
+    for card in NUMBER_CARDS:
+        # Number Card autoname uses label; check both name and label.
+        for candidate in (card["name"], card["label"]):
+            if frappe.db.exists("Number Card", candidate):
+                _append_loan_dashboard_card(candidate)
+                break
 
     for chart in LOAN_DASHBOARD_CHARTS:
         _append_loan_dashboard_chart(chart["name"], chart["width"])

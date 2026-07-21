@@ -2,8 +2,8 @@
 # Onboard one company on a live/staging site using the LMS setup orchestrator.
 #
 # Usage examples:
-#   FC_SITE=lms-saas.frappe.cloud COMPANY=Kesari DRY_RUN=1 bash apps/lms_saas/scripts/onboard-company.sh
-#   FC_SITE=lms-saas.frappe.cloud COMPANY=Kesari APPLY=1 COMPANY_NAME=Kesari DOMAIN=kesari.africa bash apps/lms_saas/scripts/onboard-company.sh
+#   FC_SITE=app.kesari.africa COMPANY=Kesari DRY_RUN=1 bash scripts/onboard-company.sh
+#   FC_SITE=app.kesari.africa COMPANY=Kesari APPLY=1 COMPANY_NAME=Kesari DOMAIN=kesari.africa bash scripts/onboard-company.sh
 
 set -euo pipefail
 
@@ -56,7 +56,7 @@ fi
 
 if [[ -z "$COMPANY" ]]; then
   echo "error: COMPANY is required" >&2
-  echo "example: FC_SITE=lms-saas.frappe.cloud COMPANY=Kesari DRY_RUN=1 bash apps/lms_saas/scripts/onboard-company.sh" >&2
+  echo "example: FC_SITE=app.kesari.africa COMPANY=Kesari DRY_RUN=1 bash scripts/onboard-company.sh" >&2
   exit 1
 fi
 

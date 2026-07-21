@@ -24,5 +24,10 @@ bench --site "$FC_SITE" migrate
 bench build --app lms_saas
 bench --site "$FC_SITE" clear-cache
 bench --site "$FC_SITE" enable-scheduler
+# Self-heal: re-link LMS Number Cards / Charts to the Loan Dashboard
+# (idempotent — safe to re-run on every update).
+bench --site "$FC_SITE" execute lms_saas.install._reconcile_loan_dashboard
+bench --site "$FC_SITE" execute lms_saas.install._set_portal_role_home_pages
+bench --site "$FC_SITE" execute lms_saas.install._set_admin_home_page
 bench --site "$FC_SITE" execute lms_saas.setup.verify_spec.run_all_checks
 echo "Update complete for $FC_SITE"
