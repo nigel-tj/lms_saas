@@ -68,7 +68,9 @@ Auto-seed on migrate when `developer_mode` is on or `lms_seed_dev_email` is set 
 
 Use **Data Import** on DocType `Loan Repayment` with columns: `against_loan`, `applicant_type`, `applicant`, `posting_date`, `amount_paid`, `company`.
 
-## Portal users
+## Portal users (admin emergency recovery only)
+
+> **Preferred path:** use the **LMS User Setup** desk form (one-screen onboarding). The steps below are kept for emergency recovery when the form is unavailable.
 
 1. Create **Customer** with email.
 2. Create **User** with same email; assign role **Customer**.

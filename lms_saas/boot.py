@@ -18,6 +18,9 @@ def _is_desk_admin(roles):
 
 def apply_default_route(bootinfo):
     """Route desk admins to the Loan Management workspace; borrowers to the portal."""
+    from lms_saas.utils.portal import install_desk_gate
+    install_desk_gate()
+
     brand = enrich_brand()
     bootinfo.lms_portal_title = brand.get("portal_title")
     bootinfo.lms_theme = get_lms_theme()

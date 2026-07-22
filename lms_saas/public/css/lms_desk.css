@@ -1114,3 +1114,51 @@ body.lms-desk-enhanced.lms-desk-v16 .navbar-home.lms-navbar-brand {
 	border-radius: var(--lms-radius-sm);
 }
 
+
+/* ------------------------------------------------------------------ */
+/* Desk health badge — surfaces system health in the navbar.            */
+/* ------------------------------------------------------------------ */
+.lms-desk-health-badge {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.4rem;
+	margin: 0 0.5rem;
+	padding: 0.3rem 0.6rem;
+	border-radius: 999px;
+	font-size: 0.72rem;
+	font-weight: 600;
+	text-decoration: none;
+	color: var(--lms-text, #111827);
+	background: var(--lms-surface-alt, #f3f4f6);
+	border: 1px solid var(--lms-border, #e5e7eb);
+	transition: background 0.12s, border-color 0.12s;
+	white-space: nowrap;
+}
+
+.lms-desk-health-badge:hover {
+	background: var(--lms-surface, #fff);
+	border-color: var(--lms-primary, #2f4f46);
+	color: var(--lms-primary, #2f4f46);
+	text-decoration: none;
+}
+
+.lms-desk-health-badge__dot {
+	width: 0.55rem;
+	height: 0.55rem;
+	border-radius: 999px;
+	background: var(--lms-text-muted, #6b7280);
+	flex-shrink: 0;
+}
+
+.lms-desk-health-badge--success { color: #166534; }
+.lms-desk-health-badge--success .lms-desk-health-badge__dot { background: var(--lms-success, #16a34a); }
+.lms-desk-health-badge--warning { color: #92400e; background: rgba(245, 158, 11, 0.12); border-color: rgba(245, 158, 11, 0.3); }
+.lms-desk-health-badge--warning .lms-desk-health-badge__dot { background: var(--lms-warning, #f59e0b); }
+.lms-desk-health-badge--danger { color: #991b1b; background: rgba(220, 38, 38, 0.12); border-color: rgba(220, 38, 38, 0.3); }
+.lms-desk-health-badge--danger .lms-desk-health-badge__dot { background: var(--lms-danger, #dc2626); }
+
+@media (max-width: 720px) {
+	.lms-desk-health-badge__label {
+		display: none;
+	}
+}

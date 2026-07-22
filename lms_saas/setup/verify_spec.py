@@ -26,6 +26,7 @@ def run_all_checks():
     check("workspace", _check_workspace)
     check("loan_dashboard", _check_loan_dashboard)
     check("dashboard_api", _check_dashboard_api)
+    check("admin_console", _check_admin_console)
     check("print_formats", _check_print_formats)
     check("notifications", _check_notifications)
     check("crm", _check_crm)
@@ -649,12 +650,110 @@ def _check_dashboard_api():
             "LMS NPA Count",
         )
     )
+    # Phase 2: new admin console endpoints.
+    admin_console_endpoints = ("get_kyc_queue", "get_recent_activity", "get_active_branches")
+    admin_console_ok = all(hasattr(dashboard, fn) for fn in admin_console_endpoints)
     return {
-        "ok": bool(fns_ok and source_ok and charts_ok and cards_ok),
+        "ok": bool(fns_ok and source_ok and charts_ok and cards_ok and admin_console_ok),
         "required": required,
         "source": bool(source_ok),
         "charts": bool(charts_ok),
         "number_cards": bool(cards_ok),
+        "admin_console_endpoints": bool(admin_console_ok),
+    }
+
+
+def _check_admin_console():
+    """Admin Console (/app/lms-admin) — desk-only dashboard wiring.
+
+    Verifies the desk Page implementation:
+    1. The page module (`apps/lms_saas/lms_saas/lms_saas/page/lms_admin/`)
+       exists with __init__.py + .json + .py + .js + .css.
+    2. The Page DocType row is registered in the DB with
+       `name == "lms-admin"`, `standard == "Yes"`, and the System Manager
+       role gate.
+    3. The Loan Management workspace has the "Admin Console" shortcut
+       of `type: Page` linking to `lms-admin`.
+
+    The check does NOT make an HTTP request (which would require a live
+    server); it just verifies the static artefacts are wired correctly.
+    """
+    import os
+
+    import frappe
+
+    from lms_saas.install import LMS_NAV_SPEC
+
+    # ``frappe.get_app_path("lms_saas", "lms_saas")`` already returns
+    # the inner module directory that contains ``page/``,
+    # ``dashboard_chart_source/``, ``doctype/`` and ``report/``. So
+    # the page dir is just ``<that>/page/lms_admin``.
+    module_root = frappe.get_app_path("lms_saas", "lms_saas")
+    page_dir = os.path.join(module_root, "page", "lms_admin")
+
+    files = {
+        "page_init": os.path.join(page_dir, "__init__.py"),
+        "page_json": os.path.join(page_dir, "lms_admin.json"),
+        "page_py":   os.path.join(page_dir, "lms_admin.py"),
+        "page_js":   os.path.join(page_dir, "lms_admin.js"),
+        "page_css":  os.path.join(page_dir, "lms_admin.css"),
+    }
+    present = {k: os.path.exists(v) for k, v in files.items()}
+
+    # The Page DocType row must exist in the DB. We use frappe.get_all
+    # (not frappe.db.table_exists) because the latter is cached and can
+    # return False even when the table is present and queryable.
+    try:
+        page_row = frappe.db.get_value(
+            "Page",
+            "lms-admin",
+            ["name", "standard", "title"],
+            as_dict=True,
+        )
+    except Exception:
+        page_row = None
+
+    role_ok = False
+    if page_row:
+        page_doc = frappe.get_doc("Page", "lms-admin")
+        role_names = {r.role for r in (page_doc.roles or [])}
+        role_ok = "System Manager" in role_names and "Administrator" in role_names
+
+    # The Loan Management workspace must have an "Admin Console" Page
+    # shortcut pointing to lms-admin.
+    loan_mgmt = next(
+        (s for s in LMS_NAV_SPEC if s.get("key") == "loan_management"), None
+    )
+    has_shortcut = False
+    if loan_mgmt:
+        for sc in loan_mgmt.get("shortcuts", []):
+            if (
+                sc.get("label") == "Admin Console"
+                and sc.get("type") == "Page"
+                and sc.get("link_to") == "lms-admin"
+            ):
+                has_shortcut = True
+                break
+
+    files_ok = all(present.values())
+    page_ok = bool(page_row) and page_row.get("standard") == "Yes" and role_ok
+    ok = files_ok and page_ok and has_shortcut
+    return {
+        "ok": ok,
+        "files": present,
+        "page": {
+            "registered": bool(page_row),
+            "standard": page_row.get("standard") if page_row else None,
+            "title": page_row.get("title") if page_row else None,
+            "roles_gated": role_ok,
+        },
+        "loan_mgmt_shortcut": has_shortcut,
+        "hint": (
+            None if ok
+            else "Ensure lms_saas/lms_saas/lms_saas/page/lms_admin/ files exist, "
+                 "the Page DocType row is registered (bench migrate), and the "
+                 "Loan Management workspace has the Page shortcut (link_to=lms-admin)."
+        ),
     }
 
 

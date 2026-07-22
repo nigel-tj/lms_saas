@@ -103,9 +103,9 @@ Then: `bench migrate` → `bench build --app lms_saas` → `lms_saas.install.aft
 Running `lms_saas.install.after_install` (also on `after_migrate`) seeds:
 
 - Branches as **Cost Centers** and loan product **LMS-STD**
-- LMS roles and DocType permissions
-- **Loan Management** workspace tree (from `LMS_NAV_SPEC`)
-- **LMS Staff** module profile (sidebar lockdown for desk staff)
+- LMS roles and DocType permissions (desk admin roles + single **LMS Portal Staff** role for portal-only staff)
+- **Loan Management** workspace tree (from `LMS_NAV_SPEC`) — admin-only
+- Portal-only staff are gated by the **LMS Portal Staff** role; no module profile is needed because they never see the desk
 - Dashboard number cards/charts, print formats, notifications
 - Portal menu, website branding hooks, custom fields (fixtures)
 
