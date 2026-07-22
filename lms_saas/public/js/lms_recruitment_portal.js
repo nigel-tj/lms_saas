@@ -16,17 +16,28 @@ lms_recruitment.init = function () {
 		{ id: "applicants", label: "Applicants", icon: "👤" },
 		{ id: "staffing", label: "Staffing Plan", icon: "📊" },
 	];
-	var html = lms_portal.pageStart() +
-		lms_portal.pageHeader({ title: "Recruitment" }) +
-		lms_portal.tabNav(tabs, lms_recruitment._currentTab) +
-		'<div id="lms-recruitment-tab-content"></div>' +
-		lms_portal.pageEnd();
+	var html = '<nav class="lms-tab-nav" role="tablist">';
+	tabs.forEach(function (t) {
+		var active = lms_recruitment._currentTab === t.id ? " is-active" : "";
+		html += '<button type="button" class="lms-tab' + active + '" data-tab="' + t.id + '" role="tab" aria-selected="' + (active ? "true" : "false") + '">' + t.icon + " " + lms_portal.escape(t.label) + "</button>";
+	});
+	html += "</nav>";
+	html += '<div id="lms-recruitment-tab-content"></div>';
 	root.innerHTML = html;
 
-	lms_portal.bindTabs({
-		root: root,
-		tabs: tabs,
-		onTab: function (tabId) { lms_recruitment._currentTab = tabId; lms_recruitment._showTab(tabId); },
+	root.querySelectorAll(".lms-tab").forEach(function (btn) {
+		btn.addEventListener("click", function () {
+			lms_recruitment._currentTab = btn.getAttribute("data-tab");
+			root.querySelectorAll(".lms-tab").forEach(function (b) {
+				b.classList.remove("is-active");
+				b.setAttribute("aria-selected", "false");
+			});
+			btn.classList.add("is-active");
+			btn.style.borderBottom = "2px solid var(--lms-primary)";
+			btn.style.color = "var(--lms-primary)";
+			btn.style.fontWeight = "600";
+			lms_recruitment._showTab(lms_recruitment._currentTab);
+		});
 	});
 
 	lms_recruitment._showTab(lms_recruitment._currentTab);
@@ -42,13 +53,19 @@ lms_recruitment._showTab = function (tabId) {
 	else if (tabId === "staffing") lms_recruitment._loadStaffing(content);
 };
 
+lms_recruitment._statCard = function (label, value, tone) {
+	var cls = tone ? " lms-stat--" + tone : "";
+	return '<div class="lms-stat-card lms-stat' + cls + '" style="padding:1rem;"><div class="lms-stat-label">' +
+		lms_portal.escape(label) + '</div><div class="lms-stat-value">' + value + '</div></div>';
+};
+
 lms_recruitment._loadOpenings = function (content) {
 	lms_portal.safeCall({
 		method: "lms_saas.api.recruitment.get_job_openings",
 		callback: function (r) {
 			var openings = (r && r.message && r.message.openings) || [];
 			if (!openings.length) {
-				content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("💼") + '<h3>No openings</h3><p>No open job positions right now.</p></div></div>';
+				content.innerHTML = '<div class="lms-panel"><div class="lms-empty"><div class="lms-empty-icon">💼</div><h3>No openings</h3><p>No open job positions right now.</p></div></div>';
 				return;
 			}
 			var html = '<div class="lms-panel"><div class="lms-data-table__wrap"><table class="lms-data-table">';
@@ -103,7 +120,7 @@ lms_recruitment._loadApplicants = function (content) {
 		callback: function (r) {
 			var applicants = (r && r.message && r.message.applicants) || [];
 			if (!applicants.length) {
-				content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("👤") + '<h3>No applicants</h3><p>' + (opening ? "No applicants for this opening." : "No applicants found.") + '</p></div></div>';
+				content.innerHTML = '<div class="lms-panel"><div class="lms-empty"><div class="lms-empty-icon">👤</div><h3>No applicants</h3><p>' + (opening ? "No applicants for this opening." : "No applicants found.") + '</p></div></div>';
 				return;
 			}
 			var html = '<div class="lms-panel">';
@@ -259,13 +276,13 @@ lms_recruitment._loadStaffing = function (content) {
 			var actual = data.actual_headcount || 0;
 			var branch = data.branch || "—";
 
-			var html = lms_portal.kpiStrip([
-				{ label: "Actual Headcount", value: actual },
-				{ label: "Branch", value: lms_portal.escape(branch) },
-			]);
+			var html = '<section class="lms-grid-4" style="margin-bottom:1rem;">';
+			html += lms_recruitment._statCard("Actual Headcount", actual);
+			html += lms_recruitment._statCard("Branch", lms_portal.escape(branch));
+			html += "</section>";
 
 			if (!plans.length) {
-				html += '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("📊") + '<h3>No staffing plan</h3><p>No active staffing plans for your branch.</p></div></div>';
+				html += '<div class="lms-panel"><div class="lms-empty"><div class="lms-empty-icon">📊</div><h3>No staffing plan</h3><p>No active staffing plans for your branch.</p></div></div>';
 				content.innerHTML = html;
 				return;
 			}

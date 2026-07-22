@@ -34,12 +34,7 @@ add_to_apps_screen = [
 		"name": app_name,
 		"logo": "/assets/lms_saas/images/lms-logo.svg",
 		"title": app_title,
-		# The route must NOT match the desk pattern (`/desk(/.*)?$`) — otherwise
-		# `frappe.apps.get_default_path()` returns it as the post-login landing
-		# for website users (borrowers), 403-ing them on the desk. Routing the
-		# apps-screen entry to /lms (the portal) lets the per-role home_page
-		# (Role.home_page) take over and send the user to /lms or /lms/manager.
-		"route": "/lms",
+		"route": lending_home_url(),
 	},
 ]
 
@@ -117,7 +112,6 @@ web_include_js = [
 	_versioned_asset("js/lms_theme.js", "/assets/lms_saas/js/lms_theme.js"),
 	_versioned_asset("js/vendor/chart.min.js", "/assets/lms_saas/js/vendor/chart.min.js"),
 	_versioned_asset("js/lms_charts.js", "/assets/lms_saas/js/lms_charts.js"),
-	_versioned_asset("js/lms_icons.js", "/assets/lms_saas/js/lms_icons.js"),
 	_versioned_asset("js/lms_portal.js", "/assets/lms_saas/js/lms_portal.js"),
 ]
 
@@ -136,12 +130,12 @@ website_route_rules = [
     {"from_route": "/lms/applications", "to_route": "lms/applications"},
     {"from_route": "/lms/pay", "to_route": "lms/pay"},
     {"from_route": "/lms/collect", "to_route": "lms/collect"},
-    # Legacy staff shells — keep www handlers that redirect to /lms/*
     {"from_route": "/lms-portal/collector", "to_route": "lms-portal/collector"},
     {"from_route": "/lms-portal/officer", "to_route": "lms-portal/officer"},
-    {"from_route": "/lms-portal/manager", "to_route": "lms/manager"},
+    {"from_route": "/lms-portal/manager", "to_route": "lms-portal/manager"},
     {"from_route": "/lms/officer", "to_route": "lms/officer"},
     {"from_route": "/lms/manager", "to_route": "lms/manager"},
+    {"from_route": "/lms/manager-books", "to_route": "lms/manager-books"},
     {"from_route": "/lms-help", "to_route": "lms-help"},
     {"from_route": "/lms-help/<slug>", "to_route": "lms-help"},
     # ── Addon routes ──
@@ -182,11 +176,6 @@ update_website_context = "lms_saas.utils.brand.update_website_context"
 # (/lms) for ALL users, which sends desk staff to the portal. This hook wins over
 # that default and returns /desk/<slug> for desk staff, /lms for borrowers.
 get_website_user_home_page = "lms_saas.boot.get_lms_home_page"
-
-# Path-resolver gate: non-admin users who type /desk or /app/* are redirected
-# to their persona landing. See lms_saas.utils.portal.install_desk_gate for
-# the implementation (subclass of frappe.website.path_resolver.PathResolver
-# installed at import time).
 
 override_whitelisted_methods = {
 	# Shorthand cmd from portal links: /?cmd=web_logout
