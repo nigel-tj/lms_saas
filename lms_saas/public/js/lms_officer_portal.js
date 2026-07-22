@@ -597,16 +597,32 @@ lms_officer._openBorrowerModal = function () {
 
 		// --- Section: KYC ---
 		'<div class="lms-section-header"><h4>KYC &amp; consent</h4></div>' +
-		'<p class="lms-muted" style="margin:0 0 0.5rem;font-size:0.85rem;">Mandatory fields marked with *. File fields accept the path to an uploaded document (e.g. <code>/files/national_id_123.pdf</code>); upload via Files menu first.</p>' +
 		'<div class="lms-grid-2">' +
 		'<label>KYC status<select id="lms-of-b-kyc" class="lms-input lms-fallback-select">' +
 		'<option value="Pending" selected>Pending — collect later</option>' +
 		'<option value="Approved">Approved — documents verified</option>' +
 		'<option value="Rejected">Rejected</option>' +
 		'</select></label>' +
-		'<label class="lms-grid-2__full"><input type="checkbox" id="lms-of-b-consent"> Customer consents to data processing (RBZ §3.19)</label>' +
-		'<label class="lms-grid-2__full">ID document (file name) *<input type="text" id="lms-of-b-iddoc" class="lms-input" placeholder="e.g. /files/national_id_123.pdf" required></label>' +
-		'<label class="lms-grid-2__full">Proof of address (file name) *<input type="text" id="lms-of-b-poa" class="lms-input" placeholder="e.g. /files/utility_bill.pdf" required></label>' +
+		'<label class="lms-grid-2__full"><input type="checkbox" id="lms-of-b-consent"> Customer consents to data processing</label>' +
+		'</div>' +
+		'<p class="lms-muted" style="margin:0.5rem 0 0;font-size:0.8rem;">Click <strong>Upload</strong> to attach a file from your device. Required only if KYC status is <strong>Approved</strong>.</p>' +
+		'<div class="lms-grid-2" style="margin-top:0.5rem;">' +
+		lms_portal._fileUploadField({
+			id: "lms-of-b-iddoc",
+			label: "ID document",
+			fieldname: null,
+			required: false,
+			accept: "image/*,application/pdf",
+			buttonLabel: "Upload ID document",
+		}) +
+		lms_portal._fileUploadField({
+			id: "lms-of-b-poa",
+			label: "Proof of address",
+			fieldname: null,
+			required: false,
+			accept: "image/*,application/pdf",
+			buttonLabel: "Upload proof of address",
+		}) +
 		'</div>' +
 		'</div>';
 
@@ -647,6 +663,17 @@ lms_officer._openBorrowerModal = function () {
 	// document immediately, so `document.body.querySelector("#lms-of-b-…")`
 	// returns nothing. Use the captured dlg/dialog reference instead.
 	var dlgRoot = (dlg && dlg.dialog) || (dlg && dlg.el) || null;
+	// Wire up the file-upload widgets (ID document + proof of address).
+	// Do this AFTER we have a reference to the dialog element so the
+	// handlers can read the file_url back into the matching hidden input.
+	// Pass null as the fieldname so the upload skips the borrower-side
+	// upload_kyc_document registration — the officer will save the
+	// file_url directly on the new LMS Borrower Compliance record when
+	// the borrower is created.
+	lms_portal._bindUploadWidgets(dlgRoot, {
+		"lms-of-b-iddoc": null,
+		"lms-of-b-poa": null,
+	});
 	var onSubmit = function (submit) {
 		if (!submit) return;
 		var root = dlgRoot || document.body;
@@ -668,6 +695,18 @@ lms_officer._openBorrowerModal = function () {
 
 		if (!first.trim()) {
 			lms_portal.toast("First name is required.", "danger");
+			return;
+		}
+		// Only require the file uploads if the officer is approving KYC
+		// at the counter. For "Pending — collect later" the server is
+		// happy with empty file fields; matching the server keeps the
+		// officer's workflow friction-free.
+		if (kyc === "Approved" && !iddoc) {
+			lms_portal.toast("Please upload the ID document or set KYC to Pending.", "danger");
+			return;
+		}
+		if (kyc === "Approved" && !poa) {
+			lms_portal.toast("Please upload the proof of address or set KYC to Pending.", "danger");
 			return;
 		}
 		lms_portal.safeCall({

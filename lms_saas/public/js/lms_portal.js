@@ -1236,21 +1236,22 @@ lms_portal._applyStepHtml = function (state) {
 	if (state.step === 3) {
 		return (
 			'<h3 class="lms-wizard__title">Upload supporting documents</h3>' +
+			'<p class="lms-muted" style="margin:0 0 1rem;font-size:0.85rem;">Click <strong>Upload</strong> to attach a file directly from your device. Accepted: PDF, image, or document.</p>' +
 			'<div class="lms-form">' +
-			'<div class="lms-upload-field">' +
-			'<label>ID document</label>' +
-			'<button type="button" class="lms-btn lms-btn--ghost" id="lms-upload-id">Upload ID document</button>' +
-			'<span class="lms-upload-status" id="lms-id-status">' +
-			(state.idDoc ? "✓ Uploaded" : "No file uploaded") +
-			"</span>" +
-			"</div>" +
-			'<div class="lms-upload-field">' +
-			'<label>Proof of address</label>' +
-			'<button type="button" class="lms-btn lms-btn--ghost" id="lms-upload-addr">Upload proof of address</button>' +
-			'<span class="lms-upload-status" id="lms-addr-status">' +
-			(state.addressDoc ? "✓ Uploaded" : "No file uploaded") +
-			"</span>" +
-			"</div>" +
+			lms_portal._fileUploadField({
+				id: "lms-wiz-idDoc",
+				label: "ID document",
+				fieldname: "id_document_proof",
+				required: true,
+				initialUrl: state.idDoc || "",
+			}) +
+			lms_portal._fileUploadField({
+				id: "lms-wiz-addrDoc",
+				label: "Proof of address",
+				fieldname: "proof_of_address",
+				required: true,
+				initialUrl: state.addressDoc || "",
+			}) +
 			"</div>"
 		);
 	}
@@ -1317,27 +1318,33 @@ lms_portal._bindWizardEvents = function (root, state) {
 		});
 	}
 
-	// File upload buttons
-	var idBtn = document.getElementById("lms-upload-id");
-	var addrBtn = document.getElementById("lms-upload-addr");
-	if (idBtn) {
-		idBtn.addEventListener("click", function () {
-			lms_portal._openFileUploader("id_document_proof", function (fileUrl) {
-				state.idDoc = fileUrl;
-				var statusEl = document.getElementById("lms-id-status");
-				if (statusEl) statusEl.textContent = "✓ Uploaded";
-			});
+	// File upload buttons — wired via the shared upload-widget helper so the
+	// borrower wizard, officer portal, and visits portal all behave the
+	// same way when the user clicks "Upload".
+	lms_portal._bindUploadWidgets(root, {
+		"lms-wiz-idDoc": "id_document_proof",
+		"lms-wiz-addrDoc": "proof_of_address",
+	});
+	// Mirror the uploaded URL into wizard state so the Review step + submit
+	// payload can use it. _bindUploadWidgets writes to the hidden input
+	// but doesn't know about our state object.
+	["lms-wiz-idDoc", "lms-wiz-addrDoc"].forEach(function (id) {
+		var input = root.querySelector("#" + id);
+		if (!input) return;
+		input.addEventListener("change", function () {
+			if (id === "lms-wiz-idDoc") state.idDoc = input.value;
+			else if (id === "lms-wiz-addrDoc") state.addressDoc = input.value;
 		});
-	}
-	if (addrBtn) {
-		addrBtn.addEventListener("click", function () {
-			lms_portal._openFileUploader("proof_of_address", function (fileUrl) {
-				state.addressDoc = fileUrl;
-				var statusEl = document.getElementById("lms-addr-status");
-				if (statusEl) statusEl.textContent = "✓ Uploaded";
-			});
-		});
-	}
+	});
+	// Keep state in sync even when the input is filled programmatically
+	// by the upload callback (the "change" event may not fire then). Poll
+	// once after the next tick.
+	setTimeout(function () {
+		var idInput = root.querySelector("#lms-wiz-idDoc");
+		var addrInput = root.querySelector("#lms-wiz-addrDoc");
+		if (idInput && idInput.value) state.idDoc = idInput.value;
+		if (addrInput && addrInput.value) state.addressDoc = addrInput.value;
+	}, 50);
 
 	// Nav buttons
 	var backBtn = document.getElementById("lms-wizard-back");
@@ -1431,24 +1438,117 @@ lms_portal._validateStep = function (state) {
 };
 
 lms_portal._openFileUploader = function (fieldname, callback) {
+	// fieldname === null → skip the KYC registration call (the file is
+	// uploaded to /files but the caller is responsible for saving the
+	// file_url to its own field, e.g. LMS Field Visit.photos).
 	new frappe.ui.FileUploader({
 		folder: "Home/Attachments",
 		method: "frappe.handler.upload_file",
 		on_success: function (file) {
-			if (file.file_url) {
-				frappe.call({
-					method: "lms_saas.api.portal.upload_kyc_document",
-					args: { file_url: file.file_url, fieldname: fieldname },
-					callback: function () {
-						callback(file.file_url);
-						frappe.show_alert({ message: "Document uploaded.", indicator: "green" });
-					},
-					error: function () {
-						frappe.show_alert({ message: "Upload failed. Please try again.", indicator: "red" });
-					},
-				});
+			if (!file || !file.file_url) {
+				frappe.show_alert({ message: "Upload failed. Please try again.", indicator: "red" });
+				return;
 			}
+			if (!fieldname) {
+				callback(file.file_url);
+				frappe.show_alert({ message: "File uploaded.", indicator: "green" });
+				return;
+			}
+			frappe.call({
+				method: "lms_saas.api.portal.upload_kyc_document",
+				args: { file_url: file.file_url, fieldname: fieldname },
+				callback: function () {
+					callback(file.file_url);
+					frappe.show_alert({ message: "Document uploaded.", indicator: "green" });
+				},
+				error: function () {
+					frappe.show_alert({ message: "Upload failed. Please try again.", indicator: "red" });
+				},
+			});
 		},
+	});
+};
+
+/* Reusable file-upload widget markup for use inside LMSModal / lms_portal.modal.
+   Renders:  [Label] [Upload button] [status text]   plus a hidden input whose
+   .value gets filled with the file_url when the user uploads.
+
+   opts:
+     id          - string, required. Unique id used for the input, button, status.
+     label       - string, required. Field label.
+     fieldname   - string|null. Forwarded to _openFileUploader for KYC binding.
+                   Pass null for non-KYC uploads (Field Visit photos, generic docs).
+     multiple     - bool. If true, file is uploaded as-is and the URL is the
+                   space-separated list of all uploaded file_urls (passed via
+                   a 2-arg callback signature).
+     required     - bool. If true, submission is blocked until at least one file
+                   is uploaded (enforced by the caller, since the modal is
+                   already open by the time the user uploads).
+     accept       - string, e.g. "image/*,application/pdf".
+     buttonLabel  - string. Defaults to "Upload " + label.
+     initialUrl   - string. Pre-fill the widget with an already-uploaded URL
+                   (e.g. when editing an existing record).
+*/
+lms_portal._fileUploadField = function (opts) {
+	opts = opts || {};
+	var id = opts.id;
+	if (!id) return "";
+	var labelHtml = '<label>' + lms_portal.escape(opts.label || "File") + "</label>";
+	var btnLabel = opts.buttonLabel || ("Upload " + (opts.label || "file").toLowerCase());
+	var accept = opts.accept ? ' accept="' + lms_portal.escape(opts.accept) + '"' : "";
+	var required = opts.required ? ' <span class="lms-req" aria-hidden="true">*</span>' : "";
+	var status = opts.initialUrl
+		? '<a class="lms-upload-status lms-upload-status--link" href="' + lms_portal.escape(opts.initialUrl) + '" target="_blank" rel="noopener">✓ Uploaded</a>'
+		: '<span class="lms-upload-status" data-empty="true">No file uploaded</span>';
+	return (
+		'<div class="lms-upload-field" data-lms-upload-field="' + lms_portal.escape(id) + '">' +
+		labelHtml + required +
+		'<div class="lms-upload-field__row">' +
+		'<button type="button" class="lms-btn lms-btn--ghost lms-btn--sm" data-lms-upload-trigger="' + lms_portal.escape(id) + '">' +
+		'📎 ' + lms_portal.escape(btnLabel) +
+		"</button>" +
+		' <input type="hidden" id="' + lms_portal.escape(id) + '" value="' + lms_portal.escape(opts.initialUrl || "") + '"' + (opts.required ? " data-required=\"1\"" : "") + ">" +
+		status +
+		"</div>" +
+		"</div>"
+	);
+};
+
+/* Wire up a [data-lms-upload-trigger] button inside `root` to open the
+   LMS file uploader and reflect the result in the matching hidden input +
+   status span. Reusable across portals so the wizard, officer, and visits
+   pages all behave the same way. */
+lms_portal._bindUploadWidgets = function (root, fieldnameMap) {
+	if (!root) return;
+	fieldnameMap = fieldnameMap || {};
+	root.querySelectorAll("[data-lms-upload-trigger]").forEach(function (btn) {
+		var id = btn.getAttribute("data-lms-upload-trigger");
+		btn.addEventListener("click", function (ev) {
+			ev.preventDefault();
+			var fieldname = fieldnameMap[id] !== undefined ? fieldnameMap[id] : id;
+			lms_portal._openFileUploader(fieldname, function (fileUrl) {
+				var input = root.querySelector("#" + id);
+				if (input) input.value = fileUrl;
+				var field = btn.closest(".lms-upload-field");
+				if (!field) return;
+				// Replace the status span with a clickable "Uploaded" link.
+				var oldStatus = field.querySelector(".lms-upload-status");
+				if (oldStatus) oldStatus.remove();
+				var link = document.createElement("a");
+				link.className = "lms-upload-status lms-upload-status--link";
+				link.href = fileUrl;
+				link.target = "_blank";
+				link.rel = "noopener";
+				link.textContent = "✓ Uploaded";
+				// Insert after the hidden input so layout stays the same.
+				var hidden = field.querySelector('input[type="hidden"]');
+				if (hidden && hidden.nextSibling) {
+					field.insertBefore(link, hidden.nextSibling);
+				} else {
+					field.appendChild(link);
+				}
+			});
+		});
 	});
 };
 

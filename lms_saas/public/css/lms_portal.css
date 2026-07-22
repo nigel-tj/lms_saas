@@ -1925,19 +1925,54 @@ body.lms-portal-borrower .form-control:focus {
 }
 .lms-upload-field {
 	display: flex;
-	align-items: center;
-	gap: 0.75rem;
-	flex-wrap: wrap;
-	margin-bottom: 1rem;
+	flex-direction: column;
+	gap: 0.5rem;
+	margin-bottom: 0.5rem;
+	padding: 0.75rem 0.9rem;
+	border: 1.5px dashed var(--lms-border, #d1d5db);
+	border-radius: var(--lms-radius, 8px);
+	background: var(--lms-surface-alt, #f9fafb);
+	transition: border-color 0.15s ease, background 0.15s ease;
+}
+.lms-upload-field:last-child {
+	margin-bottom: 0;
+}
+.lms-upload-field:hover {
+	border-color: var(--lms-primary, #2563eb);
+	background: var(--lms-surface, #fff);
 }
 .lms-upload-field label {
 	font-weight: 600;
 	font-size: 0.875rem;
-	min-width: 120px;
+	color: var(--lms-text, #111827);
+	margin: 0;
+}
+.lms-upload-field__row {
+	display: flex;
+	align-items: center;
+	gap: 0.75rem;
+	flex-wrap: wrap;
 }
 .lms-upload-status {
 	font-size: 0.8rem;
-	color: var(--lms-text-muted);
+	color: var(--lms-text-muted, #6b7280);
+}
+.lms-upload-status--link {
+	font-size: 0.8rem;
+	color: var(--lms-success, #15803d);
+	text-decoration: none;
+	font-weight: 600;
+	display: inline-flex;
+	align-items: center;
+	gap: 0.25rem;
+}
+.lms-upload-status--link:hover {
+	text-decoration: underline;
+}
+.lms-req {
+	color: var(--lms-danger, #b91c1c);
+	font-weight: 700;
+	margin-left: 2px;
 }
 .lms-review-card {
 	padding: 1.25rem;
@@ -2274,6 +2309,28 @@ body.lms-portal-borrower .form-control:focus {
 	flex-direction: column;
 	justify-content: center;
 	min-height: 88px;
+}
+
+/* Form layouts must size to content. Do not force KPI equal-height rules
+ * onto form controls inside modal/page forms, otherwise labels and checkbox
+ * rows become artificially tall (e.g. 88px). */
+.lms-form .lms-grid-2 > *,
+.lms-form .lms-grid-3 > *,
+.lms-form .lms-grid-4 > * {
+	display: block;
+	min-height: 0;
+	justify-content: initial;
+}
+
+/* Modal detail layouts often use .lms-grid-* for content columns (not KPIs).
+ * Keep these children content-sized and top-aligned so long right columns do
+ * not vertically center shorter left columns. */
+.lms-modal .lms-grid-2 > *,
+.lms-modal .lms-grid-3 > *,
+.lms-modal .lms-grid-4 > * {
+	display: block;
+	min-height: 0;
+	justify-content: initial;
 }
 
 /* When the grid contains panels (not just KPI cards), stretch to equal
