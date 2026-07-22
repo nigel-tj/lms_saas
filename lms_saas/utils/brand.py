@@ -76,7 +76,9 @@ DEFAULT_BRAND = {
 	"primary_color": "#2f4f46",
 	"theme_id": "default",
 	"support_email": "",
-	"footer_text": "Powered by Kesari",
+	# Footer is white-label: override with site_config ``lms_brand_footer_text``.
+	# Set to "" (empty string) to hide the footer line entirely.
+	"footer_text": None,  # resolved in enrich_brand → "Powered by {portal_title}"
 	"logo_url": None,
 	"favicon_url": None,
 }
@@ -145,12 +147,20 @@ def enrich_brand(brand: dict | None = None) -> dict:
 		("portal_title", "lms_brand_portal_title"),
 		("tagline", "lms_brand_tagline"),
 		("product_subtitle", "lms_brand_product_subtitle"),
-		("footer_text", "lms_brand_footer_text"),
 		("primary_color", "lms_brand_primary_color"),
 	):
 		override = frappe.conf.get(conf_key)
 		if override:
 			merged[key] = override
+
+	# Footer: site_config wins. Explicit empty string hides the line.
+	# Otherwise default to "Powered by {portal_title}" (not hard-coded Kesari).
+	if "lms_brand_footer_text" in frappe.conf:
+		merged["footer_text"] = frappe.conf.get("lms_brand_footer_text") or ""
+	elif not merged.get("footer_text"):
+		title = merged.get("portal_title") or "LMS"
+		merged["footer_text"] = f"Powered by {title}"
+
 	merged["logo_url"] = get_brand_logo_url()
 	merged["favicon_url"] = get_brand_favicon_url()
 	return merged
@@ -194,33 +204,87 @@ def apply_portal_context(context, nav_active="loans", page_js=None):
 	context.is_portal_borrower = "Customer" in user_roles and not context.is_portal_staff and not show_staff_desk_link()
 	context.lms_user_permissions = _get_user_permissions(context.lms_persona, user_roles)
 	context.lms_desk_home = lending_home_url()
+	# Risk disclosure only on loan-touching surfaces (not HR / Feedback / etc.).
+	_LOAN_TOUCH_NAV = {
+		"loans", "apply", "pay", "account", "officer", "manager", "collect",
+		"insurance", "savings_club", "wallet_recon", "document_center",
+	}
+	context.lms_show_risk_disclosure = nav_active in _LOAN_TOUCH_NAV
 	context.lms_risk_disclosure = (
 		frappe.conf.get("lms_risk_disclosure")
 		or frappe.conf.get("lms_email_legal_footer")
 		or frappe._("Lending involves credit risk. Terms apply to approved borrowers only.")
-	)
+	) if context.lms_show_risk_disclosure else ""
+	context.lms_enforce_four_eyes = bool(frappe.conf.get("lms_enforce_four_eyes", False))
+	# Brand / home link should land on the persona home, not always /lms.
+	from lms_saas.utils.portal import PERSONA_LANDING
+
+	if context.is_portal_staff and context.lms_persona:
+		context.lms_home_route = PERSONA_LANDING.get(context.lms_persona, "/lms")
+	elif context.is_portal_staff:
+		context.lms_home_route = "/lms/manager"
+	else:
+		context.lms_home_route = "/lms"
 	context.show_sidebar = False
 	context.no_header = True
 	context.no_cache = 1
 	body_class = getattr(context, "body_class", None) or ""
 	borrower_class = " lms-portal-borrower" if context.is_portal_borrower else ""
 	page_class = f" lms-page-{nav_active}" if nav_active else ""
-	context.body_class = f"{body_class} lms-portal{borrower_class}{page_class} lms-themed".strip()
+	four_eyes_class = " lms-four-eyes-on" if context.lms_enforce_four_eyes else ""
+	context.body_class = f"{body_class} lms-portal{borrower_class}{page_class}{four_eyes_class} lms-themed".strip()
 
 	# Prepare the standalone shell's CSS/JS stacks.
 	context.lms_css_stack = _lms_portal_css_stack()
 	context.lms_js_stack = _lms_portal_js_stack(page_js)
 	context.lms_nav = _build_lms_nav(context)
 	context.lms_page_title = _lms_page_title(nav_active, context)
+	context.lms_breadcrumbs = _build_breadcrumbs(nav_active, context)
+
+	# i18n / session surface for portal JS (Hyeon-Jin / Naledi).
+	context.lms_lang = getattr(frappe.local, "lang", None) or "en"
+	context.lms_currency = _resolve_portal_currency()
+	try:
+		context.lms_idle_minutes = int(frappe.conf.get("lms_portal_idle_minutes") or 30)
+	except (TypeError, ValueError):
+		context.lms_idle_minutes = 30
 
 	# Frappe web bundle expects boot data + build version to be present.
 	from frappe.website.utils import get_boot_data
 	from frappe.utils import get_build_version
 
 	context.boot = get_boot_data()
+	# Ensure company currency is visible to format_currency / Intl.
+	try:
+		boot = context.boot
+		if boot is not None:
+			sysdefaults = boot.get("sysdefaults") if hasattr(boot, "get") else None
+			if sysdefaults is None:
+				boot["sysdefaults"] = {}
+				sysdefaults = boot["sysdefaults"]
+			if hasattr(sysdefaults, "get") and not sysdefaults.get("currency"):
+				sysdefaults["currency"] = context.lms_currency
+	except Exception:
+		pass
 	context.build_version = get_build_version()
 	context.dev_server = bool(frappe._dev_server)
 	return context
+
+
+def _resolve_portal_currency() -> str:
+	"""Company default currency, then global default, then ZAR."""
+	import frappe
+
+	company = (
+		frappe.defaults.get_user_default("company")
+		or frappe.db.get_single_value("Global Defaults", "default_company")
+		or frappe.db.get_default("company")
+	)
+	if company and frappe.db.exists("Company", company):
+		cur = frappe.get_cached_value("Company", company, "default_currency")
+		if cur:
+			return cur
+	return frappe.db.get_default("currency") or "ZAR"
 
 
 def _lms_portal_css_stack():
@@ -277,7 +341,7 @@ def _build_lms_nav(context):
 	is_borrower = context.get("is_portal_borrower")
 	is_staff = context.get("is_portal_staff")
 
-	if is_borrower or not is_staff:
+	if is_borrower and not is_staff:
 		# Borrower core stays ungrouped (primary home links).
 		items.extend([
 			{"key": "loans", "label": "My Loans", "route": "/lms", "icon": "loans"},
@@ -302,13 +366,16 @@ def _build_lms_nav(context):
 				"icon": "manager",
 				"group": "Lending",
 			})
-		items.append({
-			"key": "collect",
-			"label": "Collection Run",
-			"route": "/lms/collect",
-			"icon": "collect",
-			"group": "Lending",
-		})
+		# Collection Run is for Collectors (+ Officers who also collect).
+		# Branch Managers use the manager dashboard / team views instead.
+		if persona in (None, "Collector", "Loan Officer"):
+			items.append({
+				"key": "collect",
+				"label": "Collection Run",
+				"route": "/lms/collect",
+				"icon": "collect",
+				"group": "Lending",
+			})
 
 	# ── Addon nav items ──
 	# Borrowers see borrower-tagged addons; staff see persona-matched addons.
@@ -321,8 +388,9 @@ def _build_lms_nav(context):
 		addon_persona = "Admin"
 	items.extend(addon_nav_items(addon_persona))
 
-	if frappe.session.user != "Guest":
-		# Account stays last and ungrouped.
+	# My Account is borrower-only. Staff hitting /lms/account are redirected
+	# to their persona landing — hide the dead link from the sidebar.
+	if is_borrower and not is_staff and frappe.session.user != "Guest":
 		items.append({"key": "account", "label": "My Account", "route": "/lms/account", "icon": "account"})
 
 	return items
@@ -337,6 +405,35 @@ CORE_PAGE_TITLES = {
 	"manager": "Branch Manager Dashboard",
 	"collect": "Collection Run",
 }
+
+
+def _build_breadcrumbs(nav_active: str | None, context) -> list[dict]:
+	"""Home → current page crumbs for the portal topbar (B-31)."""
+	home = context.get("lms_home_route") or "/lms"
+	persona = context.get("lms_persona")
+	if persona == "Branch Manager":
+		home_label = "Manager"
+	elif persona == "Loan Officer":
+		home_label = "Officer"
+	elif persona == "Collector":
+		home_label = "Collect"
+	elif context.get("is_portal_borrower"):
+		home_label = "My Loans"
+	else:
+		home_label = "Home"
+
+	crumbs = [{"label": home_label, "route": home}]
+	title = context.get("lms_page_title") or ""
+	landing_keys = {
+		"/lms": "loans",
+		"/lms/manager": "manager",
+		"/lms/officer": "officer",
+		"/lms/collect": "collect",
+	}
+	# On the persona landing page, a single crumb is enough.
+	if title and nav_active and landing_keys.get(home) != nav_active:
+		crumbs.append({"label": title, "route": None})
+	return crumbs
 
 
 def _lms_page_title(nav_active, context):

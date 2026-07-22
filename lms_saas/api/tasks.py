@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import frappe
 from frappe import _
-from frappe.utils import now_datetime, today
+from frappe.utils import now_datetime, today, getdate
 
 from lms_saas.utils.addons import require_addon_persona
 
@@ -68,6 +68,7 @@ def get_task_board(project=None):
     ]
 
     board = {col["key"]: [] for col in columns}
+    today_date = getdate(today())
     for task in tasks:
         # Parse _assign (JSON array of users)
         assignee = task.get("_assign")
@@ -82,6 +83,14 @@ def get_task_board(project=None):
             task["assignee"] = None
 
         status = task.get("status") or "Open"
+        # Overdue visual: keep column by status (To Do / Working) but flag the card
+        # so the Overdue KPI matches what users see on the board (B-21).
+        end = task.get("exp_end_date")
+        task["is_overdue"] = bool(
+            end
+            and status not in ("Completed", "Cancelled")
+            and getdate(end) < today_date
+        )
         if status not in board:
             status = "Open"
         board[status].append(task)

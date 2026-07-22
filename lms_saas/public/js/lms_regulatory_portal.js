@@ -1,4 +1,4 @@
-/* LMS Regulatory Hub portal — calendar, generate, archive */
+/* LMS Regulatory Hub portal — calendar, generate (admin), archive, BM summary */
 if (typeof frappe !== "undefined" && typeof frappe.provide === "function") {
 	frappe.provide("lms_regulatory");
 } else {
@@ -6,18 +6,23 @@ if (typeof frappe !== "undefined" && typeof frappe.provide === "function") {
 }
 
 lms_regulatory._currentTab = "calendar";
+lms_regulatory._isAdmin = false;
+lms_regulatory._stats = {};
 
 lms_regulatory.init = function () {
 	var root = document.getElementById("lms-regulatory-root");
 	if (!root) return;
 
+	var home = window.__lms_home_route || "/lms";
 	var tabs = [
-		{ id: "calendar", label: "Calendar", icon: "📅" },
-		{ id: "generate", label: "Generate", icon: "📋" },
-		{ id: "archive", label: "Archive", icon: "🗄️" },
+		{ id: "calendar", label: "Calendar", icon: "calendar" },
+		{ id: "generate", label: "Generate", icon: "file-text" },
+		{ id: "archive", label: "Archive", icon: "archive" },
+		{ id: "recipients", label: "Recipients", icon: "mail" },
 	];
 	var html = lms_portal.pageStart() +
-		lms_portal.pageHeader({ title: "Regulatory Hub" }) +
+		lms_portal.backLink({ href: home, label: "Manager home" }) +
+		'<div id="lms-reg-branch-banner"></div>' +
 		'<div id="lms-reg-stats"></div>' +
 		lms_portal.tabNav(tabs, lms_regulatory._currentTab) +
 		'<div id="lms-regulatory-tab-content"></div>' +
@@ -36,17 +41,35 @@ lms_regulatory.init = function () {
 
 lms_regulatory._loadStats = function () {
 	var el = document.getElementById("lms-reg-stats");
+	var banner = document.getElementById("lms-reg-branch-banner");
 	if (!el) return;
 	lms_portal.safeCall({
 		method: "lms_saas.api.regulatory_hub.get_regulatory_stats",
 		callback: function (r) {
 			var s = (r && r.message) || {};
+			lms_regulatory._stats = s;
+			lms_regulatory._isAdmin = !!s.is_admin;
 			el.innerHTML = lms_portal.kpiStrip([
 				{ label: "Total Submissions", value: s.total_submissions || 0 },
-				{ label: "Draft", value: s.draft || 0, tone: "warning" },
+				{ label: "Draft / Pending", value: s.draft || 0, tone: (s.draft ? "warning" : "success") },
 				{ label: "Submitted", value: s.submitted || 0 },
 				{ label: "Upcoming Deadlines", value: s.upcoming_deadlines || 0, tone: "warning" },
 			]);
+			if (banner) {
+				var pending = s.pending_submissions || s.draft || 0;
+				var tone = pending ? "warning" : "success";
+				var line = pending
+					? ("Your organisation has " + pending + " pending draft submission" + (pending === 1 ? "" : "s") + ". Filing is admin-only.")
+					: "No draft submissions pending. Review the calendar for upcoming deadlines.";
+				banner.innerHTML =
+					'<div class="lms-reg-banner lms-reg-banner--' + tone + '" role="status">' +
+					'<strong>Branch view</strong> — ' + lms_portal.escape(line) +
+					(lms_regulatory._isAdmin ? ' <span class="lms-badge lms-badge--info">Admin write access</span>' : ' <span class="lms-badge">Read-only</span>') +
+					"</div>";
+			}
+		},
+		error: function () {
+			el.innerHTML = lms_portal.error("Could not load regulatory stats.");
 		},
 	});
 };
@@ -59,6 +82,7 @@ lms_regulatory._showTab = function (tabId) {
 	if (tabId === "calendar") lms_regulatory._loadCalendar(content);
 	else if (tabId === "generate") lms_regulatory._loadGenerate(content);
 	else if (tabId === "archive") lms_regulatory._loadArchive(content);
+	else if (tabId === "recipients") lms_regulatory._loadRecipients(content);
 };
 
 // ── Calendar ──
@@ -70,7 +94,7 @@ lms_regulatory._loadCalendar = function (content) {
 		callback: function (r) {
 			var deadlines = (r && r.message && r.message.deadlines) || [];
 			if (!deadlines.length) {
-				content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("📅") + '<h3>No deadlines</h3><p>No upcoming regulatory deadlines.</p></div></div>';
+				content.innerHTML = lms_portal.emptyPanel("calendar", "No deadlines", "No upcoming regulatory deadlines in the next 3 months.");
 				return;
 			}
 
@@ -102,9 +126,19 @@ lms_regulatory._loadCalendar = function (content) {
 	});
 };
 
-// ── Generate ──
+// ── Generate (admin write; BM sees read-only notice) ──
 
 lms_regulatory._loadGenerate = function (content) {
+	if (!lms_regulatory._isAdmin) {
+		content.innerHTML =
+			lms_portal.emptyPanel(
+				"shield",
+				"Admin filing only",
+				"Branch Managers can review deadlines and the archive. Generating and saving regulatory submissions requires a System Manager."
+			);
+		return;
+	}
+
 	var reportTypes = [
 		{ value: "weekly_kpi", label: "Weekly KPI" },
 		{ value: "par", label: "Portfolio At Risk" },
@@ -168,7 +202,7 @@ lms_regulatory._generateReport = function () {
 			html += '<button type="button" class="lms-btn lms-btn--success lms-btn--sm" id="lms-reg-save-submission">Save to Archive</button>';
 			html += '</div></div>';
 			html += '<div class="lms-muted" style="margin-bottom:1rem;">Period: ' + lms_portal.formatDate(data.period_start) + ' — ' + lms_portal.formatDate(data.period_end) + '</div>';
-			html += '<pre style="background:var(--lms-surface-2);padding:1rem;border-radius:var(--lms-radius);overflow-x:auto;font-size:var(--lms-fs-sm);line-height:1.5;">' + lms_portal.escape(JSON.stringify(data, null, 2)) + '</pre>';
+			html += '<pre style="background:var(--lms-surface-alt);padding:1rem;border-radius:var(--lms-radius);overflow-x:auto;font-size:var(--lms-fs-sm);line-height:1.5;">' + lms_portal.escape(JSON.stringify(data, null, 2)) + '</pre>';
 			html += '</div>';
 			output.innerHTML = html;
 
@@ -198,6 +232,7 @@ lms_regulatory._saveSubmission = function (reportType, periodStart, periodEnd, d
 		callback: function (r) {
 			var name = (r && r.message && r.message.name) || "";
 			lms_portal.toast("Submission saved: " + name, "success");
+			lms_regulatory._loadStats();
 		},
 		error: function () {
 			lms_portal.toast("Could not save submission.", "danger");
@@ -213,7 +248,7 @@ lms_regulatory._loadArchive = function (content) {
 		callback: function (r) {
 			var submissions = (r && r.message && r.message.submissions) || [];
 			if (!submissions.length) {
-				content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("🗄️") + '<h3>No submissions</h3><p>No regulatory submissions archived yet.</p></div></div>';
+				content.innerHTML = lms_portal.emptyPanel("archive", "No submissions", "No regulatory submissions archived yet.");
 				return;
 			}
 
@@ -227,7 +262,7 @@ lms_regulatory._loadArchive = function (content) {
 				html += "<td>" + lms_portal.formatDate(s.generated_on) + "</td>";
 				html += "<td>" + lms_portal.escape(s.generated_by || "") + "</td>";
 				html += '<td><span class="lms-badge ' + statusCls + '">' + lms_portal.escape(s.status) + "</span></td>";
-				html += "<td>" + (s.file_attachment ? '<a href="' + lms_portal.escape(s.file_attachment) + '" target="_blank">📎 View</a>' : "—") + "</td>";
+				html += "<td>" + (s.file_attachment ? '<a href="' + lms_portal.escape(s.file_attachment) + '" target="_blank">View</a>' : "—") + "</td>";
 				html += "</tr>";
 			});
 			html += "</tbody></table></div></div>";
@@ -235,6 +270,47 @@ lms_regulatory._loadArchive = function (content) {
 		},
 		error: function () {
 			content.innerHTML = lms_portal.error("Could not load archive.");
+		},
+	});
+};
+
+// ── Recipients (B-19) ──
+
+lms_regulatory._loadRecipients = function (content) {
+	var s = lms_regulatory._stats || {};
+	var load = function (stats) {
+		var recipients = (stats && stats.compliance_recipients) || [];
+		var html = '<div class="lms-panel" style="padding:1.5rem;">';
+		html += "<h3 style=\"margin:0 0 .5rem;\">Compliance report recipients</h3>";
+		html += '<p class="lms-muted" style="margin:0 0 1rem;">Weekly KPI / sandbox packs are emailed to these addresses (site_config: <code>lms_compliance_report_recipients</code>).</p>';
+		if (!recipients.length) {
+			html += '<div class="lms-empty" style="padding:1.25rem 0;">';
+			html += "<p><strong>No recipients configured.</strong></p>";
+			html += "<p class=\"lms-muted\">Ask a System Manager to set <code>lms_compliance_report_recipients</code> (comma-separated emails) so weekly packs are delivered.</p>";
+			html += "</div>";
+		} else {
+			html += '<ul class="lms-list">';
+			recipients.forEach(function (email) {
+				html += '<li class="lms-list__item"><div class="lms-list__info">' + lms_portal.escape(email) + "</div></li>";
+			});
+			html += "</ul>";
+		}
+		html += "</div>";
+		content.innerHTML = html;
+	};
+
+	if (s.compliance_recipients !== undefined) {
+		load(s);
+		return;
+	}
+	lms_portal.safeCall({
+		method: "lms_saas.api.regulatory_hub.get_regulatory_stats",
+		callback: function (r) {
+			lms_regulatory._stats = (r && r.message) || {};
+			load(lms_regulatory._stats);
+		},
+		error: function () {
+			content.innerHTML = lms_portal.error("Could not load recipients.");
 		},
 	});
 };

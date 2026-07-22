@@ -45,7 +45,9 @@
   </article>
 
   <footer class="lms-help-footer">
-    {{ brand.footer_text if brand else _('Powered by Kesari') }}
+    {% set _help_footer = brand.footer_text if brand else none %}
+    {% if _help_footer is none %}{% set _help_footer = _('Powered by {0}').format((brand.portal_title if brand else none) or 'LMS') %}{% endif %}
+    {{ _help_footer }}
     {% if brand and brand.support_email %}
     · <a href="mailto:{{ brand.support_email }}">{{ _('Support') }}</a>
     {% endif %}

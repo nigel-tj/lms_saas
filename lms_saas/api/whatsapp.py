@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import frappe
 from frappe import _
+from frappe.rate_limiter import rate_limit
 from frappe.utils import now_datetime, today, flt
 
 from lms_saas.utils.addons import require_addon_persona
@@ -32,6 +33,7 @@ def _branch():
 # ---------------------------------------------------------------------------
 
 @frappe.whitelist()
+@rate_limit(limit=20, seconds=60, methods=["POST"])
 def send_whatsapp(recipient, message, template_name=None, loan=None, reference_doctype=None, reference_name=None):
     """Send a WhatsApp message via config-driven provider.
 

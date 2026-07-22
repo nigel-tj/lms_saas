@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import frappe
 from frappe import _
-from frappe.utils import today, getdate, now_datetime
+from frappe.utils import today, getdate, now_datetime, flt
 
 from lms_saas.utils.addons import require_addon_persona
 
@@ -105,17 +105,35 @@ def get_asset_detail(asset_name):
     _require_inventory()
 
     asset = frappe.get_doc("Asset", asset_name)
+    asset_meta = frappe.get_meta("Asset")
 
-    # Depreciation schedule
+    # Depreciation schedule (child table field name varies by ERPNext version)
     depreciation = []
-    if hasattr(asset, "schedules") and asset.schedules:
-        for row in asset.schedules:
-            depreciation.append({
-                "schedule_date": row.schedule_date,
-                "depreciation_amount": row.depreciation_amount,
-                "accumulated_depreciation": row.accumulated_depreciation,
-                "book_value": row.book_value,
-            })
+    schedule_rows = getattr(asset, "schedules", None) or getattr(asset, "finance_books", None) or []
+    for row in schedule_rows:
+        if not hasattr(row, "schedule_date") and not hasattr(row, "depreciation_amount"):
+            continue
+        depreciation.append({
+            "schedule_date": getattr(row, "schedule_date", None),
+            "depreciation_amount": getattr(row, "depreciation_amount", None),
+            "accumulated_depreciation": getattr(
+                row, "accumulated_depreciation_amount", None
+            ) or getattr(row, "accumulated_depreciation", None) or 0,
+            "book_value": getattr(row, "book_value", None),
+        })
+
+    opening_accum = 0
+    if asset_meta.has_field("opening_accumulated_depreciation"):
+        opening_accum = flt(asset.get("opening_accumulated_depreciation") or 0)
+    elif asset_meta.has_field("accumulated_depreciation"):
+        opening_accum = flt(asset.get("accumulated_depreciation") or 0)
+
+    if asset_meta.has_field("value_after_depreciation"):
+        asset_value = flt(asset.get("value_after_depreciation") or 0)
+    elif asset_meta.has_field("asset_value"):
+        asset_value = flt(asset.get("asset_value") or 0)
+    else:
+        asset_value = flt(asset.get("gross_purchase_amount") or 0) - opening_accum
 
     return {
         "asset": {
@@ -125,8 +143,8 @@ def get_asset_detail(asset_name):
             "status": asset.status,
             "purchase_date": asset.purchase_date,
             "gross_purchase_amount": asset.gross_purchase_amount,
-            "accumulated_depreciation": asset.accumulated_depreciation,
-            "asset_value": asset.asset_value,
+            "accumulated_depreciation": opening_accum,
+            "asset_value": asset_value,
             "location": getattr(asset, "location", None),
             "custodian": getattr(asset, "custodian", None),
             "department": getattr(asset, "department", None),
@@ -140,22 +158,49 @@ def get_asset_detail(asset_name):
 # Stock Items
 # ---------------------------------------------------------------------------
 
+def _item_reorder_level(item_name: str) -> float:
+    """Resolve reorder threshold from Item Reorder child table (ERPNext 14+).
+
+    Legacy ``Item.reorder_level`` column was removed; querying it 500s.
+    """
+    item_meta = frappe.get_meta("Item")
+    if item_meta.has_field("reorder_level"):
+        return flt(frappe.db.get_value("Item", item_name, "reorder_level") or 0)
+    if not item_meta.has_field("reorder_levels"):
+        return 0
+    if not frappe.db.table_exists("Item Reorder"):
+        return 0
+    rows = frappe.get_all(
+        "Item Reorder",
+        filters={"parent": item_name},
+        fields=["warehouse_reorder_level"],
+        limit_page_length=20,
+    )
+    thresholds = [flt(r.get("warehouse_reorder_level") or 0) for r in rows]
+    return max(thresholds) if thresholds else 0
+
+
 @frappe.whitelist()
 def get_stock_items(limit=100):
     """Return consumable stock items with current stock levels."""
     _require_inventory()
 
     filters = {"is_stock_item": 1, "disabled": 0}
+    fields = ["name", "item_name", "item_group", "stock_uom", "description", "standard_rate"]
+    item_meta = frappe.get_meta("Item")
+    # Only include legacy column when present (pre-ERPNext-14).
+    if item_meta.has_field("reorder_level"):
+        fields.append("reorder_level")
+
     items = frappe.get_all(
         "Item",
         filters=filters,
-        fields=["name", "item_name", "item_group", "stock_uom",
-                "reorder_level", "description", "standard_rate"],
+        fields=fields,
         order_by="item_name asc",
         limit_page_length=int(limit),
     )
 
-    # Enrich with actual qty from bin
+    # Enrich with actual qty from bin + schema-safe reorder level.
     for item in items:
         bin_qty = frappe.db.get_all(
             "Bin",
@@ -164,7 +209,7 @@ def get_stock_items(limit=100):
         )
         item["bins"] = bin_qty
         item["total_qty"] = sum(b["actual_qty"] or 0 for b in bin_qty)
-        item["reorder_level"] = item.get("reorder_level") or 0
+        item["reorder_level"] = item.get("reorder_level") or _item_reorder_level(item["name"])
 
     return {"items": items}
 
@@ -177,15 +222,14 @@ def get_low_stock_items():
     items = frappe.get_all(
         "Item",
         filters={"is_stock_item": 1, "disabled": 0},
-        fields=["name", "item_name", "item_group", "stock_uom",
-                "reorder_level", "standard_rate"],
+        fields=["name", "item_name", "item_group", "stock_uom", "standard_rate"],
         order_by="item_name asc",
         limit_page_length=200,
     )
 
     low_stock = []
     for item in items:
-        reorder = item.get("reorder_level") or 0
+        reorder = _item_reorder_level(item["name"])
         if not reorder:
             continue
         bin_qty = frappe.db.get_all(
@@ -196,6 +240,7 @@ def get_low_stock_items():
         total_qty = sum(b["actual_qty"] or 0 for b in bin_qty)
         if total_qty <= reorder:
             item["total_qty"] = total_qty
+            item["reorder_level"] = reorder
             item["shortfall"] = reorder - total_qty
             low_stock.append(item)
 

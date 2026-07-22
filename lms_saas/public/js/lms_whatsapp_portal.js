@@ -16,13 +16,14 @@ lms_whatsapp.init = function () {
 		 frappe.boot.user_roles.indexOf("Administrator") >= 0));
 
 	var tabs = [
-		{ id: "send", label: "Send", icon: "📤" },
-		{ id: "templates", label: "Templates", icon: "📝" },
-		{ id: "log", label: "Log", icon: "📜" },
-		{ id: "stats", label: "Stats", icon: "📊" },
+		{ id: "send", label: "Send", icon: "message-circle" },
+		{ id: "templates", label: "Templates", icon: "file-text" },
+		{ id: "log", label: "Log", icon: "list" },
+		{ id: "stats", label: "Stats", icon: "bar-chart" },
 	];
+	var home = window.__lms_home_route || "/lms";
 	var html = lms_portal.pageStart() +
-		lms_portal.pageHeader({ title: "WhatsApp Business" }) +
+		lms_portal.backLink({ href: home, label: "Back" }) +
 		lms_portal.tabNav(tabs, lms_whatsapp._currentTab) +
 		'<div id="lms-wa-tab-content"></div>' +
 		lms_portal.pageEnd();

@@ -25,6 +25,26 @@ lms_portal.safeCall = function (opts) {
 	var userCallback = opts.callback;
 	var wrappedError = function (err) {
 		console.error("[lms_portal.safeCall] error", err);
+		var status = (err && (err.status || err.httpStatusCode)) || 0;
+		// Cheap session / rate-limit messaging so reviewers never see a silent fail.
+		if (status === 401 || status === 403) {
+			try {
+				if (typeof lms_portal.toast === "function") {
+					lms_portal.toast(
+						status === 401
+							? "Your session expired. Please sign in again."
+							: "You don’t have permission for that action.",
+						"warning"
+					);
+				}
+			} catch (e) { /* ignore */ }
+		} else if (status === 429) {
+			try {
+				if (typeof lms_portal.toast === "function") {
+					lms_portal.toast("Too many requests. Wait a moment and try again.", "warning");
+				}
+			} catch (e) { /* ignore */ }
+		}
 		if (typeof userError === "function") {
 			try { userError(err); } catch (e) { console.error(e); }
 		} else if (typeof userCallback === "function") {
@@ -99,21 +119,58 @@ lms_portal.formatDate = function (value) {
  * display adapts to the user's locale (ZAR, KES, NGN, USD, etc.). Falls
  * back to Frappe's format_currency if available, then to a plain number. */
 lms_portal.formatCurrency = function (value, currency) {
-	currency = currency || (typeof frappe !== "undefined" && frappe.boot && frappe.boot.sysdefaults && frappe.boot.sysdefaults.currency) || "ZAR";
+	currency = currency
+		|| window.__lms_currency
+		|| (typeof frappe !== "undefined" && frappe.boot && frappe.boot.sysdefaults && frappe.boot.sysdefaults.currency)
+		|| "ZAR";
+	var locale = window.__lms_lang || undefined;
 	if (typeof Intl !== "undefined" && Intl.NumberFormat) {
 		try {
-			return new Intl.NumberFormat(undefined, {
+			return new Intl.NumberFormat(locale, {
 				style: "currency",
 				currency: currency,
 				minimumFractionDigits: 2,
 			}).format(value || 0);
 		} catch (e) { /* fall through */ }
 	}
-	if (typeof format_currency === "function") {
-		return format_currency(value || 0);
+	if (typeof frappe !== "undefined" && frappe.format_currency) {
+		try { return frappe.format_currency(value || 0, currency); } catch (e2) { /* fall through */ }
 	}
 	return (currency || "") + " " + Number(value || 0).toFixed(2);
 };
+
+/* Prefer company currency + locale over hard-coded ZAR globals. */
+(function () {
+	var prev = typeof window.format_currency === "function" ? window.format_currency : null;
+	window.format_currency = function (value, currency, decimals) {
+		if (currency || window.__lms_currency) {
+			return lms_portal.formatCurrency(value, currency);
+		}
+		if (prev) {
+			try { return prev(value, currency, decimals); } catch (e) { /* fall through */ }
+		}
+		return lms_portal.formatCurrency(value, currency);
+	};
+})();
+
+lms_portal.formatDate = (function (orig) {
+	return function (value) {
+		if (!value) return "—";
+		// Prefer locale-aware Intl when Frappe user format is unavailable.
+		if (typeof frappe !== "undefined" && frappe.datetime && frappe.datetime.str_to_user) {
+			try { return frappe.datetime.str_to_user(value); } catch (e) { /* fall through */ }
+		}
+		try {
+			var d = new Date(value);
+			if (!isNaN(d.getTime())) {
+				return new Intl.DateTimeFormat(window.__lms_lang || undefined, {
+					year: "numeric", month: "short", day: "numeric",
+				}).format(d);
+			}
+		} catch (e2) { /* fall through */ }
+		return orig ? orig(value) : String(value).slice(0, 10);
+	};
+})(lms_portal.formatDate);
 
 lms_portal.skeleton = function (rows) {
 	let html = '<div class="lms-skeleton-grid" aria-hidden="true">';
@@ -164,6 +221,53 @@ lms_portal.error = function (message, retryFn) {
 		if (btn) btn.onclick = retryFn;
 	}, 0);
 	return html;
+};
+
+/* Resolve a 403 / missing-customer spinner into a clear empty state (B-08). */
+lms_portal.renderNoAccess = function (opts) {
+	opts = opts || {};
+	var title = opts.title || "No access";
+	var message = opts.message || "You don’t have permission to view this page.";
+	var home = opts.home || window.__lms_home_route || "/lms";
+	var icon = (window.lms_icons && lms_icons.empty) ? lms_icons.empty("shield") : "";
+	return (
+		'<div class="lms-panel" role="alert">' +
+		'<div class="lms-empty">' + icon +
+		"<h3>" + lms_portal.escape(title) + "</h3>" +
+		"<p>" + lms_portal.escape(message) + "</p>" +
+		'<p style="margin-top:1rem;"><a class="lms-btn lms-btn--primary" href="' +
+		lms_portal.escape(home) + '">Go to my dashboard</a></p>' +
+		"</div></div>"
+	);
+};
+
+lms_portal.isForbiddenError = function (err) {
+	if (!err) return false;
+	var status = err.status || err.httpStatusCode || (err.responseJSON && err.responseJSON.http_status_code);
+	if (status === 403 || status === 401) return true;
+	var msg = String(
+		(err.message) ||
+		(err._server_messages) ||
+		(err.responseJSON && (err.responseJSON.message || err.responseJSON.exc_type)) ||
+		""
+	).toLowerCase();
+	return (
+		msg.indexOf("not permitted") !== -1 ||
+		msg.indexOf("permissionerror") !== -1 ||
+		msg.indexOf("no customer linked") !== -1 ||
+		msg.indexOf("permission") !== -1
+	);
+};
+
+lms_portal.forbiddenOrError = function (err, fallbackMsg, retryFn) {
+	if (lms_portal.isForbiddenError(err)) {
+		var msg = "This page is for borrowers with a linked Customer record.";
+		if (err && /no customer linked/i.test(String(err.message || ""))) {
+			msg = "No Customer is linked to your portal account. Ask your branch to link your Portal User on the Customer record.";
+		}
+		return lms_portal.renderNoAccess({ title: "Access denied", message: msg });
+	}
+	return lms_portal.error(fallbackMsg || "Something went wrong.", retryFn);
 };
 
 /* ------------------------------------------------------------------ */
@@ -263,6 +367,86 @@ lms_portal.emptyPanel = function (icon, title, message) {
 	return '<div class="lms-panel"><div class="lms-empty">' + iconHtml +
 		'<h3>' + lms_portal.escape(title || "Nothing here") +
 		'</h3><p>' + lms_portal.escape(message || "") + '</p></div></div>';
+};
+
+/* Polished "module not installed / tables missing" empty state (R8).
+ * opts: { icon, title, message, hint, ctaLabel, ctaHref, secondaryLabel, secondaryHref }
+ * Never leaves a spinner; always shows a clear next step for ops. */
+lms_portal.moduleUnavailable = function (opts) {
+	opts = opts || {};
+	var icon = opts.icon || "package";
+	var title = opts.title || "Module unavailable";
+	var message = opts.message || "This feature is not installed on this site yet.";
+	var hint = opts.hint || "Ask a System Manager to run a standard bench migrate after installing the required app, then refresh this page.";
+	var home = opts.ctaHref || window.__lms_home_route || "/lms";
+	var ctaLabel = opts.ctaLabel || "Back to dashboard";
+	var iconHtml = (window.lms_icons && lms_icons.empty)
+		? lms_icons.empty(icon)
+		: '<div class="lms-empty-icon">◇</div>';
+	var html =
+		'<div class="lms-panel lms-module-unavailable" role="status">' +
+		'<div class="lms-empty">' + iconHtml +
+		"<h3>" + lms_portal.escape(title) + "</h3>" +
+		"<p>" + lms_portal.escape(message) + "</p>" +
+		'<p class="lms-module-unavailable__hint">' + lms_portal.escape(hint) + "</p>" +
+		'<div class="lms-module-unavailable__actions">' +
+		'<a class="lms-btn lms-btn--primary" href="' + lms_portal.escape(home) + '">' +
+		lms_portal.escape(ctaLabel) + "</a>";
+	if (opts.secondaryHref && opts.secondaryLabel) {
+		html +=
+			'<a class="lms-btn lms-btn--ghost" href="' +
+			lms_portal.escape(opts.secondaryHref) +
+			'">' +
+			lms_portal.escape(opts.secondaryLabel) +
+			"</a>";
+	}
+	html += "</div></div></div>";
+	return html;
+};
+
+/* Compact back link for addon pages (B-32) when breadcrumbs alone feel thin. */
+lms_portal.backLink = function (opts) {
+	opts = opts || {};
+	var href = opts.href || window.__lms_home_route || "/lms";
+	var label = opts.label || "Back";
+	return (
+		'<p class="lms-back-link"><a href="' +
+		lms_portal.escape(href) +
+		'">← ' +
+		lms_portal.escape(label) +
+		"</a></p>"
+	);
+};
+
+/* Online/offline strip for field pages (collect / visits). */
+lms_portal.connectivityBanner = function () {
+	var online = typeof navigator === "undefined" || navigator.onLine !== false;
+	var cls = online ? "lms-connectivity is-online" : "lms-connectivity is-offline";
+	var label = online ? "Online — changes sync immediately" : "Offline — payments will queue on this device";
+	return (
+		'<div class="' + cls + '" id="lms-connectivity" role="status" aria-live="polite">' +
+		'<span class="lms-connectivity__dot" aria-hidden="true"></span>' +
+		'<span class="lms-connectivity__label">' + lms_portal.escape(label) + "</span></div>"
+	);
+};
+
+lms_portal.bindConnectivity = function () {
+	var update = function () {
+		var el = document.getElementById("lms-connectivity");
+		if (!el) return;
+		var online = navigator.onLine !== false;
+		el.classList.toggle("is-online", online);
+		el.classList.toggle("is-offline", !online);
+		var label = el.querySelector(".lms-connectivity__label");
+		if (label) {
+			label.textContent = online
+				? "Online — changes sync immediately"
+				: "Offline — payments will queue on this device";
+		}
+	};
+	window.addEventListener("online", update);
+	window.addEventListener("offline", update);
+	update();
 };
 
 /* A tab navigation bar. Pass an array of {id, label, icon} and the      */
@@ -795,12 +979,12 @@ lms_portal.initLoansPage = function () {
 			lms_portal._loansState.offset = lms_portal._loansState.allLoans.length;
 			lms_portal.renderLoans(el, r.message);
 		},
-		error: function () {
+		error: function (err) {
 			if (summaryEl) summaryEl.innerHTML = "";
 			if (riskEl) riskEl.innerHTML = "";
 			if (loanMixEl) loanMixEl.innerHTML = "";
 			if (upcomingEl) upcomingEl.innerHTML = "";
-			el.innerHTML = lms_portal.error("Could not load loans. Check your connection and try again.", function () {
+			el.innerHTML = lms_portal.forbiddenOrError(err, "Could not load loans. Check your connection and try again.", function () {
 				lms_portal.initLoansPage();
 			});
 		},
@@ -904,7 +1088,12 @@ lms_portal.mountLegacyChrome = function () {
 
 			const footer = document.createElement("footer");
 			footer.className = "lms-portal-footer";
-			footer.textContent = (shell.brand && shell.brand.footer_text) || "Powered by Kesari";
+			var ft = shell.brand && shell.brand.footer_text;
+			if (ft === "") {
+				footer.style.display = "none";
+			} else {
+				footer.textContent = ft || ("Powered by " + ((shell.brand && shell.brand.portal_title) || "LMS"));
+			}
 			document.body.appendChild(footer);
 		},
 	});
@@ -940,8 +1129,8 @@ lms_portal.initApplyPage = function () {
 			}
 			lms_portal._renderApplyWizard(root, wizardState);
 		},
-		error: function () {
-			root.innerHTML = lms_portal.error("Could not load the application form.", function () {
+		error: function (err) {
+			root.innerHTML = lms_portal.forbiddenOrError(err, "Could not load the application form.", function () {
 				lms_portal.initApplyPage();
 			});
 		},
@@ -1412,8 +1601,8 @@ lms_portal.initPayPage = function () {
 				lms_portal._showPayConfirmation(root, loanId, amount, provider);
 			});
 		},
-		error: function () {
-			root.innerHTML = lms_portal.error("Could not load loans.", function () {
+		error: function (err) {
+			root.innerHTML = lms_portal.forbiddenOrError(err, "Could not load loans.", function () {
 				lms_portal.initPayPage();
 			});
 		},
@@ -1532,9 +1721,40 @@ frappe.ready(function () {
 		lms_portal.mountLegacyChrome();
 	}
 	lms_portal._initNotificationCenter();
+	lms_portal._initFourEyesBadge();
 	lms_portal._initMobileMenu();
 	lms_portal._initUserMenu();
+	lms_portal._initNavSearch();
+	lms_portal._initIdleTimeout();
+	lms_portal._recordNavRecent();
 });
+
+/* B-33: clickable four-eyes badge → explainer modal (maker-checker). */
+lms_portal._initFourEyesBadge = function () {
+	var badge = document.getElementById("lms-four-eyes-badge");
+	if (!badge) return;
+	badge.addEventListener("click", function () {
+		var body =
+			"<p><strong>Four-eyes (maker–checker)</strong> is enforced on this site.</p>" +
+			"<ul style=\"margin:.75rem 0 0 1.1rem;padding:0;line-height:1.5;\">" +
+			"<li>The person who creates a disbursement or write-off cannot be the same person who submits it.</li>" +
+			"<li>Approving a loan application and disbursing that loan may also be separated when four-eyes is on.</li>" +
+			"<li>All high-impact money movements remain auditable (who / when / what).</li>" +
+			"</ul>" +
+			"<p class=\"lms-muted\" style=\"margin-top:1rem;\">Configured via <code>lms_enforce_four_eyes</code> in site_config.</p>";
+		if (window.LMSModal && typeof LMSModal.open === "function") {
+			LMSModal.open({
+				title: "Four-eyes control",
+				body: body,
+				actions: [{ label: "Got it", primary: true }],
+			});
+			return;
+		}
+		if (typeof lms_portal.toast === "function") {
+			lms_portal.toast("Four-eyes is on: submitter must differ from document owner.", "info");
+		}
+	});
+};
 
 /* User menu (topbar avatar button) — toggles a small dropdown with
    the current user's name + Logout link. Previously the button rendered
@@ -1559,6 +1779,7 @@ lms_portal._initUserMenu = function () {
 			lms_portal.escape((window.frappe && frappe.session && frappe.session.user) || "") +
 			"</div></div>" +
 			'<a class="lms-user-menu__item lms-user-menu__item--action" role="menuitem" href="/lms/account">My account</a>' +
+			'<a class="lms-user-menu__item lms-user-menu__item--action" role="menuitem" href="/lms-help">Help</a>' +
 			'<a class="lms-user-menu__item lms-user-menu__item--action" role="menuitem" href="/desk">Open desk</a>' +
 			'<a class="lms-user-menu__item lms-user-menu__item--action lms-user-menu__item--danger" role="menuitem" href="/?cmd=web_logout">Log out</a>';
 		wrap.appendChild(dd);
@@ -1593,13 +1814,48 @@ lms_portal._initNotificationCenter = function () {
 	var badge = document.getElementById("lms-notification-badge");
 	if (!bell || !panel) return;
 
+	var previouslyFocused = null;
+	function closePanel() {
+		panel.setAttribute("aria-hidden", "true");
+		panel.classList.remove("is-open");
+		document.removeEventListener("keydown", trapFocus, true);
+		if (previouslyFocused && typeof previouslyFocused.focus === "function") {
+			try { previouslyFocused.focus(); } catch (e) { /* ignore */ }
+		}
+	}
+	function trapFocus(e) {
+		if (e.key !== "Tab" || panel.getAttribute("aria-hidden") === "true") return;
+		var focusables = panel.querySelectorAll(
+			'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+		);
+		if (!focusables.length) return;
+		var first = focusables[0];
+		var last = focusables[focusables.length - 1];
+		if (e.shiftKey && document.activeElement === first) {
+			e.preventDefault();
+			last.focus();
+		} else if (!e.shiftKey && document.activeElement === last) {
+			e.preventDefault();
+			first.focus();
+		}
+	}
+	function openPanel() {
+		previouslyFocused = document.activeElement;
+		panel.setAttribute("aria-hidden", "false");
+		panel.classList.add("is-open");
+		document.addEventListener("keydown", trapFocus, true);
+		if (closeBtn) {
+			try { closeBtn.focus(); } catch (e) { /* ignore */ }
+		}
+	}
+
 	bell.addEventListener("click", function () {
 		var isOpen = panel.getAttribute("aria-hidden") === "false";
 		if (isOpen) {
-			panel.setAttribute("aria-hidden", "true");
+			closePanel();
 			return;
 		}
-		panel.setAttribute("aria-hidden", "false");
+		openPanel();
 		if (body) {
 			body.innerHTML = lms_portal.loading("Loading notifications…");
 		}
@@ -1648,10 +1904,13 @@ lms_portal._initNotificationCenter = function () {
 	});
 
 	if (closeBtn) {
-		closeBtn.addEventListener("click", function () {
-			panel.setAttribute("aria-hidden", "true");
-		});
+		closeBtn.addEventListener("click", closePanel);
 	}
+	document.addEventListener("keydown", function (e) {
+		if (e.key === "Escape" && panel.getAttribute("aria-hidden") === "false") {
+			closePanel();
+		}
+	});
 
 	// Load unread count
 	frappe.call({
@@ -1675,6 +1934,117 @@ lms_portal._initMobileMenu = function () {
 		toggle.setAttribute("aria-expanded", String(!expanded));
 		nav.classList.toggle("is-open");
 	});
+};
+
+lms_portal._navStorageUser = function () {
+	return (window.frappe && frappe.session && frappe.session.user) || "anon";
+};
+
+/* Hick's Law: filter 20+ nav links + show recent destinations. */
+lms_portal._initNavSearch = function () {
+	var input = document.getElementById("lms-nav-search");
+	var nav = document.getElementById("lms-sidebar-nav") || document.querySelector(".lms-sidebar__nav");
+	var recentsEl = document.getElementById("lms-nav-recents");
+	if (!input || !nav) return;
+
+	var items = Array.prototype.slice.call(nav.querySelectorAll(".lms-sidebar__item"));
+	var groups = Array.prototype.slice.call(nav.querySelectorAll(".lms-sidebar__group"));
+
+	function filter(q) {
+		q = (q || "").trim().toLowerCase();
+		items.forEach(function (a) {
+			var label = (a.getAttribute("aria-label") || a.textContent || "").toLowerCase();
+			var show = !q || label.indexOf(q) !== -1;
+			a.style.display = show ? "" : "none";
+		});
+		groups.forEach(function (g) {
+			var next = g.nextElementSibling;
+			var any = false;
+			while (next && !next.classList.contains("lms-sidebar__group")) {
+				if (next.classList.contains("lms-sidebar__item") && next.style.display !== "none") {
+					any = true;
+					break;
+				}
+				next = next.nextElementSibling;
+			}
+			g.style.display = !q || any ? "" : "none";
+		});
+	}
+
+	input.addEventListener("input", function () { filter(input.value); });
+
+	if (recentsEl) {
+		var key = "lms.nav.recents." + lms_portal._navStorageUser();
+		var recents = [];
+		try { recents = JSON.parse(sessionStorage.getItem(key) || "[]"); } catch (e) { recents = []; }
+		if (recents.length) {
+			recentsEl.hidden = false;
+			recentsEl.innerHTML =
+				'<div class="lms-sidebar__group">Recent</div>' +
+				recents.slice(0, 5).map(function (r) {
+					return '<a class="lms-sidebar__item lms-sidebar__item--recent" href="' +
+						lms_portal.escape(r.route) + '"><span class="lms-sidebar__label">' +
+						lms_portal.escape(r.label) + "</span></a>";
+				}).join("");
+		}
+	}
+};
+
+lms_portal._recordNavRecent = function () {
+	var active = document.querySelector(".lms-sidebar__item.is-active");
+	if (!active) return;
+	var route = active.getAttribute("href");
+	var label = active.getAttribute("aria-label") || (active.querySelector(".lms-sidebar__label") || {}).textContent;
+	if (!route || !label) return;
+	var key = "lms.nav.recents." + lms_portal._navStorageUser();
+	var recents = [];
+	try { recents = JSON.parse(sessionStorage.getItem(key) || "[]"); } catch (e) { recents = []; }
+	recents = recents.filter(function (r) { return r.route !== route; });
+	recents.unshift({ route: route, label: String(label).trim() });
+	try { sessionStorage.setItem(key, JSON.stringify(recents.slice(0, 8))); } catch (e2) { /* ignore */ }
+};
+
+/* Naledi: visible idle timeout with warning + logout. */
+lms_portal._initIdleTimeout = function () {
+	var minutes = parseInt(window.__lms_idle_minutes, 10);
+	if (!minutes || minutes <= 0 || document.body.classList.contains("lms-login-page")) return;
+	var idleMs = minutes * 60 * 1000;
+	var warnMs = Math.max(60 * 1000, idleMs - 2 * 60 * 1000);
+	var last = Date.now();
+	var warned = false;
+	var banner = null;
+
+	function bump() {
+		last = Date.now();
+		if (warned && banner) {
+			banner.remove();
+			banner = null;
+			warned = false;
+		}
+	}
+	["mousemove", "keydown", "click", "scroll", "touchstart"].forEach(function (ev) {
+		document.addEventListener(ev, bump, { passive: true });
+	});
+
+	setInterval(function () {
+		var elapsed = Date.now() - last;
+		if (elapsed >= idleMs) {
+			window.location.href = "/?cmd=web_logout";
+			return;
+		}
+		if (!warned && elapsed >= warnMs) {
+			warned = true;
+			banner = document.createElement("div");
+			banner.className = "lms-idle-banner";
+			banner.setAttribute("role", "alertdialog");
+			banner.innerHTML =
+				"<strong>Still there?</strong> You will be signed out soon for security. " +
+				'<button type="button" class="lms-btn lms-btn--primary lms-btn--sm" id="lms-idle-stay">Stay signed in</button>';
+			document.body.appendChild(banner);
+			var btn = document.getElementById("lms-idle-stay");
+			if (btn) btn.addEventListener("click", bump);
+		}
+	}, 15000);
 };
 
 lms_portal.initAccountOverview = function () {
@@ -1766,8 +2136,8 @@ lms_portal.initAccountOverview = function () {
 
 			el.innerHTML = html;
 		},
-		error: function () {
-			el.innerHTML = lms_portal.error("Could not load account details.", function () {
+		error: function (err) {
+			el.innerHTML = lms_portal.forbiddenOrError(err, "Could not load account details.", function () {
 				lms_portal.initAccountOverview();
 			});
 		},
@@ -1832,16 +2202,35 @@ lms_portal.modal = function (opts) {
 		'<button type="button" class="lms-modal__close" aria-label="Close">×</button></div>' +
 		'<div class="lms-modal__body">' + (opts.body || "") + "</div>" +
 		'<div class="lms-modal__actions">' +
-		(opts.cancelText !== null ? '<button type="button" class="lms-btn lms-btn--ghost" data-lms-modal-cancel>' + lms_portal.escape(opts.cancelText || "Cancel") + "</button>" : "") +
+		(opts.cancelText !== null ? '<button type="button" class="lms-btn lms-btn--ghost lms-modal__cancel" data-lms-modal-cancel>' + lms_portal.escape(opts.cancelText || "Cancel") + "</button>" : "") +
 		(opts.confirmText ? '<button type="button" class="lms-btn lms-btn--' + (opts.confirmVariant || "primary") + '" data-lms-modal-confirm>' + lms_portal.escape(opts.confirmText) + "</button>" : "") +
+				(opts.showReject ? '<button type="button" class="lms-btn lms-btn--danger lms-modal__reject" data-lms-modal-reject>' + lms_portal.escape(opts.rejectText || "Reject") + "</button>" : "") +
 		"</div></div>";
 	root.appendChild(overlay);
+
+	// Fire onShown after the overlay is mounted so callers can fetch
+	// async data and populate the body without losing the click that
+	// opened the modal. Returns the overlay element so callers can attach
+	// additional listeners to named buttons.
+	if (typeof opts.onShown === "function") {
+		try { opts.onShown(overlay); } catch (e) { /* swallow */ }
+	}
 
 	function close() {
 		overlay.style.opacity = "0";
 		setTimeout(function () { overlay.remove(); }, 150);
 	}
 	overlay.querySelector(".lms-modal__close").addEventListener("click", close);
+	// Wire up optional Reject button (only rendered if opts.showReject). 
+	var rejectBtn = overlay.querySelector("[data-lms-modal-reject]");
+	if (rejectBtn) {
+		rejectBtn.addEventListener("click", function () {
+			if (typeof opts.onReject === "function") {
+				try { opts.onReject(overlay); } catch (e) {}
+			}
+			close();
+		});
+	}
 	var cancelBtn = overlay.querySelector("[data-lms-modal-cancel]");
 	if (cancelBtn) cancelBtn.addEventListener("click", function () { if (opts.onCancel) opts.onCancel(); close(); });
 	var confirmBtn = overlay.querySelector("[data-lms-modal-confirm]");

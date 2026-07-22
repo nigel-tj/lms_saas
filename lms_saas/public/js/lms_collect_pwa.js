@@ -41,6 +41,20 @@ lms_collect._loadRunSheet = function (root) {
 	});
 };
 
+lms_collect._safeChartRender = function (el, primary, fallback) {
+	// Prefer shared helper; fall back inline if an older cached lms_portal.js
+	// is missing _renderOrFallback (B-01 regression guard).
+	if (lms_portal && typeof lms_portal._renderOrFallback === "function") {
+		lms_portal._renderOrFallback(el, primary, fallback);
+		return;
+	}
+	try {
+		if (typeof primary === "function") primary(el);
+	} catch (e) {
+		if (typeof fallback === "function") fallback(el);
+	}
+};
+
 lms_collect._loadCharts = function () {
 	// 7-day collection trend line -------------------------------------
 	var trendEl = document.getElementById("lms-collect-trend");
@@ -53,10 +67,12 @@ lms_collect._loadCharts = function () {
 				var labels = data.labels || [];
 				var values = (data.datasets && data.datasets[0] && data.datasets[0].values) || [];
 				if (labels.length < 2) {
-					LMSChart.empty(trendEl, "No collection data yet.");
+					if (window.LMSChart && LMSChart.empty) LMSChart.empty(trendEl, "No collection data yet.");
+					else trendEl.innerHTML = '<p class="lms-muted">No collection data yet.</p>';
 					return;
 				}
-				lms_portal._renderOrFallback(trendEl, function (el) {
+				lms_collect._safeChartRender(trendEl, function (el) {
+					if (!window.LMSChart || !LMSChart.line) throw new Error("LMSChart.line unavailable");
 					return LMSChart.line(el, labels, values, {
 						name: "Collected",
 						height: 180,
@@ -85,12 +101,14 @@ lms_collect._loadCharts = function () {
 				var data = (r && r.message) || { leaderboard: [] };
 				var rows = data.leaderboard || [];
 				if (!rows.length) {
-					LMSChart.empty(leaderEl, "No collection activity today.");
+					if (window.LMSChart && LMSChart.empty) LMSChart.empty(leaderEl, "No collection activity today.");
+					else leaderEl.innerHTML = '<p class="lms-muted">No collection activity today.</p>';
 					return;
 				}
 				var labels = rows.map(function (r) { return r.collector || "Unknown"; });
 				var values = rows.map(function (r) { return r.amount || 0; });
-				lms_portal._renderOrFallback(leaderEl, function (el) {
+				lms_collect._safeChartRender(leaderEl, function (el) {
+					if (!window.LMSChart || !LMSChart.bar) throw new Error("LMSChart.bar unavailable");
 					return LMSChart.bar(el, labels, values, {
 						name: "Collected",
 						height: 180,
@@ -112,25 +130,44 @@ lms_collect._loadCharts = function () {
 	}
 };
 
+lms_collect._queuedLoanSet = function () {
+	var set = {};
+	try {
+		var q = JSON.parse(localStorage.getItem(lms_collect.DB_NAME) || "[]");
+		(q || []).forEach(function (item) {
+			if (item && item.loan) set[item.loan] = true;
+		});
+	} catch (e) { /* ignore */ }
+	return set;
+};
+
 lms_collect._renderRunSheet = function (root, rows) {
 	var queueCount = lms_collect._offlineQueueCount();
-	var html = '<div class="lms-panel"><h3>Due today & upcoming</h3>';
+	var queued = lms_collect._queuedLoanSet();
+	var totalDue = 0;
+	rows.forEach(function (row) { totalDue += parseFloat(row.amount) || 0; });
 
+	var listBody = "";
 	if (!rows.length) {
-		html += '<p class="lms-muted">No dues in range.</p>';
+		listBody = '<p class="lms-muted">No dues in range.</p>';
 	} else {
-		html += '<ul class="lms-list">';
+		listBody = '<ul class="lms-list">';
 		rows.forEach(function (row) {
 			var mobile = row.borrower_mobile || "";
 			var callBtn = mobile
 				? '<a class="lms-btn lms-btn--ghost lms-btn--sm" href="tel:' + lms_portal.escape(mobile) + '">Call</a>'
 				: "";
-			html +=
-				'<li class="lms-list__item">' +
+			var pending = !!queued[row.loan];
+			var syncBadge = pending
+				? ' <span class="lms-badge lms-badge--warning" title="Queued on this device — tap Sync">Pending sync</span>'
+				: ' <span class="lms-badge lms-badge--success" title="No offline queue for this stop">Synced</span>';
+			listBody +=
+				'<li class="lms-list__item' + (pending ? " is-pending-sync" : "") + '">' +
 				'<div class="lms-list__info">' +
 				'<strong>' + lms_portal.escape(row.borrower) + "</strong>" +
 				" — " + lms_portal.formatDate(row.due_date) +
 				" — " + format_currency(row.amount) +
+				syncBadge +
 				(mobile ? ' <span class="lms-muted">· ' + lms_portal.escape(mobile) + "</span>" : "") +
 				"</div>" +
 				'<div class="lms-list__actions">' +
@@ -145,17 +182,29 @@ lms_collect._renderRunSheet = function (root, rows) {
 				'">Promise</button>' +
 				"</div></li>";
 		});
-		html += "</ul>";
+		listBody += "</ul>";
 	}
 
-	html += '<div class="lms-collect-sync">';
-	html += '<button type="button" class="lms-btn lms-btn--secondary" id="lms-sync-offline">Sync offline queue';
-	if (queueCount > 0) {
-		html += ' <span class="lms-badge lms-badge--watch">' + queueCount + "</span>";
-	}
-	html += "</button></div></div>";
+	var syncControls =
+		'<div class="lms-collect-sync">' +
+		'<button type="button" class="lms-btn lms-btn--secondary" id="lms-sync-offline">Sync offline queue' +
+		(queueCount > 0 ? ' <span class="lms-badge lms-badge--watch">' + queueCount + "</span>" : "") +
+		"</button></div>";
+
+	var html = lms_portal.pageStart() +
+		lms_portal.connectivityBanner() +
+		lms_portal.kpiStrip([
+			{ label: "Stops today", value: rows.length },
+			{ label: "Amount due", value: format_currency(totalDue) },
+			{ label: "Offline queue", value: queueCount, tone: queueCount ? "warning" : "success" },
+		]) +
+		lms_portal.panel({ title: "Due today & upcoming", body: listBody + syncControls }) +
+		lms_portal.pageEnd();
 
 	root.innerHTML = html;
+	if (typeof lms_portal.bindConnectivity === "function") {
+		lms_portal.bindConnectivity();
+	}
 
 	// Bind collect buttons — open action menu
 	root.querySelectorAll(".lms-collect-btn").forEach(function (btn) {

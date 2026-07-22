@@ -56,6 +56,19 @@
   },
   {
     "doctype": "Custom Field",
+    "name": "Loan-custom_approved_by",
+    "dt": "Loan",
+    "fieldname": "custom_approved_by",
+    "fieldtype": "Link",
+    "label": "Approved By (LMS)",
+    "options": "User",
+    "insert_after": "custom_loan_officer",
+    "read_only": 1,
+    "allow_on_submit": 1,
+    "description": "Portal four-eyes: the user who approved the Loan Application. Cannot also disburse when lms_enforce_four_eyes is on."
+  },
+  {
+    "doctype": "Custom Field",
     "name": "Loan Application-custom_loan_officer",
     "dt": "Loan Application",
     "fieldname": "custom_loan_officer",

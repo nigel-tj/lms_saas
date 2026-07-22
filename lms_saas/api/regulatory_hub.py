@@ -9,7 +9,15 @@ from __future__ import annotations
 
 import frappe
 from frappe import _
-from frappe.utils import flt, today, add_days, getdate, now_datetime, formatdate
+from frappe.utils import (
+    flt,
+    today,
+    add_days,
+    add_to_date,
+    getdate,
+    now_datetime,
+    formatdate,
+)
 
 from lms_saas.utils.addons import require_addon_persona
 
@@ -25,6 +33,14 @@ def _require_regulatory():
 def _is_admin():
     roles = set(frappe.get_roles())
     return bool(roles.intersection({"System Manager", "Administrator"}))
+
+
+def _compliance_recipients() -> list[str]:
+    """B-19: configured weekly KPI / compliance report recipients (site_config)."""
+    raw = (frappe.conf.get("lms_compliance_report_recipients") or "").strip()
+    if not raw:
+        return []
+    return [p.strip() for p in raw.replace(";", ",").split(",") if p.strip()]
 
 
 # ---------------------------------------------------------------------------
@@ -306,6 +322,8 @@ def get_regulatory_stats():
     upcoming = [d for d in calendar.get("deadlines", []) if d.get("is_due_soon")]
     overdue = [d for d in calendar.get("deadlines", []) if d.get("is_overdue")]
 
+    recipients = _compliance_recipients()
+
     return {
         "total_submissions": total,
         "draft": draft,
@@ -313,4 +331,37 @@ def get_regulatory_stats():
         "acknowledged": acknowledged,
         "upcoming_deadlines": len(upcoming),
         "overdue_deadlines": len(overdue),
+        "pending_submissions": draft,
+        "is_admin": _is_admin(),
+        "compliance_recipients": recipients,
+        "recipients_configured": bool(recipients),
+    }
+
+
+@frappe.whitelist()
+def get_branch_summary():
+    """Read-only Branch Manager surface: pending drafts + upcoming deadlines.
+
+    Write actions (generate/save) remain admin-only via those endpoints.
+    """
+    _require_regulatory()
+
+    stats = get_regulatory_stats()
+    calendar = get_report_calendar(months_ahead=1)
+    due_soon = [d for d in calendar.get("deadlines", []) if d.get("is_due_soon")]
+    overdue = [d for d in calendar.get("deadlines", []) if d.get("is_overdue")]
+
+    pending = int(stats.get("draft") or 0)
+    return {
+        "pending_submissions": pending,
+        "upcoming_deadlines": len(due_soon),
+        "overdue_deadlines": len(overdue),
+        "due_soon": due_soon[:5],
+        "overdue": overdue[:5],
+        "compliance_recipients": stats.get("compliance_recipients") or [],
+        "recipients_configured": stats.get("recipients_configured"),
+        "is_admin": stats.get("is_admin"),
+        "summary_line": _(
+            "Your organisation has {0} draft submission(s) awaiting admin filing."
+        ).format(pending),
     }

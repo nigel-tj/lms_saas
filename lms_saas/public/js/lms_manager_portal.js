@@ -129,19 +129,45 @@ lms_manager._renderAll = function (root, dash, queue) {
 		html += '<div class="lms-section-header"><h3>Approval Queue</h3>';
 		html += '<span class="lms-muted">' + apps.length + " pending</span></div>";
 		html += '<div class="lms-data-table__wrap"><table class="lms-data-table">';
-		html += "<thead><tr><th>Applicant</th><th>Product</th><th>Amount</th><th>Officer</th><th>Actions</th></tr></thead><tbody>";
+		html += "<thead><tr><th>Applicant</th><th>Product</th><th>Amount</th><th>Tenure</th><th>Rate</th><th>KYC</th><th>Officer</th><th>Actions</th></tr></thead><tbody>";
 		apps.forEach(function (app) {
 			var borrower = app.customer_name || app.applicant || "—";
+			// KYC badge for the row — risk-tiered visual.
+			var kyc = (app.kyc_status || "Pending").toLowerCase();
+			var kycBadge = '<span class="lms-badge lms-badge--muted">Pending</span>';
+			if (kyc === "approved" || kyc === "verified" || kyc === "complete") {
+				kycBadge = '<span class="lms-badge lms-badge--success">KYC OK</span>';
+			} else if (kyc === "rejected" || kyc === "expired") {
+				kycBadge = '<span class="lms-badge lms-badge--danger">' + lms_portal.escape(app.kyc_status) + '</span>';
+			} else {
+				kycBadge = '<span class="lms-badge lms-badge--warning">KYC ' + lms_portal.escape(app.kyc_status || "Pending") + '</span>';
+			}
+			// Existing exposure badge — warn if a new loan will compound the book.
+			var exposure = app.exposure || 0;
+			var amount = app.loan_amount || 0;
+			var totalIfApproved = exposure + amount;
+			var exposureTone = "";
+			var exposureLabel = format_currency(exposure);
+			if (exposure > 0 && amount > 0 && totalIfApproved / amount > 3) {
+				exposureTone = " lms-text--warning";
+			}
+			// Worst-DPD hint.
+			var dpd = app.worst_dpd || 0;
+			var dpdBadge = "";
+			if (dpd > 0) {
+				var dpdTone = dpd > 60 ? "danger" : (dpd > 30 ? "warning" : "muted");
+				dpdBadge = ' <span class="lms-badge lms-badge--' + dpdTone + '">DPD ' + dpd + '</span>';
+			}
 			html += "<tr>";
-			html += "<td><strong>" + lms_portal.escape(borrower) + "</strong></td>";
-			html += "<td>" + lms_portal.escape(app.product_name || app.loan_product || "") + "</td>";
-			html += "<td>" + format_currency(app.loan_amount || 0) + "</td>";
-			html += "<td>" + lms_portal.escape(app.officer_name || "—") + "</td>";
+			html += "<td><strong>" + lms_portal.escape(borrower) + "</strong>" + dpdBadge + "</td>";
+			html += "<td>" + lms_portal.escape(app.product_name || app.loan_product || "—") + "</td>";
+			html += "<td>" + format_currency(amount) + (exposure > 0 ? '<br><span class="lms-muted' + exposureTone + '" style="font-size:0.7rem;">existing: ' + exposureLabel + "</span>" : "") + "</td>";
+			html += "<td>" + (app.repayment_periods || "—") + " mo</td>";
+			html += "<td>" + (app.rate_of_interest || 0) + "%</td>";
+			html += "<td>" + kycBadge + "</td>";
+			html += "<td>" + lms_portal.escape(app.officer_name || "Unassigned") + "</td>";
 			html += '<td><div class="lms-data-table__actions">';
-			html += '<button type="button" class="lms-btn lms-btn--success lms-btn--sm lms-approve-btn" ' +
-				'data-app="' + lms_portal.escape(app.name) + '" ' +
-				'data-borrower="' + lms_portal.escape(borrower) + '" ' +
-				'data-amount="' + lms_portal.escape(String(app.loan_amount || 0)) + '">Approve</button>';
+			html += '<button type="button" class="lms-btn lms-btn--primary lms-btn--sm lms-view-app-btn" data-app="' + lms_portal.escape(app.name) + '">Review</button>';
 			html += '<button type="button" class="lms-btn lms-btn--ghost lms-btn--sm lms-reject-btn" data-app="' + lms_portal.escape(app.name) + '">Reject</button>';
 			html += "</div></td></tr>";
 		});
@@ -152,11 +178,11 @@ lms_manager._renderAll = function (root, dash, queue) {
 	html += '<div class="lms-grid-2">';
 	html += '<div class="lms-panel lms-portal-board">';
 	html += '<div class="lms-section-header"><h3>Risk Mix</h3></div>';
-	html += '<div class="lms-chart-wrap"><canvas id="lms-risk-chart"></canvas></div>';
+	html += '<div class="lms-chart-wrap"><canvas id="lms-risk-chart" role="img" aria-label="Risk Mix chart"></canvas></div>';
 	html += "</div>";
 	html += '<div class="lms-panel lms-portal-board">';
 	html += '<div class="lms-section-header"><h3>Team Performance</h3></div>';
-	html += '<div class="lms-chart-wrap"><canvas id="lms-team-chart"></canvas></div>';
+	html += '<div class="lms-chart-wrap"><canvas id="lms-team-chart" role="img" aria-label="Team Performance chart"></canvas></div>';
 	html += "</div>";
 	html += "</div>";
 
@@ -173,22 +199,38 @@ lms_manager._renderAll = function (root, dash, queue) {
 		{ label: "PAR 60+", value: buckets.par60 || 0, color: lms_manager._resolveColor("var(--lms-tone-orange)", "#f97316") },
 		{ label: "PAR 90+", value: buckets.par90 || 0, color: lms_manager._resolveColor("var(--lms-danger)", "#dc2626") },
 	];
-	lms_manager._charts.risk = lms_charts.donut("lms-risk-chart", riskData);
+	if (typeof Chart === "undefined") {
+		var riskEl = document.getElementById("lms-risk-chart");
+		var teamEl = document.getElementById("lms-team-chart");
+		if (riskEl && riskEl.parentElement) {
+			riskEl.parentElement.innerHTML = lms_portal.simpleBars
+				? lms_portal.simpleBars(riskData)
+				: '<p class="lms-muted">Chart library unavailable — values: ' +
+					riskData.map(function (d) { return d.label + " " + d.value; }).join(", ") + "</p>";
+		}
+		var officersFb = (dash.team && dash.team.officers) || [];
+		var teamFb = officersFb.map(function (o) {
+			return { label: o.officer_name || o.officer || "—", value: o.loan_count || 0 };
+		});
+		if (teamEl && teamEl.parentElement) {
+			teamEl.parentElement.innerHTML = (lms_portal.simpleBars && teamFb.length)
+				? lms_portal.simpleBars(teamFb)
+				: '<p class="lms-muted">No team performance data yet.</p>';
+		}
+	} else {
+		lms_manager._charts.risk = lms_charts.donut("lms-risk-chart", riskData, { title: "Risk Mix" });
 
-	var officers = (dash.team && dash.team.officers) || [];
-	var teamData = officers.map(function (o) {
-		return { label: o.officer_name || o.officer || "—", value: o.loan_count || 0 };
-	});
-	lms_manager._charts.team = lms_charts.bars("lms-team-chart", teamData);
+		var officers = (dash.team && dash.team.officers) || [];
+		var teamData = officers.map(function (o) {
+			return { label: o.officer_name || o.officer || "—", value: o.loan_count || 0 };
+		});
+		lms_manager._charts.team = lms_charts.bars("lms-team-chart", teamData, { title: "Team Performance" });
+	}
 
 	/* ---- Bind approve/reject buttons ---- */
-	root.querySelectorAll(".lms-approve-btn").forEach(function (btn) {
+	root.querySelectorAll(".lms-view-app-btn").forEach(function (btn) {
 		btn.addEventListener("click", function () {
-			lms_manager._approve(
-				btn.getAttribute("data-app"),
-				btn.getAttribute("data-borrower"),
-				parseFloat(btn.getAttribute("data-amount")) || 0
-			);
+			lms_manager._viewApplication(btn.getAttribute("data-app"));
 		});
 	});
 	root.querySelectorAll(".lms-reject-btn").forEach(function (btn) {
@@ -234,7 +276,219 @@ lms_manager._icon = function (name) {
 	return icons[name] || icons.file;
 };
 
-lms_manager._approve = function (appName, borrowerName, loanAmount) {
+lms_manager._viewApplication = function (appName) {
+	// Pre-flight: fetch the full application detail (borrower + KYC + risk
+	// + checklist) and render in a "View" modal. Approve / Reject are
+	// available from the modal footer so the manager can act on what they
+	// just reviewed without losing context.
+	lms_portal.modal({
+		title: "Application " + (appName || ""),
+		body: '<div class="lms-muted" style="text-align:center;padding:2rem;">Loading application detail\u2026</div>',
+		confirmText: "Approve",
+		confirmVariant: "success",
+		cancelText: "Close",
+		size: "lg",
+		showReject: true,
+		onConfirm: function (overlay) {
+			// R3 expert-board fix: the View modal IS the approval modal.
+			// We add a Note textarea inline so the manager can record the
+			// justification for the audit trail before clicking Approve.
+			// No second modal stacks on top of the first — the body has
+			// the note input already, we just need to read it on click.
+			var id = overlay.getAttribute("data-app-name");
+			if (!id) return;
+			var noteEl = overlay.querySelector("#lms-approve-note");
+			var note = noteEl ? noteEl.value.trim() : "";
+			var borrowerEl = overlay.querySelector("[data-detail-borrower]");
+			var amountEl = overlay.querySelector("[data-detail-amount]");
+			// Lock the buttons to prevent double-clicks while the API call
+			// is in flight; the modal will close on success.
+			var btns = overlay.querySelectorAll("button");
+			btns.forEach(function (b) { b.disabled = true; });
+			lms_portal.safeCall({
+				method: "lms_saas.api.manager.approve_application",
+				args: { application_name: id, note: note },
+				callback: function (r) {
+					var res = (r && r.message) || {};
+					lms_portal.closeModal(overlay);
+					if (res.status === "approved" && res.loan) {
+						lms_portal.toast("Approved — Loan " + res.loan + " created.", "success");
+					} else {
+						lms_portal.toast((res && res.message) || "Approval did not complete.", "danger");
+					}
+					lms_manager._refreshDashboardData();
+				},
+				error: function (err) {
+					btns.forEach(function (b) { b.disabled = false; });
+					var msg = (err && (err.message || err._server_message)) || "Approval failed.";
+					var tmp = document.createElement("div");
+					tmp.innerHTML = msg;
+					msg = (tmp.textContent || tmp.innerText || msg).trim();
+					lms_portal.toast(msg, "danger", 8000);
+				},
+			});
+		},
+		onReject: function (overlay) {
+			var id = overlay.getAttribute("data-app-name");
+			if (id) lms_manager._reject(id);
+		},
+		onShown: function (overlay) {
+			overlay.setAttribute("data-app-name", appName);
+			// Fetch the detail.
+			lms_portal.safeCall({
+				method: "lms_saas.api.manager.get_application_detail",
+				args: { application_name: appName },
+				callback: function (r) {
+					var d = (r && r.message) || {};
+					var body = overlay.querySelector(".lms-modal__body");
+					if (body) body.innerHTML = lms_manager._renderApplicationDetail(d);
+					// Disable Approve if can_approve is false.
+					var confirmBtn = overlay.querySelector(".lms-modal__confirm");
+					if (confirmBtn) {
+						confirmBtn.disabled = !d.can_approve;
+						confirmBtn.title = d.can_approve
+							? "Submit and create Loan record"
+							: "Cannot approve: see checklist below";
+					}
+				},
+				error: function (err) {
+					var body = overlay.querySelector(".lms-modal__body");
+					if (body) {
+						body.innerHTML = '<div class="lms-callout lms-callout--danger">' +
+							lms_portal.escape((err && (err.message || err._server_message)) || "Could not load application.") +
+							"</div>";
+					}
+				},
+			});
+		},
+	});
+};
+
+
+lms_manager._renderApplicationDetail = function (d) {
+	var a = d.application || {};
+	var c = d.customer || {};
+	var k = d.kyc || {};
+	var r = d.risk || {};
+	var checklist = d.checklist || [];
+
+	var riskTier = "muted";
+	if ((r.worst_dpd || 0) > 60) riskTier = "danger";
+	else if ((r.worst_dpd || 0) > 30) riskTier = "warning";
+	else if ((r.existing_exposure || 0) > 0) riskTier = "muted";
+
+	var kycTone = "muted";
+	if ((k.status || "").toLowerCase().match(/approved|verified|complete/)) kycTone = "success";
+	else if ((k.status || "").toLowerCase().match(/rejected|expired/)) kycTone = "danger";
+	else kycTone = "warning";
+
+	var amlTone = "muted";
+	if ((k.aml_status || "").toLowerCase().match(/clear|approved/)) amlTone = "success";
+	else if ((k.aml_status || "").toLowerCase().match(/rejected/)) amlTone = "danger";
+	else amlTone = "warning";
+
+	var html = "";
+	html += '<div class="lms-grid-2" style="gap:1rem;">';
+
+	// LEFT: Applicant + terms
+	html += '<div>';
+	html += '<div class="lms-panel" style="padding:1rem;">';
+	html += '<h4 style="margin:0 0 .5rem 0;">Applicant</h4>';
+	html += '<div style="display:flex;flex-direction:column;gap:.25rem;font-size:.9rem;">';
+	html += '<div><strong>' + lms_portal.escape(c.customer_name || a.applicant || "") + '</strong></div>';
+	html += '<div class="lms-muted">' + lms_portal.escape(c.email_id || "no email on file") + '</div>';
+	html += '<div class="lms-muted">' + lms_portal.escape(c.mobile_no || "no mobile on file") + '</div>';
+	if (c.national_id) html += '<div class="lms-muted">National ID: ' + lms_portal.escape(c.national_id) + '</div>';
+	if (c.branch) html += '<div class="lms-muted">Branch: ' + lms_portal.escape(c.branch) + '</div>';
+	html += '</div>';
+	html += '</div>';
+
+	html += '<div class="lms-panel" style="padding:1rem;margin-top:.75rem;">';
+	html += '<h4 style="margin:0 0 .5rem 0;">Requested terms</h4>';
+	html += '<div class="lms-summary">';
+	html += '<div class="lms-summary-card"><div class="lms-summary-label">Amount</div><div class="lms-summary-value" data-detail-amount data-detail-borrower="' + lms_portal.escape(c.customer_name || "") + '">' + format_currency(a.loan_amount || 0) + '</div></div>';
+	html += '<div class="lms-summary-card"><div class="lms-summary-label">Tenure</div><div class="lms-summary-value">' + (a.repayment_periods || 0) + " mo</div></div>";
+	html += '<div class="lms-summary-card"><div class="lms-summary-label">Rate</div><div class="lms-summary-value">' + (a.rate_of_interest || 0) + "%</div></div>";
+	html += '<div class="lms-summary-card"><div class="lms-summary-label">Product</div><div class="lms-summary-value" style="font-size:.9rem;">' + lms_portal.escape(a.loan_product_name || a.loan_product || "\u2014") + '</div></div>';
+	html += '</div>';
+	html += '<div style="margin-top:.5rem;font-size:.85rem;color:var(--lms-text-muted);">';
+	html += "Officer: <strong>" + lms_portal.escape(a.officer_name || a.custom_loan_officer || "Unassigned") + "</strong>";
+	html += " &middot; Branch: " + lms_portal.escape(a.custom_lms_branch || "\u2014");
+	html += '</div>';
+	if (window.__lms_enforce_four_eyes) {
+		html += '<div class="lms-four-eyes-note" style="margin-top:.75rem;padding:.6rem .75rem;border-radius:8px;background:color-mix(in oklab, var(--lms-warning,#f59e0b) 12%, transparent);font-size:.8rem;">';
+		html += "<strong>4-eyes on:</strong> Approving this application records you as the approver. A different authorised user must disburse the loan.";
+		html += "</div>";
+	}
+	html += '</div>';
+	html += '</div>';
+
+	// RIGHT: KYC + risk
+	html += '<div>';
+	html += '<div class="lms-panel" style="padding:1rem;">';
+	html += '<h4 style="margin:0 0 .5rem 0;">KYC &amp; Compliance</h4>';
+	html += '<div style="display:flex;flex-direction:column;gap:.35rem;font-size:.85rem;">';
+	html += '<div>KYC: <span class="lms-badge lms-badge--' + kycTone + '">' + lms_portal.escape(k.status || "Pending") + '</span></div>';
+	html += '<div>AML: <span class="lms-badge lms-badge--' + amlTone + '">' + lms_portal.escape(k.aml_status || "Pending") + '</span></div>';
+	html += '<div>Consent: ' + (k.consent_given ? '<span class="lms-badge lms-badge--success">Signed</span>' : '<span class="lms-badge lms-badge--danger">Missing</span>') + '</div>';
+	if (k.credit_score != null) html += '<div>Credit score: <strong>' + k.credit_score + '</strong></div>';
+	html += '</div>';
+	html += '</div>';
+
+	html += '<div class="lms-panel" style="padding:1rem;margin-top:.75rem;">';
+	html += '<h4 style="margin:0 0 .5rem 0;">Risk signals</h4>';
+	html += '<div style="display:flex;flex-direction:column;gap:.35rem;font-size:.85rem;">';
+	html += '<div>Existing exposure: <strong>' + format_currency(r.existing_exposure || 0) + '</strong></div>';
+	html += '<div>Active loans: <strong>' + (r.active_loan_count || 0) + '</strong></div>';
+	html += '<div>Worst DPD: <span class="lms-badge lms-badge--' + riskTier + '">' + (r.worst_dpd || 0) + ' days</span></div>';
+	html += '</div>';
+	if (r.active_loans && r.active_loans.length) {
+		html += '<details style="margin-top:.5rem;"><summary style="cursor:pointer;font-size:.8rem;">View ' + r.active_loans.length + ' active loan(s)</summary>';
+		html += '<ul style="margin:.5rem 0 0 1rem;padding:0;font-size:.8rem;">';
+		(r.active_loans || []).forEach(function (l) {
+			html += "<li>" + lms_portal.escape(l.name) + " &middot; " + format_currency(l.loan_amount || 0) + " &middot; " + lms_portal.escape(l.status || "") + " &middot; DPD " + (l.custom_days_past_due || 0) + "</li>";
+		});
+		html += "</ul></details>";
+	}
+	html += '</div>';
+	html += '</div>';
+
+	html += '</div>';  // .lms-grid-2
+
+	// CHECKLIST (full width below)
+	html += '<div class="lms-panel" style="padding:1rem;margin-top:1rem;">';
+	html += '<h4 style="margin:0 0 .5rem 0;">Pre-approval checklist</h4>';
+	html += '<div style="display:flex;flex-direction:column;gap:.35rem;">';
+	checklist.forEach(function (item) {
+		var ok = !!item.ok;
+		var mark = ok
+			? '<span style="color:var(--lms-success);">\u2713</span>'
+			: '<span style="color:var(--lms-danger);">\u2717</span>';
+		html += '<div style="display:flex;align-items:center;gap:.5rem;font-size:.9rem;">';
+		html += '<span style="font-size:1.1rem;width:1.1rem;">' + mark + "</span>";
+		html += '<div style="flex:1;display:flex;justify-content:space-between;gap:1rem;">';
+		html += '<span style="font-weight:500;">' + lms_portal.escape(item.label) + "</span>";
+		html += '<span class="lms-muted">' + lms_portal.escape(item.message || "") + "</span>";
+		html += "</div></div>";
+	});
+	html += '</div></div>';
+
+	// R3 expert-board: single-modal approval flow. The note textarea lives
+	// INSIDE the View modal so the manager can record the audit-trail
+	// justification in-place, then click Approve — no stacked confirmation.
+	html += '<div class="lms-panel" style="padding:1rem;margin-top:1rem;">';
+	html += '<h4 style="margin:0 0 .5rem 0;">Approval note</h4>';
+	html += '<p class="lms-muted" style="margin:0 0 .5rem 0;font-size:.8rem;">Optional — logged in the LMS Audit Event and on the application comment.</p>';
+	html += '<textarea id="lms-approve-note" class="lms-input" rows="3" maxlength="500" placeholder="e.g. Strong repayment history; KYC renewed 2026-07-10."></textarea>';
+	html += '</div>';
+
+	return html;
+};
+
+lms_manager._approve = function (appName, borrowerName, loanAmount, opts) {
+	opts = opts || {};
+	var prefillNote = opts.note || "";
+	var origApprove = appName;
 	var borrower = borrowerName || "—";
 	var amountLabel = format_currency(loanAmount || 0);
 	lms_portal.modal({
@@ -245,28 +499,38 @@ lms_manager._approve = function (appName, borrowerName, loanAmount) {
 			'<div class="lms-summary-card lms-summary-card--primary"><div class="lms-summary-label">Borrower</div><div class="lms-summary-value">' + lms_portal.escape(borrower) + "</div></div>" +
 			'<div class="lms-summary-card lms-summary-card--primary"><div class="lms-summary-label">Amount</div><div class="lms-summary-value">' + amountLabel + "</div></div>" +
 			'<div class="lms-summary-card"><div class="lms-summary-label">Application #</div><div class="lms-summary-value">' + lms_portal.escape(appName || "") + "</div></div>" +
-			"</div>",
+			"</div>" +
+			'<div class="lms-form" style="margin-top:.75rem;">' +
+			'<div class="lms-field"><label>Approval note <span class="lms-muted">(optional)</span></label>' +
+			'<textarea id="lms-approve-note-standalone" class="lms-input" rows="3" maxlength="500" placeholder="Logged in the LMS Audit Event.">' + lms_portal.escape(prefillNote) + '</textarea>' +
+			"</div></div>",
 		confirmText: "Approve",
 		confirmVariant: "success",
-		onConfirm: function () {
+		onConfirm: function (overlay) {
+			var noteEl = overlay.querySelector("#lms-approve-note-standalone");
+			var note = noteEl ? noteEl.value.trim() : "";
+			var btns = overlay.querySelectorAll("button");
+			btns.forEach(function (b) { b.disabled = true; });
 			lms_portal.safeCall({
 				method: "lms_saas.api.manager.approve_application",
-				args: { application_name: appName },
+				args: { application_name: appName, note: note },
 				callback: function (r) {
 					var res = (r && r.message) || {};
+					lms_portal.closeModal(overlay);
 					if (res.status === "approved" && res.loan) {
 						lms_portal.toast("Approved \u2014 Loan " + res.loan + " created.", "success");
-						// Partial refresh — preserve the active tab and don't
-						// rebuild charts. Full init() yanks the user back to
-						// the dashboard and causes a visible chart flicker.
 						lms_manager._refreshDashboardData();
 					} else {
 						lms_portal.toast((res && res.message) || "Approval did not complete.", "danger");
 					}
 				},
 				error: function (err) {
+					btns.forEach(function (b) { b.disabled = false; });
 					var msg = (err && (err.message || err._server_message)) || "Approval failed.";
-					lms_portal.toast(msg, "danger");
+					var tmp = document.createElement("div");
+					tmp.innerHTML = msg;
+					msg = (tmp.textContent || tmp.innerText || msg).trim();
+					lms_portal.toast(msg, "danger", 8000);
 				},
 			});
 		},
@@ -274,27 +538,54 @@ lms_manager._approve = function (appName, borrowerName, loanAmount) {
 };
 
 lms_manager._reject = function (appName) {
+	// Round-1 expert-board fix: add a standard reason-code dropdown so
+	// rejection-reason reports are structured (not free-text soup), with
+	// a free-text field for the "Other" case. The reason code is logged
+	// as a separate field; the free text is the human note.
+	var reasonOptions = [
+		{ value: "kyc_failed", label: "KYC failed / incomplete" },
+		{ value: "aml_hit", label: "AML / sanctions hit" },
+		{ value: "insufficient_income", label: "Insufficient income" },
+		{ value: "exceeds_limit", label: "Exceeds credit limit" },
+		{ value: "poor_repayment_history", label: "Poor repayment history" },
+		{ value: "insufficient_collateral", label: "Insufficient collateral" },
+		{ value: "credit_policy_breach", label: "Credit policy breach" },
+		{ value: "duplicate_application", label: "Duplicate application" },
+		{ value: "other", label: "Other (specify below)" },
+	];
+	var optionsHtml = reasonOptions
+		.map(function (o) {
+			return '<option value="' + lms_portal.escape(o.value) + '">' + lms_portal.escape(o.label) + "</option>";
+		})
+		.join("");
+	var body =
+		'<div class="lms-form">' +
+		'<div class="lms-field"><label>Reason code <span class="lms-muted">(required)</span></label>' +
+		'<select id="lms-reject-code" class="lms-input">' + optionsHtml + "</select>" +
+		'<div class="lms-field__hint">Standard codes let us report on rejection reasons by category.</div></div>' +
+		'<div class="lms-field" style="margin-top:.75rem;"><label>Detailed reason <span class="lms-muted">(required)</span></label>' +
+		'<textarea id="lms-reject-reason" class="lms-input" rows="3" placeholder="e.g. KYC document expired; consent not signed" autocomplete="off" maxlength="500"></textarea>' +
+		'<div class="lms-field__hint">Logged on the application for the audit trail.</div></div>' +
+		"</div>";
 	lms_portal.modal({
 		title: "Reject Application",
-		body:
-			'<div class="lms-form">' +
-			'<div class="lms-field"><label>Reason <span class="lms-muted">(required)</span></label>' +
-			'<input type="text" id="lms-reject-reason" class="lms-input" placeholder="e.g. insufficient collateral" autocomplete="off">' +
-			'<div class="lms-field__hint">This reason will be logged on the application for the audit trail.</div></div>' +
-			'</div>',
+		body: body,
 		confirmText: "Reject",
 		confirmVariant: "danger",
+		size: "lg",
 		onConfirm: function (overlay) {
+			var codeSel = overlay.querySelector("#lms-reject-code");
 			var reasonInput = overlay.querySelector("#lms-reject-reason");
-			var reason = reasonInput ? reasonInput.value : "";
-			if (!reason.trim()) {
-				lms_portal.toast("Please provide a rejection reason.", "warning");
+			var reason = reasonInput ? reasonInput.value.trim() : "";
+			var code = codeSel ? codeSel.value : "";
+			if (!reason) {
+				lms_portal.toast("Please provide a detailed rejection reason.", "warning");
 				if (reasonInput) reasonInput.focus();
-				return false; // keep modal open
+				return false;
 			}
 			lms_portal.safeCall({
 				method: "lms_saas.api.manager.reject_application",
-				args: { application_name: appName, reason: reason },
+				args: { application_name: appName, reason: reason, reason_code: code },
 				callback: function (r) {
 					var res = (r && r.message) || {};
 					if (res.status === "rejected") {
@@ -306,7 +597,10 @@ lms_manager._reject = function (appName) {
 				},
 				error: function (err) {
 					var msg = (err && (err.message || err._server_message)) || "Rejection failed.";
-					lms_portal.toast(msg, "danger");
+					var tmp = document.createElement("div");
+					tmp.innerHTML = msg;
+					msg = (tmp.textContent || tmp.innerText || msg).trim();
+					lms_portal.toast(msg, "danger", 8000);
 				},
 			});
 		},
@@ -467,6 +761,16 @@ lms_manager._showBorrowerModal = function (b) {
 	html += '<div class="lms-summary-card"><div class="lms-summary-label">Credit Score</div><div class="lms-summary-value">' + lms_portal.escape(String((b.compliance || {}).credit_score || "—")) + '</div></div>';
 	html += '</div>';
 
+	// Action buttons.
+	html += '<div class="lms-data-table__actions" style="margin-bottom:1rem;gap:.5rem;">';
+	html += '<button type="button" class="lms-btn lms-btn--ghost lms-btn--sm" id="lms-borrower-edit">Edit Details</button>';
+	if (b.disabled) {
+		html += '<button type="button" class="lms-btn lms-btn--success lms-btn--sm" id="lms-borrower-toggle">Enable</button>';
+	} else {
+		html += '<button type="button" class="lms-btn lms-btn--danger lms-btn--sm" id="lms-borrower-toggle">Disable</button>';
+	}
+	html += '</div>';
+
 	if (b.loans && b.loans.length) {
 		html += '<h4>Loans (' + b.loans.length + ')</h4>';
 		html += '<div class="lms-data-table__wrap"><table class="lms-data-table"><thead><tr><th>Loan</th><th>Amount</th><th>Outstanding</th><th>Status</th><th>DPD</th></tr></thead><tbody>';
@@ -499,6 +803,113 @@ lms_manager._showBorrowerModal = function (b) {
 		confirmText: "Close",
 		confirmVariant: "primary",
 		onConfirm: function () {},
+		onShown: function (overlay) {
+			// Wire up Edit button.
+			var editBtn = overlay.querySelector("#lms-borrower-edit");
+			if (editBtn) {
+				editBtn.addEventListener("click", function () {
+					lms_manager._showEditBorrowerModal(b, overlay);
+				});
+			}
+			// Wire up Disable/Enable toggle.
+			var toggleBtn = overlay.querySelector("#lms-borrower-toggle");
+			if (toggleBtn) {
+				toggleBtn.addEventListener("click", function () {
+					var newDisabled = b.disabled ? 0 : 1;
+					var action = b.disabled ? "Enable" : "Disable";
+					lms_portal.safeCall({
+						method: "lms_saas.api.manager.update_borrower",
+						args: { customer_name: b.name, disabled: newDisabled },
+						callback: function (r) {
+							var res = (r && r.message) || {};
+							if (res.status === "updated") {
+								lms_portal.toast("Borrower " + action.toLowerCase() + "d.", "success");
+								b.disabled = newDisabled;
+								// Update the button label.
+								if (newDisabled) {
+									toggleBtn.textContent = "Enable";
+									toggleBtn.classList.remove("lms-btn--danger");
+									toggleBtn.classList.add("lms-btn--success");
+								} else {
+									toggleBtn.textContent = "Disable";
+									toggleBtn.classList.remove("lms-btn--success");
+									toggleBtn.classList.add("lms-btn--danger");
+								}
+							} else {
+								lms_portal.toast("Could not update borrower.", "danger");
+							}
+						},
+						error: function (err) {
+							var msg = (err && (err.message || err._server_message)) || "Update failed.";
+							var tmp = document.createElement("div");
+							tmp.innerHTML = msg;
+							lms_portal.toast((tmp.textContent || tmp.innerText || msg).trim(), "danger", 8000);
+						},
+					});
+				});
+			}
+		},
+	});
+};
+
+lms_manager._showEditBorrowerModal = function (b, parentOverlay) {
+	var body =
+		'<div class="lms-form">' +
+		'<div class="lms-field"><label>Customer name</label>' +
+		'<input type="text" id="lms-edit-customer-name" class="lms-input" value="' + lms_portal.escape(b.customer_name || "") + '">' +
+		"</div>" +
+		'<div class="lms-field" style="margin-top:.75rem;"><label>Email</label>' +
+		'<input type="email" id="lms-edit-email" class="lms-input" value="' + lms_portal.escape(b.email_id || "") + '">' +
+		"</div>" +
+		'<div class="lms-field" style="margin-top:.75rem;"><label>Mobile</label>' +
+		'<input type="text" id="lms-edit-mobile" class="lms-input" value="' + lms_portal.escape(b.mobile_no || "") + '">' +
+		"</div>" +
+		'<div class="lms-field" style="margin-top:.75rem;"><label>National ID</label>' +
+		'<input type="text" id="lms-edit-national-id" class="lms-input" value="' + lms_portal.escape(b.custom_national_id_number || "") + '">' +
+		"</div>" +
+		"</div>";
+	lms_portal.modal({
+		title: "Edit Borrower — " + (b.customer_name || ""),
+		body: body,
+		confirmText: "Save",
+		confirmVariant: "primary",
+		onConfirm: function (overlay) {
+			var nameEl = overlay.querySelector("#lms-edit-customer-name");
+			var emailEl = overlay.querySelector("#lms-edit-email");
+			var mobileEl = overlay.querySelector("#lms-edit-mobile");
+			var idEl = overlay.querySelector("#lms-edit-national-id");
+			var btns = overlay.querySelectorAll("button");
+			btns.forEach(function (b) { b.disabled = true; });
+			lms_portal.safeCall({
+				method: "lms_saas.api.manager.update_borrower",
+				args: {
+					customer_name: b.name,
+					customer_name_new: nameEl ? nameEl.value : "",
+					email_id: emailEl ? emailEl.value : "",
+					mobile_no: mobileEl ? mobileEl.value : "",
+					national_id: idEl ? idEl.value : "",
+				},
+				callback: function (r) {
+					var res = (r && r.message) || {};
+					lms_portal.closeModal(overlay);
+					if (res.status === "updated") {
+						lms_portal.toast("Borrower details updated.", "success");
+						// Refresh the borrowers tab to reflect changes.
+						var content = document.getElementById("lms-manager-tab-content");
+						if (content) lms_manager._loadBorrowers(content);
+					} else {
+						lms_portal.toast("Update failed.", "danger");
+					}
+				},
+				error: function (err) {
+					btns.forEach(function (b) { b.disabled = false; });
+					var msg = (err && (err.message || err._server_message)) || "Update failed.";
+					var tmp = document.createElement("div");
+					tmp.innerHTML = msg;
+					lms_portal.toast((tmp.textContent || tmp.innerText || msg).trim(), "danger", 8000);
+				},
+			});
+		},
 	});
 };
 
@@ -642,6 +1053,20 @@ lms_manager._showLoanModal = function (data) {
 	html += '<div class="lms-summary-card"><div class="lms-summary-label">Status</div><div class="lms-summary-value">' + lms_portal.escape(l.status || "") + '</div></div>';
 	html += '<div class="lms-summary-card"><div class="lms-summary-label">Rate</div><div class="lms-summary-value">' + (l.rate_of_interest || 0) + '%</div></div>';
 	html += '<div class="lms-summary-card"><div class="lms-summary-label">DPD</div><div class="lms-summary-value">' + (l.dpd || 0) + '</div></div>';
+	html += '<div class="lms-summary-card"><div class="lms-summary-label">Officer</div><div class="lms-summary-value" id="lms-loan-officer-name">' + lms_portal.escape(l.custom_loan_officer || l.officer_name || "—") + '</div></div>';
+	html += '</div>';
+
+	// Action buttons — context-aware based on loan status.
+	var canDisburse = (l.status === "Sanctioned" || l.status === "Draft" || (l.docstatus === 1 && l.status === "Sanctioned"));
+	var canWriteOff = (l.status === "Disbursed" || l.status === "Active" || l.status === "Partially Disbursed");
+	html += '<div class="lms-data-table__actions" style="margin-bottom:1rem;gap:.5rem;">';
+	html += '<button type="button" class="lms-btn lms-btn--ghost lms-btn--sm" id="lms-loan-assign-officer">Assign Officer</button>';
+	if (canDisburse) {
+		html += '<button type="button" class="lms-btn lms-btn--success lms-btn--sm" id="lms-loan-disburse">Disburse</button>';
+	}
+	if (canWriteOff) {
+		html += '<button type="button" class="lms-btn lms-btn--danger lms-btn--sm" id="lms-loan-writeoff">Write Off</button>';
+	}
 	html += '</div>';
 
 	if (data.schedule && data.schedule.length) {
@@ -688,6 +1113,203 @@ lms_manager._showLoanModal = function (data) {
 		confirmText: "Close",
 		confirmVariant: "primary",
 		onConfirm: function () {},
+		onShown: function (overlay) {
+			// Wire up the Assign Officer button.
+			var assignBtn = overlay.querySelector("#lms-loan-assign-officer");
+			if (assignBtn) {
+				assignBtn.addEventListener("click", function () {
+					lms_manager._showAssignOfficerModal(l.name, overlay);
+				});
+			}
+			// Wire up the Disburse button.
+			var disburseBtn = overlay.querySelector("#lms-loan-disburse");
+			if (disburseBtn) {
+				disburseBtn.addEventListener("click", function () {
+					lms_manager._showDisburseModal(l.name, l.loan_amount, overlay);
+				});
+			}
+			// Wire up the Write Off button.
+			var writeoffBtn = overlay.querySelector("#lms-loan-writeoff");
+			if (writeoffBtn) {
+				writeoffBtn.addEventListener("click", function () {
+					lms_manager._showWriteOffModal(l.name, l.outstanding, overlay);
+				});
+			}
+		},
+	});
+};
+
+// ---------------------------------------------------------------------------
+// Loan action modals (assign officer, disburse, write off)
+// ---------------------------------------------------------------------------
+
+lms_manager._showAssignOfficerModal = function (loanName, parentOverlay) {
+	// Fetch the list of available officers in the branch.
+	lms_portal.safeCall({
+		method: "lms_saas.api.manager.get_branch_officers",
+		callback: function (r) {
+			var officers = (r && r.message && r.message.officers) || [];
+			var options = officers.map(function (o) {
+				return '<option value="' + lms_portal.escape(o.name) + '">' +
+					lms_portal.escape(o.employee_name) +
+					" (" + (o.loan_count || 0) + " loans)" +
+					"</option>";
+			}).join("");
+			if (!options) {
+				lms_portal.toast("No active loan officers found in your branch.", "warning");
+				return;
+			}
+			var body =
+				'<div class="lms-form">' +
+				'<div class="lms-field"><label>Assign to officer</label>' +
+				'<select id="lms-assign-officer-select" class="lms-input">' + options + "</select>" +
+				'<div class="lms-field__hint">Only active officers in your branch are listed.</div></div>' +
+				"</div>";
+			lms_portal.modal({
+				title: "Assign Loan Officer — " + loanName,
+				body: body,
+				confirmText: "Assign",
+				confirmVariant: "primary",
+				onConfirm: function (overlay) {
+					var sel = overlay.querySelector("#lms-assign-officer-select");
+					var officer = sel ? sel.value : "";
+					if (!officer) {
+						lms_portal.toast("Please select an officer.", "warning");
+						return false;
+					}
+					var btns = overlay.querySelectorAll("button");
+					btns.forEach(function (b) { b.disabled = true; });
+					lms_portal.safeCall({
+						method: "lms_saas.api.manager.assign_loan_officer",
+						args: { loan_name: loanName, officer_employee: officer },
+						callback: function (r) {
+							var res = (r && r.message) || {};
+							lms_portal.closeModal(overlay);
+							if (res.status === "reassigned") {
+								lms_portal.toast(res.message || "Officer assigned.", "success");
+								// Update the officer name in the parent modal.
+								var officerEl = parentOverlay.querySelector("#lms-loan-officer-name");
+								if (officerEl) officerEl.textContent = res.new_officer || "—";
+							} else {
+								lms_portal.toast(res.message || "Assignment failed.", "danger");
+							}
+						},
+						error: function (err) {
+							btns.forEach(function (b) { b.disabled = false; });
+							var msg = (err && (err.message || err._server_message)) || "Assignment failed.";
+							var tmp = document.createElement("div");
+							tmp.innerHTML = msg;
+							lms_portal.toast((tmp.textContent || tmp.innerText || msg).trim(), "danger", 8000);
+						},
+					});
+				},
+			});
+		},
+		error: function () {
+			lms_portal.toast("Could not load officers list.", "danger");
+		},
+	});
+};
+
+lms_manager._showDisburseModal = function (loanName, loanAmount, parentOverlay) {
+	var body =
+		'<div class="lms-form">' +
+		'<p class="lms-muted">Disburse this loan. A Loan Disbursement will be created and submitted.</p>' +
+		'<div class="lms-summary" style="margin:1rem 0;">' +
+		'<div class="lms-summary-card lms-summary-card--primary"><div class="lms-summary-label">Loan Amount</div><div class="lms-summary-value">' + format_currency(loanAmount || 0) + '</div></div>' +
+		"</div>" +
+		'<div class="lms-field"><label>Disbursement amount <span class="lms-muted">(leave blank for full amount)</span></label>' +
+		'<input type="number" id="lms-disburse-amount" class="lms-input" placeholder="' + (loanAmount || 0) + '" step="0.01" min="0" max="' + (loanAmount || 0) + '">' +
+		'<div class="lms-field__hint">Partial disbursements must not exceed the sanctioned amount.</div></div>' +
+		"</div>";
+	lms_portal.modal({
+		title: "Disburse Loan — " + loanName,
+		body: body,
+		confirmText: "Disburse",
+		confirmVariant: "success",
+		onConfirm: function (overlay) {
+			var amtInput = overlay.querySelector("#lms-disburse-amount");
+			var amt = amtInput ? parseFloat(amtInput.value) : null;
+			var btns = overlay.querySelectorAll("button");
+			btns.forEach(function (b) { b.disabled = true; });
+			lms_portal.safeCall({
+				method: "lms_saas.api.manager.disburse_loan",
+				args: { loan_name: loanName, disbursed_amount: amt || "" },
+				callback: function (r) {
+					var res = (r && r.message) || {};
+					lms_portal.closeModal(overlay);
+					if (res.status === "disbursed") {
+						lms_portal.toast(res.message || "Loan disbursed.", "success");
+						lms_manager._refreshDashboardData();
+					} else {
+						lms_portal.toast(res.message || "Disbursement failed.", "danger");
+					}
+				},
+				error: function (err) {
+					btns.forEach(function (b) { b.disabled = false; });
+					var msg = (err && (err.message || err._server_message)) || "Disbursement failed.";
+					var tmp = document.createElement("div");
+					tmp.innerHTML = msg;
+					lms_portal.toast((tmp.textContent || tmp.innerText || msg).trim(), "danger", 8000);
+				},
+			});
+		},
+	});
+};
+
+lms_manager._showWriteOffModal = function (loanName, outstanding, parentOverlay) {
+	var body =
+		'<div class="lms-form">' +
+		'<p class="lms-muted" style="color:var(--lms-danger);">Write off this loan. This action is irreversible and audited.</p>' +
+		'<div class="lms-summary" style="margin:1rem 0;">' +
+		'<div class="lms-summary-card lms-summary-card--primary"><div class="lms-summary-label">Outstanding</div><div class="lms-summary-value">' + format_currency(outstanding || 0) + '</div></div>' +
+		"</div>" +
+		'<div class="lms-field"><label>Write-off amount <span class="lms-muted">(leave blank for full outstanding)</span></label>' +
+		'<input type="number" id="lms-writeoff-amount" class="lms-input" placeholder="' + (outstanding || 0) + '" step="0.01" min="0">' +
+		"</div>" +
+		'<div class="lms-field" style="margin-top:.75rem;"><label>Reason <span class="lms-muted">(required for audit trail)</span></label>' +
+		'<textarea id="lms-writeoff-reason" class="lms-input" rows="3" maxlength="500" placeholder="e.g. Borrower deceased, no recovery possible; NPA provisioned per IFRS9."></textarea>' +
+		"</div>" +
+		"</div>";
+	lms_portal.modal({
+		title: "Write Off Loan — " + loanName,
+		body: body,
+		confirmText: "Write Off",
+		confirmVariant: "danger",
+		onConfirm: function (overlay) {
+			var amtInput = overlay.querySelector("#lms-writeoff-amount");
+			var reasonInput = overlay.querySelector("#lms-writeoff-reason");
+			var amt = amtInput ? parseFloat(amtInput.value) : null;
+			var reason = reasonInput ? reasonInput.value.trim() : "";
+			if (!reason) {
+				lms_portal.toast("Write-off reason is required.", "warning");
+				if (reasonInput) reasonInput.focus();
+				return false;
+			}
+			var btns = overlay.querySelectorAll("button");
+			btns.forEach(function (b) { b.disabled = true; });
+			lms_portal.safeCall({
+				method: "lms_saas.api.manager.write_off_loan",
+				args: { loan_name: loanName, write_off_amount: amt || "", reason: reason },
+				callback: function (r) {
+					var res = (r && r.message) || {};
+					lms_portal.closeModal(overlay);
+					if (res.status === "written_off") {
+						lms_portal.toast(res.message || "Loan written off.", "warning");
+						lms_manager._refreshDashboardData();
+					} else {
+						lms_portal.toast(res.message || "Write-off failed.", "danger");
+					}
+				},
+				error: function (err) {
+					btns.forEach(function (b) { b.disabled = false; });
+					var msg = (err && (err.message || err._server_message)) || "Write-off failed.";
+					var tmp = document.createElement("div");
+					tmp.innerHTML = msg;
+					lms_portal.toast((tmp.textContent || tmp.innerText || msg).trim(), "danger", 8000);
+				},
+			});
+		},
 	});
 };
 
@@ -972,18 +1594,37 @@ lms_manager._renderTeam = function (el, staff) {
 	}
 
 	var body = '<div class="lms-data-table__wrap"><table class="lms-data-table">' +
-		"<thead><tr><th>Name</th><th>Designation</th><th>Persona</th><th>Loans</th><th>User</th></tr></thead><tbody>";
+		"<thead><tr><th>Name</th><th>Designation</th><th>Persona</th><th>Loans</th><th>PAR 30+</th><th>PAR Ratio</th><th>User</th><th>Actions</th></tr></thead><tbody>";
 	staff.forEach(function (s) {
 		body += "<tr>";
 		body += "<td><strong>" + lms_portal.escape(s.employee_name || s.name) + "</strong></td>";
 		body += "<td>" + lms_portal.escape(s.designation || "—") + "</td>";
 		body += '<td><span class="lms-badge">' + lms_portal.escape(s.persona || "—") + "</span></td>";
 		body += "<td>" + (s.loan_count || 0) + "</td>";
+		// PAR count with tone badge.
+		var parCount = s.par_count || 0;
+		var parTone = parCount > 0 ? "lms-badge--warning" : "lms-badge--success";
+		body += '<td><span class="lms-badge ' + parTone + '">' + parCount + "</span></td>";
+		// PAR ratio as percentage.
+		var parRatio = s.par_ratio || 0;
+		var ratioTone = parRatio > 0.15 ? "lms-text--danger" : (parRatio > 0.05 ? "lms-text--warning" : "");
+		body += '<td><span class="' + ratioTone + '">' + (parRatio * 100).toFixed(1) + "%</span></td>";
 		body += "<td>" + lms_portal.escape(s.user_id || "—") + "</td>";
+		body += '<td><button type="button" class="lms-btn lms-btn--ghost lms-btn--sm lms-staff-view-loans" data-officer="' + lms_portal.escape(s.name) + '">View Loans</button></td>';
 		body += "</tr>";
 	});
 	body += "</tbody></table></div>";
 	html += lms_portal.panel({ title: "Branch Team", badge: staff.length + " members", body: body });
 	html += lms_portal.pageEnd();
 	el.innerHTML = html;
+
+	// Wire up "View Loans" buttons — filter the Loans tab by this officer.
+	el.querySelectorAll(".lms-staff-view-loans").forEach(function (btn) {
+		btn.addEventListener("click", function () {
+			// Switch to Loans tab and filter by officer.
+			lms_manager._currentTab = "loans";
+			lms_manager._showTab("loans");
+			// TODO: add officer filter to the loans tab.
+		});
+	});
 };

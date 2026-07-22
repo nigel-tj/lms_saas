@@ -44,7 +44,10 @@ def get_email_brand_context() -> dict:
 	legal = frappe.conf.get("lms_email_legal_footer") or _(
 		"Sandbox notice: loan terms and risk disclosures apply. Do not reply with passwords or card numbers."
 	)
-	footer = brand.get("footer_text") or _("Powered by Kesari")
+	footer = brand.get("footer_text")
+	if footer is None:
+		footer = _("Powered by {0}").format(brand.get("portal_title") or "LMS")
+	# Explicit empty string = hide footer line in templates that check truthiness.
 	support = brand.get("support_email") or ""
 	try:
 		support = support or frappe.db.get_single_value("Website Settings", "support_email") or ""

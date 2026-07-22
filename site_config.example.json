@@ -14,5 +14,10 @@
   "lms_digest_enabled": false,
   "lms_weekly_kpi_enabled": true,
   "lms_compliance_report_recipients": "ops@example.com",
-  "lms_risk_disclosure": "Loans involve credit risk. Terms and fees apply."
+  "lms_risk_disclosure": "Loans involve credit risk. Terms and fees apply.",
+  "lms_brand_portal_title": "Kesari",
+  "lms_brand_footer_text": "Powered by Kesari",
+  "_comment_footer": "Set lms_brand_footer_text to \"\" to hide the portal footer. Omit it to default to Powered by {lms_brand_portal_title}.",
+  "lms_portal_idle_minutes": 30,
+  "_comment_idle": "Portal idle auto-logout (minutes). Warning appears ~2 minutes before. Set 0 to disable."
 }

@@ -4,7 +4,7 @@
 
 {% block sidebar %}
 <aside class="lms-sidebar" id="lms-sidebar" aria-label="Portal navigation">
-  <div class="lms-sidebar__brand">
+  <a class="lms-sidebar__brand" href="{{ lms_home_route or '/lms' }}" aria-label="Home">
     {% if brand and brand.logo_url %}
     <div class="lms-sidebar__logo"><img src="{{ brand.logo_url }}" alt="{{ brand.portal_title if brand else 'Kesari' }}"></div>
     {% else %}
@@ -16,9 +16,14 @@
       <span class="lms-sidebar__role">{{ lms_persona }}</span>
       {% endif %}
     </div>
-  </div>
+  </a>
 
-  <nav class="lms-sidebar__nav">
+  <div class="lms-sidebar__search-wrap">
+    <label class="sr-only" for="lms-nav-search">{{ _("Search navigation") }}</label>
+    <input type="search" id="lms-nav-search" class="lms-sidebar__search" placeholder="{{ _('Search…') }}" autocomplete="off">
+  </div>
+  <div class="lms-sidebar__recents" id="lms-nav-recents" hidden></div>
+  <nav class="lms-sidebar__nav" id="lms-sidebar-nav" aria-label="{{ _('Portal') }}">
     {% set ns = namespace(prev_group=None) %}
     {% for item in lms_nav %}
     {% if item.group and item.group != ns.prev_group %}
@@ -95,6 +100,10 @@
   </nav>
 
   <div class="lms-sidebar__footer">
+    <a href="/lms-help" class="lms-sidebar__item" data-key="help">
+      <span class="lms-sidebar__icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>
+      <span class="lms-sidebar__label">{{ _("Help") }}</span>
+    </a>
     {% if show_staff_desk %}
     <a href="{{ lms_desk_home }}" class="lms-sidebar__item">
       <span class="lms-sidebar__icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></span>
@@ -132,14 +141,33 @@
       </svg>
     </button>
     <div class="lms-topbar__title">
+      {% if lms_breadcrumbs and lms_breadcrumbs|length %}
+      <nav class="lms-breadcrumbs" aria-label="Breadcrumb">
+        <ol class="lms-breadcrumbs__list">
+          {% for crumb in lms_breadcrumbs %}
+          <li class="lms-breadcrumbs__item{% if loop.last %} is-current{% endif %}">
+            {% if not loop.first %}<span class="lms-breadcrumbs__sep" aria-hidden="true">/</span>{% endif %}
+            {% if crumb.route and not loop.last %}
+            <a href="{{ crumb.route }}">{{ crumb.label }}</a>
+            {% else %}
+            <span{% if loop.last %} aria-current="page"{% endif %}>{{ crumb.label }}</span>
+            {% endif %}
+          </li>
+          {% endfor %}
+        </ol>
+      </nav>
+      {% endif %}
       <h1>{{ lms_page_title }}</h1>
-      {% if lms_risk_disclosure %}
+      {% if lms_show_risk_disclosure and lms_risk_disclosure %}
       <span class="lms-topbar__disclosure">{{ lms_risk_disclosure }}</span>
       {% endif %}
     </div>
   </div>
 
   <div class="lms-topbar__right">
+    {% if lms_enforce_four_eyes %}
+    <button type="button" class="lms-four-eyes-badge" id="lms-four-eyes-badge" title="Maker-checker is enforced on disbursements and write-offs" aria-haspopup="dialog">4-eyes on</button>
+    {% endif %}
     <button type="button" class="lms-topbar__icon-btn" id="lms-notification-bell" aria-label="Notifications" title="Notifications">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>

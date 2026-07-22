@@ -59,11 +59,18 @@ def _branch_cost_center():
     return branch  # Fall back to branch as the filter value
 
 
-def _has_table(name: str) -> bool:
-    """True if a Frappe table exists. ERPNext procurement doctypes are not
-    installed on every site; fall back to empty responses instead of 500ing."""
+def _has_table(doctype: str) -> bool:
+    """True if a Frappe table exists for the DocType.
+
+    ``frappe.db.table_exists`` expects the DocType name (it prefixes ``tab``
+    itself). Passing ``tabMaterial Request`` incorrectly looks for
+    ``tabtabMaterial Request`` and always returns False.
+    """
     try:
-        return bool(frappe.db.table_exists(name))
+        name = (doctype or "").strip()
+        if name.startswith("tab"):
+            name = name[3:]
+        return bool(name and frappe.db.table_exists(name))
     except Exception:
         return False
 
@@ -73,8 +80,9 @@ def _missing_doctype_response(doctype: str) -> dict:
         "_missing": True,
         "_missing_doctype": doctype,
         "message": _(
-            "The {0} DocType is not installed on this site. "
-            "Install the ERPNext Buying module to enable Procurement."
+            "The {0} module is not ready on this site "
+            "(DocType missing or database tables not created). "
+            "Ask a System Manager to enable ERPNext Buying and run a standard bench migrate."
         ).format(doctype),
         "requests": [],
         "orders": [],
@@ -97,7 +105,7 @@ def get_purchase_requests(limit=100):
     """List Material Requests for the branch."""
     _require_procurement()
 
-    if not _has_table("tabMaterial Request"):
+    if not _has_table("Material Request"):
         return _missing_doctype_response("Material Request")
 
     filters = {}
@@ -109,14 +117,23 @@ def get_purchase_requests(limit=100):
                 filters[field] = cost_center
                 break
 
-    requests = frappe.get_all(
-        "Material Request",
-        filters=filters,
-        fields=["name", "material_request_type", "status", "transaction_date",
-                "company", "per_ordered", "total_req_qty"],
-        order_by="transaction_date desc",
-        limit_page_length=int(limit),
-    )
+    meta = frappe.get_meta("Material Request")
+    wanted = ["name", "status", "transaction_date", "company"]
+    for field in ("material_request_type", "per_ordered", "total_req_qty", "schedule_date"):
+        if meta.has_field(field):
+            wanted.append(field)
+
+    try:
+        requests = frappe.get_all(
+            "Material Request",
+            filters=filters,
+            fields=wanted,
+            order_by="transaction_date desc",
+            limit_page_length=int(limit),
+        )
+    except Exception:
+        frappe.log_error(title="LMS procurement requests query failed", message=frappe.get_traceback())
+        return _missing_doctype_response("Material Request")
     return {"requests": requests}
 
 
@@ -129,7 +146,7 @@ def get_purchase_orders(limit=100):
     """List Purchase Orders for the branch."""
     _require_procurement()
 
-    if not _has_table("tabPurchase Order"):
+    if not _has_table("Purchase Order"):
         return _missing_doctype_response("Purchase Order")
 
     filters = {"docstatus": ["!=", 2]}
@@ -162,7 +179,7 @@ def get_suppliers(limit=200):
     """Return approved suppliers list."""
     _require_procurement()
 
-    if not _has_table("tabSupplier"):
+    if not _has_table("Supplier"):
         return _missing_doctype_response("Supplier")
 
     suppliers = frappe.get_all(
@@ -235,7 +252,7 @@ def get_procurement_stats():
     """Spending by category and month for the branch."""
     _require_procurement()
 
-    if not _has_table("tabPurchase Order"):
+    if not _has_table("Purchase Order"):
         return _missing_doctype_response("Purchase Order")
 
     cost_center = _branch_cost_center()

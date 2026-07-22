@@ -12,12 +12,13 @@ lms_training.init = function () {
 	if (!root) return;
 
 	var tabs = [
-		{ id: "programs", label: "Programs", icon: "📚" },
-		{ id: "events", label: "Events", icon: "📅" },
-		{ id: "mine", label: "My Training", icon: "🎓" },
+		{ id: "programs", label: "Programs", icon: "book-open" },
+		{ id: "events", label: "Events", icon: "calendar" },
+		{ id: "mine", label: "My Training", icon: "graduation-cap" },
 	];
+	var home = window.__lms_home_route || "/lms";
 	var html = lms_portal.pageStart() +
-		lms_portal.pageHeader({ title: "Training" }) +
+		lms_portal.backLink({ href: home, label: "Back" }) +
 		lms_portal.tabNav(tabs, lms_training._currentTab) +
 		'<div id="lms-training-tab-content"></div>' +
 		lms_portal.pageEnd();
@@ -48,12 +49,18 @@ lms_training._loadPrograms = function (content) {
 		callback: function (r) {
 			var msg = r && r.message;
 			if (msg && msg._missing) {
-				content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("📚") + '<h3>Training is unavailable</h3><p>' + lms_portal.escape(msg.message || "") + '</p></div></div>';
+				content.innerHTML = lms_portal.moduleUnavailable({
+					icon: "book-open",
+					title: "Training module not ready",
+					message: msg.message || "Training Program tables are not available on this site.",
+					hint: "Install/sync HRMS Training doctypes with a standard bench migrate, then refresh. This page never hangs on Loading.",
+					ctaLabel: "Back to dashboard",
+				});
 				return;
 			}
 			var programs = (msg && msg.programs) || [];
 			if (!programs.length) {
-				content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("📚") + '<h3>No programs</h3><p>No training programs available.</p></div></div>';
+				content.innerHTML = lms_portal.emptyPanel("book-open", "No programs yet", "No training programs are published for your organisation. Ask HR to create a Training Program in Desk.");
 				return;
 			}
 			var html = '<div class="lms-panel"><div class="lms-data-table__wrap"><table class="lms-data-table">';
@@ -83,12 +90,18 @@ lms_training._loadEvents = function (content) {
 		callback: function (r) {
 			var msg = r && r.message;
 			if (msg && msg._missing) {
-				content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("📅") + '<h3>Training is unavailable</h3><p>' + lms_portal.escape(msg.message || "") + '</p></div></div>';
+				content.innerHTML = lms_portal.moduleUnavailable({
+					icon: "calendar",
+					title: "Training module not ready",
+					message: msg.message || "Training Event tables are not available on this site.",
+					hint: "Install/sync HRMS Training doctypes with a standard bench migrate, then refresh.",
+					ctaLabel: "Back to dashboard",
+				});
 				return;
 			}
 			var events = (msg && msg.events) || [];
 			if (!events.length) {
-				content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("📅") + '<h3>No events</h3><p>No upcoming training events.</p></div></div>';
+				content.innerHTML = lms_portal.emptyPanel("calendar", "No upcoming events", "When HR schedules a Training Event, it will appear here for registration.");
 				return;
 			}
 			var html = '<div class="lms-panel"><div class="lms-data-table__wrap"><table class="lms-data-table">';
@@ -146,7 +159,12 @@ lms_training._loadMine = function (content) {
 		callback: function (r) {
 			var msg = r && r.message;
 			if (msg && msg._missing) {
-				content.innerHTML = lms_portal.emptyPanel("🎓", "Training is unavailable", msg.message || "");
+				content.innerHTML = lms_portal.moduleUnavailable({
+					icon: "graduation-cap",
+					title: "Training module not ready",
+					message: msg.message || "Training Result tables are not available on this site.",
+					ctaLabel: "Back to dashboard",
+				});
 				return;
 			}
 			var results = (msg && msg.results) || [];
@@ -155,7 +173,7 @@ lms_training._loadMine = function (content) {
 			]);
 
 			if (!results.length) {
-				html += lms_portal.emptyPanel("🎓", "No results", "You have no training results yet.");
+				html += lms_portal.emptyPanel("graduation-cap", "No results yet", "Complete a registered training event and your results will show here.");
 				content.innerHTML = html;
 				return;
 			}

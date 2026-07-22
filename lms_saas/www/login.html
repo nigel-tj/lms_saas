@@ -98,7 +98,7 @@
 				{% endif %}
 				<h1 class="lms-login-lockup__wordmark">{{ brand.portal_title if brand else app_name or "Kesari" }}</h1>
 			</div>
-			<p class="lms-login-brand__tagline">{{ brand.tagline if brand else _("Stewardship in every repayment") }}</p>
+			<p class="lms-login-brand__tagline">{{ _(brand.tagline) if brand and brand.tagline else _("Stewardship in every repayment") }}</p>
 
 			<ul class="lms-login-brand__features">
 				{% for feature in (lms_login.features if lms_login else []) %}
@@ -280,7 +280,9 @@
 		</div>
 
 		<footer class="lms-login-footer">
-			{{ brand.footer_text if brand else _("Powered by Kesari") }}
+			{% set _login_footer = brand.footer_text if brand else none %}
+			{% if _login_footer is none %}{% set _login_footer = _("Powered by {0}").format((brand.portal_title if brand else none) or "LMS") %}{% endif %}
+			{{ _login_footer }}
 			{% if brand and brand.support_email %}
 			· <a href="mailto:{{ brand.support_email }}">{{ _("Support") }}</a>
 			{% endif %}

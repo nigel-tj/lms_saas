@@ -104,7 +104,8 @@ ADDON_REGISTRY: dict[str, dict] = {
         "icon": "shield",
         "route": "/lms/regulatory",
         "nav_group": "Admin",
-        "personas": ["Admin"],
+        # Branch Managers get a read-only branch summary; generate/save stay admin-only in API.
+        "personas": ["Admin", "Branch Manager"],
         "description": _("Centralised regulatory reporting with deadline calendar and archive."),
         "new_doctypes": ["LMS Regulatory Submission"],
     },

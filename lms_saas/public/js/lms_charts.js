@@ -51,6 +51,24 @@ if (typeof frappe !== "undefined" && typeof frappe.provide === "function") {
 					borderWidth: 1,
 					padding: 10,
 					cornerRadius: 8,
+					callbacks: {
+						label: function (ctx) {
+							var label = (ctx.dataset && ctx.dataset.label) || ctx.label || "";
+							var val = ctx.parsed;
+							if (val && typeof val === "object") {
+								val = val.y != null ? val.y : val.x;
+							}
+							var formatted = val;
+							try {
+								if (window.lms_portal && lms_portal.formatCurrency) {
+									formatted = lms_portal.formatCurrency(val);
+								} else if (typeof Intl !== "undefined") {
+									formatted = new Intl.NumberFormat(window.__lms_lang || undefined).format(val || 0);
+								}
+							} catch (e) { /* ignore */ }
+							return label ? (label + ": " + formatted) : String(formatted);
+						},
+					},
 				},
 			},
 		};
@@ -67,16 +85,47 @@ if (typeof frappe !== "undefined" && typeof frappe.provide === "function") {
 		return out;
 	};
 
+	/** Attach ARIA + a visually-hidden data summary next to a canvas (B-34). */
+	lms_charts._a11y = function (el, title, data) {
+		if (!el) return;
+		var summary = (data || [])
+			.map(function (d) { return (d.label || "") + ": " + (d.value == null ? 0 : d.value); })
+			.join("; ");
+		var label = title || el.getAttribute("aria-label") || "Chart";
+		if (summary) label = label + ". " + summary;
+		el.setAttribute("role", "img");
+		el.setAttribute("aria-label", label);
+		var wrap = el.parentElement;
+		if (!wrap) return;
+		var existing = wrap.querySelector(".lms-chart-sr-summary");
+		if (existing) existing.remove();
+		var sr = document.createElement("p");
+		sr.className = "lms-chart-sr-summary";
+		sr.textContent = label;
+		wrap.appendChild(sr);
+	};
+
+	lms_charts._chartMissing = function (el, message) {
+		if (!el) return null;
+		var wrap = el.parentElement || el;
+		wrap.innerHTML = '<p class="lms-muted" role="status">' +
+			(message || "Charts unavailable — Chart.js did not load.") + "</p>";
+		return null;
+	};
+
 	/** Donut / doughnut chart.  data = [{label, value, color?}] */
 	lms_charts.donut = function (canvasId, data, options) {
 		var el = document.getElementById(canvasId);
-		if (!el || typeof Chart === "undefined") return null;
+		if (!el) return null;
+		if (typeof Chart === "undefined") return lms_charts._chartMissing(el);
+		options = options || {};
 		var c = palette();
 		var labels = data.map(function (d) { return d.label; });
 		var values = data.map(function (d) { return d.value || 0; });
 		var colors = data.map(function (d, i) {
 			return d.color || [c.primary, c.accent, c.warning, c.danger, c.success][i % 5];
 		});
+		lms_charts._a11y(el, options.title || "Donut chart", data);
 		return new Chart(el, {
 			type: "doughnut",
 			data: {
@@ -98,13 +147,16 @@ if (typeof frappe !== "undefined" && typeof frappe.provide === "function") {
 	/** Horizontal bar chart.  data = [{label, value, color?}] */
 	lms_charts.bars = function (canvasId, data, options) {
 		var el = document.getElementById(canvasId);
-		if (!el || typeof Chart === "undefined") return null;
+		if (!el) return null;
+		if (typeof Chart === "undefined") return lms_charts._chartMissing(el);
+		options = options || {};
 		var c = palette();
 		var labels = data.map(function (d) { return d.label; });
 		var values = data.map(function (d) { return d.value || 0; });
 		var colors = data.map(function (d, i) {
 			return d.color || [c.primary, c.accent, c.warning, c.danger, c.success][i % 5];
 		});
+		lms_charts._a11y(el, options.title || "Bar chart", data);
 		return new Chart(el, {
 			type: "bar",
 			data: {
@@ -126,6 +178,7 @@ if (typeof frappe !== "undefined" && typeof frappe.provide === "function") {
 	lms_charts.column = function (canvasId, data, options) {
 		var el = document.getElementById(canvasId);
 		if (!el || typeof Chart === "undefined") return null;
+		options = options || {};
 		var c = palette();
 		var datasets = (data.datasets || []).map(function (ds, i) {
 			return {
@@ -136,6 +189,12 @@ if (typeof frappe !== "undefined" && typeof frappe.provide === "function") {
 				maxBarThickness: 40,
 			};
 		});
+		var flat = (data.labels || []).map(function (label, i) {
+			var total = 0;
+			datasets.forEach(function (ds) { total += (ds.data && ds.data[i]) || 0; });
+			return { label: label, value: total };
+		});
+		lms_charts._a11y(el, options.title || "Column chart", flat);
 		return new Chart(el, {
 			type: "bar",
 			data: { labels: data.labels || [], datasets: datasets },
@@ -153,6 +212,7 @@ if (typeof frappe !== "undefined" && typeof frappe.provide === "function") {
 	lms_charts.line = function (canvasId, data, options) {
 		var el = document.getElementById(canvasId);
 		if (!el || typeof Chart === "undefined") return null;
+		options = options || {};
 		var c = palette();
 		var datasets = (data.datasets || []).map(function (ds, i) {
 			var col = ds.color || [c.primary, c.accent, c.warning][i % 3];
@@ -167,6 +227,12 @@ if (typeof frappe !== "undefined" && typeof frappe.provide === "function") {
 				pointRadius: 3,
 			};
 		});
+		var flat = (data.labels || []).map(function (label, i) {
+			var total = 0;
+			datasets.forEach(function (ds) { total += (ds.data && ds.data[i]) || 0; });
+			return { label: label, value: total };
+		});
+		lms_charts._a11y(el, options.title || "Line chart", flat);
 		return new Chart(el, {
 			type: "line",
 			data: { labels: data.labels || [], datasets: datasets },
