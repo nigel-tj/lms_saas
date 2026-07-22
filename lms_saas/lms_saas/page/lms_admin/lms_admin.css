@@ -1,0 +1,291 @@
+/* Admin Console — desk page styles
+ *
+ * Lives next to lms_admin.js in the page folder. Loaded by
+ * Page.load_assets() via the .css <link> inserted into the desk page
+ * <head>. The styles are scoped under .lms-admin-* so they cannot
+ * bleed into the rest of the desk.
+ */
+
+.lms-admin-truncation-banner {
+    background: #fff3cd;
+    color: #6b4d00;
+    border: 1px solid #ffe69c;
+    border-radius: 4px;
+    padding: 8px 12px;
+    margin-bottom: 12px;
+    font-size: 12px;
+}
+
+.lms-admin-cache-strip {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 12px;
+    font-size: 12px;
+    color: #6c757d;
+}
+
+.lms-admin-cache-label {
+    font-weight: 600;
+}
+
+.lms-admin-kpi-strip {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.lms-admin-kpi {
+    background: #ffffff;
+    border: 1px solid #e6e6e6;
+    border-radius: 6px;
+    padding: 12px 14px;
+    border-left: 3px solid #6c757d;
+}
+
+.lms-admin-kpi[data-tone="primary"] { border-left-color: #2490ef; }
+.lms-admin-kpi[data-tone="info"]    { border-left-color: #5e64ff; }
+.lms-admin-kpi[data-tone="warning"] { border-left-color: #f0b400; }
+.lms-admin-kpi[data-tone="danger"]  { border-left-color: #e74c3c; }
+.lms-admin-kpi[data-tone="success"] { border-left-color: #2faa55; }
+
+.lms-admin-kpi__label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #6c757d;
+    margin-bottom: 6px;
+}
+
+.lms-admin-kpi__value {
+    font-size: 22px;
+    font-weight: 600;
+    color: #1f2937;
+}
+
+.lms-admin-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+}
+
+@media (max-width: 900px) {
+    .lms-admin-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.lms-admin-panel {
+    background: #ffffff;
+    border: 1px solid #e6e6e6;
+    border-radius: 6px;
+    padding: 14px 16px;
+    min-height: 160px;
+}
+
+.lms-admin-panel--wide {
+    grid-column: 1 / -1;
+}
+
+.lms-admin-panel__title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #1f2937;
+    margin-bottom: 10px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.lms-admin-panel__body {
+    font-size: 13px;
+}
+
+.lms-admin-pill-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.lms-admin-pill {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    padding: 4px 8px;
+    border-radius: 999px;
+    background: #f5f7fa;
+    border: 1px solid #e6e6e6;
+    font-size: 11px;
+    color: #495057;
+}
+
+.lms-admin-pill[data-tone="active"] {
+    background: #e7f0ff;
+    border-color: #b6d4ff;
+    color: #1f4ea0;
+}
+
+.lms-admin-pill[data-tone="muted"] {
+    opacity: 0.55;
+}
+
+.lms-admin-pill[data-tone="warning"] {
+    background: #fff7e0;
+    border-color: #f6db8e;
+    color: #6b4d00;
+}
+
+.lms-admin-pill[data-tone="danger"] {
+    background: #fde2e1;
+    border-color: #f5b6b2;
+    color: #8a1c18;
+}
+
+.lms-admin-pill[data-tone="success"] {
+    background: #e2f5ea;
+    border-color: #b2dfc4;
+    color: #1e6a3a;
+}
+
+.lms-admin-pill__label {
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.lms-admin-pill__count {
+    font-weight: 700;
+    font-size: 13px;
+}
+
+.lms-admin-pill__pct {
+    color: #6c757d;
+    font-size: 10px;
+}
+
+.lms-admin-pill-foot {
+    margin-top: 10px;
+    font-size: 11px;
+    color: #6c757d;
+}
+
+.lms-admin-kv {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.lms-admin-kv__row {
+    display: flex;
+    justify-content: space-between;
+    border-bottom: 1px dashed #f0f0f0;
+    padding-bottom: 4px;
+}
+
+.lms-admin-kv__label {
+    color: #6c757d;
+    font-size: 12px;
+}
+
+.lms-admin-kv__value {
+    font-weight: 600;
+    color: #1f2937;
+}
+
+.lms-admin-health {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.lms-admin-health__row {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 8px;
+    border-radius: 4px;
+    border-left: 3px solid #6c757d;
+    background: #fafafa;
+}
+
+.lms-admin-health__row[data-tone="success"] { border-left-color: #2faa55; }
+.lms-admin-health__row[data-tone="warning"] { border-left-color: #f0b400; background: #fff8e1; }
+.lms-admin-health__row[data-tone="danger"]  { border-left-color: #e74c3c; background: #fdecea; }
+
+.lms-admin-health__label {
+    color: #495057;
+    font-size: 12px;
+}
+
+.lms-admin-health__value {
+    font-weight: 600;
+    font-size: 12px;
+    color: #1f2937;
+}
+
+.lms-admin-status-line {
+    margin-top: 8px;
+    font-size: 11px;
+    color: #6c757d;
+}
+
+.lms-admin-table {
+    margin-top: 10px;
+    margin-bottom: 0;
+    font-size: 12px;
+}
+
+.lms-admin-activity {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.lms-admin-activity__row {
+    display: grid;
+    grid-template-columns: 110px 1fr 200px;
+    gap: 8px;
+    align-items: center;
+    padding: 6px 8px;
+    border-radius: 4px;
+    background: #fafafa;
+    color: #1f2937;
+    text-decoration: none;
+}
+
+.lms-admin-activity__row:hover {
+    background: #f0f0f0;
+}
+
+.lms-admin-activity__time {
+    font-size: 11px;
+    color: #6c757d;
+}
+
+.lms-admin-activity__label {
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.lms-admin-activity__ref {
+    font-size: 11px;
+    color: #6c757d;
+    text-align: right;
+}
+
+.lms-admin-empty {
+    text-align: center;
+    color: #6c757d;
+    font-size: 12px;
+    padding: 16px 0;
+    font-style: italic;
+}
+
+.lms-admin-toolbar-control {
+    display: inline-block;
+    margin-right: 8px;
+}
+
+.lms-admin-branch-select {
+    width: 180px;
+    display: inline-block;
+}

@@ -17,12 +17,26 @@
 - [ ] SMS gateway (SMS Settings)
 - [ ] Payment providers: enable rows in **LMS Payment Provider**, set `lms_payments_enabled`
 
+## Week 2.5 — Per-role acceptance
+
+For each persona, confirm the following before promoting to pilot:
+
+- [ ] **Borrower** signs in, lands on `/lms`, sees the demo loan (or empty state if no loan).
+- [ ] **Borrower** can open `/lms/apply` and submit a draft application — or the page is marked as limited per the Status of common flows banner.
+- [ ] **Loan Officer** signs in, lands on `/lms/officer`, and sees the officer queue.
+- [ ] **Loan Officer** can open a Loan Application from the desk (still required for full form).
+- [ ] **Branch Manager** signs in, lands on `/lms/manager`, and the approval queue renders.
+- [ ] **Branch Manager** can open the Collections workspace from the sidebar.
+- [ ] **Collector** signs in, lands on `/lms/collect`, and the run sheet renders (or PWA fix is tracked).
+- [ ] **Admin** signs in, lands on `/desk`, and sees Loan Management + Reports + Compliance & Risk + Investors.
+- [ ] **Admin** can open `/lms-help/<role>` for every persona and confirm the doc is reachable.
+
 ## Week 3 — Operations
 
 - [ ] Seed or import customers + **LMS Borrower Compliance** (KYC Approved)
-- [ ] Train staff ([STAFF_GUIDE.md](STAFF_GUIDE.md)): origination, disbursement, collections
+- [ ] Train staff using the per-role docs (`role-borrower.md`, `role-loan-officer.md`, `role-branch-manager.md`, `role-collector.md`, `role-admin.md`)
 - [ ] Test borrower portal: `/lms`, `/lms/apply`, `/lms/pay`
-- [ ] Test collector PWA: `/lms/collect` (LMS Collector role)
+- [ ] Test collector PWA: `/lms/collect` (Collector persona)
 - [ ] Issue **LMS API Key** for integrations ([INTEGRATIONS.md](INTEGRATIONS.md))
 
 ## Week 4 — Go-live

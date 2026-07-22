@@ -1,6 +1,17 @@
 # LMS Staff Training & Operations Guide
 
-This guide is for **desk staff** — loan officers, collectors, branch managers, and LMS admins — who use the Loan Management system day to day. It explains what the system does, how to sign in, who can do what, and step-by-step workflows.
+> **Status of common flows (as of 2026-07-22)**
+>
+> | Flow | Status | Notes |
+> |---|---|---|
+> | `/lms/collect` (Collector PWA) | At risk | `_renderOrFallback` regression; rebuild pending |
+> | `/lms/apply`, `/lms/pay`, `/lms/account` (Borrower) | At risk | 403 spinner for staff users; use desk fallback until fixed |
+> | `/lms` (Borrower home) | At risk | "No Customer linked" for some users; verify email/User/Contact/Customer alignment |
+> | `/lms/officer`, `/lms/manager`, `/lms/collect` (Portal staff) | OK | See per-role help docs |
+>
+> For role-specific training, prefer the per-role docs: `role-borrower.md`, `role-loan-officer.md`, `role-branch-manager.md`, `role-collector.md`, `role-admin.md`. This file is kept for the **admin desk** workflow.
+
+This guide is for **desk staff** — System Managers and LMS Admins who work in the back office. The portal-only staff roles (Loan Officer, Branch Manager, Collector) use a single LMS Portal Staff role and a per-persona landing page; their day-to-day training lives in the role-specific docs.
 
 For IT installation, VM deployment, and site configuration, see [SYSADMIN_GUIDE.md](SYSADMIN_GUIDE.md) and the technical docs in [Section 8](#8-related-documentation).
 
@@ -25,15 +36,14 @@ For IT installation, VM deployment, and site configuration, see [SYSADMIN_GUIDE.
 
 The LMS (Loan Management System) is a microfinance platform built on Frappe and ERPNext. It supports the full loan lifecycle: borrower onboarding, KYC, loan applications, disbursements, repayment tracking, collections, portfolio reporting, and RBZ fintech sandbox compliance controls.
 
-Each organisation runs on its own **site** (separate database). Staff use the **desk** (back office). Borrowers use a separate **portal** (read-only view of their loans).
+Each organisation runs on its own **site** (separate database). Staff work in the portal. Borrowers use the portal too — they only see their own loans.
 
 ### URLs you will use
 
-Replace `{site-url}` with your environment’s base URL (no trailing slash).
+Replace `{site-url}` with your environment’s base URL (no trailing slash). Your administrator will give you the address — it usually looks like `https://your-company.kesari.africa`.
 
 | Environment | Example `{site-url}` |
 |-------------|----------------------|
-| Local development | `http://lms.localhost:8000` |
 | Live / production | `https://app.kesari.africa` |
 
 | Surface | URL | Who uses it |
@@ -83,8 +93,8 @@ flowchart LR
 | **LMS Investor** / **LMS Investor Transaction** | Investor book (admin only) |
 
 Standard product code seeded at install: **LMS-STD**.
-
----
+Portal-only Loan Officer** (persona on Employee) | Portal: `/lms/officer` | Onboard borrowers, KYC, applications, loans, disbursements (via desk) |
+| **Portal-only Branch Manager** (persona on Employee) | Portal: `/lms/manager`
 
 ## 2. Roles and access
 
@@ -102,7 +112,7 @@ Roles are assigned by a **System Manager** or **LMS Admin** under **User** → R
 
 ### Sidebar and module profile
 
-LMS staff users are given the **LMS Staff** module profile. That shows **Loan Management** (Frappe Lending) and **Lms Saas** in the sidebar, and hides other ERPNext modules (Accounting, Stock, etc.) unless you also hold broader roles.
+The desk workspaces are admin-only. A single **LMS Portal Staff** role gates all staff portal pages. The portal-only staff do not get a module profile because they never see the desk.
 
 ### Branch isolation (User Permissions)
 
@@ -140,13 +150,13 @@ The user who **created** the document cannot be the same user who **submits** it
 3. Click **Sign in**.
 4. You land on the workspace most relevant to your role:
 
-| Role | Landing workspace | Why |
-|------|-----------------|-----|
-| **LMS Admin** / System Manager | **Loan Management** | Full portfolio overview |
-| **LMS Branch Manager** | **Loans & Disbursements** | Oversight of the live book |
-| **LMS Loan Officer** | **Applications** | Origination pipeline is the daily focus |
-| **LMS Collector** | **Collections** | Repayments and arrears are the daily focus |
-| **Customer** (borrower, no desk) | **Borrower portal** (`/lms`) | Self-service loans and payments |
+| Role | Landing | Why |
+|---|---|---|
+| **LMS Admin** / System Manager | `/desk` (Loan Management workspace) | Full portfolio overview |
+| **Branch Manager** (persona) | `/lms/manager` | Approval queue and collections |
+| **Loan Officer** (persona) | `/lms/officer` | Pipeline and intake |
+| **Collector** (persona) | `/lms/collect` | Run sheet and repayments |
+| **Borrower** (Customer) | `/lms` | Self-service |
 
 The sidebar shows only the workspaces your role can access. Use it to navigate between workspaces; the **Loan Dashboard** is always one click away from any workspace.
 
@@ -455,10 +465,14 @@ Staff should know this when helping borrowers on the phone or at the branch.
 **Borrowers can (when enabled):**
 
 - View loans and balances at `{site-url}/lms`.
-- **Apply for a loan** at `{site-url}/lms/apply` (draft application for desk review).
-- **Upload KYC documents** during apply (file URL / desk-assisted upload).
-- **Initiate online repayment** at `{site-url}/lms/pay` when `lms_payments_enabled` is set and providers are configured.
+- Apply for a loan at `{site-url}/lms/apply` (see Status of common flows above — currently limited).
+- Upload KYC documents during apply.
+- Initiate online repayment at `{site-url}/lms/pay` when `lms_payments_enabled` is set and providers are configured.
 - Download statement PDF from loan detail.
+
+**Known issues (2026-07-22 review):**
+- `/lms/apply`, `/lms/pay`, `/lms/account` may show a 403 spinner for staff users. Restrict these URLs to the Customer role in the nav until the guard returns a friendly redirect.
+- `/lms` may show "No Customer linked" if the User, Contact, and Customer emails diverge.
 
 **Collectors** (LMS Collector role) use `{site-url}/lms/collect` for the field collection run sheet (offline-capable PWA).
 

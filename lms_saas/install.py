@@ -135,6 +135,15 @@ LMS_NAV_SPEC = (
             {"label": "Disbursements", "type": "DocType", "link_to": "Loan Disbursement", "doc_view": "List", "color": "Green"},
             {"label": "Repayments", "type": "DocType", "link_to": "Loan Repayment", "doc_view": "List", "color": "Orange"},
             {"label": "Loan Dashboard", "type": "URL", "url": "/app/dashboard-view/Loan Dashboard", "color": "Purple"},
+            # Admin Console — desk-only dashboard that surfaces the 5
+            # dashboard APIs (Pipeline, Collections, Health, KYC, Activity)
+            # with a branch selector and a refresh button. Implemented as a
+            # Frappe desk Page (`/app/lms-admin`) so System Manager /
+            # Administrator users land directly in the desk chrome with no
+            # portal sign-in redirect. The Page DocType row + assets are
+            # loaded from `lms_saas/lms_saas/lms_saas/page/lms_admin/`
+            # and `bench migrate` registers the role gate.
+            {"label": "Admin Console", "type": "Page", "link_to": "lms-admin", "color": "Red"},
         ],
         "cards": [],  # populated dynamically by _resolve_workspace_spec
         "number_cards": [c["name"] for c in NUMBER_CARDS],
@@ -817,28 +826,31 @@ def _set_admin_home_page():
 def _set_portal_role_home_pages():
     """Route non-admin roles to the right landing page after login.
 
-    Without this, a borrower or portal-staff user logs in and Frappe's
-    default home-page logic falls through to Portal Settings
-    (default_portal_home = /desk) which 403s them.
+    We do NOT set ``Role.home_page`` for ``LMS Portal Staff`` or
+    ``Customer``. Frappe's ``get_home_page()`` iterates the user's roles
+    and returns the FIRST role that has ``home_page`` set — before the
+    ``get_website_user_home_page`` hook ever fires. If we set
+    ``home_page`` on ``LMS Portal Staff``, then any admin who also
+    carries that role (e.g. ``Administrator``) gets sent to
+    ``/lms/manager`` instead of the desk, because ``LMS Portal Staff``
+    sorts before ``System Manager`` in the role iteration.
 
-    Sets BOTH ``Role.home_page`` (used by ``get_home_page``) AND
-    ``User.default_app = ""`` for the role users (used by
-    ``get_default_path`` — which is what ``auth.py`` calls first and
-    which would otherwise resolve to ``/desk/lending`` because the
-    Lending app is a desk app and a website user with no ``default_app``
-    lands on the only desk app installed).
+    Instead, we clear ``Role.home_page`` on both portal roles so the
+    ``get_website_user_home_page`` hook (``boot.get_lms_home_page``)
+    fires. That hook checks ``_is_desk_admin`` first, then
+    ``PORTAL_STAFF_ROLE``, then ``Customer`` — the correct priority
+    order.
+
+    We still clear ``User.default_app`` for portal-role users so
+    ``get_default_path()`` (called by ``auth.py`` before
+    ``get_home_page``) doesn't resolve to ``/desk/lending``.
     """
-    pairs = [
-        ("Customer", "/lms"),
-        ("LMS Portal Staff", "/lms/manager"),
-    ]
-    for role_name, home in pairs:
+    for role_name in ("Customer", "LMS Portal Staff"):
         if not frappe.db.exists("Role", role_name):
             continue
         current = frappe.db.get_value("Role", role_name, "home_page")
-        # Don't clobber a value the site admin has set explicitly.
-        if not current or current in (None, "", "/desk", "/app"):
-            frappe.db.set_value("Role", role_name, "home_page", home)
+        if current:
+            frappe.db.set_value("Role", role_name, "home_page", None)
 
     # Clear default_app for every user carrying one of the portal roles
     # so get_default_path() falls through to the role-derived home page

@@ -183,6 +183,11 @@ update_website_context = "lms_saas.utils.brand.update_website_context"
 # that default and returns /desk/<slug> for desk staff, /lms for borrowers.
 get_website_user_home_page = "lms_saas.boot.get_lms_home_page"
 
+# Path-resolver gate: non-admin users who type /desk or /app/* are redirected
+# to their persona landing. See lms_saas.utils.portal.install_desk_gate for
+# the implementation (subclass of frappe.website.path_resolver.PathResolver
+# installed at import time).
+
 override_whitelisted_methods = {
 	# Shorthand cmd from portal links: /?cmd=web_logout
 	"web_logout": "lms_saas.utils.web_auth.web_logout",

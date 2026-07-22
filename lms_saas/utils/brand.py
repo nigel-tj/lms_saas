@@ -404,6 +404,10 @@ CORE_PAGE_TITLES = {
 	"officer": "Loan Officer Dashboard",
 	"manager": "Branch Manager Dashboard",
 	"collect": "Collection Run",
+	# Desk-only admin console (Frappe desk Page at /app/lms-admin, gated
+	# to System Manager / Administrator by the Page DocType roles child
+	# table AND by the page module's get_context() defensive check).
+	"admin": "Admin Console",
 }
 
 

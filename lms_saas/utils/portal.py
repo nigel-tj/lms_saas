@@ -251,6 +251,165 @@ def _persona_permissions(persona: str | None, roles: set) -> dict:
 	return _get_user_permissions(persona, roles)
 
 
+# ---------------------------------------------------------------------------
+# Desk-route guard
+# ---------------------------------------------------------------------------
+# Portal staff and borrowers must never see the Frappe desk. If they hit any
+# /desk/* or /app/* URL directly (typed URL, old bookmark, deep link from a
+# report), bounce them to their persona landing. This is the single point of
+# truth for that redirect so docs and code stay aligned.
+_DESK_PATH_PREFIXES = ("/desk", "/app")
+
+
+def _portal_staff_landing_for_request(user: str) -> str:
+	"""Same routing as boot._portal_staff_landing, but tolerant of older helpers."""
+	from lms_saas.install import PORTAL_STAFF_ROLE
+	from lms_saas.utils.brand import _get_user_persona
+
+	persona = _get_user_persona(user)
+	routes = {
+		"Loan Officer": "/lms/officer",
+		"Branch Manager": "/lms/manager",
+		"Collector": "/lms/collect",
+	}
+	landing = routes.get(persona or "")
+	if landing:
+		return landing
+	# Portal staff with no persona → /lms/manager is the safe default.
+	if PORTAL_STAFF_ROLE in set(frappe.get_roles(user)):
+		return "/lms/manager"
+	return "/lms"
+
+
+def guard_desk_route():
+	"""Request hook: bounce non-admin users off /desk and /app to the portal.
+
+	Returns nothing; sets ``frappe.local.response`` to a 302 redirect when the
+	current request is a desk URL. Hooked in hooks.py as ``on_request`` so
+	every web request runs through it. Uses the response dict (not a raised
+	exception) so Frappe writes a clean 302 instead of treating the redirect
+	as an unhandled error.
+	"""
+	user = frappe.session.user
+	if not user or user == "Guest" or user == "Administrator":
+		return
+
+	# Admins may go anywhere.
+	roles = set(frappe.get_roles(user))
+	if roles.intersection({"System Manager", "Administrator"}):
+		return
+
+	path = (getattr(frappe.local, "path", None) or "").strip().lower()
+	if not path:
+		return
+	if not any(path == prefix or path.startswith(prefix + "/") for prefix in _DESK_PATH_PREFIXES):
+		return
+
+	# Allow Frappe's own /api/* endpoints — they don't render desk chrome.
+	if path.startswith("/api/"):
+		return
+
+	# Borrowers and portal staff get sent to their landing page.
+	target = _portal_staff_landing_for_request(user)
+	frappe.local.response = frappe._dict()
+	frappe.local.response["type"] = "redirect"
+	frappe.local.response["location"] = target
+	frappe.flags.redirect_location = target
+
+
+def gate_desk_path(path: str):
+	"""website_path_resolver hook: redirect non-admin users away from /desk.
+
+	Returns ``None`` for everyone else so the normal resolver continues.
+	For non-admin users, raises ``frappe.Redirect`` with the persona landing;
+	Frappe's path_resolver catches it and returns a 301 ``RedirectPage``.
+
+	Registered via ``website_path_resolver`` in hooks.py.
+	"""
+	user = frappe.session.user
+	if not user or user == "Guest" or user == "Administrator":
+		return None
+
+	roles = set(frappe.get_roles(user))
+	if roles.intersection({"System Manager", "Administrator"}):
+		return None
+
+	clean = (path or "").strip("/").lower()
+	if not clean:
+		return None
+	if clean == "desk" or clean.startswith("desk/") or clean == "app" or clean.startswith("app/"):
+		target = _portal_staff_landing_for_request(user)
+		frappe.flags.redirect_location = target
+		raise frappe.Redirect
+	return None
+
+
+def install_desk_gate():
+	"""Override Frappe's path resolver to gate /desk and /app for non-admins.
+
+	Frappe's ``PathResolver.resolve`` has a hardcoded fast path for the
+	``desk`` endpoint that runs before ``website_path_resolver`` hooks, so
+	those hooks never get a chance to redirect non-admin users. We subclass
+	``PathResolver`` and inject the persona redirect into the resolve method
+	so it fires before the desk fast path returns.
+
+	Patched at import time. Idempotent — safe to call from multiple places.
+	"""
+	import frappe.website.path_resolver as pr
+
+	if getattr(pr.PathResolver, "_lms_desk_gate_installed", False):
+		return
+
+	_BaseResolver = pr.PathResolver
+	_Gate = _portal_staff_landing_for_request
+
+	class _GatedResolver(_BaseResolver):
+		_resolve_original = _BaseResolver.resolve
+
+		def resolve(self):  # type: ignore[override]
+			user = frappe.session.user
+			if user and user != "Guest" and user != "Administrator":
+				roles = set(frappe.get_roles(user))
+				if not roles.intersection({"System Manager", "Administrator"}):
+					clean = (self.path or "").strip("/").lower()
+					if clean == "desk" or clean.startswith("desk/"):
+						frappe.flags.redirect_location = _Gate(user)
+						raise frappe.Redirect
+					# /app is the legacy alias Frappe redirects to /desk with
+					# 301; we just rewrite it to the persona landing instead.
+					if clean == "app" or clean.startswith("app/"):
+						frappe.flags.redirect_location = _Gate(user)
+						raise frappe.Redirect
+			return self._resolve_original()
+
+	_GatedResolver._lms_desk_gate_installed = True
+	pr.PathResolver = _GatedResolver
+
+	# Also patch the local alias used inside path_resolver.py itself.
+	if hasattr(pr, "PathResolver"):
+		pr.PathResolver = _GatedResolver
+
+	# And the `serve.py` import.
+	try:
+		import frappe.website.serve as srv
+		srv.PathResolver = _GatedResolver
+	except Exception:
+		pass
+
+	# And the website_settings / portal_settings imports.
+	for modname in (
+		"frappe.website.doctype.website_settings.website_settings",
+		"frappe.website.doctype.portal_settings.portal_settings",
+		"frappe.website.doctype.web_page.web_page",
+	):
+		try:
+			mod = __import__(modname, fromlist=["PathResolver"])
+			if hasattr(mod, "PathResolver"):
+				mod.PathResolver = _GatedResolver
+		except Exception:
+			pass
+
+
 # Default page_js for each addon key (SSoT for get_lms_page_context).
 ADDON_PAGE_JS: dict[str, str] = {
 	"announcements": "js/lms_announcements_portal.js",

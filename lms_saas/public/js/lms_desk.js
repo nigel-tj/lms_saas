@@ -1740,6 +1740,105 @@
 		window.__lms_sync_followup_timer = setTimeout(run_sync, SYNC_FOLLOWUP_MS);
 	}
 
+	/* ------------------------------------------------------------------ */
+	/* Desk health badge — surfaces system health in the navbar so an     */
+	/* admin sees backup age / error count even on non-admin pages.       */
+	/* ------------------------------------------------------------------ */
+	var _healthBadgeTimer = null;
+
+	function init_health_badge() {
+		if (!user_is_lms_staff()) return;
+		// Poll every 5 minutes; the dashboard API itself is cached for 5
+		// minutes server-side, so this matches the cache TTL.
+		if (_healthBadgeTimer) clearInterval(_healthBadgeTimer);
+		_healthBadgeTimer = setInterval(refresh_health_badge, 5 * 60 * 1000);
+		refresh_health_badge();
+	}
+
+	function refresh_health_badge() {
+		if (!user_is_lms_staff()) return;
+		if (!window.frappe || !frappe.call) return;
+		frappe.call({
+			method: "lms_saas.api.dashboard.get_system_health",
+			callback: function (r) {
+				render_health_badge(r && r.message);
+			},
+			error: function () {
+				// Non-fatal: hide the badge if the API is unavailable.
+				var el = document.querySelector(".lms-desk-health-badge");
+				if (el) el.remove();
+			},
+		});
+	}
+
+	function render_health_badge(data) {
+		if (!data) return;
+		var navbar = get_desk_navbar();
+		if (!navbar) return;
+		var existing = navbar.querySelector(".lms-desk-health-badge");
+		// Compute the worst signal so the badge tone reflects the highest-
+		// priority issue (backup age > errors > scheduler).
+		var tone = "success";
+		var tooltipLines = ["System health"];
+		if (!data.scheduler_enabled) {
+			tone = "danger";
+			tooltipLines.push("Scheduler is OFF — scheduled jobs are not running.");
+		}
+		if (data.error_count_24h > 50) {
+			tone = "danger";
+			tooltipLines.push(data.error_count_24h + " errors in the last 24h.");
+		} else if (data.error_count_24h > 10) {
+			if (tone === "success") tone = "warning";
+			tooltipLines.push(data.error_count_24h + " errors in the last 24h.");
+		}
+		if (data.last_backup_age_days != null && data.last_backup_age_days > 7) {
+			tone = "danger";
+			tooltipLines.push("Last backup is " + data.last_backup_age_days + " days old.");
+		} else if (data.last_backup_age_days != null && data.last_backup_age_days > 3) {
+			if (tone === "success") tone = "warning";
+			tooltipLines.push("Last backup is " + data.last_backup_age_days + " days old.");
+		}
+		// Short label: just the count of issues.
+		var label = "Health";
+		var issuesCount = tooltipLines.length - 1;
+		if (issuesCount > 0) label = "Health · " + issuesCount;
+		var html =
+			'<a class="lms-desk-health-badge lms-desk-health-badge--' + tone + '" ' +
+			'href="/app/lms-admin" ' +
+			'title="' + lms_portal_escape(tooltipLines.join("\n")) + '" ' +
+			'aria-label="' + lms_portal_escape(tooltipLines.join(". ")) + '">' +
+			'<span class="lms-desk-health-badge__dot" aria-hidden="true"></span>' +
+			'<span class="lms-desk-health-badge__label">' + lms_portal_escape(label) + "</span>" +
+			"</a>";
+		if (existing) {
+			existing.outerHTML = html;
+		} else {
+			var wrap = document.createElement("div");
+			wrap.innerHTML = html;
+			var node = wrap.firstChild;
+			// Insert before the help dropdown so it's right of the search.
+			var help = navbar.querySelector(".dropdown-help, #toolbar-help");
+			if (help && help.parentNode === navbar) {
+				navbar.insertBefore(node, help);
+			} else {
+				navbar.appendChild(node);
+			}
+		}
+	}
+
+	function lms_portal_escape(s) {
+		// Lightweight HTML escape for tooltip/aria attributes. The
+		// lms_portal.escape helper isn't loaded on the desk (it's in
+		// lms_portal.js, which is a web bundle), so re-implement the
+		// minimum we need.
+		return String(s == null ? "" : s)
+			.replace(/&/g, "&amp;")
+			.replace(/</g, "&lt;")
+			.replace(/>/g, "&gt;")
+			.replace(/"/g, "&quot;")
+			.replace(/'/g, "&#39;");
+	}
+
 	function init_lms_desk() {
 		if (!window.frappe || window.__lms_desk_initialized) return;
 		window.__lms_desk_initialized = true;
@@ -1747,6 +1846,7 @@
 			lms_theme.apply(frappe.boot && frappe.boot.lms_theme);
 		}
 		document.body.classList.add("lms-desk-enhanced");
+		init_health_badge();
 		if (is_desk_v16()) {
 			document.body.classList.add("lms-desk-v16");
 		}

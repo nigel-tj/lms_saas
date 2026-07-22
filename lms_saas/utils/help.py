@@ -10,6 +10,7 @@ from frappe import _
 from lms_saas.install import (
 	ADMIN_ROLES,
 	SYS_ROLE,
+	PORTAL_STAFF_ROLE,
 )
 
 # App package lives in lms_saas/lms_saas/; markdown sources are in lms_saas/docs/
@@ -18,14 +19,42 @@ DOCS_DIR = os.path.join(os.path.dirname(frappe.get_app_path("lms_saas")), "docs"
 # slug → markdown file + roles that may open the page
 HELP_PAGES: tuple[dict, ...] = (
 	{
-		"slug": "staff",
-		"title": _("Staff guide"),
-		"file": "STAFF_GUIDE.md",
-		"roles": ADMIN_ROLES,
-		"description": _("Day-to-day desk workflows and FAQs"),
+		"slug": "borrower",
+		"title": _("Borrower help"),
+		"file": "role-borrower.md",
+		"roles": ("Customer",),
+		"description": _("How to use the borrower portal"),
+	},
+	{
+		"slug": "officer",
+		"title": _("Loan officer help"),
+		"file": "role-loan-officer.md",
+		"roles": (PORTAL_STAFF_ROLE,),
+		"description": _("Daily workflow for loan officers"),
+	},
+	{
+		"slug": "manager",
+		"title": _("Branch manager help"),
+		"file": "role-branch-manager.md",
+		"roles": (PORTAL_STAFF_ROLE,),
+		"description": _("Approvals, collections, addons"),
+	},
+	{
+		"slug": "collector",
+		"title": _("Collector help"),
+		"file": "role-collector.md",
+		"roles": (PORTAL_STAFF_ROLE,),
+		"description": _("Field collection run sheet and offline sync"),
 	},
 	{
 		"slug": "admin",
+		"title": _("LMS admin help"),
+		"file": "role-admin.md",
+		"roles": ADMIN_ROLES,
+		"description": _("Desk workspaces, RBAC, sandbox controls"),
+	},
+	{
+		"slug": "system-admin",
 		"title": _("System admin guide"),
 		"file": "SYSADMIN_GUIDE.md",
 		"roles": ADMIN_ROLES,
@@ -75,7 +104,13 @@ NAVBAR_HELP_ITEMS: tuple[tuple[str, str], ...] = tuple(
 	(spec["title"], f"/lms-help/{spec['slug']}") for spec in HELP_PAGES
 )
 
-DESK_HELP_ROLES = frozenset({"System Manager", "Administrator", "Desk User"})
+DESK_HELP_ROLES = frozenset({
+	"System Manager",
+	"Administrator",
+	"Desk User",
+	"LMS Portal Staff",
+	"Customer",
+})
 
 
 def _user_roles(user: str | None = None) -> set[str]:
