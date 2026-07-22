@@ -12,13 +12,14 @@ lms_recon.init = function () {
 	if (!root) return;
 
 	var tabs = [
-		{ id: "dashboard", label: "Dashboard", icon: "📊" },
-		{ id: "import", label: "Import", icon: "📥" },
-		{ id: "unmatched", label: "Unmatched", icon: "⚠️" },
-		{ id: "matched", label: "Matched", icon: "✓" },
+		{ id: "dashboard", label: "Dashboard", icon: "bar-chart" },
+		{ id: "import", label: "Import", icon: "download" },
+		{ id: "unmatched", label: "Unmatched", icon: "alert-triangle" },
+		{ id: "matched", label: "Matched", icon: "check-square" },
 	];
+	var home = window.__lms_home_route || "/lms";
 	var html = lms_portal.pageStart() +
-		lms_portal.pageHeader({ title: "Wallet Reconciliation" }) +
+		lms_portal.backLink({ href: home, label: "Back" }) +
 		lms_portal.tabNav(tabs, lms_recon._currentTab) +
 		'<div id="lms-recon-tab-content"></div>' +
 		lms_portal.pageEnd();

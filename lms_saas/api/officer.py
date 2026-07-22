@@ -90,12 +90,18 @@ def get_officer_dashboard():
 			},
 		)
 
-	# Disbursed this month
+	# Disbursed this month — scoped to the officer's loans (P1 fix: was system-wide).
 	from frappe.utils import get_first_day, get_last_day
 
 	month_start = get_first_day(today())
 	month_end = get_last_day(today())
 	disb_filters = {"docstatus": 1, "posting_date": (">=", month_start), "posting_date": ("<=", month_end)}
+	if employee:
+		officer_loans = frappe.get_all("Loan", {"custom_loan_officer": employee, "docstatus": 1}, pluck="name")
+		if officer_loans:
+			disb_filters["against_loan"] = ("in", officer_loans)
+		else:
+			disb_filters["against_loan"] = ("in", ["__none__"])
 	disbursed_this_month = frappe.db.count("Loan Disbursement", disb_filters)
 
 	# PAR ratio for officer's loans
@@ -347,6 +353,14 @@ def disburse_assigned_loan(loan_name: str, disbursed_amount: float | None = None
 
 	Only loans where ``custom_loan_officer == current Employee`` can be
 	disbursed by the officer — prevents cross-portal tampering.
+
+	Round-1 expert-board fixes:
+	- Idempotency: refuse if a non-cancelled Loan Disbursement already
+	  exists for this loan. Prevents duplicate disbursements on a network
+	  blip / double-click.
+	- KYC re-validation: re-read the borrower's KYC status at disbursement
+	  time. If KYC has flipped to "Rejected" or expired between approval
+	  and disbursement, refuse with a structured error.
 	"""
 	_require_officer()
 	if not frappe.db.exists("Loan", loan_name):
@@ -358,9 +372,69 @@ def disburse_assigned_loan(loan_name: str, disbursed_amount: float | None = None
 	if not employee or loan.get("custom_loan_officer") != employee:
 		frappe.throw(_("This loan is not assigned to you."), frappe.PermissionError)
 
+	# Refuse to disburse a loan that is already closed, written off, or cancelled.
+	if loan.status in ("Closed", "Written Off", "Cancelled"):
+		frappe.throw(_("Loan status is {0}. Cannot disburse.").format(loan.status))
+
+	# Refuse to re-disburse a loan that is already disbursed/active.
+	# The idempotency guard below catches existing Loan Disbursement docs,
+	# but this extra check prevents the edge case where a disbursement was
+	# cancelled and the loan is already in Disbursed/Active status from
+	# a prior (non-cancelled) disbursement.
+	if loan.status in ("Disbursed", "Active"):
+		frappe.throw(
+			_("Loan is already {0}. Cannot disburse again.").format(loan.status)
+		)
+
+	# Idempotency guard. A successful (non-cancelled) disbursement already
+	# exists for this loan — refuse the second one.
+	existing = frappe.get_all(
+		"Loan Disbursement",
+		filters={"against_loan": loan.name, "docstatus": ("<", 2)},
+		fields=["name", "disbursed_amount", "posting_date"],
+		limit_page_length=1,
+	)
+	if existing:
+		frappe.throw(
+			_("Loan {0} has already been disbursed via {1} on {2}. "
+			  "Cancel that disbursement first if you need to redo it.").format(
+				loan.name, existing[0].name, existing[0].posting_date
+			)
+		)
+
+	# KYC re-check at disbursement time. KYC can be flipped to Rejected or
+	# expire between approval and disbursement — refuse to release funds.
+	if loan.applicant:
+		kyc = frappe.db.get_value(
+			"LMS Borrower Compliance",
+			{"customer": loan.applicant},
+			["kyc_status", "kyc_expiry_date"],
+			as_dict=True,
+		)
+		if kyc:
+			kyc_status = (kyc.get("kyc_status") or "").lower()
+			if kyc_status in ("rejected", "expired", "blocked"):
+				frappe.throw(
+					_("KYC for borrower is {0}. Disbursement blocked — "
+					  "re-verify KYC before disbursing.").format(kyc.get("kyc_status"))
+				)
+			# Check expiry date if present.
+			expiry = kyc.get("kyc_expiry_date")
+			if expiry and getdate(expiry) < getdate(today()):
+				frappe.throw(
+					_("KYC expired on {0}. Disbursement blocked — renew KYC first.").format(expiry)
+				)
+
 	amount = flt(disbursed_amount) if disbursed_amount else flt(loan.loan_amount)
 	if amount <= 0:
 		frappe.throw(_("Disbursement amount must be positive."))
+	if amount > flt(loan.loan_amount):
+		frappe.throw(
+			_("Disbursement amount {0} exceeds the approved loan amount {1}. " 
+			  "Partial disbursements must not exceed the sanctioned principal.").format(
+				amount, flt(loan.loan_amount)
+			)
+		)
 
 	# Phase 1: submit the Loan if it's still a draft.
 	if loan.docstatus == 0:
@@ -372,6 +446,15 @@ def disburse_assigned_loan(loan_name: str, disbursed_amount: float | None = None
 	# Portal staff lack create/submit perms on Loan Disbursement and nested
 	# Loan Repayment Schedule docs. Bypass via ignore_permissions / flags —
 	# never swap session user to Administrator.
+	# Pull mode_of_payment / disbursement_account from the loan or fall back to
+	# the first available Mode of Payment (set up by install hooks). Without
+	# these the lending app refuses to submit with a generic error.
+	mop = loan.get("mode_of_payment") or frappe.db.get_value("Mode of Payment", {}, "name")
+	if not mop:
+		frappe.throw(
+			_("Disbursement account is not configured. Set up a Mode of Payment in Accounting before disbursing loans.")
+		)
+	disb_account = loan.get("disbursement_account") or loan.get("payment_account")
 	disb = frappe.get_doc(
 		{
 			"doctype": "Loan Disbursement",
@@ -382,16 +465,32 @@ def disburse_assigned_loan(loan_name: str, disbursed_amount: float | None = None
 			"disbursed_amount": amount,
 			"posting_date": today(),
 			"disbursement_date": today(),
+			"mode_of_payment": mop,
+			"disbursement_account": disb_account,
 		}
 	)
 	disb.flags.ignore_permissions = True
-	prev_ignore = frappe.flags.get("ignore_permissions")
-	frappe.flags.ignore_permissions = True
+	disb.insert()
+	disb.submit()
+
+	# Append-only LMS Audit Event for the disbursement (round-1 audit fix).
+	from lms_saas.api.compliance import write_audit_event
+	write_audit_event(
+		event_type="Loan Disbursement:officer",
+		reference_doctype="Loan Disbursement",
+		reference_name=disb.name,
+		amount=flt(amount),
+		company=loan.company,
+		details=f"loan={loan.name}; officer={frappe.session.user}",
+		critical=True,
+	)
+
+	# Notify the borrower that funds have been released (R4 fix).
 	try:
-		disb.insert()
-		disb.submit()
-	finally:
-		frappe.flags.ignore_permissions = prev_ignore
+		from lms_saas.api.manager import _notify_borrower_disbursement
+		_notify_borrower_disbursement(loan, disb)
+	except Exception:
+		pass
 
 	# Invalidate dashboard cache so KPIs reflect the new active loan.
 	from lms_saas.api.dashboard import invalidate_dashboard_cache
@@ -440,6 +539,28 @@ def submit_application_on_behalf(
 
 	if not frappe.db.exists("Customer", customer):
 		frappe.throw(_("Customer {0} not found.").format(customer))
+
+	# Round-3 expert-board fix: KYC gate at submission time. An officer
+	# cannot create a loan application for a borrower whose KYC is not
+	# in a state we can act on. Mirrors the manager-side checklist so
+	# the two paths never disagree.
+	kyc_name = frappe.db.get_value(
+		"LMS Borrower Compliance", {"customer": customer}, "name"
+	)
+	if not kyc_name:
+		frappe.throw(
+			_("Borrower has no KYC record. Capture KYC (ID + consent + proof of address) before submitting a loan application.")
+		)
+	kyc = frappe.get_doc("LMS Borrower Compliance", kyc_name)
+	kyc_status = (kyc.get("kyc_status") or "").lower()
+	if kyc_status not in ("approved", "verified", "complete"):
+		frappe.throw(
+			_("KYC status is {0}. Cannot submit a loan application until KYC is approved.").format(kyc.get("kyc_status"))
+		)
+	if not cint(kyc.get("consent_given")):
+		frappe.throw(
+			_("Borrower consent is not on file. Get the borrower's signed consent (data + credit bureau) before submission.")
+		)
 
 	# If the officer didn't override the rate, use the product's default.
 	if rate_of_interest is None or flt(rate_of_interest) <= 0:
@@ -696,7 +817,10 @@ def search_borrowers(query: str = "", limit: int = 50):
 	_require_officer()
 	branch = _officer_branch()
 	query = (query or "").strip()
-	limit = cint(limit) or 50
+	# Escape LIKE wildcards to prevent wildcard injection.
+	query = query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+	# Cap limit to prevent full-database PII dumps (P0 fix).
+	limit = min(cint(limit) or 50, 100)
 
 	if not branch and not _is_admin():
 		return {"borrowers": []}
@@ -828,16 +952,51 @@ def update_borrower(
 		frappe.throw(_("Customer {0} not found.").format(customer_name))
 
 	cust = frappe.get_doc("Customer", customer_name)
+	# Branch scoping — fail closed.
+	branch = _officer_branch()
+	if not _is_admin():
+		if not branch:
+			frappe.throw(_("No branch assigned — cannot update borrower."), frappe.PermissionError)
+		if (cust.get("custom_lms_branch") or "") != branch:
+			frappe.throw(_("Customer is not in your branch."), frappe.PermissionError)
+	changed = []
+	audit_bits = []
 	if customer_name_new is not None:
 		cust.customer_name = customer_name_new
+		changed.append("customer_name")
 	if email_id is not None:
 		cust.email_id = email_id
+		changed.append("email_id")
 	if mobile_no is not None:
 		cust.mobile_no = mobile_no
+		changed.append("mobile_no")
 	if national_id is not None:
+		old_nid = cust.get("custom_national_id_number") or ""
 		cust.custom_national_id_number = national_id
+		changed.append("national_id")
+		audit_bits.append(f"national_id:{old_nid}->{national_id}")
 	cust.flags.ignore_permissions = True
 	cust.save()
+
+	# Audit event for customer update (P0 fix — officer-side was missing).
+	try:
+		from lms_saas.api.compliance import write_audit_event
+		details = f"updated_by={frappe.session.user}; fields={','.join(changed) if changed else '-'}"
+		if audit_bits:
+			details += "; " + "; ".join(audit_bits)
+		write_audit_event(
+			event_type="Customer:update",
+			reference_doctype="Customer",
+			reference_name=customer_name,
+			details=details,
+		)
+	except Exception:
+		frappe.log_error(
+			title="LMS audit event failed (officer customer update)",
+			reference_doctype="Customer",
+			reference_name=customer_name,
+			message=frappe.get_traceback(),
+		)
 
 	return {"status": "updated", "customer": customer_name}
 
@@ -855,14 +1014,27 @@ def get_loan_detail(loan_name: str):
 
 	loan = frappe.get_doc("Loan", loan_name)
 
+	# Branch scoping — fail closed.
+	branch = _officer_branch()
+	if not _is_admin():
+		if not branch:
+			frappe.throw(_("No branch assigned — cannot view loan."), frappe.PermissionError)
+		if (loan.get("custom_lms_branch") or "") != branch:
+			frappe.throw(_("Loan is not in your branch."), frappe.PermissionError)
+
 	# Schedule
+	# NOTE: Repayment Schedule has no 'paid' column — use 'demand_generated'
+	# (Check) as a proxy for "this instalment has been billed/settled".
 	schedule = frappe.get_all(
 		"Repayment Schedule",
 		filters={"parent": loan_name, "parenttype": "Loan"},
-		fields=["payment_date", "principal_amount", "interest_amount", "total_payment", "paid", "balance_loan_amount"],
+		fields=["payment_date", "principal_amount", "interest_amount", "total_payment", "balance_loan_amount", "demand_generated"],
 		order_by="payment_date asc",
 		limit_page_length=0,
 	)
+	# Map demand_generated to a 'paid' flag for the frontend's convenience.
+	for row in schedule:
+		row["paid"] = cint(row.get("demand_generated"))
 
 	# Repayments
 	repayments = frappe.get_all(
@@ -922,7 +1094,14 @@ def get_loan_detail(loan_name: str):
 
 @frappe.whitelist()
 def record_repayment(loan_name: str, amount: float, payment_mode: str = "Cash", posting_date: str | None = None):
-	"""Record a loan repayment (officer can record on behalf of borrower)."""
+	"""Record a loan repayment (officer can record on behalf of borrower).
+
+	Round-4 expert-board fixes:
+	- Officer-assignment check: refuse if loan is not assigned to this officer.
+	- Branch scoping (fail closed).
+	- Loan status check: refuse if loan is Closed, Written Off, or Cancelled.
+	- Audit event with recorded_by context.
+	"""
 	_require_officer()
 	amount = flt(amount)
 	if amount <= 0:
@@ -932,6 +1111,44 @@ def record_repayment(loan_name: str, amount: float, payment_mode: str = "Cash", 
 		frappe.throw(_("Loan {0} not found.").format(loan_name))
 
 	loan = frappe.get_doc("Loan", loan_name)
+	employee = _officer_employee()
+
+	# Officer-assignment check — an officer can only record repayments on
+	# loans assigned to them (prevents cross-officer tampering).
+	if not _is_admin() and employee and loan.get("custom_loan_officer") != employee:
+		frappe.throw(_("This loan is not assigned to you."), frappe.PermissionError)
+
+	# Branch scoping — fail closed.
+	branch = _officer_branch()
+	if not _is_admin():
+		if not branch:
+			frappe.throw(_("No branch assigned — cannot record repayment."), frappe.PermissionError)
+		if (loan.get("custom_lms_branch") or "") != branch:
+			frappe.throw(_("Loan is not in your branch."), frappe.PermissionError)
+
+	# Refuse to record a repayment on a closed/written-off/cancelled loan.
+	if loan.status in ("Closed", "Written Off", "Cancelled"):
+		frappe.throw(_("Loan status is {0}. Cannot record repayment.").format(loan.status))
+
+	# Idempotency guard — refuse duplicate repayments (P0 fix).
+	existing_repay = frappe.get_all(
+		"Loan Repayment",
+		filters={
+			"against_loan": loan_name,
+			"amount_paid": amount,
+			"posting_date": posting_date or today(),
+			"docstatus": ("<", 2),
+		},
+		limit_page_length=1,
+	)
+	if existing_repay:
+		frappe.throw(
+			_("A repayment of {0} on {1} already exists for this loan (ref {2}). "
+			  "Cancel it first if you need to redo it.").format(
+				amount, posting_date or today(), existing_repay[0].name
+			)
+		)
+
 	repayment = frappe.get_doc(
 		{
 			"doctype": "Loan Repayment",
@@ -941,11 +1158,24 @@ def record_repayment(loan_name: str, amount: float, payment_mode: str = "Cash", 
 			"company": loan.company,
 			"posting_date": posting_date or today(),
 			"amount_paid": amount,
+			"mode_of_payment": payment_mode or "Cash",
 		}
 	)
 	repayment.flags.ignore_permissions = True
 	repayment.insert()
 	repayment.submit()
+
+	# Audit event with portal context.
+	from lms_saas.api.compliance import write_audit_event
+	write_audit_event(
+		event_type="Loan Repayment:officer",
+		reference_doctype="Loan Repayment",
+		reference_name=repayment.name,
+		amount=flt(amount),
+		company=loan.company,
+		details=f"loan={loan_name}; recorded_by={frappe.session.user}; on_behalf_of=borrower",
+		critical=True,
+	)
 
 	return {
 		"status": "recorded",
@@ -1041,6 +1271,13 @@ def get_lead_detail(lead_name: str):
 		frappe.throw(_("Lead {0} not found.").format(lead_name))
 
 	lead = frappe.get_doc("Lead", lead_name)
+	# Branch scoping — fail closed (P0 fix).
+	branch = _officer_branch()
+	if not _is_admin():
+		if not branch:
+			frappe.throw(_("No branch assigned — cannot view lead."), frappe.PermissionError)
+		if (lead.get("custom_lms_branch") or "") != branch:
+			frappe.throw(_("Lead is not in your branch."), frappe.PermissionError)
 	return {
 		"lead": {
 			"name": lead.name,

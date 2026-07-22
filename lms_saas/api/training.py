@@ -48,12 +48,18 @@ def _current_employee():
     return frappe.db.get_value("Employee", {"user_id": user, "status": "Active"}, "name")
 
 
-def _has_table(name: str) -> bool:
-    """True if a Frappe table exists. Used to gracefully fall back when the
-    HRMS Training/Event doctypes are not installed in this site (e.g. ERPNext
-    only, or stripped-down HRMS)."""
+def _has_table(doctype: str) -> bool:
+    """True if a Frappe table exists for the DocType.
+
+    ``frappe.db.table_exists`` expects the DocType name (it prefixes ``tab``
+    itself). Passing ``tabTraining Program`` incorrectly looks for
+    ``tabtabTraining Program`` and always returns False.
+    """
     try:
-        return bool(frappe.db.table_exists(name))
+        name = (doctype or "").strip()
+        if name.startswith("tab"):
+            name = name[3:]
+        return bool(name and frappe.db.table_exists(name))
     except Exception:
         return False
 
@@ -65,8 +71,9 @@ def _missing_doctype_response(doctype: str) -> dict:
         "_missing": True,
         "_missing_doctype": doctype,
         "message": _(
-            "The {0} DocType is not installed on this site. "
-            "Install the HRMS app to enable Training features."
+            "The {0} module is not ready on this site "
+            "(DocType exists but database tables are missing, or HRMS Training is not synced). "
+            "Ask a System Manager to run a standard bench migrate after installing HRMS."
         ).format(doctype),
         "programs": [],
         "events": [],
@@ -82,17 +89,30 @@ def get_training_programs(limit=50):
     """List available training programs."""
     _require_training()
 
-    if not _has_table("tabTraining Program"):
+    if not _has_table("Training Program"):
         return _missing_doctype_response("Training Program")
 
-    programs = frappe.get_all(
-        "Training Program",
-        filters={"docstatus": ["!=", 2]},
-        fields=["name", "program_name", "description", "status",
-                "creation", "owner"],
-        order_by="creation desc",
-        limit_page_length=int(limit),
-    )
+    meta = frappe.get_meta("Training Program")
+    wanted = ["name", "creation", "owner"]
+    for field in ("program_name", "training_program", "description", "status"):
+        if meta.has_field(field):
+            wanted.append(field)
+
+    try:
+        programs = frappe.get_all(
+            "Training Program",
+            filters={"docstatus": ["!=", 2]} if meta.has_field("docstatus") else {},
+            fields=wanted,
+            order_by="creation desc",
+            limit_page_length=int(limit),
+        )
+    except Exception:
+        frappe.log_error(title="LMS training programs query failed", message=frappe.get_traceback())
+        return _missing_doctype_response("Training Program")
+
+    for p in programs:
+        if not p.get("program_name"):
+            p["program_name"] = p.get("training_program") or p.get("name")
     return {"programs": programs}
 
 
@@ -105,25 +125,53 @@ def get_training_events(upcoming=True, limit=50):
     """Return upcoming (or all) training events."""
     _require_training()
 
-    if not _has_table("tabTraining Event"):
+    if not _has_table("Training Event"):
         return _missing_doctype_response("Training Event")
 
-    filters = {"docstatus": ["!=", 2]}
-    if upcoming:
+    emeta = frappe.get_meta("Training Event")
+    filters = {}
+    if emeta.has_field("docstatus"):
+        filters["docstatus"] = ["!=", 2]
+    if upcoming and emeta.has_field("start_time"):
         filters["start_time"] = [">=", today()]
 
-    events = frappe.get_all(
-        "Training Event",
-        filters=filters,
-        fields=["name", "event_name", "training_program", "start_time",
-                "end_time", "location", "event_status", "introduction",
-                "trainer_name", "trainer_email"],
-        order_by="start_time asc",
-        limit_page_length=int(limit),
-    )
+    wanted = ["name", "creation"]
+    for field in (
+        "event_name",
+        "training_program",
+        "start_time",
+        "end_time",
+        "location",
+        "event_status",
+        "status",
+        "introduction",
+        "trainer_name",
+        "trainer_email",
+    ):
+        if emeta.has_field(field):
+            wanted.append(field)
+
+    order = "start_time asc" if emeta.has_field("start_time") else "creation desc"
+    try:
+        events = frappe.get_all(
+            "Training Event",
+            filters=filters,
+            fields=wanted,
+            order_by=order,
+            limit_page_length=int(limit),
+        )
+    except Exception:
+        frappe.log_error(title="LMS training events query failed", message=frappe.get_traceback())
+        return _missing_doctype_response("Training Event")
+
+    for ev in events:
+        if not ev.get("event_status") and ev.get("status"):
+            ev["event_status"] = ev.get("status")
+        if not ev.get("status") and ev.get("event_status"):
+            ev["status"] = ev.get("event_status")
 
     # Attach registration counts (only if the child table exists)
-    if events and _has_table("tabTraining Event Employee"):
+    if events and _has_table("Training Event Employee"):
         for ev in events:
             ev["registered_count"] = frappe.db.count("Training Event Employee", {
                 "parent": ev["name"],
@@ -226,7 +274,7 @@ def get_my_training_results():
     """View training results for the current employee."""
     _require_training()
 
-    if not _has_table("tabTraining Result"):
+    if not _has_table("Training Result"):
         return _missing_doctype_response("Training Result")
 
     employee = _current_employee()

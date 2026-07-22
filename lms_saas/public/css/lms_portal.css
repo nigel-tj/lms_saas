@@ -137,6 +137,8 @@ body.lms-portal {
 	display: flex;
 	align-items: center;
 	gap: 0.85rem;
+	text-decoration: none;
+	color: inherit;
 	padding: 1.1rem 1.25rem;
 	border-bottom: 1px solid var(--lms-border);
 	min-height: 64px;
@@ -200,15 +202,15 @@ body.lms-portal {
 }
 
 .lms-sidebar__group {
-	margin: 1.25rem 1rem 0.35rem;
-	padding: 0 0.25rem 0.35rem;
+	margin: 1.25rem 1rem 0.45rem;
+	padding: 0 0.1rem 0.4rem;
 	font-size: 0.65rem;
 	font-weight: 700;
-	letter-spacing: 0.08em;
+	letter-spacing: 0.1em;
 	text-transform: uppercase;
-	color: var(--lms-text-muted);
-	opacity: 0.7;
-	border-bottom: 1px solid var(--lms-border);
+	color: var(--lms-sidebar-section-text, var(--lms-text-muted));
+	opacity: 1;
+	border-bottom: 2px solid var(--lms-sidebar-active-accent, var(--lms-accent, #b9f19d));
 	line-height: 1;
 }
 
@@ -319,8 +321,9 @@ body.lms-portal {
 /* ------------------------------------------------------------------ */
 .lms-footer {
 	padding: 1.5rem clamp(1.25rem, 2.5vw, 2.25rem);
-	color: var(--lms-text-muted);
-	font-size: 0.85rem;
+	/* Slightly darker than --lms-text-muted for AA contrast on white (~#555). */
+	color: color-mix(in oklab, var(--lms-text) 72%, var(--lms-text-muted));
+	font-size: 0.875rem;
 	text-align: center;
 	border-top: 1px solid var(--lms-border);
 	background: var(--lms-surface);
@@ -329,6 +332,167 @@ body.lms-portal {
 .lms-footer p {
 	margin: 0;
 	letter-spacing: 0.01em;
+}
+
+/* Module-unavailable + back link + connectivity (Round 8) */
+.lms-module-unavailable__hint {
+	margin-top: 0.75rem;
+	font-size: var(--lms-fs-sm);
+	color: color-mix(in oklab, var(--lms-text) 65%, var(--lms-text-muted));
+	max-width: 36rem;
+}
+
+.lms-module-unavailable__actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.75rem;
+	justify-content: center;
+	margin-top: 1.25rem;
+}
+
+.lms-back-link {
+	margin: 0 0 0.75rem;
+	font-size: var(--lms-fs-sm);
+}
+
+.lms-back-link a {
+	color: color-mix(in oklab, var(--lms-text) 70%, var(--lms-primary));
+	text-decoration: none;
+	font-weight: 500;
+}
+
+.lms-back-link a:hover,
+.lms-back-link a:focus-visible {
+	text-decoration: underline;
+	outline: none;
+}
+
+.lms-connectivity {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	padding: 0.5rem 0.85rem;
+	margin-bottom: 0.85rem;
+	border-radius: var(--lms-radius-sm);
+	font-size: var(--lms-fs-sm);
+	font-weight: 500;
+	border: 1px solid var(--lms-border);
+}
+
+.lms-connectivity__dot {
+	width: 0.55rem;
+	height: 0.55rem;
+	border-radius: 50%;
+	flex-shrink: 0;
+}
+
+.lms-connectivity.is-online {
+	background: color-mix(in oklab, var(--lms-success) 10%, var(--lms-surface));
+	color: color-mix(in oklab, var(--lms-text) 85%, var(--lms-success));
+}
+
+.lms-connectivity.is-online .lms-connectivity__dot {
+	background: var(--lms-success);
+}
+
+.lms-connectivity.is-offline {
+	background: color-mix(in oklab, var(--lms-warning) 14%, var(--lms-surface));
+	color: color-mix(in oklab, var(--lms-text) 80%, var(--lms-warning));
+}
+
+.lms-connectivity.is-offline .lms-connectivity__dot {
+	background: var(--lms-warning);
+}
+
+.lms-reg-banner {
+	padding: 0.75rem 1rem;
+	margin-bottom: 1rem;
+	border-radius: var(--lms-radius);
+	font-size: var(--lms-fs-sm);
+	border: 1px solid var(--lms-border);
+	background: var(--lms-surface-alt);
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.5rem;
+}
+
+.lms-reg-banner--warning {
+	background: color-mix(in oklab, var(--lms-warning) 12%, var(--lms-surface));
+	border-color: color-mix(in oklab, var(--lms-warning) 35%, var(--lms-border));
+}
+
+.lms-reg-banner--success {
+	background: color-mix(in oklab, var(--lms-success) 10%, var(--lms-surface));
+	border-color: color-mix(in oklab, var(--lms-success) 30%, var(--lms-border));
+}
+
+/* Nav search + recents (Hick's Law) */
+.lms-sidebar__search-wrap {
+	padding: 0.5rem 0.75rem 0.35rem;
+}
+
+.lms-sidebar__search {
+	width: 100%;
+	height: 2rem;
+	padding: 0 0.65rem;
+	border-radius: var(--lms-radius-sm);
+	border: 1px solid var(--lms-border);
+	background: var(--lms-surface);
+	color: var(--lms-text);
+	font-size: var(--lms-fs-sm);
+	font-family: inherit;
+}
+
+.lms-sidebar__search:focus {
+	outline: none;
+	box-shadow: var(--lms-form-focus-ring);
+	border-color: var(--lms-primary);
+}
+
+.lms-sidebar__recents {
+	padding: 0 0 0.25rem;
+}
+
+.lms-sidebar.is-mini .lms-sidebar__search-wrap,
+.lms-sidebar.is-mini .lms-sidebar__recents {
+	display: none;
+}
+
+.lms-idle-banner {
+	position: fixed;
+	bottom: 1.25rem;
+	left: 50%;
+	transform: translateX(-50%);
+	z-index: var(--lms-z-toast, 110);
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.75rem;
+	max-width: min(36rem, calc(100vw - 2rem));
+	padding: 0.85rem 1.1rem;
+	border-radius: var(--lms-radius);
+	background: var(--lms-surface-elevated, var(--lms-surface));
+	border: 1px solid color-mix(in oklab, var(--lms-warning) 40%, var(--lms-border));
+	box-shadow: var(--lms-shadow-lg);
+	font-size: var(--lms-fs-sm);
+	color: var(--lms-text);
+}
+
+.lms-list__item.is-pending-sync {
+	border-left: 3px solid var(--lms-warning);
+}
+
+.sr-only {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip: rect(0, 0, 0, 0);
+	white-space: nowrap;
+	border: 0;
 }
 
 @media (min-width: 1025px) {
@@ -354,14 +518,46 @@ body.lms-portal {
 	padding: 0 clamp(1rem, 2.5vw, 1.75rem);
 	z-index: 80;
 	gap: 1.25rem;
+	overflow: visible;
 }
 
 .lms-topbar__left,
 .lms-topbar__right {
 	display: flex;
 	align-items: center;
-	gap: 1rem;
+	gap: 0.75rem;
 	min-width: 0;
+}
+
+.lms-topbar__right {
+	flex-shrink: 0;
+	overflow: visible;
+	position: relative;
+	z-index: 90;
+}
+
+.lms-four-eyes-badge {
+	display: inline-flex;
+	align-items: center;
+	padding: 0.2rem 0.55rem;
+	border-radius: 999px;
+	font-size: 0.7rem;
+	font-weight: 700;
+	letter-spacing: 0.02em;
+	color: var(--lms-warning, #b45309);
+	background: color-mix(in oklab, var(--lms-warning, #f59e0b) 16%, transparent);
+	border: 1px solid color-mix(in oklab, var(--lms-warning, #f59e0b) 40%, transparent);
+	white-space: nowrap;
+	cursor: pointer;
+	font-family: inherit;
+	line-height: 1.2;
+}
+
+.lms-four-eyes-badge:hover,
+.lms-four-eyes-badge:focus-visible {
+	background: color-mix(in oklab, var(--lms-warning, #f59e0b) 24%, transparent);
+	outline: 2px solid color-mix(in oklab, var(--lms-warning, #f59e0b) 45%, transparent);
+	outline-offset: 2px;
 }
 
 .lms-topbar__menu-btn {
@@ -398,6 +594,76 @@ body.lms-portal {
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
+}
+
+.lms-breadcrumbs {
+	margin: 0 0 0.15rem;
+}
+
+.lms-breadcrumbs__list {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.2rem;
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	font-size: 0.7rem;
+	font-weight: 600;
+	letter-spacing: 0.02em;
+	color: var(--lms-text-muted);
+}
+
+.lms-breadcrumbs__item {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.25rem;
+	min-width: 0;
+}
+
+.lms-breadcrumbs__item a {
+	color: var(--lms-text-muted);
+	text-decoration: none;
+}
+
+.lms-breadcrumbs__item a:hover {
+	color: var(--lms-primary);
+	text-decoration: underline;
+}
+
+.lms-breadcrumbs__item.is-current span {
+	color: var(--lms-text);
+}
+
+.lms-breadcrumbs__sep {
+	opacity: 0.55;
+	margin-right: 0.1rem;
+}
+
+.lms-chart-sr-summary {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip: rect(0, 0, 0, 0);
+	white-space: nowrap;
+	border: 0;
+}
+
+.lms-chart-wrap {
+	position: relative;
+}
+
+.lms-kanban-card.is-overdue {
+	border-color: var(--lms-danger, #dc2626);
+	box-shadow: inset 3px 0 0 var(--lms-danger, #dc2626);
+}
+
+.lms-text--danger {
+	color: var(--lms-danger, #dc2626) !important;
+	font-weight: 600;
 }
 
 .lms-topbar__disclosure {
@@ -1464,21 +1730,25 @@ body.lms-portal-borrower .form-control:focus {
 }
 .lms-notification-panel {
 	position: fixed;
-	top: 0;
-	right: -420px;
+	top: 64px;
+	right: 1rem;
 	width: 380px;
-	max-width: 90vw;
-	height: 100vh;
+	max-width: calc(100vw - 2rem);
+	max-height: calc(100vh - 80px);
 	background: var(--lms-surface);
-	border-left: 1px solid var(--lms-border);
+	border: 1px solid var(--lms-border);
+	border-radius: 0 0 var(--lms-radius-lg) var(--lms-radius-lg);
 	box-shadow: var(--lms-shadow-lg);
 	z-index: 200;
-	transition: right 0.25s ease;
+	transform: translateX(120%);
+	transition: transform 0.2s ease;
 	display: flex;
 	flex-direction: column;
+	overflow: hidden;
 }
-.lms-notification-panel[aria-hidden="false"] {
-	right: 0;
+.lms-notification-panel[aria-hidden="false"],
+.lms-notification-panel.is-open {
+	transform: translateX(0);
 }
 .lms-notification-panel__header {
 	display: flex;
@@ -1494,15 +1764,21 @@ body.lms-portal-borrower .form-control:focus {
 	color: var(--lms-text);
 	letter-spacing: -0.01em;
 }
-}
 .lms-notification-panel__close {
 	background: none;
 	border: none;
 	font-size: 1.5rem;
 	color: var(--lms-text-muted);
 	cursor: pointer;
-	padding: 0;
+	padding: 0.25rem 0.5rem;
 	line-height: 1;
+	min-width: 36px;
+	min-height: 36px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: var(--lms-radius-sm);
+	flex-shrink: 0;
 }
 .lms-notification-panel__body {
 	flex: 1;
@@ -2024,22 +2300,46 @@ body.lms-portal-borrower .form-control:focus {
 	margin-bottom: 0;
 }
 
-/* Quick-action row: ensure it never overlaps the tab nav below it. */
+/* Quick-action row: never overlap the tab nav (B-11). */
 .lms-quick-actions {
 	position: relative;
-	z-index: 1;
-	margin-bottom: 1.25rem;
+	z-index: 2;
+	margin-bottom: 0.75rem;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+	isolation: isolate;
+}
+
+#lms-officer-root {
+	display: flex;
+	flex-direction: column;
+	gap: 0.75rem;
+}
+
+#lms-officer-root > .lms-quick-actions,
+#lms-officer-root > .lms-tab-nav,
+#lms-officer-root > #lms-officer-tab-content {
+	position: relative;
+	z-index: auto;
 }
 
 .lms-tab-nav {
 	position: relative;
-	z-index: 1;
+	z-index: 3;
+	flex-shrink: 0;
 }
 
-/* Risk disclosure: hide on non-lending portals so HR / Insurance / Feedback
- * don't show "Loans involve credit risk." in their headers. */
-body:not(.lms-portal-borrower):not(.lms-page-loans):not(.lms-page-apply):not(.lms-page-pay) .lms-topbar__disclosure {
+/* Risk disclosure is gated server-side via lms_show_risk_disclosure; keep a
+ * CSS fallback for cached pages that still emit the span. */
+body:not(.lms-portal-borrower):not(.lms-page-loans):not(.lms-page-apply):not(.lms-page-pay):not(.lms-page-officer):not(.lms-page-manager):not(.lms-page-collect) .lms-topbar__disclosure {
 	display: none;
+}
+
+@media (max-width: 1024px) {
+	.lms-topbar__menu-btn {
+		display: inline-flex !important;
+	}
 }
 
 /* Page section heading (h2 in main) — consistent spacing. */

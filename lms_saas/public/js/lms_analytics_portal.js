@@ -16,32 +16,23 @@ lms_analytics.init = function () {
 		{ id: "leaderboard", label: "Leaderboard", icon: "trophy" },
 		{ id: "trends", label: "Trends", icon: "trending-up" },
 	];
+	// Page title lives in the topbar <h1> — do not duplicate it here (B-27).
+	var home = window.__lms_home_route || "/lms";
 	var html = lms_portal.pageStart() +
-		lms_portal.pageHeader({ title: "Branch Analytics" }) +
-		'<nav class="lms-tab-nav" role="tablist">';
-	tabs.forEach(function (t) {
-		var active = lms_analytics._currentTab === t.id ? " is-active" : "";
-		var iconHtml = (window.lms_icons && lms_icons.icon) ? lms_icons.icon(t.icon, { size: 16, cls: "lms-tab-icon" }) : "";
-		html += '<button type="button" class="lms-tab' + active + '" data-tab="' + t.id + '" role="tab" aria-selected="' + (active ? "true" : "false") + '">' + iconHtml + lms_portal.escape(t.label) + "</button>";
-	});
-	html += "</nav>";
-	html += '<div id="lms-analytics-tab-content"></div>';
-	html += lms_portal.pageEnd();
+		lms_portal.backLink({ href: home, label: "Manager home" }) +
+		lms_portal.tabNav(tabs, lms_analytics._currentTab) +
+		'<div id="lms-analytics-tab-content" role="tabpanel"></div>' +
+		lms_portal.pageEnd();
 	root.innerHTML = html;
 
-	root.querySelectorAll(".lms-tab").forEach(function (btn) {
-		btn.addEventListener("click", function () {
-			lms_analytics._currentTab = btn.getAttribute("data-tab");
-			root.querySelectorAll(".lms-tab").forEach(function (b) {
-				b.classList.remove("is-active");
-				b.setAttribute("aria-selected", "false");
-			});
-			btn.classList.add("is-active");
-			btn.setAttribute("aria-selected", "true");
-			lms_analytics._showTab(lms_analytics._currentTab);
-		});
+	lms_portal.bindTabs({
+		root: root,
+		tabs: tabs,
+		onTab: function (tabId) {
+			lms_analytics._currentTab = tabId;
+			lms_analytics._showTab(tabId);
+		},
 	});
-
 	lms_analytics._showTab(lms_analytics._currentTab);
 };
 
@@ -69,7 +60,11 @@ lms_analytics._loadComparison = function (content) {
 			var data = (r && r.message) || {};
 			var branches = data.branches || [];
 			if (!branches.length) {
-				content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("📊") + '<h3>No data</h3><p>No branch data available.</p></div></div>';
+				content.innerHTML = lms_portal.emptyPanel(
+					"bar-chart",
+					"No branch data yet",
+					"Once loans are booked to branches, portfolio and PAR comparison will appear here."
+				);
 				return;
 			}
 

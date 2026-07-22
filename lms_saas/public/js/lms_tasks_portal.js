@@ -82,8 +82,14 @@ lms_tasks._renderBoard = function (el, data) {
 		} else {
 			tasks.forEach(function (t) {
 				var priorityClass = t.priority === "High" ? "lms-badge--danger" : (t.priority === "Medium" ? "lms-badge--warning" : "");
-				html += '<div class="lms-kanban-card lms-panel" data-task="' + lms_portal.escape(t.name) + '" data-status="' + col.key + '">';
-				html += '<div class="lms-kanban-card__title">' + lms_portal.escape(t.subject) + '</div>';
+				var overdueCls = t.is_overdue ? " is-overdue" : "";
+				html += '<div class="lms-kanban-card lms-panel' + overdueCls + '" data-task="' + lms_portal.escape(t.name) + '" data-status="' + col.key + '"' +
+					(t.is_overdue ? ' aria-label="Overdue task: ' + lms_portal.escape(t.subject) + '"' : "") + ">";
+				html += '<div class="lms-kanban-card__title">' + lms_portal.escape(t.subject);
+				if (t.is_overdue) {
+					html += ' <span class="lms-badge lms-badge--danger">Overdue</span>';
+				}
+				html += "</div>";
 				if (t.reference_name) {
 					html += '<div class="lms-muted lms-kanban-card__ref">' + lms_portal.escape(t.reference_type || "") + ": " + lms_portal.escape(t.reference_name) + '</div>';
 				}
@@ -92,7 +98,8 @@ lms_tasks._renderBoard = function (el, data) {
 					html += '<span class="lms-badge ' + priorityClass + '">' + lms_portal.escape(t.priority) + '</span>';
 				}
 				if (t.exp_end_date) {
-					html += '<span class="lms-muted lms-kanban-card__date">' + lms_portal.formatDate(t.exp_end_date) + '</span>';
+					html += '<span class="lms-kanban-card__date' + (t.is_overdue ? " lms-text--danger" : " lms-muted") + '">' +
+						lms_portal.formatDate(t.exp_end_date) + "</span>";
 				}
 				html += '</div>';
 				html += '</div>';

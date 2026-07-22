@@ -234,7 +234,12 @@ def require_persona_for_page(perm: str):
 	from lms_saas.utils.brand import _get_user_persona
 
 	persona = _get_user_persona() or ""
-	landing = PERSONA_LANDING.get(persona, "/lms")
+	landing = PERSONA_LANDING.get(persona)
+	if not landing:
+		from lms_saas.install import PORTAL_STAFF_ROLE
+
+		roles = set(frappe.get_roles())
+		landing = "/lms/manager" if PORTAL_STAFF_ROLE in roles else "/lms"
 	frappe.local.flags.redirect_location = landing
 	raise frappe.Redirect
 
@@ -330,7 +335,16 @@ def _require_addon_persona_page(addon_key: str, spec: dict) -> None:
 	if "Borrower" in allowed and is_portal_borrower():
 		return
 
-	landing = PERSONA_LANDING.get(persona or "", "/lms")
+	# Never dump staff onto the borrower dashboard (/lms). Prefer their
+	# persona landing; fall back to manager for unknown portal staff.
+	landing = PERSONA_LANDING.get(persona or "")
+	if not landing:
+		from lms_saas.install import PORTAL_STAFF_ROLE
+
+		if PORTAL_STAFF_ROLE in roles:
+			landing = "/lms/manager"
+		else:
+			landing = "/lms"
 	frappe.local.flags.redirect_location = landing
 	raise frappe.Redirect
 

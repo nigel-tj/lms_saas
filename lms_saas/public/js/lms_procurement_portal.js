@@ -12,13 +12,14 @@ lms_procurement.init = function () {
 	if (!root) return;
 
 	var tabs = [
-		{ id: "requests", label: "Requests", icon: "📝" },
-		{ id: "orders", label: "Orders", icon: "📦" },
-		{ id: "suppliers", label: "Suppliers", icon: "🏢" },
-		{ id: "stats", label: "Stats", icon: "📊" },
+		{ id: "requests", label: "Requests", icon: "file-text" },
+		{ id: "orders", label: "Orders", icon: "package" },
+		{ id: "suppliers", label: "Suppliers", icon: "building" },
+		{ id: "stats", label: "Stats", icon: "bar-chart" },
 	];
+	var home = window.__lms_home_route || "/lms";
 	var html = lms_portal.pageStart() +
-		lms_portal.pageHeader({ title: "Procurement" }) +
+		lms_portal.backLink({ href: home, label: "Back" }) +
 		lms_portal.tabNav(tabs, lms_procurement._currentTab) +
 		'<div id="lms-proc-tab-content"></div>' +
 		lms_portal.pageEnd();
@@ -69,12 +70,18 @@ lms_procurement._loadRequests = function (content) {
 		callback: function (r) {
 			var msg = r && r.message;
 			if (msg && msg._missing) {
-				listEl.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("📝") + '<h3>Procurement is unavailable</h3><p>' + lms_portal.escape(msg.message || "") + '</p></div></div>';
+				listEl.innerHTML = lms_portal.moduleUnavailable({
+					icon: "shopping-cart",
+					title: "Procurement module not ready",
+					message: msg.message || "Material Request tables are not available on this site.",
+					hint: "Enable ERPNext Buying and run a standard bench migrate so Material Request / Purchase Order tables exist, then refresh.",
+					ctaLabel: "Back to dashboard",
+				});
 				return;
 			}
 			var requests = (msg && msg.requests) || [];
 			if (!requests.length) {
-				listEl.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("📝") + '<h3>No requests</h3><p>No purchase requests found for your branch.</p></div></div>';
+				listEl.innerHTML = lms_portal.emptyPanel("file-text", "No purchase requests", "Create a request with + New Purchase Request, or ask your branch to raise one in Desk.");
 				return;
 			}
 			var html = '<div class="lms-panel"><div class="lms-data-table__wrap"><table class="lms-data-table">';
@@ -195,12 +202,17 @@ lms_procurement._loadOrders = function (content) {
 		callback: function (r) {
 			var msg = r && r.message;
 			if (msg && msg._missing) {
-				content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("📦") + '<h3>Procurement is unavailable</h3><p>' + lms_portal.escape(msg.message || "") + '</p></div></div>';
+				content.innerHTML = lms_portal.moduleUnavailable({
+					icon: "package",
+					title: "Procurement module not ready",
+					message: msg.message || "Purchase Order tables are not available on this site.",
+					ctaLabel: "Back to dashboard",
+				});
 				return;
 			}
 			var orders = (msg && msg.orders) || [];
 			if (!orders.length) {
-				content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("📦") + '<h3>No orders</h3><p>No purchase orders found for your branch.</p></div></div>';
+				content.innerHTML = lms_portal.emptyPanel("package", "No purchase orders", "Orders for your branch will appear here once Material Requests are converted to POs.");
 				return;
 			}
 			var html = '<div class="lms-panel"><div class="lms-data-table__wrap"><table class="lms-data-table">';
@@ -232,12 +244,17 @@ lms_procurement._loadSuppliers = function (content) {
 		callback: function (r) {
 			var msg = r && r.message;
 			if (msg && msg._missing) {
-				content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("🏢") + '<h3>Procurement is unavailable</h3><p>' + lms_portal.escape(msg.message || "") + '</p></div></div>';
+				content.innerHTML = lms_portal.moduleUnavailable({
+					icon: "building",
+					title: "Procurement module not ready",
+					message: msg.message || "Supplier tables are not available on this site.",
+					ctaLabel: "Back to dashboard",
+				});
 				return;
 			}
 			var suppliers = (msg && msg.suppliers) || [];
 			if (!suppliers.length) {
-				content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("🏢") + '<h3>No suppliers</h3><p>No approved suppliers found.</p></div></div>';
+				content.innerHTML = lms_portal.emptyPanel("building", "No suppliers yet", "Add approved suppliers in ERPNext to see them here.");
 				return;
 			}
 			var html = '<div class="lms-panel"><div class="lms-data-table__wrap"><table class="lms-data-table">';
@@ -266,7 +283,12 @@ lms_procurement._loadStats = function (content) {
 		callback: function (r) {
 			var s = (r && r.message) || {};
 			if (s._missing) {
-				content.innerHTML = lms_portal.emptyPanel("📊", "Procurement is unavailable", s.message || "");
+				content.innerHTML = lms_portal.moduleUnavailable({
+					icon: "bar-chart",
+					title: "Procurement module not ready",
+					message: s.message || "Spend stats require Buying module tables.",
+					ctaLabel: "Back to dashboard",
+				});
 				return;
 			}
 			var html = '<section class="lms-grid-4 lms-proc-kpis">';

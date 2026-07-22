@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" dir="ltr" data-lms-theme="{{ lms_theme or 'default' }}">
+<html lang="{{ lms_lang or 'en' }}" dir="ltr" data-lms-theme="{{ lms_theme or 'default' }}">
 <head>
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
@@ -23,7 +23,12 @@
 	<script>document.documentElement.setAttribute("data-lms-favicon", {{ brand.favicon_url | tojson }});</script>
 	{% endif %}
 	<script>window.__lms_desk_home = {{ (lms_desk_home or "/desk/lending") | tojson }};</script>
+	<script>window.__lms_home_route = {{ (lms_home_route or "/lms") | tojson }};</script>
 	<script>window.__lms_support_email = {{ (brand.support_email if brand else '') | tojson }};</script>
+	<script>window.__lms_enforce_four_eyes = {{ 'true' if lms_enforce_four_eyes else 'false' }};</script>
+	<script>window.__lms_currency = {{ (lms_currency or 'ZAR') | tojson }};</script>
+	<script>window.__lms_idle_minutes = {{ (lms_idle_minutes if lms_idle_minutes is defined else 30) | int }};</script>
+	<script>window.__lms_lang = {{ (lms_lang or 'en') | tojson }};</script>
 
 	{# Frappe web globals — must exist before frappe-web.bundle.js loads #}
 	<script>
@@ -64,9 +69,15 @@
 			</main>
 
 			{% block footer %}
+			{% set _footer = (brand.footer_text if brand else none) %}
+			{% if _footer is none %}
+				{% set _footer = 'Powered by ' ~ ((brand.portal_title if brand else none) or 'LMS') %}
+			{% endif %}
+			{% if _footer %}
 			<footer class="lms-footer">
-				<p>{{ brand.footer_text if brand else 'Powered by Kesari' }}</p>
+				<p>{{ _footer }}</p>
 			</footer>
+			{% endif %}
 			{% endblock %}
 		</div>
 	</div>
@@ -87,7 +98,9 @@
 	  var backdrop = document.getElementById('lms-sidebar-backdrop');
 	  if (!sidebar) return;
 
-	  var STORAGE_KEY = 'lms.sidebar.collapsed';
+	  // Bind collapse preference to the signed-in user (not a shared kiosk key).
+	  var _user = (window.frappe && frappe.session && frappe.session.user) || 'anon';
+	  var STORAGE_KEY = 'lms.sidebar.collapsed.' + _user;
 	  var MOBILE_BREAKPOINT = 1024;
 
 	  function isMobile() {
@@ -143,8 +156,14 @@
 	  // Bind all event listeners first, then apply the persisted state.
 	  // Defer to next tick to guarantee the DOM is fully parsed.
 	  function init() {
-	    // Initial state: respect the user's stored preference (desktop only).
-	    if (!isMobile() && readPersisted()) {
+	    // Mobile (incl. 375px): always start collapsed/off-canvas (B-10).
+	    // Desktop: respect the user's stored mini preference.
+	    if (isMobile()) {
+	      sidebar.classList.remove('is-open', 'is-mini');
+	      if (main) main.classList.remove('is-mini');
+	      if (backdrop) backdrop.classList.remove('is-visible');
+	      updateToggleUI(true);
+	    } else if (readPersisted()) {
 	      applyCollapsed(true, false);
 	    } else {
 	      applyCollapsed(false, false);

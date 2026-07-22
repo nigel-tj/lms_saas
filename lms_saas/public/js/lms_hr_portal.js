@@ -12,15 +12,16 @@ lms_hr.init = function () {
 	if (!root) return;
 
 	var tabs = [
-		{ id: "dashboard", label: "Dashboard", icon: "📊" },
-		{ id: "leaves", label: "Leave Approvals", icon: "📅" },
-		{ id: "attendance", label: "Attendance", icon: "✅" },
-		{ id: "expenses", label: "Expenses", icon: "💰" },
-		{ id: "shifts", label: "Shift Requests", icon: "⏰" },
-		{ id: "directory", label: "Directory", icon: "👥" },
+		{ id: "dashboard", label: "Dashboard", icon: "bar-chart" },
+		{ id: "leaves", label: "Leave Approvals", icon: "calendar" },
+		{ id: "attendance", label: "Attendance", icon: "check-square" },
+		{ id: "expenses", label: "Expenses", icon: "wallet" },
+		{ id: "shifts", label: "Shift Requests", icon: "clock" },
+		{ id: "directory", label: "Directory", icon: "users" },
 	];
+	var home = window.__lms_home_route || "/lms";
 	var html = lms_portal.pageStart() +
-		lms_portal.pageHeader({ title: "HR Management" }) +
+		lms_portal.backLink({ href: home, label: "Back" }) +
 		lms_portal.tabNav(tabs, lms_hr._currentTab) +
 		'<div id="lms-hr-tab-content"></div>' +
 		lms_portal.pageEnd();
@@ -53,14 +54,29 @@ lms_hr._loadDashboard = function (content) {
 		method: "lms_saas.api.hr.get_hr_dashboard",
 		callback: function (r) {
 			var d = (r && r.message) || {};
-			content.innerHTML = lms_portal.kpiStrip([
-				{ label: "Team Members", value: d.team_count || 0 },
+			var team = d.team_count || 0;
+			var html = lms_portal.kpiStrip([
+				{ label: "Team Members", value: team },
 				{ label: "Present Today", value: d.present_today || 0, tone: "success" },
-				{ label: "Absent Today", value: d.absent_today || 0, tone: "danger" },
+				{ label: "Absent Today", value: d.absent_today || 0, tone: team ? "danger" : undefined },
 				{ label: "Pending Leaves", value: d.pending_leaves || 0, tone: "warning" },
 				{ label: "Pending Expenses", value: d.pending_expenses || 0, tone: "warning" },
 				{ label: "Shift Requests", value: d.pending_shift_requests || 0 },
 			]);
+			// B-24: clear zero-state when no team / HR data for this branch
+			if (!team) {
+				html += lms_portal.emptyPanel(
+					"users",
+					"No team assigned to this branch",
+					"Link Employee records to this branch (Branch / Cost Center) in HRMS to see attendance, leave queues, and the directory here."
+				);
+			} else if (!(d.pending_leaves || d.pending_expenses || d.pending_shift_requests || d.present_today || d.absent_today)) {
+				html += '<div class="lms-panel" style="margin-top:1rem;"><p class="lms-muted" style="margin:0;">Team is linked. No pending leave, expense, or shift items right now — you’re all caught up.</p></div>';
+			}
+			content.innerHTML = html;
+		},
+		error: function () {
+			content.innerHTML = lms_portal.error("Could not load HR dashboard.");
 		},
 	});
 };

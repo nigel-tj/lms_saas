@@ -12,9 +12,9 @@ lms_inventory.init = function () {
 	if (!root) return;
 
 	var tabs = [
-		{ id: "assets", label: "Assets", icon: "📦" },
-		{ id: "stock", label: "Stock", icon: "📋" },
-		{ id: "lowstock", label: "Low Stock Alerts", icon: "⚠️" },
+		{ id: "assets", label: "Assets", icon: "package" },
+		{ id: "stock", label: "Stock", icon: "clipboard" },
+		{ id: "lowstock", label: "Low Stock Alerts", icon: "alert-triangle" },
 	];
 	var html = lms_portal.pageStart() +
 		lms_portal.pageHeader({ title: "Inventory & Assets" }) +

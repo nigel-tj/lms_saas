@@ -12,12 +12,13 @@ lms_payroll.init = function () {
 	if (!root) return;
 
 	var tabs = [
-		{ id: "overview", label: "Overview", icon: "📊" },
-		{ id: "slips", label: "Salary Slips", icon: "🧾" },
-		{ id: "loans", label: "Loan Deductions", icon: "💰" },
+		{ id: "overview", label: "Overview", icon: "bar-chart" },
+		{ id: "slips", label: "Salary Slips", icon: "file-text" },
+		{ id: "loans", label: "Loan Deductions", icon: "wallet" },
 	];
+	var home = window.__lms_home_route || "/lms";
 	var html = lms_portal.pageStart() +
-		lms_portal.pageHeader({ title: "Payroll" }) +
+		lms_portal.backLink({ href: home, label: "Back" }) +
 		lms_portal.tabNav(tabs, lms_payroll._currentTab) +
 		'<div id="lms-payroll-tab-content"></div>' +
 		lms_portal.pageEnd();
@@ -47,9 +48,11 @@ lms_payroll._loadOverview = function (content) {
 		method: "lms_saas.api.payroll.get_payroll_overview",
 		callback: function (r) {
 			var d = (r && r.message) || {};
+			var team = d.team_count || 0;
+			var slips = d.slip_count || 0;
 			var html = lms_portal.kpiStrip([
-				{ label: "Team Members", value: d.team_count || 0 },
-				{ label: "Payslips", value: d.slip_count || 0 },
+				{ label: "Team Members", value: team },
+				{ label: "Payslips", value: slips },
 				{ label: "Submitted", value: d.submitted || 0, tone: "success" },
 				{ label: "Draft", value: d.draft || 0, tone: "warning" },
 				{ label: "Gross Pay", value: format_currency(d.total_gross || 0) },
@@ -57,6 +60,15 @@ lms_payroll._loadOverview = function (content) {
 				{ label: "Deductions", value: format_currency(d.total_deductions || 0), tone: "warning" },
 				{ label: "Loan Deductions", value: format_currency(d.loan_deductions || 0), tone: "danger" },
 			]);
+
+			// B-25: clear zero-state when no payroll / team data
+			if (!team && !slips) {
+				html += lms_portal.emptyPanel(
+					"wallet",
+					"No payroll data for this branch",
+					"When employees are linked to this branch and Salary Slips / Payroll Entries exist in HRMS, totals and entries will appear here."
+				);
+			}
 
 			// Payroll entries
 			var entries = d.payroll_entries || [];
@@ -75,6 +87,8 @@ lms_payroll._loadOverview = function (content) {
 					html += "</tr>";
 				});
 				html += "</tbody></table></div></div>";
+			} else if (team || slips) {
+				html += '<div class="lms-panel" style="margin-top:1rem;"><p class="lms-muted" style="margin:0;">No Payroll Entry documents in range yet.</p></div>';
 			}
 
 			content.innerHTML = html;
@@ -91,7 +105,11 @@ lms_payroll._loadSlips = function (content) {
 		callback: function (r) {
 			var slips = (r && r.message && r.message.slips) || [];
 			if (!slips.length) {
-				content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("🧾") + '<h3>No payslips</h3><p>No salary slips found for your branch.</p></div></div>';
+				content.innerHTML = lms_portal.emptyPanel(
+					"file-text",
+					"No payslips yet",
+					"Salary slips for employees on this branch will list here after a payroll run."
+				);
 				return;
 			}
 			var html = '<div class="lms-panel"><div class="lms-data-table__wrap"><table class="lms-data-table">';
