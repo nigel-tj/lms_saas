@@ -71,7 +71,11 @@
 			opts = { body: arguments[0], title: arguments[1] && arguments[1].title, actions: arguments[1] && arguments[1].actions };
 		}
 		var dlg = document.createElement("dialog");
-		dlg.className = "lms-modal";
+		var sizeClass = opts.size === "xl" ? " lms-modal--xl"
+			: opts.size === "lg" ? " lms-modal--lg"
+			: opts.size === "sm" ? " lms-modal--sm"
+			: "";
+		dlg.className = "lms-modal" + sizeClass;
 		dlg.setAttribute("aria-modal", "true");
 		dlg.innerHTML = buildHtml(opts);
 

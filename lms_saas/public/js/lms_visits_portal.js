@@ -339,35 +339,46 @@ lms_visits._showCompleteModal = function (visitName) {
 	var html = '<div class="lms-form">';
 	html += '<div class="lms-field"><label>Completion Notes</label>';
 	html += '<textarea id="lms-vis-complete-notes" class="lms-input" rows="4" placeholder="Visit outcome, findings, recommendations…"></textarea></div>';
-	html += '<div class="lms-field"><label>Photo URL (optional)</label>';
-	html += '<input type="text" id="lms-vis-complete-photos" class="lms-input" placeholder="/files/visit-photo.jpg"></div>';
+	html += lms_portal._fileUploadField({
+		id: "lms-vis-complete-photos",
+		label: "Visit photo (optional)",
+		fieldname: null,
+		buttonLabel: "Upload photo",
+		accept: "image/*",
+	});
 	html += '</div>';
 
-	lms_portal.modal({
+	var overlay = lms_portal.modal({
 		title: "Complete Visit",
 		body: html,
 		confirmText: "Complete",
 		confirmVariant: "success",
-		onConfirm: function (overlay) {
-			var notes = overlay.querySelector("#lms-vis-complete-notes").value;
-			var photos = overlay.querySelector("#lms-vis-complete-photos").value;
-
-			lms_portal.safeCall({
-				method: "lms_saas.api.field_visits.complete_visit",
-				args: {
-					visit_name: visitName,
-					notes: notes || undefined,
-					photos: photos || undefined,
-				},
-				callback: function (r) {
-					lms_portal.toast("Visit completed: " + ((r && r.message && r.message.name) || ""), "success");
-					lms_visits._loadStats();
-					lms_visits._showTab(lms_visits._currentTab);
-				},
-				error: function () {
-					lms_portal.toast("Could not complete visit.", "danger");
-				},
-			});
-		},
 	});
+	// Wire up the file upload widget. The visits API just stores the file_url
+	// on LMS Field Visit.photos — no KYC registration is required, so
+	// fieldname is null.
+	lms_portal._bindUploadWidgets(overlay.el, {});
+	// Re-bind click handler: lms_portal.modal's confirm button calls onConfirm
+	// only if it is supplied, so wrap the existing onConfirm logic here.
+	overlay.el.querySelector("[data-lms-modal-confirm]").onclick = function () {
+		var notes = (overlay.el.querySelector("#lms-vis-complete-notes") || {}).value || "";
+		var photos = (overlay.el.querySelector("#lms-vis-complete-photos") || {}).value || "";
+		lms_portal.safeCall({
+			method: "lms_saas.api.field_visits.complete_visit",
+			args: {
+				visit_name: visitName,
+				notes: notes || undefined,
+				photos: photos || undefined,
+			},
+			callback: function (r) {
+				lms_portal.toast("Visit completed: " + ((r && r.message && r.message.name) || ""), "success");
+				lms_visits._loadStats();
+				lms_visits._showTab(lms_visits._currentTab);
+				overlay.close();
+			},
+			error: function () {
+				lms_portal.toast("Could not complete visit.", "danger");
+			},
+		});
+	};
 };
