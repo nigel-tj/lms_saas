@@ -11,6 +11,7 @@ This guide is for **Branch Managers**. You spend most of your day in the Manager
 - Approve leave and expenses for your team.
 - See reports for your branch and compare with other branches.
 - Make sure your branch is following the sandbox rules (KYC, four-eyes, audit log).
+- Do your **books and imports** for the branch — read GL, export to CSV/XLSX, and bring in repayments and KYC updates from a spreadsheet.
 
 ## Sign in
 
@@ -81,6 +82,37 @@ Your branch follows the Reserve Bank sandbox rules. Two of them affect your day:
 
 The weekly compliance summary is prepared by your administrator. You can read it in the Manager Portal under **Compliance** → **Weekly summary**. If you cannot find it, ask your administrator.
 
+## Books and import
+
+Open **Books & Import** from the sidebar (the manager-only entry under the Manager Portal). The page has three tabs:
+
+### Books tab
+Read-only view of the branch general ledger.
+- Pick a **From** and **To** date, then click **Load**.
+- The four KPIs at the top show Income, Expense, Net, and the row count for the period.
+- The table below shows the most recent 200 GL rows for your branch.
+- Click **Export CSV** or **Export XLSX** to download the full set. Exports are recorded in the audit trail.
+
+### Import tab
+Bring in data from a spreadsheet without leaving the portal. The flow is staging-first so you can see the result before anything changes.
+
+1. Pick a **DocType**:
+   - **Loan Repayment** — for daily collections brought in by the field team.
+   - **Customer** — for branch reassignment.
+   - **LMS Borrower Compliance** — for bulk KYC / consent updates.
+2. Click **Download CSV template** to get a starter file with the right columns.
+3. Upload your completed file (CSV or XLSX).
+4. Click **Stage & preview**. The system validates every row and shows you which are OK and which have errors. No live records change at this point.
+5. Fix the rows with errors in your spreadsheet, re-upload, and stage again.
+6. When the preview shows all rows OK (or only the ones you want to keep), click **Dry run** to confirm counts, then **Commit to live records**.
+
+The commit happens in one transaction. If any row fails, the whole batch rolls back and the batch is marked **Failed** — your books stay clean. Each batch gets an **idempotency key**, so re-committing the same file is a no-op.
+
+A successful commit writes an **LMS Audit Event** with the action `import_commit:<doctype>` and the row count.
+
+### Reconciliation tab
+Quick view of mobile-money statement matching. Shows total, matched, and unmatched counts for the branch company, plus a list of the most recent unmatched lines. To match them, ask an Admin — full statement import is a desk task today.
+
 ## When something is stuck
 
 | What you see | What it means | What to do |
@@ -97,6 +129,9 @@ You can tick these off:
 - [ ] Approve or reject a loan application, respecting the four-eyes rule.
 - [ ] Open the Audit tab and find the record for an approval you just made.
 - [ ] Open one of the addon pages (HR, Analytics, Payroll, Regulatory, or Procurement) and know when to ask for help.
+- [ ] Open **Books & Import**, load a date range, and export the books to CSV.
+- [ ] Stage a sample CSV of Loan Repayments, preview, dry-run, then commit.
+- [ ] Open the Reconciliation tab and find the unmatched line count.
 
 ## Need help?
 

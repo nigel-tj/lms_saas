@@ -1,0 +1,148 @@
+{% extends "templates/lms_portal/base.html" %}
+
+{% block title %}{{ _("Books & Import") }} — Kesari{% endblock %}
+
+{% block page_content %}
+<section class="lms-page" data-page="manager-books" data-branch="{{ lms_branch or '' }}">
+  <header class="lms-page-header">
+    <div>
+      <p class="lms-kicker">{{ _("Branch Manager") }}</p>
+      <h1 class="lms-page-title">{{ _("Books & Import") }}</h1>
+      <p class="lms-page-subtitle">
+        {% if lms_branch %}
+          {{ _("Branch:") }} <strong>{{ lms_branch }}</strong>
+        {% else %}
+          {{ _("Branch:") }} <strong>{{ _("all branches") }}</strong>
+        {% endif %}
+      </p>
+    </div>
+    <div class="lms-page-actions">
+      <button type="button" class="btn btn-default" data-action="refresh">
+        {{ _("Refresh") }}
+      </button>
+    </div>
+  </header>
+
+  <nav class="lms-tabnav" role="tablist" aria-label="{{ _('Books & Import sections') }}">
+    <button type="button" class="lms-tab" role="tab" data-tab="books" aria-selected="true">
+      <span class="lms-tab-icon" aria-hidden="true"></span>{{ _("Books") }}
+    </button>
+    <button type="button" class="lms-tab" role="tab" data-tab="import" aria-selected="false">
+      <span class="lms-tab-icon" aria-hidden="true"></span>{{ _("Import") }}
+    </button>
+    <button type="button" class="lms-tab" role="tab" data-tab="recon" aria-selected="false">
+      <span class="lms-tab-icon" aria-hidden="true"></span>{{ _("Reconciliation") }}
+    </button>
+  </nav>
+
+  <!-- Books tab -->
+  <section class="lms-tabpanel" role="tabpanel" data-tab-panel="books" aria-hidden="false">
+    <div class="lms-filterbar">
+      <label class="lms-field">
+        <span>{{ _("From") }}</span>
+        <input type="date" name="from_date" />
+      </label>
+      <label class="lms-field">
+        <span>{{ _("To") }}</span>
+        <input type="date" name="to_date" />
+      </label>
+      <button type="button" class="btn btn-primary" data-action="load-books">
+        {{ _("Load") }}
+      </button>
+      <span class="lms-filterbar__spacer"></span>
+      <button type="button" class="btn btn-default" data-action="export-books" data-fmt="csv">
+        {{ _("Export CSV") }}
+      </button>
+      <button type="button" class="btn btn-default" data-action="export-books" data-fmt="xlsx">
+        {{ _("Export XLSX") }}
+      </button>
+    </div>
+
+    <div class="lms-kpis" data-role="books-kpis">
+      <div class="lms-kpi"><span class="lms-kpi__label">{{ _("Income") }}</span><span class="lms-kpi__value" data-kpi="income">—</span></div>
+      <div class="lms-kpi"><span class="lms-kpi__label">{{ _("Expense") }}</span><span class="lms-kpi__value" data-kpi="expense">—</span></div>
+      <div class="lms-kpi"><span class="lms-kpi__label">{{ _("Net") }}</span><span class="lms-kpi__value" data-kpi="net">—</span></div>
+      <div class="lms-kpi"><span class="lms-kpi__label">{{ _("Rows") }}</span><span class="lms-kpi__value" data-kpi="rows">—</span></div>
+    </div>
+
+    <div class="lms-panel">
+      <header class="lms-panel__header">
+        <h2>{{ _("Recent GL rows") }}</h2>
+        <p class="lms-panel__hint" data-role="books-total"></p>
+      </header>
+      <div class="lms-table-wrap" data-role="books-rows">
+        <p class="lms-empty">{{ _("Choose a date range and click Load.") }}</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Import tab -->
+  <section class="lms-tabpanel" role="tabpanel" data-tab-panel="import" aria-hidden="true">
+    <div class="lms-panel">
+      <header class="lms-panel__header">
+        <h2>{{ _("Bring in data from a spreadsheet") }}</h2>
+        <p class="lms-panel__hint">
+          {{ _("Upload a CSV or XLSX. Preview first, then commit when you're happy.") }}
+        </p>
+      </header>
+      <div class="lms-form-grid">
+        <label class="lms-field">
+          <span>{{ _("DocType") }}</span>
+          <select name="doctype">
+            <option value="Loan Repayment">{{ _("Loan Repayment") }}</option>
+            <option value="Customer">{{ _("Customer (branch reassignment)") }}</option>
+            <option value="LMS Borrower Compliance">{{ _("LMS Borrower Compliance") }}</option>
+          </select>
+        </label>
+        <label class="lms-field">
+          <span>{{ _("File") }}</span>
+          <input type="file" name="file" accept=".csv,.xlsx,.xls,text/csv" />
+        </label>
+      </div>
+      <div class="lms-form-actions">
+        <button type="button" class="btn btn-primary" data-action="stage-import">
+          {{ _("Stage & preview") }}
+        </button>
+        <button type="button" class="btn btn-default" data-action="download-template">
+          {{ _("Download CSV template") }}
+        </button>
+      </div>
+    </div>
+
+    <div class="lms-panel" data-role="preview-panel" hidden>
+      <header class="lms-panel__header">
+        <h2>{{ _("Preview") }}</h2>
+        <p class="lms-panel__hint" data-role="preview-summary"></p>
+      </header>
+      <div class="lms-table-wrap" data-role="preview-rows"></div>
+      <div class="lms-form-actions">
+        <button type="button" class="btn btn-default" data-action="commit-dry-run">
+          {{ _("Dry run") }}
+        </button>
+        <button type="button" class="btn btn-primary" data-action="commit-real">
+          {{ _("Commit to live records") }}
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Reconciliation tab -->
+  <section class="lms-tabpanel" role="tabpanel" data-tab-panel="recon" aria-hidden="true">
+    <div class="lms-kpis" data-role="recon-kpis">
+      <div class="lms-kpi"><span class="lms-kpi__label">{{ _("Total statements") }}</span><span class="lms-kpi__value" data-kpi="total">—</span></div>
+      <div class="lms-kpi"><span class="lms-kpi__label">{{ _("Matched") }}</span><span class="lms-kpi__value" data-kpi="matched">—</span></div>
+      <div class="lms-kpi"><span class="lms-kpi__label">{{ _("Unmatched") }}</span><span class="lms-kpi__value" data-kpi="unmatched">—</span></div>
+      <div class="lms-kpi"><span class="lms-kpi__label">{{ _("Unmatched value") }}</span><span class="lms-kpi__value" data-kpi="unmatched_value">—</span></div>
+    </div>
+    <div class="lms-panel">
+      <header class="lms-panel__header">
+        <h2>{{ _("Unmatched statements") }}</h2>
+        <p class="lms-panel__hint">{{ _("Reconcile with the matching LMS Payment Intent, or contact your administrator for help.") }}</p>
+      </header>
+      <div class="lms-table-wrap" data-role="recon-rows">
+        <p class="lms-empty">{{ _("Loading reconciliation summary…") }}</p>
+      </div>
+    </div>
+  </section>
+</section>
+{% endblock %}

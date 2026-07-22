@@ -244,6 +244,31 @@ def require_persona_for_page(perm: str):
 	raise frappe.Redirect
 
 
+def require_persona(persona: str):
+	"""Strict persona guard for a single persona's page.
+
+	Unlike ``require_persona_for_page`` (which accepts any user with the
+	``can_<persona>`` permission, including Desk Users and admins), this
+	helper requires the user's actual persona to be ``persona`` exactly.
+	Use for sensitive workflows — Books & Import, PII, financial data —
+	where the persona's branch scope, not the role, gates access.
+
+	Guests and the Administrator are passed through; everyone else is sent
+	to their persona landing if it does not match.
+	"""
+	if frappe.session.user == "Guest" or frappe.session.user == "Administrator":
+		return
+	from lms_saas.utils.brand import _get_user_persona
+
+	current = _get_user_persona() or ""
+	if current == persona:
+		return
+	# Send to the user's own persona landing, or the borrower portal.
+	landing = PERSONA_LANDING.get(current) or "/lms"
+	frappe.local.flags.redirect_location = landing
+	raise frappe.Redirect
+
+
 def _persona_permissions(persona: str | None, roles: set) -> dict:
 	"""Alias for mixins/tests — same bitmask as brand._get_user_permissions."""
 	from lms_saas.utils.brand import _get_user_permissions

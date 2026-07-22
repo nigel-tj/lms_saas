@@ -39,8 +39,8 @@
 
 	/* hex: #2a2a2a (text light) */
 	--theme-text: oklch(0.20 0 0);
-	/* Slightly darker muted for AA on white (~#555 / ~7:1). */
-	--theme-text-muted: oklch(0.40 0 0);
+	/* hex: #666666 (muted text light) */
+	--theme-text-muted: oklch(0.45 0 0);
 	/* hex: #5faf61 (success) */
 	--theme-success: oklch(0.65 0.15 145);
 	/* hex: #f4b942 (warning) */
