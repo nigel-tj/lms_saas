@@ -51,3 +51,26 @@ def get_current_user_branch():
         return cost_center
 
     return None
+
+
+def _is_admin() -> bool:
+    """True for System Manager / Administrator (branch isolation bypass)."""
+    user = frappe.session.user
+    return user == "Administrator" or "System Manager" in frappe.get_roles(user)
+
+
+def _assert_branch_scope(target_branch: str | None) -> None:
+    """Fail-closed branch scoping for non-manager staff endpoints.
+
+    Any staffer (helpdesk, collections, tasks, documents, CRM, savings staff)
+    may only act on records in their own branch. Admins bypass. A staffer with
+    no branch assigned is denied (fail closed). Mirrors the officer/manager
+    variants but is role-neutral so it can be reused across all staff modules.
+    """
+    if _is_admin():
+        return
+    branch = get_current_user_branch()
+    if not branch:
+        frappe.throw("Not in your branch.", frappe.PermissionError)
+    if target_branch and target_branch != branch:
+        frappe.throw("Not in your branch.", frappe.PermissionError)

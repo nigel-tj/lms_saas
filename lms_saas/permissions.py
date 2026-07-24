@@ -31,6 +31,49 @@ def has_loan_repayment_permission(doc, ptype, user):
     return applicant_type == "Customer" and applicant == customer
 
 
+def has_loan_disbursement_permission(doc, ptype, user):
+    if frappe.session.user == "Administrator":
+        return True
+    customer = _portal_customer(user)
+    if not customer:
+        return False
+    applicant_type, applicant = frappe.db.get_value(
+        "Loan", doc.against_loan, ["applicant_type", "applicant"]
+    ) or (None, None)
+    return applicant_type == "Customer" and applicant == customer
+
+
+def has_investor_transaction_permission(doc, ptype, user):
+    # Internal money movement — staff/admin only, never a borrower.
+    if frappe.session.user == "Administrator":
+        return True
+    return bool(set(frappe.get_roles(user)).intersection({"System Manager", "Administrator"}))
+
+
+def has_collateral_permission(doc, ptype, user):
+    if frappe.session.user == "Administrator":
+        return True
+    customer = _portal_customer(user)
+    if not customer:
+        return False
+    loan = doc.get("loan") or doc.get("against_loan")
+    if not loan:
+        return False
+    applicant_type, applicant = frappe.db.get_value(
+        "Loan", loan, ["applicant_type", "applicant"]
+    ) or (None, None)
+    return applicant_type == "Customer" and applicant == customer
+
+
+def has_borrower_compliance_permission(doc, ptype, user):
+    if frappe.session.user == "Administrator":
+        return True
+    customer = _portal_customer(user)
+    if not customer:
+        return False
+    return doc.get("customer") == customer
+
+
 def _portal_customer(user):
     """Resolve the Customer linked to a portal user.
 

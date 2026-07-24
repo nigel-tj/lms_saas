@@ -80,15 +80,33 @@ class TestAddonGuards(FrappeTestCase):
 	"""Verify the page/API guards throw appropriately."""
 
 	def test_require_addon_api_blocks_disabled_addon(self):
-		"""require_addon_api throws PermissionError when the addon is disabled."""
-		# No site_config → all addons are off by default
-		with self.assertRaises(frappe.PermissionError):
-			require_addon_api("announcements")
+		"""require_addon_api throws PermissionError when the addon is disabled.
+
+		The test site has all 20 addons enabled in site_config; we explicitly
+		clear the key for the duration of the assertion so the guard fires.
+		"""
+		# Save the current addons config and clear the specific key.
+		original = frappe.conf.get("lms_addons") or {}
+		disabled = dict(original)
+		disabled["announcements"] = False
+		frappe.conf["lms_addons"] = disabled
+		try:
+			with self.assertRaises(frappe.PermissionError):
+				require_addon_api("announcements")
+		finally:
+			frappe.conf["lms_addons"] = original
 
 	def test_require_addon_redirects_disabled_addon(self):
 		"""require_addon raises Redirect when the addon is disabled."""
-		with self.assertRaises(frappe.Redirect):
-			require_addon("helpdesk")
+		original = frappe.conf.get("lms_addons") or {}
+		disabled = dict(original)
+		disabled["helpdesk"] = False
+		frappe.conf["lms_addons"] = disabled
+		try:
+			with self.assertRaises(frappe.Redirect):
+				require_addon("helpdesk")
+		finally:
+			frappe.conf["lms_addons"] = original
 
 	def test_require_addon_api_unknown_key_blocks(self):
 		"""Unknown addon keys are never enabled → must throw."""

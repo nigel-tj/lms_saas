@@ -107,7 +107,7 @@ lms_analytics._loadAlerts = function () {
 		callback: function (r) {
 			var alerts = (r && r.message && r.message.alerts) || [];
 			if (!alerts.length) {
-				el.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("✓") + '<h3>All clear</h3><p>No benchmark alerts.</p></div></div>';
+				el.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("check") + '<h3>All clear</h3><p>No benchmark alerts.</p></div></div>';
 				return;
 			}
 			var html = '<div class="lms-stack" style="margin-top:1rem;">';
@@ -170,7 +170,7 @@ lms_analytics._fetchLeaderboard = function () {
 			var data = (r && r.message) || {};
 			var officers = data.officers || [];
 			if (!officers.length) {
-				el.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("🏆") + '<h3>No data</h3><p>No officer data for this metric.</p></div></div>';
+				el.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("trophy") + '<h3>No data</h3><p>No officer data for this metric.</p></div></div>';
 				return;
 			}
 
@@ -253,7 +253,7 @@ lms_analytics._fetchTrend = function () {
 			var branches = data.branches || [];
 			var labels = data.labels || [];
 			if (!branches.length) {
-				el.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("📈") + '<h3>No data</h3><p>No trend data available.</p></div></div>';
+				el.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("trending-up") + '<h3>No data</h3><p>No trend data available.</p></div></div>';
 				return;
 			}
 

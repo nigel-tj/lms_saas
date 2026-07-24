@@ -87,7 +87,7 @@ lms_hr._loadLeaves = function (content) {
 		callback: function (r) {
 			var leaves = (r && r.message && r.message.leaves) || [];
 			if (!leaves.length) {
-				content.innerHTML = lms_portal.emptyPanel("✓", "All caught up", "No leave applications pending.");
+				content.innerHTML = lms_portal.emptyPanel("check", "All caught up", "No leave applications pending.");
 				return;
 			}
 			var body = '<div class="lms-data-table__wrap"><table class="lms-data-table">';
@@ -182,7 +182,7 @@ lms_hr._loadExpenses = function (content) {
 		callback: function (r) {
 			var claims = (r && r.message && r.message.claims) || [];
 			if (!claims.length) {
-				content.innerHTML = lms_portal.emptyPanel("✓", "All caught up", "No expense claims pending.");
+				content.innerHTML = lms_portal.emptyPanel("check", "All caught up", "No expense claims pending.");
 				return;
 			}
 			var body = '<div class="lms-data-table__wrap"><table class="lms-data-table">' +
@@ -232,7 +232,7 @@ lms_hr._loadShifts = function (content) {
 		callback: function (r) {
 			var reqs = (r && r.message && r.message.requests) || [];
 			if (!reqs.length) {
-				content.innerHTML = lms_portal.emptyPanel("✓", "All caught up", "No shift requests pending.");
+				content.innerHTML = lms_portal.emptyPanel("check", "All caught up", "No shift requests pending.");
 				return;
 			}
 			var body = '<div class="lms-data-table__wrap"><table class="lms-data-table">';
@@ -271,7 +271,7 @@ lms_hr._loadDirectory = function (content) {
 		callback: function (r) {
 			var staff = (r && r.message && r.message.staff) || [];
 			if (!staff.length) {
-				content.innerHTML = lms_portal.emptyPanel("👥", "No staff found", "");
+				content.innerHTML = lms_portal.emptyPanel("users", "No staff found", "");
 				return;
 			}
 			var body = '<div class="lms-data-table__wrap"><table class="lms-data-table">';

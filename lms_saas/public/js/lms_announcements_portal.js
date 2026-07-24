@@ -52,7 +52,7 @@ lms_announcements._loadList = function () {
 
 lms_announcements._renderList = function (el, items) {
 	if (!items.length) {
-		el.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("📢") + '<h3>No announcements</h3><p>There are no active announcements right now.</p></div></div>';
+		el.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("megaphone") + '<h3>No announcements</h3><p>There are no active announcements right now.</p></div></div>';
 		return;
 	}
 
@@ -63,7 +63,7 @@ lms_announcements._renderList = function (el, items) {
 		if (ann.requires_acknowledgement && !ann.acknowledged) {
 			ackBadge = ' <span class="lms-badge lms-badge--warning">Action required</span>';
 		} else if (ann.acknowledged) {
-			ackBadge = ' <span class="lms-badge lms-badge--success">✓ Acknowledged</span>';
+			ackBadge = ' <span class="lms-badge lms-badge--success">' + (typeof lms_icons !== "undefined" ? lms_icons.icon("check") : "✓") + " Acknowledged</span>";
 		}
 
 		html += '<div class="lms-panel">';

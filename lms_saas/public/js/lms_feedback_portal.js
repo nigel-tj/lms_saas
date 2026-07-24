@@ -21,16 +21,16 @@ lms_feedback.init = function () {
 	var tabs;
 	if (isBorrower) {
 		tabs = [
-			{ id: "surveys", label: "Take Survey", icon: "📝" },
-			{ id: "responses", label: "My Responses", icon: "📋" },
+			{ id: "surveys", label: "Take Survey", icon: "file-text" },
+			{ id: "responses", label: "My Responses", icon: "clipboard" },
 		];
 	} else {
 		tabs = [
-			{ id: "dashboard", label: "Dashboard", icon: "📊" },
-			{ id: "responses", label: "Recent Feedback", icon: "💬" },
+			{ id: "dashboard", label: "Dashboard", icon: "bar-chart" },
+			{ id: "responses", label: "Recent Feedback", icon: "message-square" },
 		];
 		if (isAdmin) {
-			tabs.push({ id: "surveys", label: "Surveys", icon: "📝" });
+			tabs.push({ id: "surveys", label: "Surveys", icon: "file-text" });
 		}
 	}
 
@@ -78,7 +78,7 @@ lms_feedback._loadSurveys = function (content) {
 		callback: function (r) {
 			var surveys = (r && r.message && r.message.surveys) || [];
 			if (!surveys.length) {
-				content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("📝") + '<h3>No surveys</h3><p>There are no active surveys right now.</p></div></div>';
+				content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("file-text") + '<h3>No surveys</h3><p>There are no active surveys right now.</p></div></div>';
 				return;
 			}
 
@@ -210,7 +210,7 @@ lms_feedback._loadResponses = function (content) {
 		callback: function (r) {
 			var responses = (r && r.message && r.message.responses) || [];
 			if (!responses.length) {
-				content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("💬") + '<h3>No responses</h3><p>No feedback responses yet.</p></div></div>';
+				content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("message-square") + '<h3>No responses</h3><p>No feedback responses yet.</p></div></div>';
 				return;
 			}
 
@@ -295,7 +295,7 @@ lms_feedback._loadDashboard = function (content) {
 			}
 
 			if (!bySurvey.length && !byBranch.length && !byOfficer.length) {
-				html += '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("📊") + '<h3>No data</h3><p>No feedback data to display yet.</p></div></div>';
+				html += '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("bar-chart") + '<h3>No data</h3><p>No feedback data to display yet.</p></div></div>';
 			}
 
 			content.innerHTML = html;

@@ -188,6 +188,10 @@ has_website_permission = {
     "Loan": "lms_saas.permissions.has_loan_permission",
     "Loan Application": "lms_saas.permissions.has_loan_application_permission",
     "Loan Repayment": "lms_saas.permissions.has_loan_repayment_permission",
+    "Loan Disbursement": "lms_saas.permissions.has_loan_disbursement_permission",
+    "LMS Investor Transaction": "lms_saas.permissions.has_investor_transaction_permission",
+    "LMS Collateral": "lms_saas.permissions.has_collateral_permission",
+    "LMS Borrower Compliance": "lms_saas.permissions.has_borrower_compliance_permission",
 }
 
 scheduler_events = {
@@ -196,6 +200,12 @@ scheduler_events = {
     ],
     "weekly": [
         "lms_saas.tasks.send_weekly_sandbox_kpi_pack",
+    ],
+    # R12 board (B6): CDPA retention scheduler. Run monthly — a no-op for most
+    # sites (default retention window is 7 years), so daily would just flood
+    # the background-jobs queue.
+    "monthly": [
+        "lms_saas.api.compliance.anonymize_expired_personal_data",
     ],
 }
 
@@ -241,6 +251,8 @@ doc_events = {
     },
     "Loan Write Off": {
         "before_submit": "lms_saas.api.compliance.enforce_four_eyes",
+        "on_submit": "lms_saas.api.compliance.record_money_event",
+        "on_cancel": "lms_saas.api.compliance.record_money_event",
     },
     "LMS Investor Transaction": {
         "validate": "lms_saas.lms_saas.doctype.lms_investor_transaction.lms_investor_transaction.set_investor_accounts",

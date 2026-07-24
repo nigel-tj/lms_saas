@@ -16,15 +16,15 @@ lms_insurance.init = function () {
 		 frappe.boot.user_roles.indexOf("Administrator") >= 0));
 
 	var tabs = [
-		{ id: "policies", label: "Policies", icon: "🛡️" },
-		{ id: "claims", label: "Claims", icon: "📋" },
-		{ id: "stats", label: "Stats", icon: "📊" },
+		{ id: "policies", label: "Policies", icon: "shield" },
+		{ id: "claims", label: "Claims", icon: "clipboard" },
+		{ id: "stats", label: "Stats", icon: "bar-chart" },
 	];
 	var html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem;">';
 	html += '<nav class="lms-tab-nav" role="tablist" style="display:flex;gap:0.25rem;border-bottom:2px solid var(--lms-border);flex-wrap:wrap;">';
 	tabs.forEach(function (t) {
 		var active = lms_insurance._currentTab === t.id ? " is-active" : "";
-		html += '<button type="button" class="lms-tab' + active + '" data-tab="' + t.id + '" role="tab" aria-selected="' + (active ? "true" : "false") + '">' + t.icon + " " + lms_portal.escape(t.label) + "</button>";
+		html += '<button type="button" class="lms-tab' + active + '" data-tab="' + t.id + '" role="tab" aria-selected="' + (active ? "true" : "false") + '">' + (window.lms_icons ? lms_icons.icon(t.icon, { cls: "lms-tab-icon" }) : t.icon) + " " + lms_portal.escape(t.label) + "</button>";
 	});
 	html += "</nav>";
 	if (isAdmin) {
@@ -92,7 +92,7 @@ lms_insurance._loadPolicies = function (content) {
 		callback: function (r) {
 			var policies = (r && r.message && r.message.policies) || [];
 			if (!policies.length) {
-				content.innerHTML = '<div class="lms-panel"><div class="lms-empty"><div class="lms-empty-icon">🛡️</div><h3>No policies</h3><p>No insurance policies found.</p></div></div>';
+				content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("shield") + '<h3>No policies</h3><p>No insurance policies found.</p></div></div>';
 				return;
 			}
 			var html = '<div class="lms-panel"><div class="lms-data-table__wrap"><table class="lms-data-table">';
@@ -192,7 +192,7 @@ lms_insurance._loadClaims = function (content) {
 		callback: function (r) {
 			var claims = (r && r.message && r.message.claims) || [];
 			if (!claims.length) {
-				content.innerHTML = '<div class="lms-panel"><div class="lms-empty"><div class="lms-empty-icon">📋</div><h3>No claims</h3><p>No insurance claims found.</p></div></div>';
+				content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("clipboard") + '<h3>No claims</h3><p>No insurance claims found.</p></div></div>';
 				return;
 			}
 			var html = '<div class="lms-panel"><div class="lms-data-table__wrap"><table class="lms-data-table">';

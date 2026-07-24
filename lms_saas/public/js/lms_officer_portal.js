@@ -201,7 +201,7 @@ lms_officer._renderAll = function (root, dash, apps, loans, branch, collections,
 	// 1) Work queue first — pending applications (actionable)
 	if (!appRows.length) {
 		html += lms_portal.emptyPanel(
-			"📋",
+			"clipboard",
 			"No pending applications",
 			"When a borrower submits an application, it will appear here."
 		);
@@ -839,7 +839,7 @@ lms_officer._renderBorrowerTable = function (el, borrowers) {
 	}
 
 	if (!borrowers.length) {
-		el.innerHTML = '<div class="lms-empty">' + lms_icons.empty("👤") + '<h3>No borrowers found</h3><p>Try a different search.</p></div>';
+		el.innerHTML = '<div class="lms-empty">' + lms_icons.empty("user") + '<h3>No borrowers found</h3><p>Try a different search.</p></div>';
 		return;
 	}
 	var html = '<div class="lms-data-table__wrap"><table class="lms-data-table">';
@@ -956,7 +956,7 @@ lms_officer._renderLoansTab = function (el, pending, active) {
 		]);
 
 	if (!pending.length && !active.length) {
-		html += lms_portal.emptyPanel("💰", "No loans assigned", "You have no loans assigned. Approved applications will appear here for disbursement.");
+		html += lms_portal.emptyPanel("wallet", "No loans assigned", "You have no loans assigned. Approved applications will appear here for disbursement.");
 		html += lms_portal.pageEnd();
 		el.innerHTML = html;
 		return;
@@ -1133,7 +1133,7 @@ lms_officer._showLoanModal = function (data) {
 			html += "<td>" + format_currency(s.principal_amount || 0) + "</td>";
 			html += "<td>" + format_currency(s.interest_amount || 0) + "</td>";
 			html += "<td>" + format_currency(s.total_payment || 0) + "</td>";
-			html += "<td>" + (s.paid ? "✓" : "—") + "</td></tr>";
+			html += "<td>" + (s.paid ? lms_icons.icon("check") : "—") + "</td></tr>";
 		});
 		html += "</tbody></table></div>";
 	}
@@ -1192,7 +1192,7 @@ lms_officer._renderLeadsTab = function (el, leads) {
 	var controls = '<button type="button" class="lms-btn lms-btn--primary lms-btn--sm" id="lms-of-new-lead">+ New Lead</button>';
 	var body = "";
 	if (!leads.length) {
-		body = '<div class="lms-empty">' + lms_icons.empty("📞") + '<h3>No leads</h3><p>No leads in your branch yet.</p></div>';
+		body = '<div class="lms-empty">' + lms_icons.empty("phone") + '<h3>No leads</h3><p>No leads in your branch yet.</p></div>';
 	} else {
 		body = '<div class="lms-data-table__wrap"><table class="lms-data-table">' +
 			"<thead><tr><th>Name</th><th>Mobile</th><th>Email</th><th>Status</th><th>Source</th><th>Consent</th><th>Actions</th></tr></thead><tbody>";
@@ -1385,7 +1385,7 @@ lms_officer._loadReport = function (content, reportType) {
 					html += "</tbody></table></div>";
 				});
 				if (!html.match(/<h5/)) {
-					html += '<div class="lms-empty">' + lms_icons.empty("✅") + '<h3>No arrears</h3><p>All loans are current.</p></div>';
+					html += '<div class="lms-empty">' + lms_icons.empty("check-circle") + '<h3>No arrears</h3><p>All loans are current.</p></div>';
 				}
 				return html;
 			},
@@ -1410,7 +1410,7 @@ lms_officer._loadReport = function (content, reportType) {
 					html += "</tbody></table></div>";
 				}
 				if (!data.repayments || !data.repayments.length) {
-					html += '<div class="lms-empty">' + lms_icons.empty("📭") + '<h3>No collections yet</h3><p>Once repayments are recorded they will appear here.</p></div>';
+					html += '<div class="lms-empty">' + lms_icons.empty("inbox") + '<h3>No collections yet</h3><p>Once repayments are recorded they will appear here.</p></div>';
 				}
 				return html;
 			},

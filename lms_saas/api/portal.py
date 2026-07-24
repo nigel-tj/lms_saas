@@ -337,7 +337,7 @@ def get_statement_pdf(loan_id):
     frappe.local.response.filename = f"statement_{loan_id}.pdf"
     frappe.local.response.filecontent = pdf
     frappe.local.response.type = "download"
-    return {"url": get_url(f"/api/method/lms_saas.api.portal.download_statement&loan_id={loan_id}")}
+    return {"url": get_url(f"/api/method/lms_saas.api.documents.download_loan_statement_pdf?loan_id={loan_id}")}
 
 
 def _require_customer(raise_exception=True):
@@ -619,28 +619,61 @@ def mark_notifications_read():
 
 @frappe.whitelist()
 def get_account_overview():
-    """KYC/AML status, notification preferences, and document list for the borrower."""
-    customer = _require_customer()
-    compliance = frappe.db.get_value(
-        "LMS Borrower Compliance",
-        {"customer": customer},
-        [
-            "name",
-            "kyc_status",
-            "aml_status",
-            "consent_given",
-            "consent_date",
-            "id_document_proof",
-            "proof_of_address",
-            "credit_score",
-            "debt_to_income_ratio",
-        ],
-        as_dict=True,
-    )
-    customer_doc = frappe.db.get_value(
-        "Customer", customer, ["name", "customer_name", "email_id", "mobile_no"], as_dict=True
-    )
-    return {
-        "compliance": compliance,
-        "customer": customer_doc,
-    }
+    """KYC/AML status + documents for borrowers, or staff profile for portal staff.
+
+    The My Account page is shared by every authenticated portal persona (borrower,
+    loan officer, branch manager, collector). A borrower is linked to a Customer,
+    but staff personas are linked to an Employee and have no Customer — so this
+    endpoint must not throw for them (that was the pre-fix bug: the page guard in
+    www/lms/account.py redirected all staff away, leaving them with no account
+    page at all).
+    """
+    customer = _require_customer(raise_exception=False)
+    if customer:
+        compliance = frappe.db.get_value(
+            "LMS Borrower Compliance",
+            {"customer": customer},
+            [
+                "name",
+                "kyc_status",
+                "aml_status",
+                "consent_given",
+                "consent_date",
+                "id_document_proof",
+                "proof_of_address",
+                "credit_score",
+                "debt_to_income_ratio",
+            ],
+            as_dict=True,
+        )
+        customer_doc = frappe.db.get_value(
+            "Customer", customer, ["name", "customer_name", "email_id", "mobile_no"], as_dict=True
+        )
+        return {"account_type": "borrower", "compliance": compliance, "customer": customer_doc}
+
+    # No Customer linked — try staff (Employee) profile.
+    from lms_saas.utils.portal import resolve_portal_persona
+    from lms_saas.api.staff import get_current_user_branch
+    from lms_saas.install import PORTAL_STAFF_ROLE
+
+    roles = set(frappe.get_roles())
+    is_staff = bool(roles.intersection({"System Manager", "Administrator", PORTAL_STAFF_ROLE}))
+    if is_staff:
+        employee = frappe.db.get_value(
+            "Employee",
+            {"user_id": frappe.session.user, "status": "Active"},
+            ["name", "employee_name", "designation", "department", "branch", "cell_number", "company_email"],
+            as_dict=True,
+        )
+        persona = resolve_portal_persona() or "Portal Staff"
+        branch = get_current_user_branch() if employee else None
+        return {
+            "account_type": "staff",
+            "employee": employee,
+            "persona": persona,
+            "branch": branch,
+            "compliance": None,
+            "customer": None,
+        }
+
+    frappe.throw("No account is linked to your portal login.", frappe.PermissionError)

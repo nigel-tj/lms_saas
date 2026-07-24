@@ -12,6 +12,7 @@ from frappe import _
 from frappe.utils import flt, today, now_datetime
 
 from lms_saas.utils.addons import require_addon_persona
+from lms_saas.api.staff import _assert_branch_scope, get_current_user_branch
 
 
 # ---------------------------------------------------------------------------
@@ -149,6 +150,11 @@ def make_deposit(account_name, amount, posting_date=None):
         customer = _current_customer()
         if account.customer != customer:
             frappe.throw(_("Not permitted"), frappe.PermissionError)
+    else:
+        # Staff path: enforce branch isolation by the account's customer branch.
+        _assert_branch_scope(
+            frappe.db.get_value("Customer", account.customer, "custom_lms_branch")
+        )
 
     amount = flt(amount)
     if amount <= 0:
@@ -187,6 +193,11 @@ def request_withdrawal(account_name, amount, notes=None):
         customer = _current_customer()
         if account.customer != customer:
             frappe.throw(_("Not permitted"), frappe.PermissionError)
+    else:
+        # Staff path: enforce branch isolation by the account's customer branch.
+        _assert_branch_scope(
+            frappe.db.get_value("Customer", account.customer, "custom_lms_branch")
+        )
 
     amount = flt(amount)
     if amount <= 0:

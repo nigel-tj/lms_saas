@@ -10,6 +10,8 @@ def generate_loan_agreement_pdf(loan_id):
     if frappe.db.exists("Print Format", "LMS Loan Agreement"):
         return download_loan_agreement_pdf(loan_id)
 
+    _check_loan_access(loan_id)
+
     loan_doc = frappe.get_doc("Loan", loan_id)
     template_path = frappe.get_site_path("public", "files", "loan_template.docx")
     output_docx = frappe.get_site_path("public", "files", f"agreement_{loan_id}.docx")

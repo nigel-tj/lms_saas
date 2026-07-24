@@ -63,11 +63,14 @@ class LMSUserSetup(Document):
 
 	def _validate_email_unique(self):
 		existing_user = frappe.db.get_value("User", self.email, "name")
-		if existing_user and existing_user != (self.created_user or existing_user):
+		# Only allow the duplicate if THIS setup record previously created the
+		# user (so re-submit on the same doc still works). For a brand-new doc
+		# with the same email, reject.
+		if existing_user and existing_user != (self.created_user or None):
 			frappe.throw(_("A User with email {0} already exists").format(self.email))
 		if self.persona == "Borrower":
 			existing_customer = frappe.db.get_value("Customer", {"email_id": self.email}, "name")
-			if existing_customer and existing_customer != (self.created_customer or existing_customer):
+			if existing_customer and existing_customer != (self.created_customer or None):
 				frappe.throw(_("A Customer with email {0} already exists").format(self.email))
 
 	def _validate_branch_for_staff(self):

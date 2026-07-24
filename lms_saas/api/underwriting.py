@@ -52,7 +52,14 @@ def execute_credit_bureau_check(doc, method):
 
     cfg = _bureau_config()
     if not cfg["enabled"] or not cfg["url"]:
-        # External scoring disabled; KYC gate already enforced above.
+        # B5: by default a credit-bureau check is REQUIRED before origination
+        # (fail-closed). Only relaxed/sandbox mode allows proceeding without one.
+        if not frappe.conf.get("lms_compliance_relaxed", False):
+            frappe.throw(
+                "Credit bureau verification is required before loan origination. "
+                "Configure lms_credit_bureau_enabled + lms_credit_bureau_url "
+                "(or enable relaxed mode for sandbox)."
+            )
         return
 
     try:

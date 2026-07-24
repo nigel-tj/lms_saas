@@ -151,7 +151,7 @@ lms_recon._loadUnmatched = function (content) {
 		callback: function (r) {
 			var statements = (r && r.message && r.message.statements) || [];
 			if (!statements.length) {
-				content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("✓") + '<h3>All matched</h3><p>No unmatched transactions.</p></div></div>';
+				content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("check") + '<h3>All matched</h3><p>No unmatched transactions.</p></div></div>';
 				return;
 			}
 			var html = '<div class="lms-panel"><div class="lms-data-table__wrap"><table class="lms-data-table">';

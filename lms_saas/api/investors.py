@@ -17,6 +17,12 @@ def post_investor_gl_entry(doc, method):
     if not bank_account:
         frappe.throw(f"Please configure a Bank or Cash Account for company {company}")
 
+    if doc.reference_journal_entry:
+        return
+
+    if doc.transaction_type not in ("Credit", "Debit"):
+        frappe.throw("Unknown investor transaction type")
+
     je = frappe.new_doc("Journal Entry")
     je.voucher_type = "Journal Entry"
     je.company = company
@@ -81,3 +87,4 @@ def cancel_investor_gl_entry(doc, method):
         je = frappe.get_doc("Journal Entry", doc.reference_journal_entry)
         if je.docstatus == 1:
             je.cancel()
+        doc.db_set("reference_journal_entry", None)

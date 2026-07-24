@@ -363,7 +363,7 @@ lms_portal.panel = function (opts) {
 lms_portal.emptyPanel = function (icon, title, message) {
 	var iconHtml = (window.lms_icons && lms_icons.empty)
 		? lms_icons.empty(icon || "inbox")
-		: '<div class="lms-empty-icon">' + (icon || "📋") + '</div>';
+		: '<div class="lms-empty-icon">' + (icon || (typeof lms_icons !== "undefined" ? lms_icons.icon("clipboard") : "📋")) + '</div>';
 	return '<div class="lms-panel"><div class="lms-empty">' + iconHtml +
 		'<h3>' + lms_portal.escape(title || "Nothing here") +
 		'</h3><p>' + lms_portal.escape(message || "") + '</p></div></div>';
@@ -1277,10 +1277,10 @@ lms_portal._applyStepHtml = function (state) {
 				  "</strong></div>"
 				: "") +
 			'<div class="lms-review-row"><span>ID document</span><strong>' +
-			(state.idDoc ? "✓ Uploaded" : "Not uploaded") +
+			(state.idDoc ? (typeof lms_icons !== "undefined" ? lms_icons.icon("check") : "✓") + " Uploaded" : "Not uploaded") +
 			"</strong></div>" +
 			'<div class="lms-review-row"><span>Proof of address</span><strong>' +
-			(state.addressDoc ? "✓ Uploaded" : "Not uploaded") +
+			(state.addressDoc ? (typeof lms_icons !== "undefined" ? lms_icons.icon("check") : "✓") + " Uploaded" : "Not uploaded") +
 			"</strong></div>" +
 			"</div>" +
 			'<label class="lms-consent-check"><input type="checkbox" id="lms-wizard-consent" required> I confirm the information is accurate and consent to credit assessment.</label>'
@@ -1498,14 +1498,14 @@ lms_portal._fileUploadField = function (opts) {
 	var accept = opts.accept ? ' accept="' + lms_portal.escape(opts.accept) + '"' : "";
 	var required = opts.required ? ' <span class="lms-req" aria-hidden="true">*</span>' : "";
 	var status = opts.initialUrl
-		? '<a class="lms-upload-status lms-upload-status--link" href="' + lms_portal.escape(opts.initialUrl) + '" target="_blank" rel="noopener">✓ Uploaded</a>'
+		? '<a class="lms-upload-status lms-upload-status--link" href="' + lms_portal.escape(opts.initialUrl) + '" target="_blank" rel="noopener">' + (typeof lms_icons !== "undefined" ? lms_icons.icon("check") : "✓") + " Uploaded</a>"
 		: '<span class="lms-upload-status" data-empty="true">No file uploaded</span>';
 	return (
 		'<div class="lms-upload-field" data-lms-upload-field="' + lms_portal.escape(id) + '">' +
 		labelHtml + required +
 		'<div class="lms-upload-field__row">' +
 		'<button type="button" class="lms-btn lms-btn--ghost lms-btn--sm" data-lms-upload-trigger="' + lms_portal.escape(id) + '">' +
-		'📎 ' + lms_portal.escape(btnLabel) +
+		'<span class="lms-icon-inline">' + (typeof lms_icons !== "undefined" ? lms_icons.icon("file-text") : "📎") + '</span> ' + lms_portal.escape(btnLabel) +
 		"</button>" +
 		' <input type="hidden" id="' + lms_portal.escape(id) + '" value="' + lms_portal.escape(opts.initialUrl || "") + '"' + (opts.required ? " data-required=\"1\"" : "") + ">" +
 		status +
@@ -1539,7 +1539,7 @@ lms_portal._bindUploadWidgets = function (root, fieldnameMap) {
 				link.href = fileUrl;
 				link.target = "_blank";
 				link.rel = "noopener";
-				link.textContent = "✓ Uploaded";
+				link.innerHTML = (typeof lms_icons !== "undefined" ? lms_icons.icon("check") : "✓") + " Uploaded";
 				// Insert after the hidden input so layout stays the same.
 				var hidden = field.querySelector('input[type="hidden"]');
 				if (hidden && hidden.nextSibling) {
@@ -2159,7 +2159,45 @@ lms_portal.initAccountOverview = function () {
 			var customer = data.customer || {};
 			var html = "";
 
-			// KYC / Compliance status
+			// Staff (Loan Officer / Branch Manager / Collector) profile.
+			if (data.account_type === "staff") {
+				var emp = data.employee || {};
+				html += '<h3 class="lms-section-title">My profile</h3>';
+				html += '<div class="lms-account">';
+				html += '<article class="lms-account-card lms-panel"><div class="lms-account-row"><div>';
+				html += '<p class="lms-account-item-title">Name</p>';
+				html += '<p class="lms-account-item-desc">' + lms_portal.escape(emp.employee_name || emp.name || frappe.session.user) + "</p>";
+				html += "</div></div></article>";
+				html += '<article class="lms-account-card lms-panel"><div class="lms-account-row"><div>';
+				html += '<p class="lms-account-item-title">Role</p>';
+				html += '<span class="lms-badge lms-badge--current">' + lms_portal.escape(data.persona || "Portal Staff") + "</span>";
+				html += "</div></div></article>";
+				if (emp.designation) {
+					html += '<article class="lms-account-card lms-panel"><div class="lms-account-row"><div>';
+					html += '<p class="lms-account-item-title">Designation</p>';
+					html += '<p class="lms-account-item-desc">' + lms_portal.escape(emp.designation) + "</p>";
+					html += "</div></div></article>";
+				}
+				if (data.branch) {
+					html += '<article class="lms-account-card lms-panel"><div class="lms-account-row"><div>';
+					html += '<p class="lms-account-item-title">Branch</p>';
+					html += '<p class="lms-account-item-desc">' + lms_portal.escape(data.branch) + "</p>";
+					html += "</div></div></article>";
+				}
+				if (emp.cell_number || emp.company_email) {
+					html += '<article class="lms-account-card lms-panel"><div class="lms-account-row"><div>';
+					html += '<p class="lms-account-item-title">Contact</p>';
+					if (emp.cell_number) html += '<p class="lms-account-item-desc">Phone: ' + lms_portal.escape(emp.cell_number) + "</p>";
+					if (emp.company_email) html += '<p class="lms-account-item-desc">Email: ' + lms_portal.escape(emp.company_email) + "</p>";
+					html += "</div></div></article>";
+				}
+				html += "</div>";
+				html += '<p class="lms-muted">Staff accounts are managed from the branch desk. KYC documents are submitted by borrowers.</p>';
+				el.innerHTML = html;
+				return;
+			}
+
+			// KYC / Compliance status (borrower)
 			html += '<h3 class="lms-section-title">Compliance status</h3>';
 			html += '<div class="lms-account">';
 			html += '<article class="lms-account-card lms-panel">';

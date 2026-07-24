@@ -119,10 +119,27 @@ def on_compliance_after_insert(doc, method=None):
 
 
 def enforce_aml_on_origination(doc, method=None):
-	"""Block loan application submit when AML is not clear (config-gated)."""
-	cfg = _aml_config()
-	if not cfg["enabled"]:
-		return
+	"""Block loan application submit when AML is not clear.
+
+	PRODUCTION-HARDENING (B5): AML screening is now REQUIRED by default
+	(fail-closed). Previously, if `lms_aml_enabled` was False the check was
+	skipped entirely, so a misconfigured site could originate loans for
+	un-screened borrowers. Now, unless the site is explicitly in relaxed mode
+	(`lms_compliance_relaxed=True`), AML must be enabled and the borrower must
+	screen Clear before origination.
+	"""
+	if frappe.conf.get("lms_compliance_relaxed", False):
+		# Relaxed/sandbox mode: honour the legacy config-gated behaviour.
+		cfg = _aml_config()
+		if not cfg["enabled"]:
+			return
+	else:
+		cfg = _aml_config()
+		if not cfg["enabled"] or not cfg["url"]:
+			frappe.throw(
+				"AML/CFT screening is required before loan origination. "
+				"Configure lms_aml_enabled + lms_aml_url (or enable relaxed mode for sandbox)."
+			)
 
 	compliance_name = frappe.db.get_value(
 		"LMS Borrower Compliance", {"customer": doc.applicant}, "name"

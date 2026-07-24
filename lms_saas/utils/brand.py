@@ -1,11 +1,25 @@
 """Portal branding defaults and context helpers."""
 
+import frappe
+
 from lms_saas.utils.frappe_version import desk_url, lending_home_url
 
 BRAND_LOGO_PATH = "/assets/lms_saas/images/lms-logo.svg"
 BRAND_FAVICON_PATH = "/assets/lms_saas/images/lms-favicon.svg"
 
+# R12 board: "Desk User" is the Frappe default role that every authenticated
+# user (staff, borrowers, everyone) gets just for logging in. It grants
+# access to /desk but does NOT confer LMS admin rights. Including it in
+# DESK_ADMIN_ROLES would incorrectly mark every Branch Manager as a system
+# admin, hiding the persona-landing redirect and the per-persona permission
+# flags. Sites that historically relied on Desk User = admin can opt back
+# in via site_config `lms_treat_desk_user_as_admin = 1`.
 DESK_ADMIN_ROLES = frozenset({
+	"System Manager",
+	"Administrator",
+})
+
+LEGACY_DESK_ADMIN_ROLES = frozenset({
 	"System Manager",
 	"Administrator",
 	"Desk User",
@@ -30,10 +44,17 @@ def _get_user_permissions(persona: str | None, roles: set) -> dict:
 	"""Return a dict of boolean permission flags for the current user.
 
 	Mirrors the permission flags consumed by templates and JS bootinfo.
-	Admins (System Manager / Administrator / Desk User) get every flag.
+	Admins (System Manager / Administrator) get every flag. Desk User alone
+	is not enough — see ``DESK_ADMIN_ROLES`` for the rationale. Sites that
+	need the legacy "Desk User = admin" behaviour can opt in via
+	``lms_treat_desk_user_as_admin = 1`` in site_config.
 	"""
 	roles = roles or set()
-	is_admin = bool(roles & DESK_ADMIN_ROLES)
+	if frappe.conf.get("lms_treat_desk_user_as_admin"):
+		admin_roles = LEGACY_DESK_ADMIN_ROLES
+	else:
+		admin_roles = DESK_ADMIN_ROLES
+	is_admin = bool(roles & admin_roles)
 	is_borrower = "Customer" in roles and not is_admin
 	is_staff = bool(persona in {"Loan Officer", "Branch Manager", "Collector"}) and not is_admin
 
@@ -42,9 +63,10 @@ def _get_user_permissions(persona: str | None, roles: set) -> dict:
 		"is_portal_borrower": is_borrower,
 		"is_portal_staff": is_staff,
 		"can_borrower": is_borrower or is_admin,
-		"can_officer": (persona == "Loan Officer") or is_admin,
+		"can_officer": (persona in {"Loan Officer", "Branch Manager"}) or is_admin,
 		"can_manager": (persona == "Branch Manager") or is_admin,
 		"can_collect": (persona in {"Loan Officer", "Branch Manager", "Collector"}) or is_admin,
+		"can_admin": is_admin,
 		"persona": persona,
 	}
 
@@ -172,6 +194,13 @@ def apply_portal_context(context, nav_active="loans", page_js=None):
 	# Resolve persona so the nav shows only the relevant items per role.
 	context.lms_persona = resolve_portal_persona()
 	context.is_portal_borrower = "Customer" in user_roles and not context.is_portal_staff and not show_staff_desk_link()
+	# R12 board: expose the per-persona permission flags on the template
+	# context so nav templates and JS bootinfo can read them in one place.
+	# (Previously only the portal JS used these; the templates assumed
+	# context.lms_user_permissions existed and silently got AttributeError.)
+	context.lms_user_permissions = _get_user_permissions(
+		context.lms_persona, user_roles
+	)
 	context.lms_desk_home = lending_home_url()
 	context.lms_risk_disclosure = (
 		frappe.conf.get("lms_risk_disclosure")
@@ -230,6 +259,7 @@ def _lms_portal_js_stack(page_js=None):
 		_versioned_asset("js/lms_modal.js", "/assets/lms_saas/js/lms_modal.js"),
 		_versioned_asset("js/lms_forms.js", "/assets/lms_saas/js/lms_forms.js"),
 		_versioned_asset("js/lms_charts.js", "/assets/lms_saas/js/lms_charts.js"),
+		_versioned_asset("js/lms_icons.js", "/assets/lms_saas/js/lms_icons.js"),
 		_versioned_asset("js/lms_portal.js", "/assets/lms_saas/js/lms_portal.js"),
 	]
 	if page_js:

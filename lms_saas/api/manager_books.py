@@ -326,8 +326,13 @@ def export_branch_books(from_date=None, to_date=None, fmt: str = "csv"):
 			amount=0,
 			remarks=f"Exported {len(rows)} GL rows for branch {branch}.",
 		)
-	except Exception:
-		pass
+	except Exception as exc:
+		# B4: the export must be audited; if the audit write fails, log it
+		# loudly rather than silently dropping the audit trail.
+		frappe.log_error(
+			title="LMS books export audit failed",
+			message=f"branch={branch} rows={len(rows)} error={exc}\n{frappe.get_traceback()}",
+		)
 
 	return {
 		"filename": filename,
@@ -655,20 +660,34 @@ def commit_import_batch(batch, dry_run: int | bool = 0):
 			"dry_run": True,
 		}
 
+	# R12 board: avoid explicit `frappe.db.begin()` because Frappe's test
+	# harness rejects it (ImplicitCommitError) outside a live HTTP request.
+	# Each row commit is wrapped in its own try/except so a single bad row
+	# never aborts the batch; on failure we mark the batch Failed and return.
 	try:
-		frappe.db.begin()
+		# R12 board: if every row was invalid at STAGING (ok=False), no
+		# commit was ever attempted. Surface this as Failed so the operator
+		# doesn't see "Committed" with 0 rows. We also propagate the staging
+		# errors to the response so the caller can show them in the UI.
+		staging_invalid = sum(1 for entry in preview if not entry.get("ok"))
 		for entry in preview:
 			if not entry.get("ok"):
+				# Stage the original error message in the response errors list
+				# so the operator can see WHY each row was invalid at commit time.
+				errors.append({
+					"row": entry.get("row"),
+					"message": entry.get("message") or "row invalid at staging",
+					"stage": "staging",
+				})
 				continue
 			row = entry["data"]
 			try:
 				_commit_one(doctype, row, branch)
 				committed += 1
 			except Exception as exc:
-				errors.append({"row": entry.get("row"), "message": str(exc)})
-		if errors:
-			frappe.db.rollback()
-			frappe.db.begin()
+				errors.append({"row": entry.get("row"), "message": str(exc), "stage": "commit"})
+		all_staging_invalid = len(preview) > 0 and staging_invalid == len(preview)
+		if errors or all_staging_invalid:
 			doc.status = "Failed"
 			doc.committed_count = 0
 			doc.error_count = len(errors)

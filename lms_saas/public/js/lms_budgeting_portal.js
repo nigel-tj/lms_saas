@@ -12,10 +12,10 @@ lms_budgeting.init = function () {
 	if (!root) return;
 
 	var tabs = [
-		{ id: "budgets", label: "Budgets", icon: "💰" },
-		{ id: "vsactual", label: "vs Actual", icon: "📊" },
-		{ id: "forecast", label: "Forecast", icon: "📈" },
-		{ id: "variance", label: "Variance", icon: "⚠️" },
+		{ id: "budgets", label: "Budgets", icon: "wallet" },
+		{ id: "vsactual", label: "vs Actual", icon: "bar-chart" },
+		{ id: "forecast", label: "Forecast", icon: "trending-up" },
+		{ id: "variance", label: "Variance", icon: "alert-triangle" },
 	];
 	var html = lms_portal.pageStart() +
 		lms_portal.pageHeader({ title: "Budgeting" }) +
@@ -69,7 +69,7 @@ lms_budgeting._loadBudgets = function (content) {
 		callback: function (r) {
 			var budgets = (r && r.message && r.message.budgets) || [];
 			if (!budgets.length) {
-				content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("💰") + '<h3>No budgets</h3><p>No budgets found for your branch.</p></div></div>';
+				content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("wallet") + '<h3>No budgets</h3><p>No budgets found for your branch.</p></div></div>';
 				return;
 			}
 			var html = '<div class="lms-panel"><div class="lms-data-table__wrap"><table class="lms-data-table">';
@@ -99,7 +99,7 @@ lms_budgeting._loadVsActual = function (content) {
 			var data = (r && r.message) || {};
 			var comparisons = data.comparisons || [];
 			if (!comparisons.length) {
-				content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("📊") + '<h3>No data</h3><p>No budget vs actual data available.</p></div></div>';
+				content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("bar-chart") + '<h3>No data</h3><p>No budget vs actual data available.</p></div></div>';
 				return;
 			}
 			var html = '<div class="lms-panel"><div class="lms-data-table__wrap"><table class="lms-data-table">';
@@ -158,7 +158,7 @@ lms_budgeting._loadForecast = function (content) {
 			}
 
 			if (!historical.length && !forecast.length) {
-				html = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("📈") + '<h3>No data</h3><p>Not enough historical data for forecasting.</p></div></div>';
+				html = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("trending-up") + '<h3>No data</h3><p>Not enough historical data for forecasting.</p></div></div>';
 			}
 
 			content.innerHTML = html;
@@ -177,7 +177,7 @@ lms_budgeting._loadVariance = function (content) {
 			var data = (r && r.message) || {};
 			var variances = data.variances || [];
 			if (!variances.length) {
-				content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("✓") + '<h3>Within budget</h3><p>No accounts exceeding the variance threshold.</p></div></div>';
+				content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("check") + '<h3>Within budget</h3><p>No accounts exceeding the variance threshold.</p></div></div>';
 				return;
 			}
 			var html = '<div class="lms-panel"><div class="lms-data-table__wrap"><table class="lms-data-table">';

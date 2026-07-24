@@ -14,6 +14,30 @@ from urllib.parse import quote
 from frappe.utils import today, add_days, getdate, cint
 
 from lms_saas.utils.addons import require_addon_persona
+from lms_saas.api.staff import get_current_user_branch
+
+
+# Doctypes whose branch we can resolve for scoping the documents list.
+_BRANCH_AWARE = {
+    "Customer": "custom_lms_branch",
+    "Loan": "custom_lms_branch",
+    "Issue": ("customer", "custom_lms_branch"),
+    "Lead": "custom_lms_branch",
+}
+
+
+def _record_branch(reference_doctype, reference_name):
+    """Resolve the branch (cost center) of a referenced record, or None."""
+    if reference_doctype in _BRANCH_AWARE and reference_name:
+        field = _BRANCH_AWARE[reference_doctype]
+        if isinstance(field, tuple):
+            # e.g. Issue -> customer -> branch
+            linked = frappe.db.get_value(reference_doctype, reference_name, field[0])
+            if linked:
+                return frappe.db.get_value("Customer", linked, "custom_lms_branch")
+            return None
+        return frappe.db.get_value(reference_doctype, reference_name, field)
+    return None
 
 
 def _require_docs():
@@ -104,6 +128,21 @@ def get_documents(category=None, reference_doctype=None, reference_name=None, li
     # Category filter (post-query since it's a custom field)
     if category and category != "Uncategorized":
         files = [f for f in files if f.get("category") == category]
+
+    # Branch scoping: non-admin staff only see Files attached to records in
+    # their own branch (download endpoint is separately scoped).
+    branch = get_current_user_branch()
+    if branch and not _is_admin():
+        scoped = []
+        for f in files:
+            ref_dt = f.get("attached_to_doctype")
+            ref_dn = f.get("attached_to_name")
+            if ref_dt in _BRANCH_AWARE and ref_dn:
+                rec_branch = _record_branch(ref_dt, ref_dn)
+                if rec_branch and rec_branch != branch:
+                    continue
+            scoped.append(f)
+        files = scoped
 
     return {"documents": files}
 

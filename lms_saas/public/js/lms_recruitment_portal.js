@@ -12,14 +12,14 @@ lms_recruitment.init = function () {
 	if (!root) return;
 
 	var tabs = [
-		{ id: "openings", label: "Openings", icon: "💼" },
-		{ id: "applicants", label: "Applicants", icon: "👤" },
-		{ id: "staffing", label: "Staffing Plan", icon: "📊" },
+		{ id: "openings", label: "Openings", icon: "briefcase" },
+		{ id: "applicants", label: "Applicants", icon: "user" },
+		{ id: "staffing", label: "Staffing Plan", icon: "bar-chart" },
 	];
 	var html = '<nav class="lms-tab-nav" role="tablist">';
 	tabs.forEach(function (t) {
 		var active = lms_recruitment._currentTab === t.id ? " is-active" : "";
-		html += '<button type="button" class="lms-tab' + active + '" data-tab="' + t.id + '" role="tab" aria-selected="' + (active ? "true" : "false") + '">' + t.icon + " " + lms_portal.escape(t.label) + "</button>";
+		html += '<button type="button" class="lms-tab' + active + '" data-tab="' + t.id + '" role="tab" aria-selected="' + (active ? "true" : "false") + '">' + (window.lms_icons ? lms_icons.icon(t.icon, { cls: "lms-tab-icon" }) : t.icon) + " " + lms_portal.escape(t.label) + "</button>";
 	});
 	html += "</nav>";
 	html += '<div id="lms-recruitment-tab-content"></div>';
@@ -65,7 +65,7 @@ lms_recruitment._loadOpenings = function (content) {
 		callback: function (r) {
 			var openings = (r && r.message && r.message.openings) || [];
 			if (!openings.length) {
-				content.innerHTML = '<div class="lms-panel"><div class="lms-empty"><div class="lms-empty-icon">💼</div><h3>No openings</h3><p>No open job positions right now.</p></div></div>';
+				content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("briefcase") + '<h3>No openings</h3><p>No open job positions right now.</p></div></div>';
 				return;
 			}
 			var html = '<div class="lms-panel"><div class="lms-data-table__wrap"><table class="lms-data-table">';
@@ -120,7 +120,7 @@ lms_recruitment._loadApplicants = function (content) {
 		callback: function (r) {
 			var applicants = (r && r.message && r.message.applicants) || [];
 			if (!applicants.length) {
-				content.innerHTML = '<div class="lms-panel"><div class="lms-empty"><div class="lms-empty-icon">👤</div><h3>No applicants</h3><p>' + (opening ? "No applicants for this opening." : "No applicants found.") + '</p></div></div>';
+				content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("user") + '<h3>No applicants</h3><p>' + (opening ? "No applicants for this opening." : "No applicants found.") + '</p></div></div>';
 				return;
 			}
 			var html = '<div class="lms-panel">';
@@ -282,7 +282,7 @@ lms_recruitment._loadStaffing = function (content) {
 			html += "</section>";
 
 			if (!plans.length) {
-				html += '<div class="lms-panel"><div class="lms-empty"><div class="lms-empty-icon">📊</div><h3>No staffing plan</h3><p>No active staffing plans for your branch.</p></div></div>';
+				html += '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("bar-chart") + '<h3>No staffing plan</h3><p>No active staffing plans for your branch.</p></div></div>';
 				content.innerHTML = html;
 				return;
 			}

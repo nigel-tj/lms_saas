@@ -218,7 +218,7 @@ lms_payroll._loadLoanDeductions = function (content) {
 			});
 
 			if (!loanSlips.length) {
-				content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("💰") + '<h3>No loan deductions</h3><p>No salary slips with deductions found.</p></div></div>';
+				content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("wallet") + '<h3>No loan deductions</h3><p>No salary slips with deductions found.</p></div></div>';
 				return;
 			}
 
