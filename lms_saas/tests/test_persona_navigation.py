@@ -47,6 +47,8 @@ def _ensure_persona_users():
 		# Employee + persona (for portal staff)
 		if persona != "Borrower":
 			emp = frappe.new_doc("Employee")
+			emp.first_name = persona
+			emp.last_name = "Test"
 			emp.employee_name = f"{persona} Test"
 			emp.user_id = email
 			emp.status = "Active"

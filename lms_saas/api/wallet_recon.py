@@ -116,6 +116,16 @@ def auto_match():
             )
 
         if intent:
+            already = frappe.db.exists(
+                "LMS Wallet Statement",
+                {
+                    "payment_intent": intent,
+                    "status": "Matched",
+                    "name": ("!=", stmt["name"]),
+                },
+            )
+            if already:
+                continue
             frappe.db.set_value("LMS Wallet Statement", stmt["name"], {
                 "payment_intent": intent,
                 "status": "Matched",
@@ -168,6 +178,23 @@ def match_transaction(statement_name, payment_intent):
     # Verify the payment intent exists
     if not frappe.db.exists("LMS Payment Intent", payment_intent):
         frappe.throw(_("Payment Intent not found."))
+
+    # Scope guard: the statement line and the intent must belong to the same company
+    # (and branch, if set) so a recon user cannot link a line to a foreign branch's intent.
+    stmt_company = frappe.db.get_value("LMS Wallet Statement", statement_name, "company")
+    intent_company = frappe.db.get_value("LMS Payment Intent", payment_intent, "company")
+    if stmt_company and intent_company and stmt_company != intent_company:
+        frappe.throw(_("Statement and payment intent are in different companies."), frappe.PermissionError)
+
+    if frappe.db.exists(
+        "LMS Wallet Statement",
+        {
+            "payment_intent": payment_intent,
+            "status": "Matched",
+            "name": ("!=", statement_name),
+        },
+    ):
+        frappe.throw(_("Payment intent already matched to another statement."))
 
     frappe.db.set_value("LMS Wallet Statement", statement_name, {
         "payment_intent": payment_intent,

@@ -12,9 +12,9 @@ lms_appraisals.init = function () {
 	if (!root) return;
 
 	var tabs = [
-		{ id: "cycles", label: "Cycles", icon: "🔄" },
-		{ id: "mine", label: "My Appraisals", icon: "📋" },
-		{ id: "goals", label: "Goals", icon: "🎯" },
+		{ id: "cycles", label: "Cycles", icon: "refresh" },
+		{ id: "mine", label: "My Appraisals", icon: "clipboard" },
+		{ id: "goals", label: "Goals", icon: "target" },
 	];
 	var html = lms_portal.pageStart() +
 		lms_portal.pageHeader({ title: "Appraisals" }) +
@@ -48,7 +48,7 @@ lms_appraisals._loadCycles = function (content) {
 		callback: function (r) {
 			var cycles = (r && r.message && r.message.cycles) || [];
 			if (!cycles.length) {
-				content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("🔄") + '<h3>No cycles</h3><p>No appraisal cycles found.</p></div></div>';
+				content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("refresh") + '<h3>No cycles</h3><p>No appraisal cycles found.</p></div></div>';
 				return;
 			}
 			var html = '<div class="lms-panel"><div class="lms-data-table__wrap"><table class="lms-data-table">';
@@ -80,7 +80,7 @@ lms_appraisals._loadMine = function (content) {
 		callback: function (r) {
 			var appraisals = (r && r.message && r.message.appraisals) || [];
 			if (!appraisals.length) {
-				content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("📋") + '<h3>No appraisals</h3><p>No appraisals found for your branch.</p></div></div>';
+				content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("clipboard") + '<h3>No appraisals</h3><p>No appraisals found for your branch.</p></div></div>';
 				return;
 			}
 			var html = '<div class="lms-panel"><div class="lms-data-table__wrap"><table class="lms-data-table">';
@@ -275,7 +275,7 @@ lms_appraisals._loadGoals = function (content) {
 		callback: function (r) {
 			var appraisals = (r && r.message && r.message.appraisals) || [];
 			if (!appraisals.length) {
-				content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("🎯") + '<h3>No goals</h3><p>No appraisals with goals found.</p></div></div>';
+				content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("target") + '<h3>No goals</h3><p>No appraisals with goals found.</p></div></div>';
 				return;
 			}
 			var html = '<div class="lms-panel"><p class="lms-muted" style="margin-bottom:1rem;">Select an appraisal to view and manage goals.</p>';

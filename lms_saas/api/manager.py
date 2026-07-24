@@ -36,9 +36,27 @@ def _require_manager():
 
 def _manager_branch() -> str | None:
 	"""Resolve the manager's branch (Cost Center) for query scoping."""
-	from lms_saas.api.staff import get_current_user_branch
+	# Top-level import so tests can monkey-patch staff.get_current_user_branch
+	# via the staff module reference (R12 board feedback: late imports defeat
+	# the monkey-patch and break branch-scope unit tests).
+	import lms_saas.api.staff as _staff
 
-	return get_current_user_branch()
+	return _staff.get_current_user_branch()
+
+
+def _is_admin() -> bool:
+	return bool(set(frappe.get_roles()).intersection({"System Manager", "Administrator"}))
+
+
+def _assert_branch_scope(target_branch: str | None) -> None:
+	"""Fail closed: managers may only act on records in their own branch."""
+	if _is_admin():
+		return
+	branch = _manager_branch()
+	if not branch:
+		frappe.throw("Not in your branch.", frappe.PermissionError)
+	if target_branch and target_branch != branch:
+		frappe.throw("Not in your branch.", frappe.PermissionError)
 
 
 @frappe.whitelist()
@@ -139,9 +157,8 @@ def approve_application(application_name: str):
 	app = frappe.get_doc("Loan Application", application_name)
 
 	# Branch scoping: a manager may only act on applications in their own branch.
-	branch = _manager_branch()
-	if branch and app.get("custom_lms_branch") and app.custom_lms_branch != branch:
-		frappe.throw(_("Application is not in your branch."), frappe.PermissionError)
+	# Fail-closed: uses _assert_branch_scope (unassigned staff / blank branch -> rejected).
+	_assert_branch_scope(app.get("custom_lms_branch"))
 
 	if app.docstatus != 0:
 		frappe.throw(_("Only draft applications can be approved (current status: {0}).").format(app.docstatus))
@@ -182,10 +199,8 @@ def reject_application(application_name: str, reason: str = ""):
 
 	app = frappe.get_doc("Loan Application", application_name)
 
-	# Branch scoping.
-	branch = _manager_branch()
-	if branch and app.get("custom_lms_branch") and app.custom_lms_branch != branch:
-		frappe.throw(_("Application is not in your branch."), frappe.PermissionError)
+	# Branch scoping (fail-closed via _assert_branch_scope).
+	_assert_branch_scope(app.get("custom_lms_branch"))
 
 	# A rejection reason is required for the audit trail.
 	if not (reason or "").strip():
@@ -385,6 +400,8 @@ def get_borrower_detail(customer_name: str):
 	if not frappe.db.exists("Customer", customer_name):
 		frappe.throw(_("Customer {0} not found.").format(customer_name))
 
+	_assert_branch_scope(frappe.db.get_value("Customer", customer_name, "custom_lms_branch"))
+
 	cust = frappe.get_doc("Customer", customer_name)
 	customer = {
 		"name": cust.name,
@@ -460,6 +477,8 @@ def update_borrower(
 	if not frappe.db.exists("Customer", customer_name):
 		frappe.throw(_("Customer {0} not found.").format(customer_name))
 
+	_assert_branch_scope(frappe.db.get_value("Customer", customer_name, "custom_lms_branch"))
+
 	cust = frappe.get_doc("Customer", customer_name)
 	if customer_name_new is not None:
 		cust.customer_name = customer_name_new
@@ -524,9 +543,8 @@ def get_loan_detail(loan_name: str):
 		frappe.throw(_("Loan {0} not found.").format(loan_name))
 
 	loan = frappe.get_doc("Loan", loan_name)
-	branch = _manager_branch()
-	if branch and loan.get("custom_lms_branch") and loan.get("custom_lms_branch") != branch:
-		frappe.throw(_("Loan is not in your branch."), frappe.PermissionError)
+	# Fail-closed branch scoping.
+	_assert_branch_scope(loan.get("custom_lms_branch"))
 
 	# Schedule
 	# NOTE: Repayment Schedule has no 'paid' column — use 'demand_generated'
@@ -613,6 +631,8 @@ def disburse_loan(loan_name: str, disbursed_amount: float | None = None):
 	if not frappe.db.exists("Loan", loan_name):
 		frappe.throw(_("Loan {0} not found.").format(loan_name))
 
+	_assert_branch_scope(frappe.db.get_value("Loan", loan_name, "custom_lms_branch"))
+
 	loan = frappe.get_doc("Loan", loan_name)
 	if loan.docstatus != 1:
 		frappe.throw(_("Loan must be submitted before disbursement."))
@@ -652,6 +672,8 @@ def write_off_loan(loan_name: str, write_off_amount: float | None = None, reason
 	if not frappe.db.exists("Loan", loan_name):
 		frappe.throw(_("Loan {0} not found.").format(loan_name))
 
+	_assert_branch_scope(frappe.db.get_value("Loan", loan_name, "custom_lms_branch"))
+
 	loan = frappe.get_doc("Loan", loan_name)
 	if loan.docstatus != 1:
 		frappe.throw(_("Loan must be submitted before write-off."))
@@ -688,7 +710,14 @@ def write_off_loan(loan_name: str, write_off_amount: float | None = None, reason
 
 @frappe.whitelist()
 def record_repayment(loan_name: str, amount: float, payment_mode: str = "Cash", posting_date: str | None = None):
-	"""Record a loan repayment (manager can record on behalf of borrower)."""
+	"""Record a loan repayment (manager can record on behalf of borrower).
+
+	R12 board: includes ``admin_override`` flag in the audit event so the
+	regulator can distinguish a normal manager recording from an admin
+	bypassing the branch / officer assignment. Also rejects loans that are
+	Closed, Written Off, or Cancelled — silently accepting a repayment on a
+	closed loan is an audit-trail integrity bug.
+	"""
 	_require_manager()
 	amount = flt(amount)
 	if amount <= 0:
@@ -698,6 +727,20 @@ def record_repayment(loan_name: str, amount: float, payment_mode: str = "Cash", 
 		frappe.throw(_("Loan {0} not found.").format(loan_name))
 
 	loan = frappe.get_doc("Loan", loan_name)
+	# Branch scoping (fail-closed via _assert_branch_scope) — a manager may only
+	# record repayments for loans in their own branch.
+	_assert_branch_scope(loan.get("custom_lms_branch"))
+
+	# Edge: closed / written-off / cancelled loans cannot accept new repayments.
+	if loan.status in ("Closed", "Written Off", "Cancelled"):
+		frappe.throw(
+			_("Cannot record repayment on a {0} loan.").format(loan.status),
+			frappe.ValidationError,
+		)
+
+	# R12 board: capture admin_override flag for the audit trail.
+	admin_override = _is_admin()
+
 	repayment = frappe.get_doc(
 		{
 			"doctype": "Loan Repayment",
@@ -712,6 +755,28 @@ def record_repayment(loan_name: str, amount: float, payment_mode: str = "Cash", 
 	repayment.flags.ignore_permissions = True
 	repayment.insert()
 	repayment.submit()
+
+	# R12 board: explicit audit event for manager.record_repayment (previously
+	# only the doc_event on Loan Repayment on_submit ran — which doesn't
+	# distinguish admin_override from a normal recording).
+	try:
+		from lms_saas.api.compliance import write_audit_event
+
+		write_audit_event(
+			event_type="Repayment:ManagerRecorded",
+			reference_doctype="Loan Repayment",
+			reference_name=repayment.name,
+			amount=amount,
+			company=loan.company,
+			details=(
+				f"loan={loan_name}; admin_override={admin_override}; "
+				f"loan_officer={loan.get('custom_loan_officer') or 'unassigned'}; "
+				f"loan_status={loan.status}; branch={loan.get('custom_lms_branch') or 'unassigned'}"
+			),
+			critical=True,
+		)
+	except Exception:
+		frappe.log_error(title="record_repayment audit failed", message=frappe.get_traceback())
 
 	return {
 		"status": "recorded",
@@ -815,7 +880,8 @@ def get_disbursement_report(from_date: str | None = None, to_date: str | None = 
 	total = 0
 	for d in disbursements:
 		loan = frappe.db.get_value("Loan", d.against_loan, ["custom_loan_officer", "custom_lms_branch", "applicant"], as_dict=True)
-		if branch and loan and loan.get("custom_lms_branch") and loan["custom_lms_branch"] != branch:
+		# Fail-closed: skip if manager has no branch, or loan is in another branch.
+		if not branch or not loan or not loan.get("custom_lms_branch") or loan["custom_lms_branch"] != branch:
 			continue
 		officer = (loan.custom_loan_officer if loan else "") or "Unassigned"
 		officer_name = frappe.db.get_value("Employee", officer, "employee_name") if officer != "Unassigned" else "Unassigned"
@@ -864,7 +930,8 @@ def get_collections_report(from_date: str | None = None, to_date: str | None = N
 	total = 0
 	for r in repayments:
 		loan = frappe.db.get_value("Loan", r.against_loan, ["custom_loan_officer", "custom_lms_branch", "applicant"], as_dict=True)
-		if branch and loan and loan.get("custom_lms_branch") and loan["custom_lms_branch"] != branch:
+		# Fail-closed: skip if manager has no branch, or loan is in another branch.
+		if not branch or not loan or not loan.get("custom_lms_branch") or loan["custom_lms_branch"] != branch:
 			continue
 		officer = (loan.custom_loan_officer if loan else "") or "Unassigned"
 		officer_name = frappe.db.get_value("Employee", officer, "employee_name") if officer != "Unassigned" else "Unassigned"
@@ -952,9 +1019,8 @@ def get_loan_statement(loan_name: str, from_date: str | None = None, to_date: st
 		frappe.throw(_("Loan {0} not found.").format(loan_name))
 
 	loan = frappe.get_doc("Loan", loan_name)
-	branch = _manager_branch()
-	if branch and loan.get("custom_lms_branch") and loan.get("custom_lms_branch") != branch:
-		frappe.throw(_("Loan is not in your branch."), frappe.PermissionError)
+	# Fail-closed branch scoping.
+	_assert_branch_scope(loan.get("custom_lms_branch"))
 
 	transactions = []
 
@@ -1051,8 +1117,67 @@ def get_branch_staff():
 	for emp in employees:
 		emp["persona"] = frappe.db.get_value("Employee", emp.name, "custom_lms_persona") or ""
 		emp["loan_count"] = frappe.db.count("Loan", {"custom_loan_officer": emp.name, "docstatus": 1})
+		emp["borrower_count"] = frappe.db.count(
+			"Loan",
+			{"custom_loan_officer": emp.name, "docstatus": 1},
+			distinct=True,
+			field="customer",
+		)
 
 	return {"staff": employees}
+
+
+@frappe.whitelist()
+def get_officer_borrowers(employee=None):
+	"""Borrowers assigned to a given Loan Officer, for the branch manager's team view.
+
+	Assignment is derived from ``Loan.custom_loan_officer`` (the natural link the
+	officer's own APIs enforce). Branch-scoped to the manager's branch; admins see
+	all. Returns the distinct borrowers whose loans are handled by that officer.
+	"""
+	_require_manager()
+	branch = _manager_branch()
+
+	if not employee:
+		frappe.throw("Employee is required.", frappe.ValidationError)
+
+	# Honour the manager's branch scope — never leak another branch's officer.
+	officer_branch = frappe.db.get_value("Employee", employee, "custom_lms_branch")
+	_assert_branch_scope(officer_branch)
+
+	loan_filters = {"custom_loan_officer": employee, "docstatus": 1}
+	if branch:
+		loan_filters["custom_lms_branch"] = branch
+
+	loans = frappe.get_all(
+		"Loan",
+		filters=loan_filters,
+		fields=["name", "applicant", "customer", "loan_amount", "status", "outstanding_amount"],
+		order_by="modified desc",
+		limit_page_length=200,
+	)
+
+	borrowers = {}
+	for ln in loans:
+		cust = ln.customer or ln.applicant
+		if not cust or cust in borrowers:
+			continue
+		borrowers[cust] = {
+			"customer": cust,
+			"customer_name": ln.applicant or cust,
+			"active_loans": 0,
+			"outstanding": 0.0,
+		}
+
+	# Aggregate per borrower.
+	for ln in loans:
+		cust = ln.customer or ln.applicant
+		if not cust or cust not in borrowers:
+			continue
+		borrowers[cust]["active_loans"] += 1
+		borrowers[cust]["outstanding"] = flt(borrowers[cust]["outstanding"]) + flt(ln.outstanding_amount or 0)
+
+	return {"employee": employee, "borrowers": list(borrowers.values())}
 
 
 @frappe.whitelist()
@@ -1125,7 +1250,8 @@ def get_collateral_register(loan_status: str | None = None):
 				"Loan", link.parent, ["name", "status", "applicant", "custom_lms_branch"], as_dict=True
 			) if frappe.db.exists("Loan", link.parent) else None
 			if loan:
-				if branch and loan.get("custom_lms_branch") and loan["custom_lms_branch"] != branch:
+				# Fail-closed: skip if manager has no branch, or loan is in another branch.
+				if not branch or not loan.get("custom_lms_branch") or loan["custom_lms_branch"] != branch:
 					continue
 				if loan_status and loan.status != loan_status:
 					continue

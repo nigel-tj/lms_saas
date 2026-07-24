@@ -34,15 +34,33 @@ def _require_officer():
 
 def _officer_branch() -> str | None:
 	"""Resolve the officer's branch (Cost Center) for query scoping."""
-	from lms_saas.api.staff import get_current_user_branch
+	# Top-level import so tests can monkey-patch staff.get_current_user_branch
+	# via the staff module reference (R12 board feedback: late imports defeat
+	# the monkey-patch and break branch-scope unit tests).
+	import lms_saas.api.staff as _staff
 
-	return get_current_user_branch()
+	return _staff.get_current_user_branch()
 
 
 def _officer_employee() -> str | None:
 	"""Return the Employee name linked to the current user."""
 	user = frappe.session.user
 	return frappe.db.get_value("Employee", {"user_id": user, "status": "Active"}, "name")
+
+
+def _is_admin() -> bool:
+	return bool(set(frappe.get_roles()).intersection({"System Manager", "Administrator"}))
+
+
+def _assert_branch_scope(target_branch: str | None) -> None:
+	"""Fail closed: officers may only act on records in their own branch."""
+	if _is_admin():
+		return
+	branch = _officer_branch()
+	if not branch:
+		frappe.throw("Not in your branch.", frappe.PermissionError)
+	if target_branch and target_branch != branch:
+		frappe.throw("Not in your branch.", frappe.PermissionError)
 
 
 @frappe.whitelist()
@@ -806,6 +824,8 @@ def get_borrower_detail(customer_name: str):
 	if not frappe.db.exists("Customer", customer_name):
 		frappe.throw(_("Customer {0} not found.").format(customer_name))
 
+	_assert_branch_scope(frappe.db.get_value("Customer", customer_name, "custom_lms_branch"))
+
 	cust = frappe.get_doc("Customer", customer_name)
 	customer = {
 		"name": cust.name,
@@ -880,6 +900,8 @@ def update_borrower(
 	if not frappe.db.exists("Customer", customer_name):
 		frappe.throw(_("Customer {0} not found.").format(customer_name))
 
+	_assert_branch_scope(frappe.db.get_value("Customer", customer_name, "custom_lms_branch"))
+
 	cust = frappe.get_doc("Customer", customer_name)
 	if customer_name_new is not None:
 		cust.customer_name = customer_name_new
@@ -889,7 +911,8 @@ def update_borrower(
 		cust.mobile_no = mobile_no
 	if national_id is not None:
 		cust.custom_national_id_number = national_id
-	cust.flags.ignore_permissions = True
+	# Enforce Frappe role permissions (PORTAL_STAFF_ROLE write on Customer),
+	# so the Loan Officer write permission is real, not bypassed.
 	cust.save()
 
 	return {"status": "updated", "customer": customer_name}
@@ -905,6 +928,8 @@ def get_loan_detail(loan_name: str):
 	_require_officer()
 	if not frappe.db.exists("Loan", loan_name):
 		frappe.throw(_("Loan {0} not found.").format(loan_name))
+
+	_assert_branch_scope(frappe.db.get_value("Loan", loan_name, "custom_lms_branch"))
 
 	loan = frappe.get_doc("Loan", loan_name)
 
@@ -975,7 +1000,12 @@ def get_loan_detail(loan_name: str):
 
 @frappe.whitelist()
 def record_repayment(loan_name: str, amount: float, payment_mode: str = "Cash", posting_date: str | None = None):
-	"""Record a loan repayment (officer can record on behalf of borrower)."""
+	"""Record a loan repayment (officer can record on behalf of borrower).
+
+	R12 board: explicit audit event with ``admin_override`` flag (matches the
+	manager path) so the regulator can distinguish officer-recorded from
+	admin-recorded. Also rejects Closed / Written Off / Cancelled loans.
+	"""
 	_require_officer()
 	amount = flt(amount)
 	if amount <= 0:
@@ -984,7 +1014,19 @@ def record_repayment(loan_name: str, amount: float, payment_mode: str = "Cash", 
 	if not frappe.db.exists("Loan", loan_name):
 		frappe.throw(_("Loan {0} not found.").format(loan_name))
 
+	_assert_branch_scope(frappe.db.get_value("Loan", loan_name, "custom_lms_branch"))
+
 	loan = frappe.get_doc("Loan", loan_name)
+	# Edge: closed / written-off / cancelled loans cannot accept new repayments.
+	if loan.status in ("Closed", "Written Off", "Cancelled"):
+		frappe.throw(
+			_("Cannot record repayment on a {0} loan.").format(loan.status),
+			frappe.ValidationError,
+		)
+
+	# R12 board: capture admin_override flag for the audit trail.
+	admin_override = _is_admin()
+
 	repayment = frappe.get_doc(
 		{
 			"doctype": "Loan Repayment",
@@ -999,6 +1041,25 @@ def record_repayment(loan_name: str, amount: float, payment_mode: str = "Cash", 
 	repayment.flags.ignore_permissions = True
 	repayment.insert()
 	repayment.submit()
+
+	# R12 board: explicit audit event with admin_override distinction.
+	try:
+		from lms_saas.api.compliance import write_audit_event
+
+		write_audit_event(
+			event_type="Repayment:OfficerRecorded",
+			reference_doctype="Loan Repayment",
+			reference_name=repayment.name,
+			amount=amount,
+			company=loan.company,
+			details=(
+				f"loan={loan_name}; admin_override={admin_override}; "
+				f"loan_status={loan.status}; branch={loan.get('custom_lms_branch') or 'unassigned'}"
+			),
+			critical=True,
+		)
+	except Exception:
+		frappe.log_error(title="officer.record_repayment audit failed", message=frappe.get_traceback())
 
 	return {
 		"status": "recorded",

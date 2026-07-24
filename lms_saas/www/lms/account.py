@@ -10,11 +10,10 @@ def get_context(context):
 	if frappe.session.user == "Guest":
 		frappe.local.flags.redirect_location = "/login?redirect-to=/lms/account"
 		raise frappe.Redirect
-	# Account is the borrower profile + KYC overview. Staff should manage
-	# their own profile via the desk, not the borrower portal — redirect
-	# them to their persona landing so we don't 403 on the API call below.
-	require_persona_for_page("can_borrower")
-
+	# My Account is the self-service profile + KYC overview for EVERY authenticated
+	# portal user (borrowers, loan officers, branch managers, collectors) — not
+	# borrowers only. Staff manage their own profile here too; the desk is for
+	# back-office work, not personal profile self-service.
 	user = frappe.get_doc("User", frappe.session.user)
 	apply_portal_context(context, nav_active="account", page_js="js/lms_portal.js")
 	context.account_user = user

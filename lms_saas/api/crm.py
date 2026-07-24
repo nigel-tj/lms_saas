@@ -83,7 +83,13 @@ def send_lead_acknowledgement(lead_name: str):
 @frappe.whitelist()
 def convert_lead_to_borrower(lead_name: str):
 	"""Convert a Lead to Customer (+ optional compliance stub) after consent."""
+	from lms_saas.api.officer import _require_officer
+	from lms_saas.api.staff import _assert_branch_scope
+
+	_require_officer()
 	lead = frappe.get_doc("Lead", lead_name)
+	# Branch scoping: a lead belongs to its own branch.
+	_assert_branch_scope(getattr(lead, "custom_lms_branch", None))
 	if not lead.custom_consent_given:
 		frappe.throw(_("Record customer consent on the Lead before converting to a borrower."))
 

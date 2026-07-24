@@ -12,9 +12,9 @@ lms_visits.init = function () {
 	if (!root) return;
 
 	var tabs = [
-		{ id: "schedule", label: "Schedule", icon: "📅" },
-		{ id: "myvisits", label: "My Visits", icon: "🗺️" },
-		{ id: "stats", label: "Stats", icon: "📊" },
+		{ id: "schedule", label: "Schedule", icon: "calendar" },
+		{ id: "myvisits", label: "My Visits", icon: "map" },
+		{ id: "stats", label: "Stats", icon: "bar-chart" },
 	];
 	var html = lms_portal.pageStart() +
 		lms_portal.pageHeader({ title: "Field Visits", actions: [{ label: "+ Schedule Visit", id: "lms-vis-new", primary: true }] }) +
@@ -78,7 +78,7 @@ lms_visits._loadSchedule = function (content) {
 		callback: function (r) {
 			var visits = (r && r.message && r.message.visits) || [];
 			if (!visits.length) {
-				content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("📅") + '<h3>No scheduled visits</h3><p>No planned field visits.</p></div></div>';
+				content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("calendar") + '<h3>No scheduled visits</h3><p>No planned field visits.</p></div></div>';
 				return;
 			}
 
@@ -125,7 +125,7 @@ lms_visits._loadMyVisits = function (content) {
 		callback: function (r) {
 			var visits = (r && r.message && r.message.visits) || [];
 			if (!visits.length) {
-				content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("🗺️") + '<h3>No visits</h3><p>No field visits found.</p></div></div>';
+				content.innerHTML = '<div class="lms-panel"><div class="lms-empty">' + lms_icons.empty("map") + '<h3>No visits</h3><p>No field visits found.</p></div></div>';
 				return;
 			}
 
@@ -315,7 +315,7 @@ lms_visits._showVisitDetail = function (visitName) {
 			html += '<div class="lms-field"><label>Status</label><div>' + lms_portal.escape(v.status || "") + '</div></div>';
 			html += '<div class="lms-field"><label>Notes</label><div>' + lms_portal.escape(v.notes || "—") + '</div></div>';
 			if (v.photos) {
-				html += '<div class="lms-field"><label>Photos</label><div><a href="' + lms_portal.escape(v.photos) + '" target="_blank">📎 View Photo</a></div></div>';
+				html += '<div class="lms-field"><label>Photos</label><div><a href="' + lms_portal.escape(v.photos) + '" target="_blank">' + (typeof lms_icons !== "undefined" ? lms_icons.icon("file-text") : "📎") + ' View Photo</a></div></div>';
 			}
 			html += '</div>';
 

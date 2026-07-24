@@ -28,6 +28,24 @@ def _branch():
     return get_current_user_branch()
 
 
+def _assert_task_branch(task_name):
+    """Fail-closed branch scoping for task read/mutate.
+
+    A task belongs to a branch via its Project's cost_center (mirrors the
+    list scoping in get_task_board). Admins bypass.
+    """
+    if "System Manager" in frappe.get_roles(frappe.session.user):
+        return
+    branch = _branch()
+    if not branch:
+        frappe.throw("Not in your branch.", frappe.PermissionError)
+    project = frappe.db.get_value("Task", task_name, "project")
+    if project:
+        project_branch = frappe.db.get_value("Project", project, "cost_center")
+        if project_branch and project_branch != branch:
+            frappe.throw("Not in your branch.", frappe.PermissionError)
+
+
 # ---------------------------------------------------------------------------
 # Board
 # ---------------------------------------------------------------------------
@@ -147,65 +165,68 @@ def create_task(subject, description=None, priority="Medium", project=None,
 
 @frappe.whitelist()
 def update_task_status(task_name, status):
-    """Move a task to a new status (Kanban drag)."""
-    _require_tasks()
+	"""Move a task to a new status (Kanban drag)."""
+	_require_tasks()
+	_assert_task_branch(task_name)
 
-    valid = {"Open", "Working", "Pending Review", "Completed", "Cancelled"}
-    if status not in valid:
-        frappe.throw(_("Invalid status: {0}").format(status))
+	valid = {"Open", "Working", "Pending Review", "Completed", "Cancelled"}
+	if status not in valid:
+		frappe.throw(_("Invalid status: {0}").format(status))
 
-    frappe.db.set_value("Task", task_name, "status", status)
-    if status == "Completed":
-        frappe.db.set_value("Task", task_name, "completed_on", now_datetime())
+	frappe.db.set_value("Task", task_name, "status", status)
+	if status == "Completed":
+		frappe.db.set_value("Task", task_name, "completed_on", now_datetime())
 
-    return {"ok": True, "status": status}
+	return {"ok": True, "status": status}
 
 
 @frappe.whitelist()
 def get_task_detail(task_name):
-    """Return a single task with comments."""
-    _require_tasks()
+	"""Return a single task with comments."""
+	_require_tasks()
+	_assert_task_branch(task_name)
 
-    task = frappe.get_doc("Task", task_name)
-    comments = frappe.get_all(
-        "Comment",
-        filters={"reference_doctype": "Task", "reference_name": task_name},
-        fields=["name", "content", "comment_by", "creation"],
-        order_by="creation desc",
-        limit=50,
-    )
+	task = frappe.get_doc("Task", task_name)
+	comments = frappe.get_all(
+		"Comment",
+		filters={"reference_doctype": "Task", "reference_name": task_name},
+		fields=["name", "content", "comment_by", "creation"],
+		order_by="creation desc",
+		limit=50,
+	)
 
-    return {
-        "task": {
-            "name": task.name,
-            "subject": task.subject,
-            "description": task.description,
-            "status": task.status,
-            "priority": task.priority,
-            "project": task.project,
-            "issue": task.issue,
-            "exp_start_date": task.exp_start_date,
-            "exp_end_date": task.exp_end_date,
-        },
-        "comments": comments,
-    }
+	return {
+		"task": {
+			"name": task.name,
+			"subject": task.subject,
+			"description": task.description,
+			"status": task.status,
+			"priority": task.priority,
+			"project": task.project,
+			"issue": task.issue,
+			"exp_start_date": task.exp_start_date,
+			"exp_end_date": task.exp_end_date,
+		},
+		"comments": comments,
+	}
 
 
 @frappe.whitelist()
 def add_comment(task_name, content):
-    """Add a comment to a task."""
-    _require_tasks()
+	"""Add a comment to a task."""
+	_require_tasks()
+	_assert_task_branch(task_name)
 
-    comment = frappe.new_doc("Comment")
-    comment.comment_type = "Comment"
-    comment.reference_doctype = "Task"
-    comment.reference_name = task_name
-    comment.content = content
-    comment.comment_by = frappe.session.user
-    comment.flags.ignore_permissions = True
-    comment.insert()
+	comment = frappe.new_doc("Comment")
+	comment.comment_type = "Comment"
+	comment.reference_doctype = "Task"
+	comment.reference_name = task_name
+	comment.content = content
+	comment.comment_by = frappe.session.user
+	comment.flags.ignore_permissions = True
+	comment.insert()
 
-    return {"ok": True, "comment_name": comment.name}
+	return {"ok": True, "comment_name": comment.name}
 
 
 # ---------------------------------------------------------------------------

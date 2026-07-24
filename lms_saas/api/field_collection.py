@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import frappe
-from frappe.utils import flt, today
+from frappe.utils import add_to_date, cint, flt, now_datetime, today
 
 from lms_saas.lms_saas.report.collection_sheet.collection_sheet import execute as collection_sheet_execute
 
@@ -49,6 +49,13 @@ def get_collection_run_sheet(days_ahead=7, company=None):
 			row["loan_officer"] = loan.custom_loan_officer or ""
 			row["branch"] = loan.custom_lms_branch or row.get("branch") or ""
 
+	# Horizontal scope: collectors only see rows in their own branch (admins keep all).
+	if not _is_admin():
+		scope_branch = _collector_branch()
+		if not scope_branch:
+			frappe.throw("No branch assigned — cannot view run sheet.", frappe.PermissionError)
+		data = [row for row in data if row.get("branch") == scope_branch]
+
 	return {"columns": columns, "rows": data}
 
 
@@ -71,9 +78,12 @@ def _is_admin() -> bool:
 
 
 def _collector_branch() -> str | None:
-	from lms_saas.api.staff import get_current_user_branch
+	# Top-level import so tests can monkey-patch staff.get_current_user_branch
+	# via the staff module reference (R12 board feedback: late imports defeat
+	# the monkey-patch and break branch-scope unit tests).
+	import lms_saas.api.staff as _staff
 
-	return get_current_user_branch()
+	return _staff.get_current_user_branch()
 
 
 def _assert_loan_in_scope(loan_name: str) -> None:
@@ -106,6 +116,24 @@ def record_field_repayment(loan: str, amount: float, payment_mode: str = "Cash")
 		from lms_saas.api.payments.service import create_payment_intent
 
 		return create_payment_intent(loan=loan, amount=amount, provider_code=payment_mode.lower())
+
+	# B12: idempotency guard — if an identical repayment was submitted for this
+	# loan+amount in the last N seconds, return it instead of double-posting.
+	# R12 board: default raised from 5 min (300s) to 15 min (900s) to absorb
+	# USSD retries that arrive 5-10 min after the original confirm on slow
+	# mobile networks. Override via site_config `lms_field_repay_dedupe_seconds`.
+	dedupe_seconds = cint(frappe.conf.get("lms_field_repay_dedupe_seconds", 900))
+	existing = frappe.db.exists(
+		"Loan Repayment",
+		{
+			"against_loan": loan,
+			"amount_paid": flt(amount),
+			"docstatus": 1,
+			"creation": (">=", add_to_date(now_datetime(), seconds=-dedupe_seconds)),
+		},
+	)
+	if existing:
+		return {"repayment": existing, "loan": loan, "amount": amount}
 
 	loan_doc = frappe.get_doc("Loan", loan)
 	repayment = frappe.get_doc(
@@ -186,6 +214,8 @@ def generate_collection_receipt(repayment_name: str):
 	_require_collector()
 	if not frappe.db.exists("Loan Repayment", repayment_name):
 		frappe.throw("Repayment not found.")
+
+	_assert_loan_in_scope(frappe.db.get_value("Loan Repayment", repayment_name, "against_loan"))
 
 	pdf = frappe.get_print(
 		"Loan Repayment",

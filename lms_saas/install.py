@@ -1342,6 +1342,37 @@ def _ensure_customer_portal_role():
             }
         ).insert(ignore_permissions=True)
 
+    # Loan Officer / Collector personas carry the PORTAL_STAFF_ROLE (see the
+    # PERSONA_CONFIG map) — NOT the "Customer" role. Grant that role read + WRITE
+    # on the Customer doctype so officers can edit Borrower profiles (name, email,
+    # mobile, national ID) via update_borrower(), enforced through Frappe's
+    # permission layer (update_borrower no longer bypasses permissions).
+    if not frappe.db.exists("Custom DocPerm", {"role": PORTAL_STAFF_ROLE, "parent": "Customer"}):
+        frappe.get_doc(
+            {
+                "doctype": "Custom DocPerm",
+                "parent": "Customer",
+                "parenttype": "DocType",
+                "parentfield": "permissions",
+                "role": PORTAL_STAFF_ROLE,
+                "read": 1,
+                "write": 1,
+                "create": 0,
+                "delete": 0,
+                "submit": 0,
+                "cancel": 0,
+                "email": 1,
+            }
+        ).insert(ignore_permissions=True)
+    else:
+        # Idempotent: ensure write is enabled even if a prior install set it to 0.
+        frappe.db.set_value(
+            "Custom DocPerm",
+            {"role": PORTAL_STAFF_ROLE, "parent": "Customer"},
+            "write",
+            1,
+        )
+
 
 def _ensure_portal_staff_role():
     """Create the portal-only LMS staff role (no desk access)."""

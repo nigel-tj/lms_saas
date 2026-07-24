@@ -161,7 +161,7 @@ lms_documents._loadDocuments = function (category) {
 
 lms_documents._renderList = function (el, docs) {
 	if (!docs.length) {
-		el.innerHTML = lms_portal.emptyPanel("📁", "No documents", "Documents will appear here once uploaded.");
+		el.innerHTML = lms_portal.emptyPanel("folder", "No documents", "Documents will appear here once uploaded.");
 		return;
 	}
 

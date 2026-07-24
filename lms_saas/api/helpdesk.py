@@ -11,6 +11,7 @@ from frappe import _
 from frappe.utils import now_datetime, today, getdate, add_days
 
 from lms_saas.utils.addons import require_addon_persona
+from lms_saas.api.staff import _assert_branch_scope
 
 
 def _require_helpdesk():
@@ -122,65 +123,83 @@ def get_ticket_queue(status=None, limit=100):
 
 @frappe.whitelist()
 def get_ticket_detail(ticket_name):
-    """Staff: return a single ticket with communications."""
-    _require_helpdesk()
+	"""Staff: return a single ticket with communications."""
+	_require_helpdesk()
 
-    ticket = frappe.get_doc("Issue", ticket_name)
-    communications = frappe.get_all(
-        "Communication",
-        filters={"reference_doctype": "Issue", "reference_name": ticket_name},
-        fields=["name", "content", "sender", "creation", "communication_type"],
-        order_by="creation asc",
-        limit=100,
-    )
+	ticket = frappe.get_doc("Issue", ticket_name)
+	# Branch scoping: a ticket belongs to the branch of its customer.
+	if ticket.customer:
+		_assert_branch_scope(frappe.db.get_value("Customer", ticket.customer, "custom_lms_branch"))
 
-    return {
-        "ticket": {
-            "name": ticket.name,
-            "subject": ticket.subject,
-            "description": ticket.description,
-            "status": ticket.status,
-            "priority": ticket.priority,
-            "raised_by": ticket.raised_by,
-            "customer": ticket.customer,
-            "opening_date": ticket.opening_date,
-            "resolution_date": ticket.resolution_date,
-            "resolution_details": ticket.resolution_details,
-            "issue_type": ticket.issue_type,
-        },
-        "communications": communications,
-    }
+	communications = frappe.get_all(
+		"Communication",
+		filters={"reference_doctype": "Issue", "reference_name": ticket_name},
+		fields=["name", "content", "sender", "creation", "communication_type"],
+		order_by="creation asc",
+		limit=100,
+	)
+
+	return {
+		"ticket": {
+			"name": ticket.name,
+			"subject": ticket.subject,
+			"description": ticket.description,
+			"status": ticket.status,
+			"priority": ticket.priority,
+			"raised_by": ticket.raised_by,
+			"customer": ticket.customer,
+			"opening_date": ticket.opening_date,
+			"resolution_date": ticket.resolution_date,
+			"resolution_details": ticket.resolution_details,
+			"issue_type": ticket.issue_type,
+		},
+		"communications": communications,
+	}
 
 
 @frappe.whitelist()
 def update_ticket_status(ticket_name, status, resolution_details=None):
-    """Staff: update ticket status."""
-    _require_helpdesk()
+	"""Staff: update ticket status."""
+	_require_helpdesk()
 
-    updates = {"status": status}
-    if status == "Closed" and resolution_details:
-        updates["resolution_details"] = resolution_details
-        updates["resolution_date"] = now_datetime()
+	ticket_branch = None
+	if frappe.db.exists("Issue", ticket_name):
+		customer = frappe.db.get_value("Issue", ticket_name, "customer")
+		if customer:
+			ticket_branch = frappe.db.get_value("Customer", customer, "custom_lms_branch")
+	_assert_branch_scope(ticket_branch)
 
-    frappe.db.set_value("Issue", ticket_name, updates)
-    return {"ok": True, "status": status}
+	updates = {"status": status}
+	if status == "Closed" and resolution_details:
+		updates["resolution_details"] = resolution_details
+		updates["resolution_date"] = now_datetime()
+
+	frappe.db.set_value("Issue", ticket_name, updates)
+	return {"ok": True, "status": status}
 
 
 @frappe.whitelist()
 def reply_to_ticket(ticket_name, content):
-    """Staff: add a reply to a ticket."""
-    _require_helpdesk()
+	"""Staff: add a reply to a ticket."""
+	_require_helpdesk()
 
-    comm = frappe.new_doc("Communication")
-    comm.communication_type = "Comment"
-    comm.reference_doctype = "Issue"
-    comm.reference_name = ticket_name
-    comm.content = content
-    comm.sender = frappe.session.user
-    comm.flags.ignore_permissions = True
-    comm.insert()
+	ticket_branch = None
+	if frappe.db.exists("Issue", ticket_name):
+		customer = frappe.db.get_value("Issue", ticket_name, "customer")
+		if customer:
+			ticket_branch = frappe.db.get_value("Customer", customer, "custom_lms_branch")
+	_assert_branch_scope(ticket_branch)
 
-    return {"ok": True, "communication_name": comm.name}
+	comm = frappe.new_doc("Communication")
+	comm.communication_type = "Comment"
+	comm.reference_doctype = "Issue"
+	comm.reference_name = ticket_name
+	comm.content = content
+	comm.sender = frappe.session.user
+	comm.flags.ignore_permissions = True
+	comm.insert()
+
+	return {"ok": True, "communication_name": comm.name}
 
 
 @frappe.whitelist()

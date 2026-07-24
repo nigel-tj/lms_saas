@@ -22,11 +22,14 @@ class TestLegacyRoleCleanup(FrappeTestCase):
 	@classmethod
 	def setUpClass(cls):
 		super().setUpClass()
-		# Recreate the legacy roles + perm rows the migration should sweep.
-		# We do this in setUpClass so each test method sees a fresh state.
-		cls._seed_legacy_roles()
 
-	@classmethod
+	def setUp(self):
+		# Re-seed legacy roles before EVERY test so the test order doesn't
+		# matter (the migration deletes them on the first run; later tests
+		# would otherwise find nothing to migrate).
+		self._seed_legacy_roles()
+		frappe.db.commit()
+
 	def _seed_legacy_roles(cls):
 		"""Re-create a few legacy roles + perm rows so the migration has work."""
 		# Make sure the LMS Portal Staff role exists (needed as the replacement).

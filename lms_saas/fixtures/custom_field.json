@@ -216,5 +216,60 @@
     "insert_after": "department",
     "read_only": 1,
     "description": "Set by LMS User Setup onboarding. Controls portal landing page."
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "LMS Audit Event-operator_legal_name",
+    "dt": "LMS Audit Event",
+    "fieldname": "custom_operator_legal_name",
+    "fieldtype": "Data",
+    "label": "Operator Legal Name",
+    "insert_after": "details",
+    "read_only": 1,
+    "search_index": 1
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "LMS Audit Event-operator_licence",
+    "dt": "LMS Audit Event",
+    "fieldname": "custom_operator_licence_number",
+    "fieldtype": "Data",
+    "label": "Operator Licence #",
+    "insert_after": "custom_operator_legal_name",
+    "read_only": 1,
+    "search_index": 1
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "LMS Audit Event-operator_regulator",
+    "dt": "LMS Audit Event",
+    "fieldname": "custom_operator_regulator",
+    "fieldtype": "Data",
+    "label": "Regulator",
+    "insert_after": "custom_operator_licence_number",
+    "read_only": 1
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "LMS Audit Event-operator_mode",
+    "dt": "LMS Audit Event",
+    "fieldname": "custom_operator_mode",
+    "fieldtype": "Select",
+    "label": "Operator Mode",
+    "options": "\nsandbox\nproduction",
+    "insert_after": "custom_operator_regulator",
+    "read_only": 1,
+    "search_index": 1
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "LMS Audit Event-event_hash",
+    "dt": "LMS Audit Event",
+    "fieldname": "custom_event_hash",
+    "fieldtype": "Data",
+    "label": "Event Hash (tamper-evidence)",
+    "insert_after": "custom_operator_mode",
+    "read_only": 1,
+    "search_index": 1
   }
 ]

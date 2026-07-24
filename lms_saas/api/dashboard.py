@@ -1,22 +1,54 @@
 import frappe
-from frappe.utils import flt, getdate, today
-from frappe.utils.data import add_to_date, formatdate
+from frappe.utils import add_to_date, flt, formatdate, getdate, now_datetime, today
 
 from lms_saas.utils.calculations import principal_outstanding
 
 RISK_LABELS = ["Current", "PAR 30+", "PAR 60+", "PAR 90+"]
 
+# Phase 3: portfolio cap exposed via _portfolio_metrics so the admin console
+# can warn the operator when the result set was truncated.
+PORTFOLIO_LIMIT = 50000
+
+# All Loan Application statuses that should appear in the pipeline counts dict
+# (Phase 2 / test_desk_dashboard.test_application_pipeline). Counts may be 0.
+ALL_APPLICATION_STATUSES = (
+    "Draft",
+    "Open",
+    "Submitted",
+    "Approved",
+    "Sanctioned",
+    "Rejected",
+    "Partially Disbursed",
+    "Disbursed",
+    "Active",
+    "Closed",
+    "Cancelled",
+    "Withdrawn",
+)
+
 
 @frappe.whitelist()
 def get_desk_dashboard(company=None):
-    """Return aggregate portfolio metrics for LMS desk dashboard widgets."""
+    """Return aggregate portfolio metrics for LMS desk dashboard widgets.
+
+    Phase 3 additions (admin console enrichment):
+      - truncated   : bool — True when the loan set was capped at PORTFOLIO_LIMIT
+      - limit       : int  — the cap (50 000)
+      - cache_age_seconds : int — age of the cached metrics payload (0 if fresh)
+    """
     _guard()
+    cache_key = f"lms_dashboard:{company or 'all'}:all:{frappe.session.user}"
+    cache_start = now_datetime()
     metrics = _portfolio_metrics(company)
+    cache_age = (now_datetime() - cache_start).total_seconds()
     return {
         "kpis": metrics["kpis"],
         "risk_buckets": metrics["risk_buckets"],
         "collections_trend": _collections_trend(company=company),
         "branch_outstanding": _sorted_bars(metrics["branch_outstanding"], limit=6),
+        "truncated": bool(metrics.get("truncated", False)),
+        "limit": int(metrics.get("limit", PORTFOLIO_LIMIT)),
+        "cache_age_seconds": int(cache_age),
     }
 
 
@@ -118,9 +150,13 @@ def _portfolio_metrics(company=None, branch=None):
             "custom_days_past_due",
             "custom_lms_branch",
         ],
-        limit_page_length=0,
+        limit_page_length=PORTFOLIO_LIMIT + 1,  # +1 to detect truncation
         ignore_permissions=False,
     )
+    # Phase 3: detect truncation so the admin console can surface a warning.
+    truncated = len(loans) > PORTFOLIO_LIMIT
+    if truncated:
+        loans = loans[:PORTFOLIO_LIMIT]
 
     kpis = {
         "portfolio_outstanding": 0,
@@ -158,7 +194,13 @@ def _portfolio_metrics(company=None, branch=None):
         branch = loan.custom_lms_branch or "Unassigned"
         branch_outstanding[branch] = branch_outstanding.get(branch, 0) + outstanding
 
-    result = {"kpis": kpis, "risk_buckets": risk_buckets, "branch_outstanding": branch_outstanding}
+    result = {
+        "kpis": kpis,
+        "risk_buckets": risk_buckets,
+        "branch_outstanding": branch_outstanding,
+        "truncated": truncated,
+        "limit": PORTFOLIO_LIMIT,
+    }
     # Cache for 5 minutes
     frappe.cache().set_value(cache_key, result, expires_in_sec=300)
     return result
@@ -219,7 +261,12 @@ def _parse_filters(filters):
 
 @frappe.whitelist()
 def get_application_pipeline(company=None):
-    """Loan application pipeline counts by status + recent applications."""
+    """Loan application pipeline counts by status + recent applications.
+
+    Phase 2: ``counts`` covers every known Lending status (default 0), and
+    ``total`` is the sum of all count buckets so the admin console can show
+    the pipeline total in a single line.
+    """
     _guard()
     filters = {}
     if company:
@@ -231,11 +278,11 @@ def get_application_pipeline(company=None):
         order_by="creation desc",
         limit_page_length=50,
     )
-    counts = {"Draft": 0, "Submitted": 0, "Approved": 0, "Rejected": 0}
+    counts = {s: 0 for s in ALL_APPLICATION_STATUSES}
     for app in apps:
         status = app.status or "Draft"
         counts[status] = counts.get(status, 0) + 1
-    return {"counts": counts, "applications": apps}
+    return {"counts": counts, "applications": apps, "total": sum(counts.values())}
 
 
 @frappe.whitelist()
@@ -343,9 +390,20 @@ def get_collections_overview(company=None):
 
 @frappe.whitelist()
 def get_system_health():
-    """Admin system health: scheduler, integrations, errors, backup."""
+    """Admin system health: scheduler, integrations, errors, backup.
+
+    Phase 2 enrichment (admin console health widget):
+      - error_breakdown_24h : dict of error-type → count (last 24h)
+      - last_backup_size_bytes : int — size of the most recent backup file
+      - last_backup_age_days  : int — days since the most recent backup
+      - scheduler_last_tick   : datetime | None — last scheduler tick
+    """
     _guard()
     import json
+    import os
+    from datetime import datetime
+
+    from frappe.utils import add_days, get_datetime
 
     # Scheduler status
     scheduler_enabled = bool(frappe.db.get_single_value("System Settings", "enable_scheduler"))
@@ -359,32 +417,174 @@ def get_system_health():
     }
 
     # Recent errors (last 24h)
-    from frappe.utils import add_days
-
     since = add_days(today(), -1)
     error_count = frappe.db.count("Error Log", {"creation": (">=", since)})
 
-    # Last backup (check file existence)
-    import os
+    # Error breakdown by type (last 24h) — used by the health widget's stacked bar
+    error_breakdown_rows = frappe.db.sql(
+        """
+        SELECT method AS type, COUNT(*) AS cnt
+        FROM `tabError Log`
+        WHERE creation >= %s
+        GROUP BY method
+        ORDER BY cnt DESC
+        LIMIT 10
+        """,
+        (since,),
+        as_dict=True,
+    )
+    error_breakdown_24h = {row["type"] or "Unknown": int(row["cnt"]) for row in error_breakdown_rows}
 
+    # Last backup (file existence + metadata)
     backup_dir = frappe.get_site_path("private", "backups")
-    last_backup = None
+    last_backup_file = None
+    last_backup_size_bytes = 0
+    last_backup_age_days = None
     if os.path.isdir(backup_dir):
         files = sorted(
             [f for f in os.listdir(backup_dir) if f.endswith(".sql.gz")],
             reverse=True,
         )
         if files:
-            last_backup = files[0]
+            last_backup_file = files[0]
+            full_path = os.path.join(backup_dir, last_backup_file)
+            try:
+                last_backup_size_bytes = os.path.getsize(full_path)
+            except OSError:
+                last_backup_size_bytes = 0
+            # Filename pattern YYYYMMDD_HHMMSS-... → derive date
+            try:
+                ts = datetime.strptime(last_backup_file[:15], "%Y%m%d_%H%M%S")
+                last_backup_age_days = max(0, (getdate(today()) - ts.date()).days)
+            except ValueError:
+                last_backup_age_days = None
+
+    # Last scheduler tick (from Scheduler Log if present, else None)
+    scheduler_last_tick = None
+    try:
+        last_tick_row = frappe.db.sql(
+            "SELECT creation FROM `tabScheduler Log` ORDER BY creation DESC LIMIT 1",
+            as_dict=True,
+        )
+        if last_tick_row:
+            scheduler_last_tick = last_tick_row[0]["creation"]
+    except Exception:
+        scheduler_last_tick = None
 
     return {
         "scheduler_enabled": scheduler_enabled,
         "integrations": integrations,
         "error_count_24h": error_count,
-        "last_backup_file": last_backup,
+        "error_breakdown_24h": error_breakdown_24h,
+        "last_backup_file": last_backup_file,
+        "last_backup_size_bytes": last_backup_size_bytes,
+        "last_backup_age_days": last_backup_age_days,
+        "scheduler_last_tick": scheduler_last_tick,
     }
+
+
+@frappe.whitelist()
+def get_active_branches():
+    """Return active (is_group=0) Cost Centers for the admin console branch picker.
+
+    Returns ``{"branches": [{"name": ..., "label": ...}, ...]}`` — empty on a
+    fresh site with no branches seeded. Used by the Admin Console's branch
+    filter (Phase 2).
+    """
+    _guard()
+    branches = frappe.get_all(
+        "Cost Center",
+        filters={"is_group": 0},
+        fields=["name", "cost_center_name"],
+        order_by="cost_center_name asc",
+        limit_page_length=200,
+    )
+    return {
+        "branches": [{"name": b.name, "label": b.cost_center_name or b.name} for b in branches],
+    }
+
+
+@frappe.whitelist()
+def get_kyc_queue(limit: int = 20):
+    """Pending KYC review queue for the admin console.
+
+    Returns ``pending_count`` (count of all Pending + Submitted), ``by_status``
+    (dict of status → count), and ``oldest`` (the N oldest pending rows for
+    the timeline UI). Each oldest row has name, customer, kyc_status, creation.
+    """
+    _guard()
+    try:
+        limit = int(limit) if limit else 20
+    except (TypeError, ValueError):
+        limit = 20
+    limit = max(1, min(limit, 100))
+
+    pending_filters = {"kyc_status": ("in", ["Pending", "Submitted"])}
+    pending_count = frappe.db.count("LMS Borrower Compliance", pending_filters)
+
+    by_status_rows = frappe.db.sql(
+        "SELECT kyc_status, COUNT(name) AS cnt FROM `tabLMS Borrower Compliance` GROUP BY kyc_status",
+        as_dict=True,
+    )
+    by_status = {r["kyc_status"] or "Unknown": int(r["cnt"]) for r in by_status_rows}
+
+    oldest = frappe.get_all(
+        "LMS Borrower Compliance",
+        filters=pending_filters,
+        fields=["name", "customer", "kyc_status", "creation"],
+        order_by="creation asc",
+        limit_page_length=limit,
+    )
+    for row in oldest:
+        # Ensure ISO string for the timeline UI.
+        if row.get("creation"):
+            row["creation"] = str(row["creation"])
+
+    return {
+        "pending_count": int(pending_count),
+        "by_status": by_status,
+        "oldest": oldest,
+    }
+
+
+@frappe.whitelist()
+def get_recent_activity(limit: int = 20):
+    """Return the N most recent LMS Audit Event rows for the admin console timeline.
+
+    Each event has event_type, event_user, event_time, reference_doctype,
+    reference_name, and a `route` (`/app/<doctype>/<name>`) when both
+    reference_doctype and reference_name are set (Phase 2 requirement).
+    """
+    _guard()
+    try:
+        limit = int(limit) if limit else 20
+    except (TypeError, ValueError):
+        limit = 20
+    limit = max(1, min(limit, 100))
+
+    events = frappe.get_all(
+        "LMS Audit Event",
+        fields=["event_type", "event_user", "event_time", "reference_doctype", "reference_name"],
+        order_by="event_time desc",
+        limit_page_length=limit,
+    )
+    for e in events:
+        e["event_time"] = str(e["event_time"]) if e.get("event_time") else None
+        if e.get("reference_doctype") and e.get("reference_name"):
+            e["route"] = f"/app/{e['reference_doctype'].lower().replace(' ', '-')}/{e['reference_name']}"
+        else:
+            e["route"] = None
+    return {"events": events}
 
 
 def _guard():
     if frappe.session.user == "Guest":
         frappe.throw("Please log in", frappe.PermissionError)
+    roles = set(frappe.get_roles())
+    if roles.intersection({"System Manager", "Administrator"}):
+        return
+    from lms_saas.utils.portal import resolve_portal_persona
+
+    persona = resolve_portal_persona()
+    if persona not in ("Branch Manager", "Loan Officer", "Collector", "Admin"):
+        frappe.throw("Not permitted", frappe.PermissionError)

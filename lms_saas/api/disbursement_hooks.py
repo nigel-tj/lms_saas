@@ -18,8 +18,12 @@ def notify_disbursed(doc, method=None):
 				"company": doc.company,
 			},
 		)
-	except Exception:
-		pass
+	except Exception as exc:
+		# B13: never swallow silently — record the failure so it can be retried/alerted.
+		frappe.log_error(
+			title="LMS disbursement webhook failed",
+			message=f"disbursement={doc.name} loan={doc.against_loan} error={exc}\n{frappe.get_traceback()}",
+		)
 
 	send_disbursement_branded_email(doc, method=method)
 
