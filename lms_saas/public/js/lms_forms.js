@@ -148,19 +148,21 @@
 		selectEl.style.overflow = "hidden";
 		selectEl.style.clip = "rect(0 0 0 0)";
 
-		// Position the popover. We do NOT use the native popover API
-		// (`popover="auto"`) when the trigger lives inside a <dialog>:
-		// a dialog is itself a top-layer element, and stacking a popover
-		// inside it puts the menu in the dialog's nested top layer with
-		// its own coordinate system, which makes `position: fixed` no
-		// longer relative to the viewport and breaks the anchoring math.
-		// Manual positioning + visibility toggle handles both cases.
+		// Position the popover. Use the native popover API whenever the
+		// browser supports it — the popover API renders the menu in the
+		// browser's top layer, which is the only way to put content ABOVE
+		// a <dialog> ancestor (a dialog itself is a top-layer element, so
+		// a `position: fixed` + z-index menu rendered in <body> still sits
+		// below the dialog visually).
 		var menu = wrap.querySelector(".lms-select-pop__menu");
-		var insideDialog = !!(selectEl.closest && selectEl.closest("dialog"));
-		var usePopover = supportsPopover() && !insideDialog;
-		if (usePopover) menu.setAttribute("popover", "auto");
-		else {
-			// CSS-only fallback
+		var usePopover = supportsPopover();
+		if (usePopover) {
+			// Use "auto" so the popover is in the top layer above the
+			// <dialog> ancestor (the popover API spec puts popovers in
+			// the top layer above any other top-layer content). "auto"
+			// also gives us light-dismiss for free.
+			menu.setAttribute("popover", "auto");
+		} else {
 			wrap.classList.add("lms-select-pop--legacy");
 		}
 

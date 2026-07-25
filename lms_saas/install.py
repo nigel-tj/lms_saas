@@ -604,6 +604,21 @@ def _ensure_lending_permissions():
         _ensure_role_perm("System Manager", dt, full_perm)
         _ensure_role_perm("Administrator", dt, full_perm)
 
+    # LMS Portal Staff (Loan Officer / Branch Manager / Collector) need
+    # read+write+create on LMS Borrower Compliance so the officer can
+    # approve / reject KYC and attach ID / POA from the portal. The
+    # branch scope is enforced server-side via _assert_branch_scope.
+    kyc_perm = {
+        "read": 1, "write": 1, "create": 1,
+        "report": 0, "export": 0, "delete": 0,
+        "submit": 0, "cancel": 0, "amend": 0,
+    }
+    _ensure_role_perm("LMS Portal Staff", "LMS Borrower Compliance", kyc_perm)
+    _ensure_role_perm("LMS Portal Staff", "LMS Audit Event", {
+        "read": 1, "write": 0, "create": 0,
+        "report": 0, "export": 0, "delete": 0,
+    })
+
 
 def _ensure_role_perm(role, doctype, extra_perm=None):
     extra_perm = extra_perm or {}
@@ -1369,6 +1384,35 @@ def _ensure_customer_portal_role():
         frappe.db.set_value(
             "Custom DocPerm",
             {"role": PORTAL_STAFF_ROLE, "parent": "Customer"},
+            "write",
+            1,
+        )
+
+    # Loan Officer edit on a Customer triggers ERPNext's Customer <-> Contact
+    # sync hook (the contact doc is upserted with the borrower's email/mobile).
+    # Without write on Contact the save 403s. Grant the same role scoped write
+    # on Contact so the officer can complete the borrower profile update.
+    if not frappe.db.exists("Custom DocPerm", {"role": PORTAL_STAFF_ROLE, "parent": "Contact"}):
+        frappe.get_doc(
+            {
+                "doctype": "Custom DocPerm",
+                "parent": "Contact",
+                "parenttype": "DocType",
+                "parentfield": "permissions",
+                "role": PORTAL_STAFF_ROLE,
+                "read": 1,
+                "write": 1,
+                "create": 1,
+                "delete": 0,
+                "submit": 0,
+                "cancel": 0,
+                "email": 1,
+            }
+        ).insert(ignore_permissions=True)
+    else:
+        frappe.db.set_value(
+            "Custom DocPerm",
+            {"role": PORTAL_STAFF_ROLE, "parent": "Contact"},
             "write",
             1,
         )

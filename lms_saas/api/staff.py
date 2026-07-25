@@ -31,7 +31,12 @@ def get_current_user_branch():
         employee_filters["status"] = "Active"
 
     employee_meta = frappe.get_meta("Employee")
-    for branch_field in ("branch", "cost_center", "custom_lms_branch"):
+    # Prefer `custom_lms_branch` first because Loan / Loan Application /
+    # Lead / Customer branch-scoped queries are all keyed on Cost Center.
+    # The HRMS `branch` field links to the Branch DocType (different name
+    # space) and would silently filter out every record, leaving officers
+    # with empty dashboards.
+    for branch_field in ("custom_lms_branch", "cost_center", "branch"):
         if not employee_meta.has_field(branch_field):
             continue
         employee_branch = frappe.db.get_value("Employee", employee_filters, branch_field)

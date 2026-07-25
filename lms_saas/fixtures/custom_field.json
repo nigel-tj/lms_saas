@@ -219,6 +219,17 @@
   },
   {
     "doctype": "Custom Field",
+    "name": "Employee-custom_lms_branch",
+    "dt": "Employee",
+    "fieldname": "custom_lms_branch",
+    "fieldtype": "Link",
+    "label": "LMS Branch (Cost Center)",
+    "options": "Cost Center",
+    "insert_after": "custom_lms_persona",
+    "description": "Cost Center / branch the employee is scoped to in the LMS portal. Drives the Loan Officer dashboard, Application queue, and Leads filter. Preferred over the HRMS `branch` field because the rest of the LMS data is keyed on Cost Center (Loan.custom_lms_branch, Loan Application.custom_lms_branch, Lead.custom_lms_branch, Customer.custom_lms_branch)."
+  },
+  {
+    "doctype": "Custom Field",
     "name": "LMS Audit Event-operator_legal_name",
     "dt": "LMS Audit Event",
     "fieldname": "custom_operator_legal_name",
