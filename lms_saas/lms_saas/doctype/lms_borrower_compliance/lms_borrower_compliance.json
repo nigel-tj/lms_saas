@@ -22,7 +22,7 @@
       "fieldname": "kyc_status",
       "fieldtype": "Select",
       "label": "KYC Status",
-      "options": "Pending\nApproved\nRejected",
+      "options": "Pending\nIn Review\nApproved\nRejected",
       "default": "Pending"
     },
     {

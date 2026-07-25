@@ -70,30 +70,51 @@
 		if (typeof opts === "string") {
 			opts = { body: arguments[0], title: arguments[1] && arguments[1].title, actions: arguments[1] && arguments[1].actions };
 		}
-		var dlg = document.createElement("dialog");
+		// Use a plain <div> (not <dialog>) so any popovers or dropdowns opened
+		// INSIDE the modal can render above it via z-index. The native <dialog>
+		// is always in the top layer, which (per current browser behaviour)
+		// sits above popover-API elements even when the popover is opened
+		// afterwards. The div+overlay pattern respects normal stacking and
+		// is more flexible for nested interactive UI.
+		var root = document.createElement("div");
+		root.className = "lms-modal-root";
+		var overlay = document.createElement("div");
+		overlay.className = "lms-modal-overlay";
+		var dlg = document.createElement("div");
 		var sizeClass = opts.size === "xl" ? " lms-modal--xl"
 			: opts.size === "lg" ? " lms-modal--lg"
 			: opts.size === "sm" ? " lms-modal--sm"
 			: "";
 		dlg.className = "lms-modal" + sizeClass;
+		dlg.setAttribute("role", "dialog");
 		dlg.setAttribute("aria-modal", "true");
 		dlg.innerHTML = buildHtml(opts);
+		overlay.appendChild(dlg);
+		root.appendChild(overlay);
 
 		var resolveFn;
 		var promise = new Promise(function (resolve) { resolveFn = resolve; });
 		promise.dialog = dlg;
+		promise.root = root;
 		promise.close = function (value) { closeWith(value); };
 
 		function closeWith(value) {
-			if (!dlg.isConnected) return;
-			if (dlg.open) dlg.close();
-			dlg.remove();
-			if (LMSModal._current === dlg) LMSModal._current = null;
+			if (!root.isConnected) return;
+			root.remove();
+			document.removeEventListener("keydown", onKey, true);
+			if (LMSModal._current === root) LMSModal._current = null;
 			if (resolveFn) resolveFn(value);
 		}
 
-		dlg.addEventListener("close", function () { closeWith(undefined); });
-		dlg.addEventListener("click", function (ev) {
+		function onKey(ev) {
+			if (ev.key === "Escape" && opts.dismissable !== false) {
+				ev.preventDefault();
+				closeWith(false);
+			}
+		}
+		document.addEventListener("keydown", onKey, true);
+
+		overlay.addEventListener("click", function (ev) {
 			var t = ev.target;
 			if (t && t.matches && t.matches("[data-lms-modal-close]")) {
 				ev.preventDefault();
@@ -103,21 +124,15 @@
 				if (v === "false") v = false;
 				else if (v === "true") v = true;
 				closeWith(v);
+			} else if (t === overlay) {
+				// click on the dimmer (not the dialog body) closes
+				if (opts.dismissable !== false) closeWith(false);
 			}
 		});
 
-		// Cancel via native dialog cancel event (Esc)
-		dlg.addEventListener("cancel", function (ev) {
-			// Allow the default close, our 'close' handler then resolves
-			if (opts.dismissable === false) {
-				ev.preventDefault();
-			}
-		});
-
-		document.body.appendChild(dlg);
-		LMSModal._current = dlg;
-		dlg.showModal();
-		// Defer focus until after showModal so the dialog is fully in the top layer
+		document.body.appendChild(root);
+		LMSModal._current = root;
+		// Defer focus until after paint so the dialog is in the DOM
 		setTimeout(function () { focusFirst(dlg); }, 0);
 		// Auto-upgrade any <select> in the dialog to a popout combobox.
 		// Skip if the dialog body has data-no-pop (e.g. native Frappe dialogs
@@ -160,7 +175,7 @@
 	};
 
 	LMSModal.close = function () {
-		if (LMSModal._current && LMSModal._current.open) LMSModal._current.close();
+		if (LMSModal._current && LMSModal._current.remove) LMSModal._current.remove();
 	};
 
 	window.LMSModal = LMSModal;

@@ -589,6 +589,437 @@ def convert_lead(lead_name: str):
 
 
 @frappe.whitelist()
+def set_lead_consent(lead_name: str):
+	"""Record borrower consent on a lead (Loan Officer can do this after a
+	phone call). Required before convert_lead() will succeed.
+
+	Branch-scoped: refuses to touch a lead outside the officer's branch.
+	"""
+	_require_officer()
+	if not frappe.db.exists("Lead", lead_name):
+		frappe.throw(_("Lead {0} not found.").format(lead_name))
+
+	_assert_branch_scope(frappe.db.get_value("Lead", lead_name, "custom_lms_branch"))
+
+	lead = frappe.get_doc("Lead", lead_name)
+	# LMS-defined consent fields. We write to both the custom field used by
+	# the portal ("custom_consent_given" / "custom_consent_date") and the
+	# standard Lead.consent flags, so downstream checks (convert_lead,
+	# submissions) see a consistent answer.
+	lead.flags.ignore_permissions = True
+	now = frappe.utils.now()
+	if lead.meta.has_field("custom_consent_given"):
+		lead.custom_consent_given = 1
+	if lead.meta.has_field("custom_consent_date"):
+		lead.custom_consent_date = now
+	if lead.meta.has_field("consent_given"):
+		lead.consent_given = 1
+	if lead.meta.has_field("consent_date"):
+		lead.consent_date = now
+	lead.save()
+
+	return {"status": "ok", "lead": lead_name}
+
+
+# ---------------------------------------------------------------------------
+# KYC workflow (R15)
+#
+# The Loan Officer is the front-line KYC owner: at onboarding they collect
+# national ID + proof of address, and during a borrower's life they review
+# the record (approve / reject) as documents come in. The Manager (and the
+# regulator) want a tamper-evident audit trail — every change must be
+# recorded with operator + timestamp.
+# ---------------------------------------------------------------------------
+
+_KYC_STATUSES = ("Pending", "In Review", "Approved", "Rejected")
+
+
+@frappe.whitelist()
+def get_kyc_queue(status: str = "", limit: int = 100):
+	"""List LMS Borrower Compliance records visible to the officer.
+
+	Pre-filters by branch (the borrower's branch) and optionally by
+	kyc_status so the queue can be sliced (e.g. only "Pending" or only
+	"Rejected"). Officers see their own branch's KYC; admins see all.
+
+	Returns the borrower name, branch, status, consent, and a
+	`has_documents` flag so the officer can tell at a glance whether the
+	borrower uploaded the ID + POA yet.
+	"""
+	_require_officer()
+	branch = _officer_branch()
+
+	filters = {}
+	if status and status in _KYC_STATUSES:
+		filters["kyc_status"] = status
+
+	# Borrowers in the officer's branch (when set). When the site is in
+	# "demo" mode (no branch scoping) the manager-side dashboard already
+	# returns everything; we mirror that here for parity.
+	customer_filters = {}
+	if branch and not _is_admin():
+		customer_filters["custom_lms_branch"] = branch
+
+	borrower_names = set(
+		frappe.get_all(
+			"Customer",
+			filters=customer_filters,
+			pluck="name",
+		)
+	)
+	if borrower_names:
+		filters["customer"] = ("in", list(borrower_names))
+
+	records = frappe.get_all(
+		"LMS Borrower Compliance",
+		filters=filters,
+		fields=[
+			"name", "customer", "kyc_status", "consent_given", "consent_date",
+			"national_id_number", "id_document_proof", "proof_of_address",
+			"aml_status", "aml_screened_at", "modified",
+		],
+		order_by="modified desc",
+		limit_page_length=limit,
+	)
+
+	# Enrich with customer name + a has_documents flag for the queue UI.
+	enriched = []
+	for r in records:
+		cust = frappe.db.get_value(
+			"Customer", r.customer,
+			["customer_name", "custom_lms_branch"],
+			as_dict=True,
+		)
+		r["customer_name"] = cust.customer_name if cust else r.customer
+		r["branch"] = cust.custom_lms_branch if cust else ""
+		r["has_id_doc"] = bool(r.id_document_proof)
+		r["has_poa"] = bool(r.proof_of_address)
+		r["has_documents"] = r["has_id_doc"] and r["has_poa"]
+		enriched.append(r)
+
+	# Counts for the KPI strip.
+	counts = {"pending": 0, "in_review": 0, "approved": 0, "rejected": 0, "no_kyc": 0}
+	for r in enriched:
+		key = (r.kyc_status or "Pending").lower().replace(" ", "_")
+		if key in counts:
+			counts[key] += 1
+	# Borrowers with no KYC at all — also a remediation target.
+	if borrower_names:
+		kyc_customers = set(frappe.get_all("LMS Borrower Compliance", pluck="customer"))
+		counts["no_kyc"] = len(borrower_names - kyc_customers)
+
+	return {"queue": enriched, "counts": counts, "branch": branch}
+
+
+@frappe.whitelist()
+def get_kyc_detail(kyc_name: str):
+	"""Full KYC record + the linked borrower detail (so the officer can
+	verify name + ID match before approving)."""
+	_require_officer()
+	if not frappe.db.exists("LMS Borrower Compliance", kyc_name):
+		frappe.throw(_("KYC record {0} not found.").format(kyc_name))
+
+	_assert_branch_scope(frappe.db.get_value("Customer", frappe.db.get_value(
+		"LMS Borrower Compliance", kyc_name, "customer"
+	), "custom_lms_branch"))
+
+	rec = frappe.get_doc("LMS Borrower Compliance", kyc_name)
+	customer = rec.customer
+
+	# Borrower summary so the officer doesn't have to cross-reference.
+	borrower = {}
+	if customer and frappe.db.exists("Customer", customer):
+		cust = frappe.get_doc("Customer", customer)
+		borrower = {
+			"name": cust.name,
+			"customer_name": cust.customer_name,
+			"email_id": cust.email_id or "",
+			"mobile_no": cust.mobile_no or "",
+			"custom_national_id_number": cust.get("custom_national_id_number", ""),
+			"custom_lms_branch": cust.get("custom_lms_branch", ""),
+		}
+
+	return {
+		"kyc": {
+			"name": rec.name,
+			"customer": rec.customer,
+			"kyc_status": rec.kyc_status,
+			"consent_given": int(rec.consent_given or 0),
+			"consent_date": str(rec.consent_date or ""),
+			"national_id_number": rec.national_id_number,
+			"id_document_proof": rec.id_document_proof or "",
+			"proof_of_address": rec.proof_of_address or "",
+			"aml_status": rec.aml_status or "Pending",
+			"aml_screened_at": str(rec.aml_screened_at or ""),
+			"aml_provider_ref": rec.aml_provider_ref or "",
+			"aml_risk_level": rec.aml_risk_level or "",
+			"modified": str(rec.modified),
+		},
+		"borrower": borrower,
+	}
+
+
+@frappe.whitelist()
+def start_kyc(customer: str, kyc_status: str = "Pending", national_id: str = ""):
+	"""Create a fresh LMS Borrower Compliance record for a borrower that
+	doesn't have one yet. Officers hit this after Add Borrower leaves the
+	record as 'Pending — collect later' (no documents at the counter)."""
+	_require_officer()
+	if not frappe.db.exists("Customer", customer):
+		frappe.throw(_("Customer {0} not found.").format(customer))
+	_assert_branch_scope(frappe.db.get_value("Customer", customer, "custom_lms_branch"))
+
+	# If a record already exists, return it instead of creating a duplicate
+	# (the LMS Borrower Compliance has a unique-per-customer contract).
+	existing = frappe.db.get_value("LMS Borrower Compliance", {"customer": customer}, "name")
+	if existing:
+		return {"kyc": existing, "created": False}
+
+	if kyc_status not in _KYC_STATUSES:
+		kyc_status = "Pending"
+
+	# The LMS Borrower Compliance DocType marks national_id_number, ID
+	# document, and proof-of-address as reqd=1. The officer can start a
+	# record without all of these (the whole point of start_kyc is "we
+	# don't have docs yet — open the case"). Bypass the mandatory
+	# validation just for this insert; subsequent updates still enforce
+	# the rule (update_kyc refuses to flip to Approved without all three).
+	kyc = frappe.get_doc({
+		"doctype": "LMS Borrower Compliance",
+		"customer": customer,
+		"kyc_status": kyc_status,
+		"national_id_number": national_id or "",
+	})
+	kyc.flags.ignore_permissions = True
+	kyc.flags.ignore_mandatory = True
+	kyc.insert()
+	return {"kyc": kyc.name, "created": True}
+
+
+@frappe.whitelist()
+def update_kyc(
+	kyc_name: str,
+	kyc_status: str = "",
+	consent_given: int | bool | None = None,
+	national_id: str | None = None,
+	id_document_proof: str | None = None,
+	proof_of_address: str | None = None,
+	notes: str = "",
+):
+	"""Update an existing KYC record.
+
+	All fields are optional — pass only what changed. The officer is the
+	owner of the workflow; they can flip Pending → In Review → Approved /
+	Rejected as documents arrive.
+
+	``kyc_status`` must be one of Pending / In Review / Approved / Rejected.
+	``notes`` is a free-text field that is appended to a child-table audit
+	log (so the regulator export shows who changed what and why).
+	"""
+	_require_officer()
+	if not frappe.db.exists("LMS Borrower Compliance", kyc_name):
+		frappe.throw(_("KYC record {0} not found.").format(kyc_name))
+
+	# Branch scope is checked against the borrower's branch (the KYC
+	# record itself doesn't carry a branch column).
+	customer = frappe.db.get_value("LMS Borrower Compliance", kyc_name, "customer")
+	_assert_branch_scope(frappe.db.get_value("Customer", customer, "custom_lms_branch"))
+
+	rec = frappe.get_doc("LMS Borrower Compliance", kyc_name)
+
+	prev_status = rec.kyc_status
+	prev_consent = int(rec.consent_given or 0)
+
+	if kyc_status:
+		if kyc_status not in _KYC_STATUSES:
+			frappe.throw(_("Invalid KYC status {0}. Allowed: {1}").format(
+				kyc_status, ", ".join(_KYC_STATUSES)
+			))
+		rec.kyc_status = kyc_status
+	if consent_given is not None:
+		rec.consent_given = cint(consent_given)
+		if cint(consent_given) and not rec.consent_date:
+			rec.consent_date = frappe.utils.now()
+		elif not cint(consent_given):
+			rec.consent_date = None
+	if national_id is not None and rec.meta.has_field("national_id_number"):
+		rec.national_id_number = national_id
+	if id_document_proof is not None and rec.meta.has_field("id_document_proof"):
+		rec.id_document_proof = id_document_proof
+	if proof_of_address is not None and rec.meta.has_field("proof_of_address"):
+		rec.proof_of_address = proof_of_address
+
+	# Refuse to set Approved without the required documents AND consent +
+	# national ID — the four-eyes gate on the manager side starts here.
+	if rec.kyc_status == "Approved":
+		missing = []
+		if not rec.national_id_number:
+			missing.append("National ID number")
+		if not rec.id_document_proof:
+			missing.append("ID document")
+		if not rec.proof_of_address:
+			missing.append("Proof of address")
+		if not rec.consent_given:
+			missing.append("Borrower consent")
+		if missing:
+			frappe.throw(_(
+				"KYC cannot be Approved without: {0}"
+			).format(", ".join(missing)))
+
+	rec.flags.ignore_permissions = True
+	# Allow partial saves: the officer is collecting KYC incrementally.
+	# The "must have all docs + consent + NID before Approved" rule is
+	# enforced above by the explicit check, not by the doctype's
+	# reqd=1 (which would block the partial save mid-collection).
+	rec.flags.ignore_mandatory = True
+	rec.save()
+
+	# Write a tamper-evident audit event. We don't need the full operator
+	# payload here (the R13 board added that on critical money events);
+	# the LMS Audit Event table is the regulator's smoking gun and we
+	# want a row for every KYC transition.
+	_change_audit(
+		doctype="LMS Borrower Compliance",
+		docname=rec.name,
+		prev_status=prev_status,
+		new_status=rec.kyc_status,
+		prev_consent=prev_consent,
+		new_consent=int(rec.consent_given or 0),
+		notes=notes,
+	)
+
+	return {
+		"status": "ok",
+		"kyc": rec.name,
+		"kyc_status": rec.kyc_status,
+	}
+
+
+def _change_audit(
+	doctype: str,
+	docname: str,
+	prev_status: str,
+	new_status: str,
+	prev_consent: int,
+	new_consent: int,
+	notes: str,
+) -> None:
+	"""Append a row to the LMS Audit Event log for a KYC transition.
+
+	Audit events are best-effort: a write failure here MUST NOT block the
+	actual update (the officer would be stuck). We log and swallow.
+	"""
+	try:
+		from lms_saas.api.compliance import write_audit_event
+		details = (
+			f"KYC status: {prev_status} → {new_status}; "
+			f"consent: {prev_consent} → {new_consent}"
+		)
+		if notes:
+			details += f"; note: {notes}"
+		write_audit_event(
+			event_type="kyc_status_change",
+			reference_doctype=doctype,
+			reference_name=docname,
+			amount=0,
+			details=details,
+			critical=False,
+		)
+	except Exception:
+		frappe.log_error(
+			title="LMS Audit Event write failed for KYC change",
+			message=frappe.get_traceback(),
+		)
+
+
+@frappe.whitelist()
+def upload_kyc_document_for_borrower(
+	customer: str,
+	fieldname: str,
+	file_url: str,
+):
+	"""Attach a KYC document to a borrower's compliance record.
+
+	Mirror of ``lms_saas.api.portal.upload_kyc_document`` but for the
+	Loan Officer: the officer is on the counter with the borrower, the
+	borrower hands over the ID card / utility bill, and the officer
+	scans + attaches it. Branch-scoped — the officer can only attach to
+	their own branch's borrowers.
+
+	``fieldname`` must be one of ``id_document_proof`` /
+	``proof_of_address`` (the two Attach fields on the compliance doc).
+	"""
+	_require_officer()
+	allowed = {"id_document_proof", "proof_of_address"}
+	if fieldname not in allowed:
+		frappe.throw(_("Invalid document field {0}.").format(fieldname))
+	if not file_url or not isinstance(file_url, str):
+		frappe.throw(_("file_url is required."))
+	if not frappe.db.exists("Customer", customer):
+		frappe.throw(_("Customer {0} not found.").format(customer))
+	_assert_branch_scope(frappe.db.get_value("Customer", customer, "custom_lms_branch"))
+
+	# Find or create the compliance record.
+	compliance_name = frappe.db.get_value("LMS Borrower Compliance", {"customer": customer}, "name")
+	if not compliance_name:
+		# Auto-create a Pending record so the officer can attach without
+		# leaving the borrower detail modal.
+		kyc = frappe.get_doc({
+			"doctype": "LMS Borrower Compliance",
+			"customer": customer,
+			"kyc_status": "Pending",
+		})
+		kyc.flags.ignore_permissions = True
+		kyc.insert()
+		compliance_name = kyc.name
+
+	frappe.db.set_value("LMS Borrower Compliance", compliance_name, fieldname, file_url)
+	return {
+		"compliance": compliance_name,
+		"field": fieldname,
+		"file_url": file_url,
+	}
+
+
+@frappe.whitelist()
+def get_kyc_audit_trail(kyc_name: str, limit: int = 50):
+	"""Return the LMS Audit Event rows linked to a KYC record.
+
+	Used by the officer's KYC review modal so the reviewer can see who
+	previously changed the status and why. The regulator export reuses
+	the same table for the audit-trail section of the evidence pack.
+	"""
+	_require_officer()
+	if not frappe.db.exists("LMS Borrower Compliance", kyc_name):
+		frappe.throw(_("KYC record {0} not found.").format(kyc_name))
+
+	customer = frappe.db.get_value("LMS Borrower Compliance", kyc_name, "customer")
+	_assert_branch_scope(frappe.db.get_value("Customer", customer, "custom_lms_branch"))
+
+	# The audit table is global; we filter by reference_doctype+name and
+	# event_type so we only return KYC transitions for this record.
+	rows = frappe.get_all(
+		"LMS Audit Event",
+		filters={
+			"reference_doctype": "LMS Borrower Compliance",
+			"reference_name": kyc_name,
+		},
+		fields=[
+			"name", "event_type", "owner", "details",
+			"custom_operator_legal_name", "custom_operator_mode",
+			"creation",
+		],
+		order_by="creation desc",
+		limit_page_length=limit,
+	)
+	# Map `owner` → `user` for the JS so the API contract is consistent
+	# with what the rest of the LMS uses.
+	for r in rows:
+		r["user"] = r.get("owner", "")
+	return {"trail": rows}
+
+
+@frappe.whitelist()
 def get_officer_customers():
 	"""List customers for the application form.
 
@@ -937,10 +1368,28 @@ def get_loan_detail(loan_name: str):
 	schedule = frappe.get_all(
 		"Repayment Schedule",
 		filters={"parent": loan_name, "parenttype": "Loan"},
-		fields=["payment_date", "principal_amount", "interest_amount", "total_payment", "paid", "balance_loan_amount"],
+		# `paid` and `demand_generated` are computed below: any past-due
+		# installment that has not been matched by a posted Loan Repayment
+		# is treated as paid=0 / demand_generated=1.
+		fields=["payment_date", "principal_amount", "interest_amount", "total_payment", "balance_loan_amount"],
 		order_by="payment_date asc",
 		limit_page_length=0,
 	)
+
+	# Cross-check against posted Loan Repayments to mark each installment
+	# paid / demand_generated. This is cheap and avoids the missing `paid`
+	# column on the Repayment Schedule child table.
+	if schedule:
+		paid_amount_by_date: dict = {}
+		for r in repayments:
+			posting = r.get("posting_date")
+			amt = flt(r.get("amount_paid") or 0)
+			if posting:
+				paid_amount_by_date[posting] = paid_amount_by_date.get(posting, 0) + amt
+		for row in schedule:
+			posting = row.get("payment_date")
+			row["paid"] = flt(paid_amount_by_date.get(posting, 0)) >= flt(row.get("total_payment") or 0)
+			row["demand_generated"] = bool(posting) and posting < today() and not row["paid"]
 
 	# Repayments
 	repayments = frappe.get_all(

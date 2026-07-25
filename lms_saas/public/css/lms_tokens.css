@@ -46,9 +46,12 @@
 	--lms-form-focus-ring: 0 0 0 3px color-mix(in oklch, var(--lms-primary) 22%, transparent);
 	--lms-z-overlay: 80;
 	--lms-z-modal: 100;
-	--lms-z-popover: 90;
-	--lms-z-toast: 110;
-	--lms-z-tooltip: 120;
+	/* Popover must sit ABOVE the modal so the dropdown options inside a
+	 * modal are clickable. The .lms-modal-overlay uses z-index 1000 in
+	 * practice, so we anchor above that. */
+	--lms-z-popover: 1100;
+	--lms-z-toast: 1200;
+	--lms-z-tooltip: 1300;
 
 	/* Layout */
 	--lms-content-max: none;
