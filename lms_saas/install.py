@@ -329,7 +329,7 @@ def _seed_loan_product():
             "product_name": "LMS Standard Loan",
             "company": company,
             "maximum_loan_amount": 500000,
-            "rate_of_interest": 24,
+            "rate_of_interest": 18,  # within the fail-closed compliance cap (lms_max_rate_of_interest=20)
             "is_term_loan": 1,
             "repayment_schedule_type": "Monthly as per repayment start date",
             "days_past_due_threshold_for_npa": 90,
