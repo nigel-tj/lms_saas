@@ -182,6 +182,50 @@ def approve_application(application_name: str):
 	loan.flags.ignore_permissions = True
 	loan.insert()
 
+	# Generate the repayment schedule so it is visible to the BM / officer
+	# (Frappe Lending only builds it on disbursement; the portal needs it at approval).
+	try:
+		from frappe.utils import add_months, today
+
+		rs = frappe.new_doc("Loan Repayment Schedule")
+		rs.loan = loan.name
+		rs.loan_product = loan.loan_product
+		rs.repayment_method = loan.repayment_method or "Repay Over Number of Periods"
+		rs.repayment_periods = loan.repayment_periods or 1
+		rs.rate_of_interest = loan.rate_of_interest or 0
+		rs.loan_amount = loan.loan_amount
+		rs.current_principal_amount = loan.loan_amount
+		rs.repayment_frequency = getattr(loan, "repayment_frequency", None) or "Monthly"
+		rs.repayment_schedule_type = frappe.db.get_value(
+			"Loan Product", loan.loan_product, "repayment_schedule_type"
+		)
+		rs.repayment_start_date = loan.repayment_start_date or add_months(today(), 1)
+		rs.posting_date = loan.posting_date or today()
+		rs.number_of_rows = 0
+		# Build the amortization rows directly (no prior disbursement needed).
+		rs.make_repayment_schedule(
+			schedule_field="repayment_schedule",
+			previous_interest_amount=0,
+			balance_amount=loan.loan_amount,
+			additional_principal_amount=0,
+			pending_prev_days=0,
+			rate_of_interest=loan.rate_of_interest or 0,
+			principal_share_percentage=100,
+			interest_share_percentage=100,
+		)
+		# validate() would otherwise rebuild the schedule from a (non-existent)
+		# disbursement and wipe the rows we just built; skip that one step.
+		_schedule_cls = type(rs)
+		_orig_rebuild = _schedule_cls.make_customer_repayment_schedule
+		_schedule_cls.make_customer_repayment_schedule = lambda self: None
+		rs.flags.ignore_permissions = True
+		try:
+			rs.insert()
+		finally:
+			_schedule_cls.make_customer_repayment_schedule = _orig_rebuild
+	except Exception as e:  # schedule is non-blocking for approval; log and continue
+		frappe.logger().warning(f"Could not generate repayment schedule for {loan.name}: {e}")
+
 	return {
 		"status": "approved",
 		"application": application_name,
@@ -546,19 +590,25 @@ def get_loan_detail(loan_name: str):
 	# Fail-closed branch scoping.
 	_assert_branch_scope(loan.get("custom_lms_branch"))
 
-	# Schedule
-	# NOTE: Repayment Schedule has no 'paid' column — use 'demand_generated'
-	# (Check) as a proxy for "this instalment has been billed/settled".
-	schedule = frappe.get_all(
-		"Repayment Schedule",
-		filters={"parent": loan_name, "parenttype": "Loan"},
-		fields=[
-			"payment_date", "principal_amount", "interest_amount",
-			"total_payment", "balance_loan_amount", "demand_generated",
-		],
-		order_by="payment_date asc",
-		limit_page_length=0,
-	)
+	# Schedule — resolve the Loan Repayment Schedule doc(s) for this loan, then
+	# aggregate their child Repayment Schedule rows (the rows are children of
+	# the LN-RS doc, NOT of the Loan directly).
+	schedule = []
+	for lnrs in frappe.get_all(
+		"Loan Repayment Schedule", filters={"loan": loan_name}, pluck="name"
+	):
+		for row in frappe.get_all(
+			"Repayment Schedule",
+			filters={"parent": lnrs, "parenttype": "Loan Repayment Schedule"},
+			fields=[
+				"payment_date", "principal_amount", "interest_amount",
+				"total_payment", "balance_loan_amount", "demand_generated",
+			],
+			order_by="payment_date asc",
+			limit_page_length=0,
+		):
+			schedule.append(row)
+	schedule.sort(key=lambda r: (getdate(r.get("payment_date")) or getdate("1900-01-01")))
 	# Map demand_generated to a 'paid' flag for the frontend's convenience.
 	for row in schedule:
 		row["paid"] = cint(row.get("demand_generated"))

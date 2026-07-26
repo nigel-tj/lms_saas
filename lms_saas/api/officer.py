@@ -1418,17 +1418,24 @@ def get_loan_detail(loan_name: str):
 
 	loan = frappe.get_doc("Loan", loan_name)
 
-	# Schedule
-	schedule = frappe.get_all(
-		"Repayment Schedule",
-		filters={"parent": loan_name, "parenttype": "Loan"},
-		# `paid` and `demand_generated` are computed below: any past-due
-		# installment that has not been matched by a posted Loan Repayment
-		# is treated as paid=0 / demand_generated=1.
-		fields=["payment_date", "principal_amount", "interest_amount", "total_payment", "balance_loan_amount"],
-		order_by="payment_date asc",
-		limit_page_length=0,
-	)
+	# Schedule — resolve the Loan Repayment Schedule doc(s) for this loan, then
+	# aggregate their child Repayment Schedule rows (the rows are children of
+	# the LN-RS doc, NOT of the Loan directly).
+	schedule = []
+	for lnrs in frappe.get_all(
+		"Loan Repayment Schedule", filters={"loan": loan_name}, pluck="name"
+	):
+		for row in frappe.get_all(
+			"Repayment Schedule",
+			filters={"parent": lnrs, "parenttype": "Loan Repayment Schedule"},
+			fields=[
+				"payment_date", "principal_amount", "interest_amount",
+				"total_payment", "balance_loan_amount",
+			],
+			order_by="payment_date asc",
+			limit_page_length=0,
+		):
+			schedule.append(row)
 
 	# Cross-check against posted Loan Repayments to mark each installment
 	# paid / demand_generated. This is cheap and avoids the missing `paid`
