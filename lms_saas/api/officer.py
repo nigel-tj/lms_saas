@@ -480,6 +480,14 @@ def submit_application_on_behalf(
 	repayment_start_date: str | None = None,
 	rate_of_interest: float | None = None,
 	posting_date: str | None = None,
+	loan_type: str | None = None,
+	purpose_of_finance: str | None = None,
+	application_date: str | None = None,
+	loan_start_date: str | None = None,
+	expiry_date: str | None = None,
+	max_enforceable_amount: float | None = None,
+	security_interest_nature: str | None = None,
+	collateral: list | None = None,
 ):
 	"""Officer submits a Loan Application on behalf of a borrower.
 
@@ -520,15 +528,50 @@ def submit_application_on_behalf(
 			"loan_amount": loan_amount,
 			"repayment_periods": int(repayment_periods),
 			"repayment_method": repayment_method or "Repay Over Number of Periods",
-			"repayment_start_date": repayment_start_date or "",
 			"rate_of_interest": flt(rate_of_interest),
 			"posting_date": posting_date or frappe.utils.nowdate(),
 			"custom_lms_branch": branch or "",
 			"custom_loan_officer": employee or "",
+			# lending app core field is `loan_purpose` (not purpose_of_finance)
+			"loan_purpose": purpose_of_finance or "",
+			# application_date + loan_type + loan_start_date are not core on
+			# the lending Loan Application — stored on LMS custom fields.
+			"lms_loan_type": loan_type or "",
+			"lms_loan_start_date": loan_start_date or repayment_start_date or "",
+			"lms_expiry_date": expiry_date or "",
+			"lms_max_enforceable_amount": flt(max_enforceable_amount) if max_enforceable_amount else 0,
+			"lms_security_interest_nature": security_interest_nature or "",
 		}
 	)
 	app.flags.ignore_permissions = True
 	app.insert()
+
+	# Create linked LMS Collateral records (if any were captured in the form).
+	if collateral and isinstance(collateral, list):
+		for c in collateral:
+			if not isinstance(c, dict):
+				continue
+			coll = frappe.get_doc(
+				{
+					"doctype": "LMS Collateral",
+					"collateral_type": c.get("collateral_type") or "Other",
+					"collateral_title": c.get("description") or "Collateral",
+					"owner_customer": customer,
+					"company": company,
+					"branch": branch or "",
+					"market_value": flt(c.get("collateral_value") or 0),
+					"reference_no": c.get("serial_number") or c.get("vehicle_registration") or "",
+					"lms_brand": c.get("brand") or "",
+					"lms_model": c.get("model") or "",
+					"lms_engine_number": c.get("engine_number") or "",
+					"lms_vehicle_registration": c.get("vehicle_registration") or "",
+					"valuation_date": c.get("valuation_date") or "",
+					"notes": c.get("description") or "",
+					"loan_application": app.name,
+				}
+			)
+			coll.flags.ignore_permissions = True
+			coll.insert()
 
 	return {"application": app.name, "status": "Draft"}
 
@@ -1071,6 +1114,12 @@ def create_borrower(
 	kyc_status: str = "Pending",
 	customer_group: str = "",
 	territory: str = "",
+	# Application-form borrower fields
+	marital_status: str = "",
+	spouse_name: str = "",
+	spouse_dob: str = "",
+	spouse_contact: str = "",
+	physical_address: str = "",
 ):
 	"""Officer onboards a new borrower: creates Customer + Contact + User + KYC.
 
@@ -1130,6 +1179,11 @@ def create_borrower(
 			"territory": territory,
 			"custom_lms_branch": branch or "",
 			"custom_national_id_number": national_id or "",
+			"lms_marital_status": marital_status or "",
+			"lms_spouse_name": spouse_name or "",
+			"lms_spouse_dob": spouse_dob or "",
+			"lms_spouse_contact": spouse_contact or "",
+			"lms_physical_address": physical_address or "",
 		}
 	)
 	customer.flags.ignore_permissions = True

@@ -282,5 +282,134 @@
     "insert_after": "custom_operator_mode",
     "read_only": 1,
     "search_index": 1
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "Customer-lms_marital_status",
+    "dt": "Customer",
+    "fieldname": "lms_marital_status",
+    "fieldtype": "Select",
+    "label": "Marital Status",
+    "options": "\nSingle\nMarried\nWidowed\nDivorced\nSeparated",
+    "insert_after": "custom_national_id_number"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "Customer-lms_spouse_name",
+    "dt": "Customer",
+    "fieldname": "lms_spouse_name",
+    "fieldtype": "Data",
+    "label": "Name of Spouse",
+    "insert_after": "lms_marital_status"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "Customer-lms_spouse_dob",
+    "dt": "Customer",
+    "fieldname": "lms_spouse_dob",
+    "fieldtype": "Date",
+    "label": "Spouse Date of Birth",
+    "insert_after": "lms_spouse_name"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "Customer-lms_spouse_contact",
+    "dt": "Customer",
+    "fieldname": "lms_spouse_contact",
+    "fieldtype": "Data",
+    "label": "Spouse Contact Details",
+    "insert_after": "lms_spouse_dob"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "Customer-lms_physical_address",
+    "dt": "Customer",
+    "fieldname": "lms_physical_address",
+    "fieldtype": "Small Text",
+    "label": "Applicant's Physical Address",
+    "insert_after": "lms_spouse_contact"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "Loan Application-lms_expiry_date",
+    "dt": "Loan Application",
+    "fieldname": "lms_expiry_date",
+    "fieldtype": "Date",
+    "label": "Expiry Date",
+    "insert_after": "custom_lending_group"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "Loan Application-lms_max_enforceable_amount",
+    "dt": "Loan Application",
+    "fieldname": "lms_max_enforceable_amount",
+    "fieldtype": "Currency",
+    "label": "Maximum Enforceable Amount",
+    "insert_after": "lms_expiry_date",
+    "description": "Statutory cap on what can be recovered (e.g. bound by the credit agreement / consumer law)."
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "Loan Application-lms_security_interest_nature",
+    "dt": "Loan Application",
+    "fieldname": "lms_security_interest_nature",
+    "fieldtype": "Small Text",
+    "label": "Nature / Type of Security Interest",
+    "insert_after": "lms_max_enforceable_amount"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "Loan Application-lms_loan_type",
+    "dt": "Loan Application",
+    "fieldname": "lms_loan_type",
+    "fieldtype": "Select",
+    "label": "Loan Type",
+    "options": "\nTerm Loan\nRevolving / Overdraft\nHire Purchase\nAsset Finance\nEmergency / Top-up\nWorking Capital",
+    "insert_after": "lms_security_interest_nature"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "Loan Application-lms_loan_start_date",
+    "dt": "Loan Application",
+    "fieldname": "lms_loan_start_date",
+    "fieldtype": "Date",
+    "label": "Loan Start Date",
+    "insert_after": "lms_loan_type"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "LMS Collateral-lms_brand",
+    "dt": "LMS Collateral",
+    "fieldname": "lms_brand",
+    "fieldtype": "Data",
+    "label": "Brand",
+    "insert_after": "reference_no"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "LMS Collateral-lms_model",
+    "dt": "LMS Collateral",
+    "fieldname": "lms_model",
+    "fieldtype": "Data",
+    "label": "Model",
+    "insert_after": "lms_brand"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "LMS Collateral-lms_engine_number",
+    "dt": "LMS Collateral",
+    "fieldname": "lms_engine_number",
+    "fieldtype": "Data",
+    "label": "Engine Number",
+    "insert_after": "lms_model"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "LMS Collateral-lms_vehicle_registration",
+    "dt": "LMS Collateral",
+    "fieldname": "lms_vehicle_registration",
+    "fieldtype": "Data",
+    "label": "Vehicle Registration Number",
+    "insert_after": "lms_engine_number"
   }
 ]
