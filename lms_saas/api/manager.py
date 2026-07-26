@@ -1117,12 +1117,15 @@ def get_branch_staff():
 	for emp in employees:
 		emp["persona"] = frappe.db.get_value("Employee", emp.name, "custom_lms_persona") or ""
 		emp["loan_count"] = frappe.db.count("Loan", {"custom_loan_officer": emp.name, "docstatus": 1})
-		emp["borrower_count"] = frappe.db.count(
+		# frappe.db.count() has no `field`/`distinct` kwargs — count distinct
+		# borrowers (customers) via get_all(distinct=True) instead.
+		_custs = frappe.get_all(
 			"Loan",
-			{"custom_loan_officer": emp.name, "docstatus": 1},
+			filters={"custom_loan_officer": emp.name, "docstatus": 1},
+			fields=["applicant"],
 			distinct=True,
-			field="customer",
 		)
+		emp["borrower_count"] = len({c["applicant"] for c in _custs if c.get("applicant")})
 
 	return {"staff": employees}
 
@@ -1152,14 +1155,14 @@ def get_officer_borrowers(employee=None):
 	loans = frappe.get_all(
 		"Loan",
 		filters=loan_filters,
-		fields=["name", "applicant", "customer", "loan_amount", "status", "outstanding_amount"],
+		fields=["name", "applicant", "loan_amount", "total_payment", "status"],
 		order_by="modified desc",
 		limit_page_length=200,
 	)
 
 	borrowers = {}
 	for ln in loans:
-		cust = ln.customer or ln.applicant
+		cust = ln.applicant
 		if not cust or cust in borrowers:
 			continue
 		borrowers[cust] = {
@@ -1171,11 +1174,11 @@ def get_officer_borrowers(employee=None):
 
 	# Aggregate per borrower.
 	for ln in loans:
-		cust = ln.customer or ln.applicant
+		cust = ln.applicant
 		if not cust or cust not in borrowers:
 			continue
 		borrowers[cust]["active_loans"] += 1
-		borrowers[cust]["outstanding"] = flt(borrowers[cust]["outstanding"]) + flt(ln.outstanding_amount or 0)
+		borrowers[cust]["outstanding"] = flt(borrowers[cust]["outstanding"]) + flt(ln.loan_amount or 0) - flt(ln.total_payment or 0)
 
 	return {"employee": employee, "borrowers": list(borrowers.values())}
 
