@@ -1437,6 +1437,15 @@ def get_loan_detail(loan_name: str):
 		):
 			schedule.append(row)
 
+	# Repayments (needed before the paid/demand cross-check below)
+	repayments = frappe.get_all(
+		"Loan Repayment",
+		filters={"against_loan": loan_name, "docstatus": 1},
+		fields=["name", "amount_paid", "posting_date"],
+		order_by="posting_date desc",
+		limit_page_length=50,
+	)
+
 	# Cross-check against posted Loan Repayments to mark each installment
 	# paid / demand_generated. This is cheap and avoids the missing `paid`
 	# column on the Repayment Schedule child table.
@@ -1450,16 +1459,7 @@ def get_loan_detail(loan_name: str):
 		for row in schedule:
 			posting = row.get("payment_date")
 			row["paid"] = flt(paid_amount_by_date.get(posting, 0)) >= flt(row.get("total_payment") or 0)
-			row["demand_generated"] = bool(posting) and posting < today() and not row["paid"]
-
-	# Repayments
-	repayments = frappe.get_all(
-		"Loan Repayment",
-		filters={"against_loan": loan_name, "docstatus": 1},
-		fields=["name", "amount_paid", "posting_date"],
-		order_by="posting_date desc",
-		limit_page_length=50,
-	)
+			row["demand_generated"] = bool(posting) and getdate(posting) < getdate(today()) and not row["paid"]
 
 	# Disbursements
 	disbursements = frappe.get_all(
