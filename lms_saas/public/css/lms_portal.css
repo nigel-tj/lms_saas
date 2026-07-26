@@ -1276,6 +1276,13 @@ body.lms-portal {
 	background: var(--lms-surface-alt);
 }
 
+/* Collateral repeatable rows in the New Application modal */
+.lms-collateral-row {
+	margin-top: 0.75rem;
+	padding-top: 0.75rem;
+	border-top: 1px dashed var(--lms-border);
+}
+
 /* States */
 .lms-empty,
 .lms-loading,
@@ -1442,6 +1449,14 @@ body.lms-portal {
 	display: grid;
 	gap: 1rem;
 }
+
+/* My Account: the JS-rendered overview mounts inside this grid. Its card
+   groups use .lms-account-grid wrappers — make them transparent so the cards
+   become direct grid children and align with the static cards above (fixes the
+   double-grid misalignment bug on My Account). */
+.lms-account-grid { display: contents; }
+.lms-account > h3.lms-section-title,
+.lms-account > p.lms-muted { grid-column: 1 / -1; }
 
 .lms-account-card {
 	padding: 1.15rem 1.35rem;

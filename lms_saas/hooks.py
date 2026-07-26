@@ -20,6 +20,11 @@ app_description = "Kesari — loan management with stewardship and accountabilit
 app_email = "admin@3dprintingvillage.co.za"
 app_license = "mit"
 
+# Server-side SVG icon helper for Jinja templates (mirror of lms_icons in JS).
+jinja = {
+    "methods": ["lms_saas.utils.brand.lms_icon_svg"],
+}
+
 after_install = "lms_saas.install.after_install"
 after_migrate = "lms_saas.install.after_install"
 boot_session = "lms_saas.boot.apply_default_route"

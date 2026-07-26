@@ -461,9 +461,23 @@ lms_officer._openApplicationModal = function (customers, products, root) {
 		'<option value="Repay Fixed Amount per Period">Repay Fixed Amount per Period</option>' +
 		'</select></label>' +
 		'<label>Repayment start date<input type="date" id="lms-app-start" class="lms-input"></label>' +
-		'<label>Posting date<input type="date" id="lms-app-posting" class="lms-input"></label>' +
-		'</div>' +
-		"</div>";
+				'<label>Posting date<input type="date" id="lms-app-posting" class="lms-input"></label>' +
+				'</div>' +
+				'<div class="lms-grid-2">' +
+				'<label>Loan type<select id="lms-app-loantype" class="lms-input lms-fallback-select">' +
+				'<option value="">—</option><option value="Term Loan">Term Loan</option><option value="Revolving / Overdraft">Revolving / Overdraft</option><option value="Hire Purchase">Hire Purchase</option><option value="Asset Finance">Asset Finance</option><option value="Emergency / Top-up">Emergency / Top-up</option><option value="Working Capital">Working Capital</option>' +
+				'</select></label>' +
+				'<label>Purpose of finance<input type="text" id="lms-app-purpose" class="lms-input" placeholder="e.g. working capital, school fees"></label>' +
+				'<label>Application date<input type="date" id="lms-app-appdate" class="lms-input"></label>' +
+				'<label>Loan start date<input type="date" id="lms-app-startdate" class="lms-input"></label>' +
+				'<label>Expiry date<input type="date" id="lms-app-expiry" class="lms-input"></label>' +
+				'<label>Maximum enforceable amount<input type="number" id="lms-app-maxenforce" class="lms-input" min="0" step="0.01" placeholder="Statutory cap"></label>' +
+				'<label class="lms-grid-2__full">Nature / type of security interest<textarea id="lms-app-security" class="lms-input" rows="2" placeholder="e.g. notarial bond over vehicle COL-00012"></textarea></label>' +
+				'</div>' +
+				'<div class="lms-section-header"><h4>Collateral</h4></div>' +
+				'<div id="lms-app-collateral-rows"></div>' +
+				'<button type="button" id="lms-app-add-collateral" class="lms-btn lms-btn--ghost">+ Add collateral item</button>' +
+				"</div>";
 
 	var dlg = LMSModal.open({
 		title: "New loan application",
@@ -487,6 +501,33 @@ lms_officer._openApplicationModal = function (customers, products, root) {
 		});
 	}
 
+	// Collateral: append a repeatable row each time "Add collateral item" is clicked.
+	var collateralRows = dlg.dialog.querySelector("#lms-app-collateral-rows");
+	var addCollateralBtn = dlg.dialog.querySelector("#lms-app-add-collateral");
+	if (addCollateralBtn && collateralRows) {
+		addCollateralBtn.addEventListener("click", function () {
+			var row = document.createElement("div");
+			row.className = "lms-collateral-row lms-grid-2";
+			row.innerHTML =
+				'<label>Grantor(s)<input type="text" class="lms-input lms-col-grantor" placeholder="Owner name / customer"></label>' +
+				'<label>Collateral type<select class="lms-input lms-fallback-select lms-col-type">' +
+				'<option value="Vehicle">Vehicle</option><option value="Real Estate / Property">Real Estate / Property</option><option value="Equipment / Machinery">Equipment / Machinery</option><option value="Inventory / Stock">Inventory / Stock</option><option value="Cash Deposit / Lien">Cash Deposit / Lien</option><option value="Securities / Shares">Securities / Shares</option><option value="Third-Party Guarantee">Third-Party Guarantee</option><option value="Other">Other</option>' +
+				'</select></label>' +
+				'<label>Description<input type="text" class="lms-input lms-col-desc" placeholder="e.g. Toyota Hilux 2019"></label>' +
+				'<label>Serial number<input type="text" class="lms-input lms-col-serial" placeholder="Chassis / serial"></label>' +
+				'<label>Vehicle registration<input type="text" class="lms-input lms-col-reg" placeholder="ABC123GP"></label>' +
+				'<label>Brand<input type="text" class="lms-input lms-col-brand" placeholder="Toyota"></label>' +
+				'<label>Model<input type="text" class="lms-input lms-col-model" placeholder="Hilux"></label>' +
+				'<label>Engine number<input type="text" class="lms-input lms-col-engine" placeholder="Engine #"></label>' +
+				'<label>Collateral value<input type="number" class="lms-input lms-col-value" min="0" step="0.01" placeholder="0.00"></label>' +
+				'<label>Valuation date<input type="date" class="lms-input lms-col-valuation"></label>';
+			collateralRows.appendChild(row);
+			if (window.LMSForms && typeof LMSForms.bindAll === "function") {
+				LMSForms.bindAll(row);
+			}
+		});
+	}
+
 	dlg.then(function (submit) {
 		if (!submit) return; // cancelled
 		var $ = function (id) { return (dlg.dialog.querySelector("#" + id) || {}).value || ""; };
@@ -498,6 +539,31 @@ lms_officer._openApplicationModal = function (customers, products, root) {
 		var method = $("lms-app-method") || "Repay Over Number of Periods";
 		var startDate = $("lms-app-start") || "";
 		var postingDate = $("lms-app-posting") || "";
+		var loanType = $("lms-app-loantype") || "";
+		var purpose = $("lms-app-purpose") || "";
+		var appDate = $("lms-app-appdate") || "";
+		var loanStartDate = $("lms-app-startdate") || "";
+		var expiryDate = $("lms-app-expiry") || "";
+		var maxEnforce = parseFloat($("lms-app-maxenforce")) || 0;
+		var security = $("lms-app-security") || "";
+
+		// Collect collateral rows (if any were added).
+		var collateral = [];
+		dlg.dialog.querySelectorAll(".lms-collateral-row").forEach(function (row) {
+			var get = function (cls) { var el = row.querySelector(cls); return el ? el.value : ""; };
+			collateral.push({
+				grantor: get(".lms-col-grantor"),
+				collateral_type: get(".lms-col-type"),
+				description: get(".lms-col-desc"),
+				serial_number: get(".lms-col-serial"),
+				vehicle_registration: get(".lms-col-reg"),
+				brand: get(".lms-col-brand"),
+				model: get(".lms-col-model"),
+				engine_number: get(".lms-col-engine"),
+				collateral_value: parseFloat(get(".lms-col-value")) || 0,
+				valuation_date: get(".lms-col-valuation"),
+			});
+		});
 
 		// Collect all the new-borrower sub-fields too in case the user picked
 		// "+ New borrower…" in the dropdown.
@@ -529,8 +595,8 @@ lms_officer._openApplicationModal = function (customers, products, root) {
 						lms_portal.toast("Could not create borrower.", "danger");
 						return;
 					}
-					lms_officer._submitApp(res.customer, product, amount, periods, rate, method, startDate, postingDate);
-				},
+										lms_officer._submitApp(res.customer, product, amount, periods, rate, method, startDate, postingDate, loanType, purpose, appDate, loanStartDate, expiryDate, maxEnforce, security, collateral);
+									},
 				error: function (err) {
 					var msg = (err && (err.message || err._server_message)) || "Could not create borrower.";
 					lms_portal.toast(msg, "danger");
@@ -539,12 +605,12 @@ lms_officer._openApplicationModal = function (customers, products, root) {
 		} else if (!customerVal) {
 			lms_portal.toast("Please select a customer.", "danger");
 		} else {
-			lms_officer._submitApp(customerVal, product, amount, periods, rate, method, startDate, postingDate);
+						lms_officer._submitApp(customerVal, product, amount, periods, rate, method, startDate, postingDate, loanType, purpose, appDate, loanStartDate, expiryDate, maxEnforce, security, collateral);
 		}
 	});
 };
 
-lms_officer._submitApp = function (customer, product, amount, periods, rate, method, startDate, postingDate) {
+lms_officer._submitApp = function (customer, product, amount, periods, rate, method, startDate, postingDate, loanType, purpose, appDate, loanStartDate, expiryDate, maxEnforce, security, collateral) {
 	lms_portal.safeCall({
 		method: "lms_saas.api.officer.submit_application_on_behalf",
 		args: {
@@ -556,6 +622,14 @@ lms_officer._submitApp = function (customer, product, amount, periods, rate, met
 			repayment_start_date: startDate || null,
 			rate_of_interest: rate > 0 ? rate : null,
 			posting_date: postingDate || null,
+			loan_type: loanType || null,
+			purpose_of_finance: purpose || null,
+			application_date: appDate || null,
+			loan_start_date: loanStartDate || null,
+			expiry_date: expiryDate || null,
+			max_enforceable_amount: maxEnforce > 0 ? maxEnforce : null,
+			security_interest_nature: security || null,
+			collateral: collateral && collateral.length ? collateral : null,
 		},
 		callback: function (r) {
 			var res = (r && r.message) || {};
@@ -595,11 +669,23 @@ lms_officer._openBorrowerModal = function () {
 		'<label>Mobile<input type="tel" id="lms-of-b-mobile" class="lms-input" placeholder="0772..."></label>' +
 		'<label class="lms-grid-2__full">Address line 1<input type="text" id="lms-of-b-addr1" class="lms-input" placeholder="House / plot number, street"></label>' +
 		'<label>City<input type="text" id="lms-of-b-city" class="lms-input" placeholder="Harare"></label>' +
-		'<label>Customer group<select id="lms-of-b-cgroup" class="lms-input lms-fallback-select"><option value="">— Default —</option></select></label>' +
-		'</div>' +
+				'<label>Customer group<select id="lms-of-b-cgroup" class="lms-input lms-fallback-select"><option value="">— Default —</option></select></label>' +
+				'</div>' +
 
-		// --- Section: KYC ---
-		'<div class="lms-section-header"><h4>KYC &amp; consent</h4></div>' +
+				// --- Section: Household / Spouse ---
+				'<div class="lms-section-header"><h4>Household &amp; Spouse</h4></div>' +
+				'<div class="lms-grid-2">' +
+				'<label>Marital status<select id="lms-of-b-marital" class="lms-input lms-fallback-select">' +
+				'<option value="">—</option><option value="Single">Single</option><option value="Married">Married</option><option value="Widowed">Widowed</option><option value="Divorced">Divorced</option><option value="Separated">Separated</option>' +
+				'</select></label>' +
+				'<label>Spouse contact details<input type="text" id="lms-of-b-spouse-contact" class="lms-input" placeholder="Phone / email"></label>' +
+				'<label>Name of spouse (first &amp; last)<input type="text" id="lms-of-b-spouse-name" class="lms-input" placeholder="Jane Doe"></label>' +
+				'<label>Spouse date of birth<input type="date" id="lms-of-b-spouse-dob" class="lms-input"></label>' +
+				'<label class="lms-grid-2__full">Applicant\'s physical address<textarea id="lms-of-b-physical" class="lms-input" rows="2" placeholder="House / plot, street, suburb, city"></textarea></label>' +
+				'</div>' +
+
+				// --- Section: KYC ---
+				'<div class="lms-section-header"><h4>KYC &amp; consent</h4></div>' +
 		'<div class="lms-grid-2">' +
 		'<label>KYC status<select id="lms-of-b-kyc" class="lms-input lms-fallback-select">' +
 		'<option value="Pending" selected>Pending — collect later</option>' +
@@ -690,8 +776,13 @@ lms_officer._openBorrowerModal = function () {
 		var mobile = ($("lms-of-b-mobile") || {}).value || "";
 		var addr1 = ($("lms-of-b-addr1") || {}).value || "";
 		var city = ($("lms-of-b-city") || {}).value || "";
-		var cgroup = ($("lms-of-b-cgroup") || {}).value || "";
-		var kyc = ($("lms-of-b-kyc") || {}).value || "Pending";
+				var cgroup = ($("lms-of-b-cgroup") || {}).value || "";
+				var marital = ($("lms-of-b-marital") || {}).value || "";
+				var spouseName = ($("lms-of-b-spouse-name") || {}).value || "";
+				var spouseDob = ($("lms-of-b-spouse-dob") || {}).value || "";
+				var spouseContact = ($("lms-of-b-spouse-contact") || {}).value || "";
+				var physical = ($("lms-of-b-physical") || {}).value || "";
+				var kyc = ($("lms-of-b-kyc") || {}).value || "Pending";
 		var consent = ($("lms-of-b-consent") || {}).checked ? 1 : 0;
 		var iddoc = ($("lms-of-b-iddoc") || {}).value || "";
 		var poa = ($("lms-of-b-poa") || {}).value || "";
@@ -726,10 +817,15 @@ lms_officer._openBorrowerModal = function () {
 				city: city,
 				id_document_proof: iddoc,
 				proof_of_address: poa,
-				consent_given: consent,
-				kyc_status: kyc,
-				customer_group: cgroup,
-			},
+							consent_given: consent,
+							kyc_status: kyc,
+							customer_group: cgroup,
+							marital_status: marital,
+							spouse_name: spouseName,
+							spouse_dob: spouseDob,
+							spouse_contact: spouseContact,
+							physical_address: physical,
+						},
 			callback: function (r) {
 				var res = (r && r.message) || {};
 				if (!res.customer) {

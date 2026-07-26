@@ -1441,7 +1441,7 @@ lms_portal._openFileUploader = function (fieldname, callback) {
 	// fieldname === null → skip the KYC registration call (the file is
 	// uploaded to /files but the caller is responsible for saving the
 	// file_url to its own field, e.g. LMS Field Visit.photos).
-	new frappe.ui.FileUploader({
+	var uploader = new frappe.ui.FileUploader({
 		folder: "Home/Attachments",
 		method: "frappe.handler.upload_file",
 		on_success: function (file) {
@@ -1467,6 +1467,19 @@ lms_portal._openFileUploader = function (fieldname, callback) {
 			});
 		},
 	});
+	// The LMS modal overlay uses z-index: 1000. Frappe's FileUploader is a
+	// Bootstrap modal that can render at/below that in some builds, so it
+	// paints BEHIND the modal. Hoist the uploader dialog + backdrop above the
+	// LMS modal so it is always usable from inside any LMS modal.
+	try {
+		setTimeout(function () {
+			if (uploader.dialog && uploader.dialog.$wrapper) {
+				uploader.dialog.$wrapper.css("z-index", 2000);
+			}
+			$(".modal-backdrop").css("z-index", 1990);
+		}, 0);
+	} catch (e) { /* non-fatal */ }
+	return uploader;
 };
 
 /* Reusable file-upload widget markup for use inside LMSModal / lms_portal.modal.
@@ -2163,7 +2176,7 @@ lms_portal.initAccountOverview = function () {
 			if (data.account_type === "staff") {
 				var emp = data.employee || {};
 				html += '<h3 class="lms-section-title">My profile</h3>';
-				html += '<div class="lms-account">';
+				html += '<div class="lms-account-grid">';
 				html += '<article class="lms-account-card lms-panel"><div class="lms-account-row"><div>';
 				html += '<p class="lms-account-item-title">Name</p>';
 				html += '<p class="lms-account-item-desc">' + lms_portal.escape(emp.employee_name || emp.name || frappe.session.user) + "</p>";
@@ -2199,7 +2212,7 @@ lms_portal.initAccountOverview = function () {
 
 			// KYC / Compliance status (borrower)
 			html += '<h3 class="lms-section-title">Compliance status</h3>';
-			html += '<div class="lms-account">';
+			html += '<div class="lms-account-grid">';
 			html += '<article class="lms-account-card lms-panel">';
 			html += '<div class="lms-account-row"><div>';
 			html += '<p class="lms-account-item-title">KYC status</p>';
@@ -2235,7 +2248,7 @@ lms_portal.initAccountOverview = function () {
 
 			// Documents
 			html += '<h3 class="lms-section-title">My documents</h3>';
-			html += '<div class="lms-account">';
+			html += '<div class="lms-account-grid">';
 			if (compliance.id_document_proof) {
 				html += '<article class="lms-account-card lms-panel"><div class="lms-account-row"><div>';
 				html += '<p class="lms-account-item-title">ID document</p>';
@@ -2259,7 +2272,7 @@ lms_portal.initAccountOverview = function () {
 
 			// Support
 			html += '<h3 class="lms-section-title">Support</h3>';
-			html += '<div class="lms-account">';
+			html += '<div class="lms-account-grid">';
 			html += '<article class="lms-account-card lms-panel"><div class="lms-account-row"><div>';
 			html += '<p class="lms-account-item-title">Contact support</p>';
 			if (customer.mobile_no) {
