@@ -1449,6 +1449,15 @@ lms_portal._openFileUploader = function (fieldname, callback, opts) {
 	// instead of portal.upload_kyc_document, because the officer is not
 	// a Customer). When on_uploaded is set, fieldname is ignored.
 	//
+	// SECURITY: KYC documents (ID cards, proof of address) contain PII
+	// and MUST be uploaded as private files (is_private=1) so they are
+	// stored in private/files/ and served through Frappe's auth-gated
+	// /private/files/ endpoint (403 without a valid session). Public
+	// files in public/files/ are accessible to anyone on the internet
+	// — a serious PII breach for KYC documents. is_private defaults to
+	// true for KYC uploads (fieldname is set or on_uploaded is set);
+	// non-KYC uploads (fieldname=null, no on_uploaded) default to public.
+	//
 	// IMPLEMENTATION: uses a hidden <input type="file"> + AJAX upload
 	// to frappe.handler.upload_file. This opens the NATIVE OS file
 	// dialog (always on top of every DOM element — no z-index battles,
@@ -1457,6 +1466,12 @@ lms_portal._openFileUploader = function (fieldname, callback, opts) {
 	// on top of the LMS modal and caused the file picker to render
 	// behind / intercept clicks / require display:none hacks.
 	opts = opts || {};
+	// KYC uploads (fieldname set or on_uploaded callback) default to
+	// private. Callers can override with opts.is_private = false.
+	var isKYC = !!fieldname || typeof opts.on_uploaded === "function";
+	if (opts.is_private === undefined) {
+		opts.is_private = isKYC ? true : false;
+	}
 	var input = document.createElement("input");
 	input.type = "file";
 	if (opts.accept) input.accept = opts.accept;
@@ -1568,11 +1583,14 @@ lms_portal._fileUploadField = function (opts) {
 	var btnLabel = opts.buttonLabel || ("Upload " + (opts.label || "file").toLowerCase());
 	var accept = opts.accept ? ' accept="' + lms_portal.escape(opts.accept) + '"' : "";
 	var required = opts.required ? ' <span class="lms-req" aria-hidden="true">*</span>' : "";
+	// KYC documents (fieldname set) are private by default — add
+	// data-is-private so _bindUploadWidgets passes it to _openFileUploader.
+	var isPrivateAttr = (opts.fieldname || opts.is_private) ? ' data-is-private="1"' : "";
 	var status = opts.initialUrl
-		? '<a class="lms-upload-status lms-upload-status--link" href="' + lms_portal.escape(opts.initialUrl) + '" target="_blank" rel="noopener">' + (typeof lms_icons !== "undefined" ? lms_icons.icon("check") : "✓") + " Uploaded</a>"
+		? '<a class="lms-upload-status lms-upload-status--link" href="' + lms_portal.escape(encodeURI(opts.initialUrl)) + '" target="_blank" rel="noopener">' + (typeof lms_icons !== "undefined" ? lms_icons.icon("check") : "✓") + " Uploaded</a>"
 		: '<span class="lms-upload-status" data-empty="true">No file uploaded</span>';
 	return (
-		'<div class="lms-upload-field" data-lms-upload-field="' + lms_portal.escape(id) + '"' + (opts.accept ? ' data-accept="' + lms_portal.escape(opts.accept) + '"' : "") + '>' +
+		'<div class="lms-upload-field" data-lms-upload-field="' + lms_portal.escape(id) + '"' + (opts.accept ? ' data-accept="' + lms_portal.escape(opts.accept) + '"' : "") + isPrivateAttr + '>' +
 		labelHtml + required +
 		'<div class="lms-upload-field__row">' +
 		'<button type="button" class="lms-btn lms-btn--ghost lms-btn--sm" data-lms-upload-trigger="' + lms_portal.escape(id) + '">' +
@@ -1597,9 +1615,10 @@ lms_portal._bindUploadWidgets = function (root, fieldnameMap) {
 		btn.addEventListener("click", function (ev) {
 			ev.preventDefault();
 			var fieldname = fieldnameMap[id] !== undefined ? fieldnameMap[id] : id;
-			// Read the accept attribute from the upload field (if set).
+			// Read the accept + is_private attributes from the upload field.
 			var field = btn.closest(".lms-upload-field");
 			var accept = field && field.getAttribute("data-accept") ? field.getAttribute("data-accept") : "";
+			var isPrivate = field && field.getAttribute("data-is-private") === "1";
 			lms_portal._openFileUploader(fieldname, function (fileUrl) {
 				var input = root.querySelector("#" + id);
 				if (input) input.value = fileUrl;
@@ -1621,7 +1640,7 @@ lms_portal._bindUploadWidgets = function (root, fieldnameMap) {
 				} else {
 					field.appendChild(link);
 				}
-			});
+			}, { accept: accept, is_private: isPrivate });
 		});
 	});
 };

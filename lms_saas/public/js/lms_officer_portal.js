@@ -1833,6 +1833,7 @@ lms_officer._showKycReviewModal = function (data, content) {
 			);
 			lms_portal._openFileUploader(null, function () {}, {
 				accept: "image/*,application/pdf",
+				is_private: true,  // KYC docs are PII — store in private/files/
 				trigger_btn: btn,
 				on_uploaded: function (file) {
 					lms_portal.safeCall({
