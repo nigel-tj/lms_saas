@@ -79,6 +79,13 @@ lms_icons._PATHS = {
 	inbox: '<polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11Z"/>',
 	diamond: '<path d="M6 3h12l4 6-10 13L2 9Z"/><path d="M11 3 8 9l4 13 4-13-3-6"/><path d="M2 9h20"/>',
 
+	// Navigation arrows
+	"arrow-left": '<line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>',
+	"arrow-right": '<line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>',
+	"chevron-left": '<polyline points="15 18 9 12 15 6"/>',
+	"chevron-right": '<polyline points="9 18 15 12 9 6"/>',
+	"arrow-up-right": '<line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/>',
+
 	// Emoji aliases (so callers passing emojis still resolve)
 	"📊": "bar-chart",
 	"🏆": "trophy",

@@ -675,9 +675,7 @@ lms_officer._openBorrowerModal = function () {
 				// --- Section: Household / Spouse ---
 				'<div class="lms-section-header"><h4>Household &amp; Spouse</h4></div>' +
 				'<div class="lms-grid-2">' +
-				'<label>Marital status<select id="lms-of-b-marital" class="lms-input lms-fallback-select">' +
-				'<option value="">—</option><option value="Single">Single</option><option value="Married">Married</option><option value="Widowed">Widowed</option><option value="Divorced">Divorced</option><option value="Separated">Separated</option>' +
-				'</select></label>' +
+				'<label><input type="checkbox" id="lms-of-b-marital"> Married (Marital status)</label>' +
 				'<label>Spouse contact details<input type="text" id="lms-of-b-spouse-contact" class="lms-input" placeholder="Phone / email"></label>' +
 				'<label>Name of spouse (first &amp; last)<input type="text" id="lms-of-b-spouse-name" class="lms-input" placeholder="Jane Doe"></label>' +
 				'<label>Spouse date of birth<input type="date" id="lms-of-b-spouse-dob" class="lms-input"></label>' +
@@ -777,7 +775,8 @@ lms_officer._openBorrowerModal = function () {
 		var addr1 = ($("lms-of-b-addr1") || {}).value || "";
 		var city = ($("lms-of-b-city") || {}).value || "";
 				var cgroup = ($("lms-of-b-cgroup") || {}).value || "";
-				var marital = ($("lms-of-b-marital") || {}).value || "";
+				var maritalEl = $("lms-of-b-marital");
+				var marital = (maritalEl && maritalEl.checked) ? "Married" : "Single";
 				var spouseName = ($("lms-of-b-spouse-name") || {}).value || "";
 				var spouseDob = ($("lms-of-b-spouse-dob") || {}).value || "";
 				var spouseContact = ($("lms-of-b-spouse-contact") || {}).value || "";

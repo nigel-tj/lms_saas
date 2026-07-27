@@ -560,6 +560,11 @@ def get_portal_notifications():
     roles = set(frappe.get_roles(frappe.session.user))
     if PORTAL_STAFF_ROLE in roles and "Customer" not in roles:
         return {"notifications": [], "unread_count": 0}
+    # Desk admins (System Manager / Administrator) have no Customer either —
+    # the notification bell is a borrower-only feature; return empty for them
+    # so the page doesn't surface a persistent "Not permitted" dialog.
+    if roles.intersection({"System Manager", "Administrator"}):
+        return {"notifications": [], "unread_count": 0}
     customer = _require_customer()
     loan_names = frappe.get_all(
         "Loan",
