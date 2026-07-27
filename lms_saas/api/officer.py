@@ -539,6 +539,7 @@ def submit_application_on_behalf(
 			"lms_loan_type": loan_type or "",
 			"lms_loan_start_date": loan_start_date or repayment_start_date or "",
 			"lms_expiry_date": expiry_date or "",
+			"lms_application_date": application_date or frappe.utils.nowdate(),
 			"lms_max_enforceable_amount": flt(max_enforceable_amount) if max_enforceable_amount else 0,
 			"lms_security_interest_nature": security_interest_nature or "",
 		}
@@ -561,6 +562,7 @@ def submit_application_on_behalf(
 					"branch": branch or "",
 					"market_value": flt(c.get("collateral_value") or 0),
 					"reference_no": c.get("serial_number") or c.get("vehicle_registration") or "",
+					"lms_grantor": c.get("grantor") or "",
 					"lms_brand": c.get("brand") or "",
 					"lms_model": c.get("model") or "",
 					"lms_engine_number": c.get("engine_number") or "",

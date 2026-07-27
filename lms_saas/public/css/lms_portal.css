@@ -359,6 +359,14 @@ body.lms-portal {
 	color: color-mix(in oklab, var(--lms-text) 70%, var(--lms-primary));
 	text-decoration: none;
 	font-weight: 500;
+	display: inline-flex;
+	align-items: center;
+	gap: 0.35rem;
+}
+
+.lms-back-link__icon {
+	flex-shrink: 0;
+	vertical-align: middle;
 }
 
 .lms-back-link a:hover,
@@ -1447,6 +1455,8 @@ body.lms-portal {
 /* Account hub */
 .lms-account {
 	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+	align-items: start;
 	gap: 1rem;
 }
 
@@ -1456,7 +1466,11 @@ body.lms-portal {
    double-grid misalignment bug on My Account). */
 .lms-account-grid { display: contents; }
 .lms-account > h3.lms-section-title,
-.lms-account > p.lms-muted { grid-column: 1 / -1; }
+.lms-account > p.lms-muted {
+	grid-column: 1 / -1;
+}
+.lms-account > article.lms-account-card { min-width: 0; }
+.lms-account-card[hidden] { display: none; }
 
 .lms-account-card {
 	padding: 1.15rem 1.35rem;

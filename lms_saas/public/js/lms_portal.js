@@ -409,12 +409,15 @@ lms_portal.backLink = function (opts) {
 	opts = opts || {};
 	var href = opts.href || window.__lms_home_route || "/lms";
 	var label = opts.label || "Back";
+	var arrow = (typeof lms_icons !== "undefined" && lms_icons.icon)
+		? lms_icons.icon("arrow-left", { size: 16, cls: "lms-back-link__icon" })
+		: "";
 	return (
 		'<p class="lms-back-link"><a href="' +
 		lms_portal.escape(href) +
-		'">← ' +
+		'">' + arrow + '<span class="lms-back-link__label">' +
 		lms_portal.escape(label) +
-		"</a></p>"
+		"</span></a></p>"
 	);
 };
 

@@ -378,12 +378,30 @@
   },
   {
     "doctype": "Custom Field",
+    "name": "Loan Application-lms_application_date",
+    "dt": "Loan Application",
+    "fieldname": "lms_application_date",
+    "fieldtype": "Date",
+    "label": "Application Date",
+    "insert_after": "posting_date"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "LMS Collateral-lms_grantor",
+    "dt": "LMS Collateral",
+    "fieldname": "lms_grantor",
+    "fieldtype": "Data",
+    "label": "Name of Grantor(s)",
+    "insert_after": "reference_no"
+  },
+  {
+    "doctype": "Custom Field",
     "name": "LMS Collateral-lms_brand",
     "dt": "LMS Collateral",
     "fieldname": "lms_brand",
     "fieldtype": "Data",
     "label": "Brand",
-    "insert_after": "reference_no"
+    "insert_after": "lms_grantor"
   },
   {
     "doctype": "Custom Field",

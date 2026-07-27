@@ -192,7 +192,15 @@ def apply_portal_context(context, nav_active="loans", page_js=None):
 	user_roles = set(frappe.get_roles(frappe.session.user)) if frappe.session.user != "Guest" else set()
 	context.is_portal_staff = PORTAL_STAFF_ROLE in user_roles and not show_staff_desk_link()
 	# Resolve persona so the nav shows only the relevant items per role.
-	context.lms_persona = resolve_portal_persona()
+	# Desk admins (System Manager / Administrator) get a synthetic "Admin"
+	# persona so the sidebar role label shows something useful and the nav
+	# builder treats them like Admin-tagged addons (Admin sees all staff
+	# addons). Without this, admins visiting /lms/* have an empty sidebar
+	# brand and get incorrectly defaulted to the borrower nav.
+	resolved_persona = resolve_portal_persona()
+	if not resolved_persona and show_staff_desk_link():
+		resolved_persona = "Admin"
+	context.lms_persona = resolved_persona
 	context.is_portal_borrower = "Customer" in user_roles and not context.is_portal_staff and not show_staff_desk_link()
 	# R12 board: expose the per-persona permission flags on the template
 	# context so nav templates and JS bootinfo can read them in one place.
@@ -283,7 +291,16 @@ def _build_lms_nav(context):
 	is_borrower = context.get("is_portal_borrower")
 	is_staff = context.get("is_portal_staff")
 
-	if is_borrower or not is_staff:
+	# Detect desk admins (System Manager / Administrator without portal staff
+	# or borrower roles). Without this guard, the `not is_staff` branch below
+	# would dump admin users onto the borrower nav (My Loans / Apply / Pay),
+	# which is meaningless and broken for them.
+	roles = set(frappe.get_roles()) if frappe.session.user != "Guest" else set()
+	is_desk_admin = bool(
+		roles.intersection({"System Manager", "Administrator"})
+	) and not is_staff and not is_borrower
+
+	if is_borrower or (not is_staff and not is_desk_admin):
 		items.extend([
 			{"key": "loans", "label": "My Loans", "route": "/lms", "icon": "loans"},
 			{"key": "apply", "label": "Apply", "route": "/lms/apply", "icon": "apply"},
