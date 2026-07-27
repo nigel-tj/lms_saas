@@ -474,6 +474,18 @@ lms_officer._openApplicationModal = function (customers, products, root) {
 				'<label>Maximum enforceable amount<input type="number" id="lms-app-maxenforce" class="lms-input" min="0" step="0.01" placeholder="Statutory cap"></label>' +
 				'<label class="lms-grid-2__full">Nature / type of security interest<textarea id="lms-app-security" class="lms-input" rows="2" placeholder="e.g. notarial bond over vehicle COL-00012"></textarea></label>' +
 				'</div>' +
+
+				// --- Household / Spouse section (pre-fills from selected borrower) ---
+				'<div class="lms-section-header"><h4>Household &amp; Spouse</h4></div>' +
+				'<p class="lms-muted" style="margin:0 0 0.5rem;font-size:0.8rem;">Pre-filled from the borrower record; edit here if anything has changed.</p>' +
+				'<div class="lms-grid-2">' +
+				'<label><input type="checkbox" id="lms-app-marital"> Married (Marital status)</label>' +
+				'<label>Spouse contact details<input type="text" id="lms-app-spouse-contact" class="lms-input" placeholder="Phone / email"></label>' +
+				'<label>Name of spouse (first &amp; last)<input type="text" id="lms-app-spouse-name" class="lms-input" placeholder="Jane Doe"></label>' +
+				'<label>Spouse date of birth<input type="date" id="lms-app-spouse-dob" class="lms-input"></label>' +
+				'<label class="lms-grid-2__full">Applicant\'s physical address<textarea id="lms-app-physical" class="lms-input" rows="2" placeholder="House / plot, street, suburb, city"></textarea></label>' +
+				'</div>' +
+
 				'<div class="lms-section-header"><h4>Collateral</h4></div>' +
 				'<div id="lms-app-collateral-rows"></div>' +
 				'<button type="button" id="lms-app-add-collateral" class="lms-btn lms-btn--ghost">+ Add collateral item</button>' +
@@ -492,12 +504,45 @@ lms_officer._openApplicationModal = function (customers, products, root) {
 		LMSForms.bindAll(dlg.dialog);
 	}
 
-	// Toggle new-borrower fields when the customer select changes
+	// Toggle new-borrower fields when the customer select changes, and
+	// pre-fill the Household / Spouse section from get_borrower_detail when
+	// an existing borrower is selected.
 	var customerSelect = dlg.dialog.querySelector("#lms-app-customer");
 	var newBorrowerFields = dlg.dialog.querySelector("#lms-new-borrower-fields");
+	var fillHousehold = function (data) {
+		var d = data || {};
+		var setVal = function (id, v) {
+			var el = dlg.dialog.querySelector("#" + id);
+			if (el) el.value = v || "";
+		};
+		var setChecked = function (id, v) {
+			var el = dlg.dialog.querySelector("#" + id);
+			if (el) el.checked = !!v && (v === "Married" || v === true || v === 1 || v === "1");
+		};
+		setChecked("lms-app-marital", d.marital_status);
+		setVal("lms-app-spouse-name", d.spouse_name);
+		setVal("lms-app-spouse-dob", d.spouse_dob);
+		setVal("lms-app-spouse-contact", d.spouse_contact);
+		setVal("lms-app-physical", d.physical_address);
+	};
 	if (customerSelect && newBorrowerFields) {
 		customerSelect.addEventListener("change", function () {
-			newBorrowerFields.hidden = customerSelect.value !== "__new__";
+			var v = customerSelect.value;
+			newBorrowerFields.hidden = v !== "__new__";
+			if (v && v !== "__new__") {
+				// Fetch the existing borrower's household / physical fields.
+				lms_portal.safeCall({
+					method: "lms_saas.api.officer.get_borrower_detail",
+					args: { customer_name: v },
+					callback: function (r) {
+						var b = (r && r.message && r.message.borrower) || {};
+						fillHousehold(b);
+					},
+					error: function () { fillHousehold({}); },
+				});
+			} else {
+				fillHousehold({});
+			}
 		});
 	}
 
@@ -547,6 +592,15 @@ lms_officer._openApplicationModal = function (customers, products, root) {
 		var maxEnforce = parseFloat($("lms-app-maxenforce")) || 0;
 		var security = $("lms-app-security") || "";
 
+		// Household / Spouse fields (sourced from selected borrower or
+		// typed in fresh on the loan application form).
+		var maritalChecked = (dlg.dialog.querySelector("#lms-app-marital") || {}).checked;
+		var marital = maritalChecked ? "Married" : "";
+		var spouseName = $("lms-app-spouse-name") || "";
+		var spouseDob = $("lms-app-spouse-dob") || "";
+		var spouseContact = $("lms-app-spouse-contact") || "";
+		var physical = $("lms-app-physical") || "";
+
 		// Collect collateral rows (if any were added).
 		var collateral = [];
 		dlg.dialog.querySelectorAll(".lms-collateral-row").forEach(function (row) {
@@ -588,6 +642,11 @@ lms_officer._openApplicationModal = function (customers, products, root) {
 					email: newBorrower.email,
 					mobile_no: newBorrower.mobile,
 					national_id: newBorrower.national,
+					marital_status: marital,
+					spouse_name: spouseName,
+					spouse_dob: spouseDob,
+					spouse_contact: spouseContact,
+					physical_address: physical,
 				},
 				callback: function (r) {
 					var res = (r && r.message) || {};
@@ -595,8 +654,8 @@ lms_officer._openApplicationModal = function (customers, products, root) {
 						lms_portal.toast("Could not create borrower.", "danger");
 						return;
 					}
-										lms_officer._submitApp(res.customer, product, amount, periods, rate, method, startDate, postingDate, loanType, purpose, appDate, loanStartDate, expiryDate, maxEnforce, security, collateral);
-									},
+					lms_officer._submitApp(res.customer, product, amount, periods, rate, method, startDate, postingDate, loanType, purpose, appDate, loanStartDate, expiryDate, maxEnforce, security, collateral, marital, spouseName, spouseDob, spouseContact, physical);
+				},
 				error: function (err) {
 					var msg = (err && (err.message || err._server_message)) || "Could not create borrower.";
 					lms_portal.toast(msg, "danger");
@@ -605,12 +664,12 @@ lms_officer._openApplicationModal = function (customers, products, root) {
 		} else if (!customerVal) {
 			lms_portal.toast("Please select a customer.", "danger");
 		} else {
-						lms_officer._submitApp(customerVal, product, amount, periods, rate, method, startDate, postingDate, loanType, purpose, appDate, loanStartDate, expiryDate, maxEnforce, security, collateral);
+			lms_officer._submitApp(customerVal, product, amount, periods, rate, method, startDate, postingDate, loanType, purpose, appDate, loanStartDate, expiryDate, maxEnforce, security, collateral, marital, spouseName, spouseDob, spouseContact, physical);
 		}
 	});
 };
 
-lms_officer._submitApp = function (customer, product, amount, periods, rate, method, startDate, postingDate, loanType, purpose, appDate, loanStartDate, expiryDate, maxEnforce, security, collateral) {
+lms_officer._submitApp = function (customer, product, amount, periods, rate, method, startDate, postingDate, loanType, purpose, appDate, loanStartDate, expiryDate, maxEnforce, security, collateral, marital, spouseName, spouseDob, spouseContact, physical) {
 	lms_portal.safeCall({
 		method: "lms_saas.api.officer.submit_application_on_behalf",
 		args: {
@@ -630,6 +689,11 @@ lms_officer._submitApp = function (customer, product, amount, periods, rate, met
 			max_enforceable_amount: maxEnforce > 0 ? maxEnforce : null,
 			security_interest_nature: security || null,
 			collateral: collateral && collateral.length ? collateral : null,
+			marital_status: marital || null,
+			spouse_name: spouseName || null,
+			spouse_dob: spouseDob || null,
+			spouse_contact: spouseContact || null,
+			physical_address: physical || null,
 		},
 		callback: function (r) {
 			var res = (r && r.message) || {};

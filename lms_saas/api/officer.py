@@ -488,12 +488,21 @@ def submit_application_on_behalf(
 	max_enforceable_amount: float | None = None,
 	security_interest_nature: str | None = None,
 	collateral: list | None = None,
+	marital_status: str | None = None,
+	spouse_name: str | None = None,
+	spouse_dob: str | None = None,
+	spouse_contact: str | None = None,
+	physical_address: str | None = None,
 ):
 	"""Officer submits a Loan Application on behalf of a borrower.
 
 	Automatically tags the application with the officer's branch and Employee
 	record so the manager portal can filter by branch. Defaults to the
 	product's configured rate / start date if not supplied.
+
+	Household / spouse / physical-address fields are persisted back to the
+	borrower's Customer record so the Loan Application form can capture or
+	update them in one step.
 	"""
 	_require_officer()
 	branch = _officer_branch()
@@ -546,6 +555,22 @@ def submit_application_on_behalf(
 	)
 	app.flags.ignore_permissions = True
 	app.insert()
+
+	# Persist household / spouse / physical-address fields captured on the
+	# Loan Application form back to the Customer record. Doing it here (not in
+	# update_borrower) means the officer only enters these once per session.
+	household_fields = {}
+	if marital_status: household_fields["lms_marital_status"] = marital_status
+	if spouse_name:    household_fields["lms_spouse_name"] = spouse_name
+	if spouse_dob:     household_fields["lms_spouse_dob"] = spouse_dob
+	if spouse_contact: household_fields["lms_spouse_contact"] = spouse_contact
+	if physical_address: household_fields["lms_physical_address"] = physical_address
+	if household_fields:
+		cust_doc = frappe.get_doc("Customer", customer)
+		for k, v in household_fields.items():
+			cust_doc.set(k, v)
+		cust_doc.flags.ignore_permissions = True
+		cust_doc.save()
 
 	# Create linked LMS Collateral records (if any were captured in the form).
 	if collateral and isinstance(collateral, list):
@@ -1324,6 +1349,14 @@ def get_borrower_detail(customer_name: str):
 		"customer_group": cust.customer_group or "",
 		"territory": cust.territory or "",
 		"disabled": cust.disabled,
+		# Household / spouse / physical address (LMS custom fields) — surfaced
+		# here so the Loan Application form can pre-fill these fields from
+		# the selected borrower record in one round-trip.
+		"marital_status": cust.get("lms_marital_status") or "",
+		"spouse_name": cust.get("lms_spouse_name") or "",
+		"spouse_dob": cust.get("lms_spouse_dob") or "",
+		"spouse_contact": cust.get("lms_spouse_contact") or "",
+		"physical_address": cust.get("lms_physical_address") or "",
 	}
 
 	# Loans
