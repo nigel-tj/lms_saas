@@ -7,8 +7,16 @@ if (typeof frappe !== "undefined" && typeof frappe.provide === "function") {
 
 lms_manager._charts = {};
 lms_manager._currentTab = "dashboard";
+// R18-14: keep a per-tab timeout so a stuck safeCall can never leave the
+// content area on a perpetual "Loading…" spinner. After 6 s we render an
+// error card with a Retry button instead.
+lms_manager._TAB_TIMEOUT_MS = 6000;
 
 lms_manager.init = function () {
+	// R18-defensive: defer init if lms_portal hasn't finished parsing yet.
+	if (typeof lms_portal === "undefined" || typeof lms_portal.tabNav !== "function") {
+		return setTimeout(lms_manager.init, 0);
+	}
 	var root = document.getElementById("lms-manager-root");
 	if (!root) return;
 
@@ -19,10 +27,15 @@ lms_manager.init = function () {
 };
 
 lms_manager._tabNav = function () {
+	// R18-15: add the Approvals tab between Loans and Reports. Four-eyes
+	// approvals are the single most important action on this page for a
+	// branch manager; not having a tab for them was the #1 staff-side
+	// complaint from the R18 board.
 	var tabs = [
 		{ id: "dashboard", label: "Dashboard", icon: "bar-chart" },
 		{ id: "borrowers", label: "Borrowers", icon: "user" },
 		{ id: "loans", label: "Loans", icon: "wallet" },
+		{ id: "approvals", label: "Approvals", icon: "check-square" },
 		{ id: "reports", label: "Reports", icon: "trending-up" },
 		{ id: "collateral", label: "Collateral", icon: "home" },
 		{ id: "team", label: "Team", icon: "users" },
@@ -54,6 +67,56 @@ lms_manager._bindTabs = function () {
 	});
 };
 
+/* R18-14: render a clear "this tab timed out" card instead of leaving a
+ * perpetual spinner. The card includes a Retry button that re-invokes the
+ * caller-supplied renderFn. Always reachable: every timeout path produces
+ * the same DOM. */
+lms_manager._renderTabError = function (content, tabId, message) {
+	content.innerHTML =
+		'<div class="lms-panel lms-error" role="alert">' +
+		'<h3 style="margin:0 0 0.5rem;">' + lms_portal.escape(tabId) + ' could not load</h3>' +
+		'<p>' + lms_portal.escape(message || "The server did not respond in time.") + '</p>' +
+		'<p class="lms-muted" style="margin-top:0.5rem;">You can retry, or switch to another tab — your session is still active.</p>' +
+		'<div style="display:flex;gap:0.5rem;margin-top:1rem;">' +
+		'<button type="button" class="lms-btn lms-btn--primary" id="lms-tab-retry-' + lms_portal.escape(tabId) + '">Retry</button>' +
+		'</div></div>';
+	var retry = document.getElementById("lms-tab-retry-" + tabId);
+	if (retry) {
+		retry.addEventListener("click", function () {
+			lms_manager._showTab(tabId);
+		});
+	}
+};
+
+/* R18-14: timeout-guarded wrapper around safeCall. Resolves on success
+ * or on a 4 s timeout with an error object. Use this instead of raw
+ * safeCall for any tab that has more than one render dependency. */
+lms_manager._guardedCall = function (opts) {
+	return new Promise(function (resolve) {
+		var settled = false;
+		var finish = function (ok, payload) {
+			if (settled) return;
+			settled = true;
+			clearTimeout(timer);
+			resolve({ ok: ok, payload: payload });
+		};
+		var timer = setTimeout(function () {
+			finish(false, { status: 0, message: "Timed out after " + lms_manager._TAB_TIMEOUT_MS + " ms" });
+		}, lms_manager._TAB_TIMEOUT_MS);
+
+		lms_portal.safeCall({
+			method: opts.method,
+			args: opts.args,
+			callback: function (r) {
+				finish(true, r);
+			},
+			error: function (err) {
+				finish(false, err || { status: 0, message: "Unknown error" });
+			},
+		});
+	});
+};
+
 lms_manager._showTab = function (tabId) {
 	var content = document.getElementById("lms-manager-tab-content");
 	if (!content) return;
@@ -72,6 +135,8 @@ lms_manager._showTab = function (tabId) {
 		lms_manager._loadBorrowers(content);
 	} else if (tabId === "loans") {
 		lms_manager._loadLoans(content);
+	} else if (tabId === "approvals") {
+		lms_manager._loadApprovals(content);
 	} else if (tabId === "reports") {
 		lms_manager._loadReports(content);
 	} else if (tabId === "collateral") {
@@ -85,37 +150,106 @@ lms_manager._showTab = function (tabId) {
 // Dashboard tab
 // ---------------------------------------------------------------------------
 lms_manager._loadDashboard = function (content) {
-	var dashLoaded = false;
-	var queueLoaded = false;
-	var dashData = null;
-	var queueData = null;
+	// R18-14: replaced the old `dashLoaded`/`queueLoaded` flag dance (which
+	// could leave `Loading…` forever if the second safeCall errored
+	// silently) with a guarded Promise.all + timeout. Both endpoints have
+	// to resolve; if either times out, the dashboard renders the existing
+	// approval-queue data we already have (if any) plus an error strip.
+	var timeoutHandles = [];
+	var guard = function (p) {
+		var t = setTimeout(function () {}, 0);
+		clearTimeout(t);
+		return p;
+	};
 
-	function tryRender() {
-		if (!dashLoaded || !queueLoaded) return;
+	var dashP = lms_manager._guardedCall({ method: "lms_saas.api.manager.get_manager_dashboard" });
+	var queueP = lms_manager._guardedCall({ method: "lms_saas.api.manager.get_approval_queue" });
+
+	Promise.all([dashP, queueP]).then(function (results) {
+		var dashRes = results[0];
+		var queueRes = results[1];
+		if (!dashRes.ok && !queueRes.ok) {
+			lms_manager._renderTabError(content, "dashboard", "Both the dashboard metrics and the approval queue failed to load. Check the API status and try again.");
+			return;
+		}
+		var dashData = dashRes.ok ? ((dashRes.payload && dashRes.payload.message) || {}) : {};
+		var queueData = queueRes.ok ? ((queueRes.payload && queueRes.payload.message) || { applications: [] }) : { applications: [] };
+		if (!dashRes.ok) {
+			// One endpoint down — show the queue + a soft warning, do not
+			// crash the whole dashboard.
+			content.innerHTML =
+				'<div class="lms-panel" role="status">' +
+				'<p class="lms-muted">Dashboard metrics are temporarily unavailable. Approval queue is shown below.</p>' +
+				'</div>';
+			lms_manager._renderApprovalsTable(content, queueData, false);
+			return;
+		}
 		lms_manager._renderAll(content, dashData, queueData);
-	}
-
-	lms_portal.safeCall({
-		method: "lms_saas.api.manager.get_manager_dashboard",
-		callback: function (r) {
-			dashData = (r && r.message) || {};
-			dashLoaded = true;
-			tryRender();
-		},
-		error: function () {
-			content.innerHTML = lms_portal.error("Could not load dashboard.", function () {
-				lms_manager._showTab("dashboard");
-			});
-		},
 	});
+};
 
-	lms_portal.safeCall({
-		method: "lms_saas.api.manager.get_approval_queue",
-		callback: function (r) {
-			queueData = (r && r.message) || { applications: [] };
-			queueLoaded = true;
-			tryRender();
-		},
+// ---------------------------------------------------------------------------
+// Approvals tab (R18-15)
+// ---------------------------------------------------------------------------
+lms_manager._loadApprovals = function (content) {
+	lms_manager._guardedCall({ method: "lms_saas.api.manager.get_approval_queue" }).then(function (res) {
+		if (!res.ok) {
+			lms_manager._renderTabError(content, "approvals", "The approval queue did not respond. Try again in a moment.");
+			return;
+		}
+		var data = (res.payload && res.payload.message) || { applications: [] };
+		lms_manager._renderApprovalsTable(content, data, true);
+	});
+};
+
+lms_manager._renderApprovalsTable = function (content, queueData, showHeader) {
+	var apps = (queueData && queueData.applications) || [];
+	var html = "";
+	if (showHeader) {
+		html += '<div class="lms-panel lms-portal-board" role="region" aria-label="Approval queue">';
+		html += '<div class="lms-section-header"><h3>Approval Queue</h3>';
+		html += '<span class="lms-muted">' + apps.length + " pending</span></div>";
+	} else {
+		html += '<div class="lms-panel lms-portal-board" role="region" aria-label="Approval queue (partial)">';
+		html += '<div class="lms-section-header"><h3>Approval Queue</h3>';
+		html += '<span class="lms-muted">' + apps.length + " pending</span></div>";
+	}
+	if (queueData && queueData.sandbox_filtered) {
+		html += '<p class="lms-muted" style="margin:0 0 0.75rem;">Demo seed applicants are hidden in sandbox mode.</p>';
+	}
+	if (!apps.length) {
+		html += '<div class="lms-empty">' + (window.lms_icons ? lms_icons.empty("check") : "") +
+			"<h3>All caught up</h3><p>No applications pending approval.</p></div>";
+	} else {
+		html += '<div class="lms-data-table__wrap"><table class="lms-data-table">';
+		html += "<thead><tr><th>Applicant</th><th>Product</th><th>Amount</th><th>Officer</th><th>Branch</th><th>Created</th><th>Actions</th></tr></thead><tbody>";
+		apps.forEach(function (app) {
+			html += "<tr>";
+			html += "<td><strong>" + lms_portal.escape(app.customer_name || app.applicant || "—") + "</strong></td>";
+			html += "<td>" + lms_portal.escape(app.product_name || app.loan_product || "") + "</td>";
+			html += "<td class=\"is-num\">" + (window.format_currency ? format_currency(app.loan_amount || 0) : (app.loan_amount || 0)) + "</td>";
+			html += "<td>" + lms_portal.escape(app.officer_name || app.custom_loan_officer || "—") + "</td>";
+			html += "<td>" + lms_portal.escape(app.custom_lms_branch || "—") + "</td>";
+			html += "<td>" + lms_portal.escape((app.creation || "").slice(0, 10)) + "</td>";
+			html += '<td><div class="lms-data-table__actions">';
+			html += '<button type="button" class="lms-btn lms-btn--success lms-btn--sm lms-approve-btn" data-app="' + lms_portal.escape(app.name) + '">Approve</button>';
+			html += '<button type="button" class="lms-btn lms-btn--ghost lms-btn--sm lms-reject-btn" data-app="' + lms_portal.escape(app.name) + '">Reject</button>';
+			html += "</div></td></tr>";
+		});
+		html += "</tbody></table></div>";
+	}
+	html += "</div>";
+	content.insertAdjacentHTML("beforeend", html);
+
+	content.querySelectorAll(".lms-approve-btn").forEach(function (btn) {
+		btn.addEventListener("click", function () {
+			lms_manager._approve(btn.getAttribute("data-app"));
+		});
+	});
+	content.querySelectorAll(".lms-reject-btn").forEach(function (btn) {
+		btn.addEventListener("click", function () {
+			lms_manager._reject(btn.getAttribute("data-app"));
+		});
 	});
 };
 
@@ -394,7 +528,16 @@ lms_manager._fetchBorrowers = function (content, query) {
 			lms_manager._renderBorrowerTable(results, borrowers);
 		},
 		error: function () {
-			results.innerHTML = lms_portal.error("Could not load borrowers.");
+			// R18-14: replace spinner with an actionable error card.
+			results.innerHTML =
+				'<div class="lms-panel lms-error" role="alert">' +
+				'<p>Could not load borrowers.</p>' +
+				'<button type="button" class="lms-btn lms-btn--primary" id="lms-borrowers-retry">Retry</button>' +
+				'</div>';
+			var retry = results.querySelector("#lms-borrowers-retry");
+			if (retry) retry.addEventListener("click", function () {
+				lms_manager._fetchBorrowers(content, query);
+			});
 		},
 	});
 };
@@ -530,7 +673,16 @@ lms_manager._fetchLoans = function (content, status) {
 			lms_manager._renderLoanTable(results, loans);
 		},
 		error: function () {
-			results.innerHTML = lms_portal.error("Could not load loans.");
+			// R18-14: actionable error card, not a stuck spinner.
+			results.innerHTML =
+				'<div class="lms-panel lms-error" role="alert">' +
+				'<p>Could not load loans.</p>' +
+				'<button type="button" class="lms-btn lms-btn--primary" id="lms-loans-retry">Retry</button>' +
+				'</div>';
+			var retry = results.querySelector("#lms-loans-retry");
+			if (retry) retry.addEventListener("click", function () {
+				lms_manager._fetchLoans(content, status);
+			});
 		},
 	});
 };
@@ -830,7 +982,8 @@ lms_manager._loadCollateral = function (content) {
 			lms_manager._renderCollateralRegister(content, collateral);
 		},
 		error: function () {
-			content.innerHTML = lms_portal.error("Could not load collateral register.");
+			// R18-14: actionable error card with retry, not a stuck spinner.
+			lms_manager._renderTabError(content, "collateral", "The collateral register did not respond.");
 		},
 	});
 };
@@ -871,7 +1024,8 @@ lms_manager._loadTeam = function (content) {
 			lms_manager._renderTeam(content, staff);
 		},
 		error: function () {
-			content.innerHTML = lms_portal.error("Could not load team.");
+			// R18-14: actionable error card with retry, not a stuck spinner.
+			lms_manager._renderTabError(content, "team", "The branch team list did not respond.");
 		},
 	});
 };

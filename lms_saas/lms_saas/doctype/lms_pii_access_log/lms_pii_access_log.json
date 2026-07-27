@@ -1,0 +1,92 @@
+{
+ "actions": [],
+ "allow_bulk_edit": 1,
+ "allow_rename": 1,
+ "autoname": "hash",
+ "creation": "2026-07-28 04:00:50.904559",
+ "description": "Audit log for every reveal of borrower PII (mobile, address, ID number). Required by RBZ for sandbox-exit; see R18-4.",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "event_time",
+  "event_user",
+  "reference_doctype",
+  "reference_name",
+  "field",
+  "reason"
+ ],
+ "fields": [
+  {
+   "fieldname": "event_time",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Event Time",
+   "reqd": 1
+  },
+  {
+   "fieldname": "event_user",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "User",
+   "reqd": 1
+  },
+  {
+   "fieldname": "reference_doctype",
+   "fieldtype": "Link",
+   "label": "Reference DocType",
+   "options": "DocType"
+  },
+  {
+   "fieldname": "reference_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Reference Name"
+  },
+  {
+   "fieldname": "field",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Field Revealed"
+  },
+  {
+   "fieldname": "reason",
+   "fieldtype": "Small Text",
+   "label": "Reason"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-07-28 04:00:50.904559",
+ "modified_by": "Administrator",
+ "module": "Lms Saas",
+ "name": "LMS PII Access Log",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "LMS Admin",
+   "share": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

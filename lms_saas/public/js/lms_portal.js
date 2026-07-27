@@ -543,14 +543,22 @@ lms_portal._renderOrFallback = function (el, primary, fallback) {
 		el.innerHTML = "";
 		el.appendChild(canvas);
 	}
+	// R18-8: the "can't acquire context from the given item" error fires
+	// when an existing canvas was previously bound to a Chart.js instance
+	// that we lost the reference to. Catch it broadly — the helper
+	// contract is "if you throw, I render the fallback" — and let the
+	// fallback (a simpleBars HTML render) replace the chart.
+	var primaryRan = false;
 	try {
 		const result = primary(el);
+		primaryRan = true;
 		if (result) return;
 	} catch (e) {
-		// fall through
+		// fall through to fallback
+		console.warn("[lms_portal._renderOrFallback] primary renderer threw, falling back", e && e.message);
 	}
 	if (typeof fallback === "function") {
-		try { fallback(el); } catch (e2) { /* swallow */ }
+		try { fallback(el); } catch (e2) { /* swallow — fallback is best-effort */ }
 	}
 };
 
@@ -1119,27 +1127,28 @@ lms_portal.initApplyPage = function () {
 		estimate: null,
 	};
 
-	frappe.call({
-		method: "lms_saas.api.portal.get_apply_context",
-		callback: function (r) {
-			var ctx = r.message || {};
-			wizardState.products = ctx.products || [];
-			wizardState.compliance = ctx.compliance || {};
-			if (!wizardState.compliance.consent_given) {
-				root.innerHTML =
-					'<div class="lms-error" role="alert"><p>Consent is required before applying. Contact your loan officer.</p></div>';
-				return;
-			}
-			lms_portal._renderApplyWizard(root, wizardState);
-		},
-		error: function (err) {
-			root.innerHTML = lms_portal.forbiddenOrError(err, "Could not load the application form.", function () {
-				lms_portal.initApplyPage();
-			});
-		},
-	});
-};
-
+        // R18-2: use safeCall so a 403 / frappe PermissionError rendered as a
+        // 200 + _server_messages is routed to the error handler, not silently
+        // dropped. Without this the apply form shows a permanent spinner on
+        // any staff / non-customer session.
+        lms_portal.safeCall({
+                method: "lms_saas.api.portal.get_apply_context",
+                callback: function (r) {
+                        var ctx = (r && r.message) || {};
+                        // R18-2: server returns { customer: None,
+                        //   blocked_reason: "no_customer_linked", ... } for
+                        // users without a Customer record. Render the
+                        // structured empty state instead of starting the
+                        // wizard with empty products.
+                        if (ctx.customer === null || ctx.blocked_reason) {
+                                root.innerHTML = lms_portal.renderNoAccess({
+                                        title: "Apply on the borrower portal",
+                                        message: ctx.blocked_message ||
+                                                "Your account is not linked to a borrower record.",
+                                        home: "/",
+                                });
+                                return;
+                        }
 lms_portal._renderApplyWizard = function (root, state) {
 	root.innerHTML = lms_portal._applyWizardHtml(state);
 	lms_portal._bindWizardEvents(root, state);
@@ -1921,6 +1930,7 @@ frappe.ready(function () {
 	lms_portal._initMobileMenu();
 	lms_portal._initUserMenu();
 	lms_portal._initNavSearch();
+	lms_portal._initDisabledNavGuard();
 	lms_portal._initIdleTimeout();
 	lms_portal._recordNavRecent();
 });
@@ -2198,6 +2208,25 @@ lms_portal._recordNavRecent = function () {
 	recents = recents.filter(function (r) { return r.route !== route; });
 	recents.unshift({ route: route, label: String(label).trim() });
 	try { sessionStorage.setItem(key, JSON.stringify(recents.slice(0, 8))); } catch (e2) { /* ignore */ }
+};
+
+/* R18-16: when the user clicks a sidebar item that is `aria-disabled`,
+ * intercept the click and show a toast so they understand why the link
+ * is greyed instead of being sent to a 403. */
+lms_portal._initDisabledNavGuard = function () {
+	document.querySelectorAll(".lms-sidebar__item[aria-disabled='true']").forEach(function (a) {
+		a.addEventListener("click", function (ev) {
+			ev.preventDefault();
+			var label = a.getAttribute("aria-label") || (a.querySelector(".lms-sidebar__label") || {}).textContent || "that page";
+			if (typeof lms_portal.toast === "function") {
+				lms_portal.toast(
+					"You don't have permission to open " + label + ". " +
+					"This module is not enabled for your persona.",
+					"warning"
+				);
+			}
+		});
+	});
 };
 
 /* Naledi: visible idle timeout with warning + logout. */

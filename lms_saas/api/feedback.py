@@ -12,6 +12,7 @@ from frappe import _
 from frappe.utils import flt, now_datetime, today
 
 from lms_saas.utils.addons import require_addon_persona
+from lms_saas.api.labels import officer_label, branch_label
 
 
 # ---------------------------------------------------------------------------
@@ -241,7 +242,7 @@ def get_feedback_dashboard():
                 as_dict=True,
             )
             if loan_data:
-                branch = loan_data.get("custom_lms_branch") or "Unassigned"
+                branch = branch_label(loan_data.get("custom_lms_branch"))
                 if branch not in by_branch:
                     by_branch[branch] = {"count": 0, "nps_sum": 0, "nps_count": 0}
                 by_branch[branch]["count"] += 1
@@ -249,8 +250,12 @@ def get_feedback_dashboard():
                     by_branch[branch]["nps_sum"] += int(resp["nps_score"])
                     by_branch[branch]["nps_count"] += 1
 
-                officer = loan_data.get("custom_loan_officer") or "Unassigned"
-                officer_name = frappe.db.get_value("Employee", officer, "employee_name") if officer != "Unassigned" else "Unassigned"
+                officer = officer_label(loan_data.get("custom_loan_officer"), loan_data.get("custom_days_past_due"))
+                officer_name = (
+                    frappe.db.get_value("Employee", loan_data.get("custom_loan_officer"), "employee_name")
+                    if loan_data.get("custom_loan_officer") and frappe.db.exists("Employee", loan_data.get("custom_loan_officer"))
+                    else officer
+                )
                 if officer not in by_officer:
                     by_officer[officer] = {"officer_name": officer_name, "count": 0, "nps_sum": 0, "nps_count": 0}
                 by_officer[officer]["count"] += 1

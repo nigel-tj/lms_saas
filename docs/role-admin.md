@@ -105,3 +105,22 @@ You can tick these off:
 | Outages, backups, scheduling | IT / System Manager |
 | Addon not working | IT / vendor support |
 | Loans data questions | System Manager |
+
+## Sandbox demo data
+
+While `lms_sandbox_end_date` is set in site config, the staff-facing
+lists (Officer Pending Applications, Manager Approval Queue) hide demo
+seed records (anyone whose name contains *Test*, *R14-APP*, *Borrower
+002/003*, or *Demo*) so a regulator's first click does not show 14
+copies of the same fake applicant. To restore the canonical demo state
+for training, run:
+
+```bash
+bench --site lms.localhost execute lms_saas.scripts.reset_demo_data.run
+```
+
+This wipes the demo Loan Applications and Customers, then re-seeds
+them. Restricted to System Manager.
+
+A persistent yellow banner at the top of every portal page reminds
+operators the site is in sandbox mode. Dismiss with the × button.

@@ -12,6 +12,10 @@ lms_collect.DB_NAME = "lms_collect_queue";
 lms_collect.STORE = "repayments";
 
 lms_collect.init = function () {
+	// R18-defensive: defer init if lms_portal hasn't finished parsing yet.
+	if (typeof lms_portal === "undefined" || typeof lms_portal.tabNav !== "function") {
+		return setTimeout(lms_collect.init, 0);
+	}
 	var root = document.getElementById("lms-collect-root");
 	if (!root) return;
 	root.innerHTML = lms_portal.loading("Loading run sheet…");
@@ -153,9 +157,15 @@ lms_collect._renderRunSheet = function (root, rows) {
 	} else {
 		listBody = '<ul class="lms-list">';
 		rows.forEach(function (row) {
+			// R18-4: mobile is masked by default. Show a Reveal button that
+			// hits `reveal_borrower_pii` (which writes one audit-log row).
 			var mobile = row.borrower_mobile || "";
-			var callBtn = mobile
+			var masked = !!row.borrower_mobile_masked;
+			var callBtn = (mobile && !masked)
 				? '<a class="lms-btn lms-btn--ghost lms-btn--sm" href="tel:' + lms_portal.escape(mobile) + '">Call</a>'
+				: "";
+			var revealBtn = masked
+				? '<button type="button" class="lms-pii-reveal lms-reveal-pii-btn" data-loan="' + lms_portal.escape(row.loan) + '" title="Tap to reveal the full mobile number. This is recorded for audit.">Reveal mobile</button>'
 				: "";
 			var pending = !!queued[row.loan];
 			var syncBadge = pending
@@ -168,7 +178,9 @@ lms_collect._renderRunSheet = function (root, rows) {
 				" — " + lms_portal.formatDate(row.due_date) +
 				" — " + format_currency(row.amount) +
 				syncBadge +
-				(mobile ? ' <span class="lms-muted">· ' + lms_portal.escape(mobile) + "</span>" : "") +
+				' <span class="lms-pii-mobile" data-loan="' + lms_portal.escape(row.loan) + '">' +
+				(mobile ? (masked ? '<span class="lms-pii-masked">' + lms_portal.escape(mobile) + '</span>' + " " + revealBtn : '<span>' + lms_portal.escape(mobile) + '</span>') : '<span class="lms-muted">No mobile on file</span>') +
+				"</span>" +
 				"</div>" +
 				'<div class="lms-list__actions">' +
 				callBtn +
@@ -230,10 +242,53 @@ lms_collect._renderRunSheet = function (root, rows) {
 			lms_collect._syncOffline(root);
 		});
 	}
+
+	// R18-4: bind Reveal PII buttons. Each click POSTs to the whitelisted
+	// reveal endpoint which writes one audit-log row.
+	root.querySelectorAll(".lms-reveal-pii-btn").forEach(function (btn) {
+		btn.addEventListener("click", function () {
+			var loan = btn.getAttribute("data-loan");
+			lms_collect._revealPii(loan, btn, root);
+		});
+	});
+};
+
+/* R18-4: fetch the cleartext mobile for a single loan, swap the masked
+ * span in place. The server writes an audit row per call. */
+lms_collect._revealPii = function (loan, btn, root) {
+	btn.disabled = true;
+	btn.textContent = "Revealing…";
+	lms_portal.safeCall({
+		method: "lms_saas.api.field_collection.reveal_borrower_pii",
+		args: { loan: loan, field: "mobile_no" },
+		callback: function (r) {
+			var value = (r && r.message && r.message.value) || "";
+			var cell = root.querySelector('.lms-pii-mobile[data-loan="' + CSS.escape(loan) + '"]');
+			if (cell) {
+				cell.innerHTML =
+					'<span>' + lms_portal.escape(value) + '</span> ' +
+					'<a class="lms-btn lms-btn--ghost lms-btn--sm" href="tel:' + lms_portal.escape(value) + '">Call</a>';
+			}
+			btn.remove();
+		},
+		error: function () {
+			btn.disabled = false;
+			btn.textContent = "Reveal mobile";
+			frappe.show_alert({
+				message: lms_copy.tSync("generic.error", "Could not reveal PII. Please try again."),
+				indicator: "red",
+			});
+		},
+	});
 };
 
 lms_collect._openCollectModal = function (loan, fullAmount, root) {
-	// Phase 2.2/2.3 — native <dialog> + pop-out combobox for payment mode
+	// R18-6: TWO-STEP COLLECT.
+	// Step 1: enter amount + payment mode + note.
+	// Step 2: confirm "I've counted ZAR X in hand" before submission.
+	// A typo of "2000" when "200" was meant loses the customer's money;
+	// the explicit confirm sentence + checkbox is the cheapest defense
+	// that does not require a network round-trip.
 	var body =
 		'<div class="lms-form">' +
 		'<label>Amount<input type="number" id="lms-collect-amount" class="lms-input" value="' +
@@ -247,6 +302,13 @@ lms_collect._openCollectModal = function (loan, fullAmount, root) {
 		'<option value="Bank Transfer">Bank Transfer</option>' +
 		"</select></label>" +
 		'<label>Note (optional)<input type="text" id="lms-collect-note" class="lms-input" placeholder="e.g. partial payment"></label>' +
+		// R18-6: confirm checkbox. The Collect button stays disabled until
+		// the collector ticks this — this is the intentional friction that
+		// catches a mis-typed amount on the first try.
+		'<label class="lms-collect-confirm" style="margin-top:0.75rem;display:flex;align-items:flex-start;gap:0.5rem;font-weight:500;">' +
+		'<input type="checkbox" id="lms-collect-confirm" style="margin-top:0.2rem;">' +
+		'<span>I have <strong id="lms-collect-confirm-amount">ZAR 0.00</strong> in hand and confirm this amount is correct.</span>' +
+		'</label>' +
 		"</div>";
 	var dlg = LMSModal.open({
 		title: "Collect payment",
@@ -259,6 +321,31 @@ lms_collect._openCollectModal = function (loan, fullAmount, root) {
 	if (window.LMSForms && typeof LMSForms.bindAll === "function") {
 		LMSForms.bindAll(dlg.dialog);
 	}
+	// R18-6: keep the Collect button disabled until the confirm box is
+	// checked. Re-validate the amount field every keystroke.
+	var dlgRoot = dlg.dialog;
+	var collectBtn = dlgRoot.querySelector('[data-lms-modal-action="true"]');
+	if (collectBtn) {
+		collectBtn.disabled = true;
+		collectBtn.style.opacity = "0.55";
+		collectBtn.style.cursor = "not-allowed";
+	}
+	var amountInput = dlgRoot.querySelector("#lms-collect-amount");
+	var confirmBox = dlgRoot.querySelector("#lms-collect-confirm");
+	var confirmAmount = dlgRoot.querySelector("#lms-collect-confirm-amount");
+	var syncConfirm = function () {
+		var amount = parseFloat((amountInput && amountInput.value) || "0") || 0;
+		if (confirmAmount) confirmAmount.textContent = "ZAR " + amount.toFixed(2);
+		var ok = confirmBox && confirmBox.checked && amount > 0;
+		if (collectBtn) {
+			collectBtn.disabled = !ok;
+			collectBtn.style.opacity = ok ? "1" : "0.55";
+			collectBtn.style.cursor = ok ? "pointer" : "not-allowed";
+		}
+	};
+	if (amountInput) amountInput.addEventListener("input", syncConfirm);
+	if (confirmBox) confirmBox.addEventListener("change", syncConfirm);
+	syncConfirm();
 	dlg.then(function (ok) {
 		if (!ok) return;
 		var amount = parseFloat((dlg.dialog.querySelector("#lms-collect-amount") || {}).value) || 0;
@@ -331,20 +418,89 @@ lms_collect._collect = function (loan, amount, payment_mode, root, note, fullAmo
 		args: { loan: loan, amount: amount, payment_mode: payment_mode, note: note || "" },
 		callback: function (r) {
 			var res = r.message || {};
-			frappe.show_alert({
-				message: lms_copy.tSync("collector.collected", "Collected {amount} from {customer}.", { amount: format_currency(amount), customer: loan }),
-				indicator: "green"
+			// R18-6: replace the static success toast with a 5-second Undo
+			// toast. Within that window, the collector can cancel the
+			// repayment — the server's undo endpoint reverses the GL entry
+			// and clears the offline queue entry.
+			var repaymentName = res.repayment || null;
+			lms_collect._showUndoToast({
+				loan: loan,
+				amount: amount,
+				repayment: repaymentName,
+				onDone: function () {
+					if (repaymentName) lms_collect._showReceiptPrompt(repaymentName);
+					lms_collect._loadRunSheet(root);
+				},
 			});
-			if (res.repayment) {
-				lms_collect._showReceiptPrompt(res.repayment);
-			}
-			lms_collect._loadRunSheet(root);
 		},
 		error: function () {
 			frappe.show_alert({
 				message: lms_copy.tSync("generic.error", "Something went wrong. Please try again."),
 				indicator: "red"
 			});
+		},
+	});
+};
+
+/* R18-6: 5-second Undo toast. The collector can cancel the repayment
+ * within the timeout; afterwards the toast collapses to a "Recorded"
+ * confirmation. */
+lms_collect._showUndoToast = function (opts) {
+	opts = opts || {};
+	var loan = opts.loan;
+	var amount = opts.amount;
+	var repayment = opts.repayment;
+	var onDone = opts.onDone || function () {};
+	var undoWindowMs = 5000;
+	var container = document.getElementById("lms-toast-stack") || document.body;
+	var el = document.createElement("div");
+	el.className = "lms-toast lms-toast--success lms-undo-toast";
+	el.setAttribute("role", "status");
+	el.innerHTML =
+		'<div class="lms-undo-toast__msg">' +
+		'Recorded <strong>' + lms_portal.escape(format_currency(amount)) + '</strong>' +
+		' against <strong>' + lms_portal.escape(loan) + '</strong>.' +
+		'</div>' +
+		'<button type="button" class="lms-btn lms-btn--ghost lms-btn--sm lms-undo-btn">Undo (5s)</button>';
+	container.appendChild(el);
+	var remaining = undoWindowMs / 1000;
+	var undoBtn = el.querySelector(".lms-undo-btn");
+	var timer = setInterval(function () {
+		remaining -= 1;
+		if (remaining <= 0) {
+			clearInterval(timer);
+			undoBtn.disabled = true;
+			undoBtn.textContent = "Recorded";
+			setTimeout(function () { el.remove(); }, 1200);
+			if (typeof onDone === "function") onDone();
+		} else {
+			undoBtn.textContent = "Undo (" + remaining + "s)";
+		}
+	}, 1000);
+	undoBtn.addEventListener("click", function () {
+		clearInterval(timer);
+		undoBtn.disabled = true;
+		undoBtn.textContent = "Undoing…";
+		lms_collect._undoCollection(loan, repayment, function () {
+			el.remove();
+			frappe.show_alert({ message: "Collection reversed.", indicator: "green" });
+			if (typeof onDone === "function") onDone();
+		}, function () {
+			undoBtn.textContent = "Undo failed — try again";
+			undoBtn.disabled = false;
+		});
+	});
+};
+
+lms_collect._undoCollection = function (loan, repayment, onOk, onErr) {
+	lms_portal.safeCall({
+		method: "lms_saas.api.field_collection.undo_collection",
+		args: { loan: loan, repayment: repayment },
+		callback: function () {
+			if (typeof onOk === "function") onOk();
+		},
+		error: function () {
+			if (typeof onErr === "function") onErr();
 		},
 	});
 };
@@ -456,6 +612,61 @@ lms_collect._initInstallPrompt = function () {
 		lms_collect._deferredPrompt = e;
 		lms_collect._showInstallBanner();
 	});
+	// R18-7: kick off real health-check polling. navigator.onLine alone is
+	// unreliable on 1-bar GPRS / Spotty Wi-Fi — the OS reports "online" but
+	// every API call hangs. ping the server every 30 s and surface the
+	// actual state on the connectivity pill.
+	lms_collect._initHealthCheck();
+};
+
+/* R18-7: real connectivity check. Polls /api/method/lms_saas.api.healthcheck.ping
+ * every 30 s, plus on every 'online' / 'offline' event. Updates the
+ * `lms-connectivity` pill's class + label so the collector sees the real
+ * state instead of the OS-level guess. */
+lms_collect._initHealthCheck = function () {
+	if (lms_collect._healthTimer) return; // already initialised
+	var update = function (state, label) {
+		var el = document.getElementById("lms-connectivity");
+		if (!el) return;
+		el.classList.remove("is-online", "is-offline", "is-degraded");
+		el.classList.add("is-" + state);
+		var text = el.querySelector(".lms-connectivity__label");
+		if (text) text.textContent = label;
+	};
+	var probe = function () {
+		// Treat OS offline as hard-offline; no need to probe.
+		if (typeof navigator !== "undefined" && navigator.onLine === false) {
+			update("offline", "Offline — payments will queue on this device");
+			return;
+		}
+		var start = Date.now();
+		// R18-7: use raw fetch (no safeCall spinner) so a slow probe does not
+		// fight the rest of the UI. Cast to a Promise for callers that await.
+		fetch("/api/method/lms_saas.api.healthcheck.ping", {
+			method: "GET",
+			credentials: "same-origin",
+			cache: "no-store",
+		})
+			.then(function (resp) {
+				var ms = Date.now() - start;
+				if (!resp.ok) {
+					update("offline", "Server unreachable — payments will queue");
+					return;
+				}
+				if (ms > 5000) {
+					update("degraded", "Online — server slow (" + ms + " ms)");
+				} else {
+					update("online", "Online — sync OK (" + ms + " ms)");
+				}
+			})
+			.catch(function () {
+				update("offline", "Offline — payments will queue on this device");
+			});
+	};
+	probe();
+	lms_collect._healthTimer = setInterval(probe, 30000);
+	window.addEventListener("online", probe);
+	window.addEventListener("offline", probe);
 };
 
 lms_collect._showInstallBanner = function () {

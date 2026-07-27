@@ -366,5 +366,10 @@ def addon_nav_items(persona: str | None = None) -> list[dict]:
         }
         if a.get("nav_group"):
             item["group"] = a["nav_group"]
+        # R18-16: each addon nav item knows the perm that gates it so the
+        # sidebar template can render aria-disabled + greyed style when the
+        # current user lacks it.
+        if a.get("requires_perm"):
+            item["requires_perm"] = a["requires_perm"]
         items.append(item)
     return items

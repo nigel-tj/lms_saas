@@ -1638,3 +1638,31 @@ dialog.lms-modal::backdrop {
 .lms-user-menu__item--danger:hover {
 	background: rgba(220, 38, 38, 0.06);
 }
+
+/* ------------------------------------------------------------------ */
+/* R18-6: Undo toast (field collection)                                */
+/* ------------------------------------------------------------------ */
+.lms-undo-toast {
+	display: flex;
+	align-items: center;
+	gap: 1rem;
+	min-width: 320px;
+	max-width: 480px;
+	padding: 0.85rem 1.1rem;
+}
+
+.lms-undo-toast__msg {
+	flex: 1;
+	min-width: 0;
+	font-size: 0.9rem;
+	line-height: 1.35;
+}
+
+.lms-undo-toast .lms-undo-btn {
+	flex-shrink: 0;
+}
+
+.lms-undo-toast .lms-undo-btn:disabled {
+	opacity: 0.6;
+	cursor: not-allowed;
+}

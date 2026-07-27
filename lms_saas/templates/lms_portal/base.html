@@ -32,11 +32,17 @@
     {% elif not item.group %}
     {% set ns.prev_group = None %}
     {% endif %}
+    {# R18-16: render each sidebar item honestly. If the item declares a
+       `requires_perm` and the user lacks it, mark aria-disabled + visually
+       greyed + skip the focus ring. Admins always pass; admins should see
+       the full nav. #}
+    {% set is_disabled = item.requires_perm and not (lms_user_permissions or {}).get(item.requires_perm) %}
     <a href="{{ item.route }}"
-       class="lms-sidebar__item{% if portal_nav_active == item.key %} is-active{% endif %}"
+       class="lms-sidebar__item{% if portal_nav_active == item.key %} is-active{% endif %}{% if is_disabled %} is-disabled{% endif %}"
        data-key="{{ item.key }}"
        aria-label="{{ item.label }}"
-       {% if portal_nav_active == item.key %}aria-current="page"{% endif %}>
+       {% if portal_nav_active == item.key %}aria-current="page"{% endif %}
+       {% if is_disabled %}aria-disabled="true" tabindex="-1"{% endif %}>
       <span class="lms-sidebar__icon">
         {% if item.icon == 'loans' %}
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M12 12h.01"/><path d="M17 12h.01"/><path d="M7 12h.01"/></svg>
@@ -178,12 +184,24 @@
 
     <div class="lms-user-menu" id="lms-user-menu">
       <button type="button" class="lms-user-menu__trigger" aria-label="User menu" aria-expanded="false">
-        <span class="lms-user-menu__avatar" id="lms-user-avatar">{{ (frappe.session.user[0] | upper) if frappe.session.user != 'Guest' else '?' }}</span>
-        <span class="lms-user-menu__name">{{ frappe.session.user.split('@')[0].replace('.', ' ').title() if frappe.session.user != 'Guest' else 'Guest' }}</span>
+        <span class="lms-user-menu__avatar" id="lms-user-avatar">{{ (lms_user_display_name[0] | upper) if lms_user_display_name else '?' }}</span>
+        <span class="lms-user-menu__name">{{ lms_user_display_name or (frappe.session.user if frappe.session.user != 'Guest' else 'Guest') }}</span>
       </button>
     </div>
   </div>
 </header>
+
+{% if lms_sandbox_mode %}
+<div class="lms-sandbox-banner" role="status" aria-live="polite" id="lms-sandbox-banner">
+  <span class="lms-sandbox-banner__icon" aria-hidden="true">⚠</span>
+  <span class="lms-sandbox-banner__text">
+    <strong>Sandbox / demonstration mode.</strong>
+    No real money is processed. To exit sandbox, an operator licence must be configured and the
+    <code>lms_sandbox_end_date</code> site-config key removed.
+  </span>
+  <button type="button" class="lms-sandbox-banner__dismiss" aria-label="Dismiss banner" id="lms-sandbox-dismiss">×</button>
+</div>
+{% endif %}
 
 <div class="lms-notification-panel" id="lms-notification-panel" role="dialog" aria-label="Notifications" aria-hidden="true">
   <div class="lms-notification-panel__header">

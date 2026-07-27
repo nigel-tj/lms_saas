@@ -466,8 +466,32 @@ def initiate_repayment(loan_id, amount, provider_code="ecocash"):
 
 @frappe.whitelist()
 def get_apply_context():
-    """Loan products and compliance state for apply form."""
-    customer = _require_customer()
+    """Loan products and compliance state for apply form.
+
+    R18-2: instead of throwing when no Customer is linked (which surfaced as a
+    raw 403 + Python traceback in the borrower browser console), return a
+    structured empty payload so the JS can render a friendly "you're signed in
+    as a staff user, please use the borrower portal" message.
+    """
+    customer = _require_customer(raise_exception=False)
+    if not customer:
+        # Distinguish "not signed in" (should never happen — the page is
+        # auth-guarded) from "signed in but no Customer record linked" (the
+        # realistic case for an Admin user testing the borrower flow).
+        from frappe import _
+        if frappe.session.user == "Guest":
+            frappe.throw(_("Please log in"), frappe.PermissionError)
+        return {
+            "customer": None,
+            "products": [],
+            "compliance": None,
+            "blocked_reason": "no_customer_linked",
+            "blocked_message": (
+                "Your portal account is not linked to a Customer record. "
+                "If you are a borrower, ask your branch to link your Portal User "
+                "on the Customer record. Staff users cannot apply on this portal."
+            ),
+        }
     company = frappe.db.get_single_value("Global Defaults", "default_company")
     products = frappe.get_all(
         "Loan Product",

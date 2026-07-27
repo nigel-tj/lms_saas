@@ -2,6 +2,7 @@ import frappe
 from frappe.utils import add_to_date, flt, formatdate, getdate, now_datetime, today
 
 from lms_saas.utils.calculations import principal_outstanding
+from lms_saas.api.labels import officer_label, branch_label
 
 RISK_LABELS = ["Current", "PAR 30+", "PAR 60+", "PAR 90+"]
 
@@ -191,7 +192,7 @@ def _portfolio_metrics(company=None, branch=None):
         else:
             risk_buckets["current"] += outstanding
 
-        branch = loan.custom_lms_branch or "Unassigned"
+        branch = branch_label(loan.custom_lms_branch)
         branch_outstanding[branch] = branch_outstanding.get(branch, 0) + outstanding
 
     result = {
@@ -298,7 +299,7 @@ def get_branch_overview(company=None):
     )
     officer_stats = {}
     for loan in officers:
-        officer = loan.custom_loan_officer or "Unassigned"
+        officer = officer_label(loan.custom_loan_officer, loan.custom_days_past_due)
         if officer not in officer_stats:
             officer_stats[officer] = {"loans": 0, "outstanding": 0, "par_count": 0}
         officer_stats[officer]["loans"] += 1

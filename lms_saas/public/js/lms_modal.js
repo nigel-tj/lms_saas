@@ -60,6 +60,76 @@
 		}
 	}
 
+	/* R18-12: collect every focusable element inside a container, in DOM
+	 * order, so the focus trap can wrap Tab / Shift+Tab around them.
+	 * Hidden (display:none, visibility:hidden) elements are skipped. */
+	function focusableElements(container) {
+		if (!container) return [];
+		var sel = "a[href], button:not([disabled]), input:not([disabled]):not([type=hidden]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])";
+		var nodes = container.querySelectorAll(sel);
+		var out = [];
+		for (var i = 0; i < nodes.length; i++) {
+			var n = nodes[i];
+			if (n.offsetWidth === 0 && n.offsetHeight === 0) continue;
+			out.push(n);
+		}
+		return out;
+	}
+
+	/* R18-12: wrap Tab / Shift+Tab so focus stays inside the dialog. Also
+	 * marks siblings (other dialogs, the page <main>) as `inert` so AT and
+	 * keyboard cannot reach them while the modal is open. */
+	function installFocusTrap(dlg, closeFn) {
+		var onKeyDown = function (ev) {
+			if (ev.key !== "Tab") return;
+			var els = focusableElements(dlg);
+			if (!els.length) {
+				ev.preventDefault();
+				return;
+			}
+			var first = els[0];
+			var last = els[els.length - 1];
+			var active = document.activeElement;
+			if (ev.shiftKey) {
+				if (active === first || !dlg.contains(active)) {
+					ev.preventDefault();
+					try { last.focus(); } catch (e) {}
+				}
+			} else {
+				if (active === last || !dlg.contains(active)) {
+					ev.preventDefault();
+					try { first.focus(); } catch (e) {}
+				}
+			}
+		};
+		dlg.addEventListener("keydown", onKeyDown, true);
+		return function () {
+			dlg.removeEventListener("keydown", onKeyDown, true);
+		};
+	}
+
+	/* R18-12: set `inert` (and aria-hidden fallback) on every focusable
+	 * element OUTSIDE the dialog so a screen reader or a stray Tab press
+	 * cannot reach the underlying page while the modal is open. */
+	function setBackgroundInert(dlg, on) {
+		var siblings = document.body.querySelectorAll("main, [role='dialog']:not(.lms-modal)");
+		for (var i = 0; i < siblings.length; i++) {
+			var n = siblings[i];
+			if (dlg.contains(n) || n.contains(dlg)) continue;
+			try {
+				if (on) {
+					if ("inert" in n) n.inert = true;
+					n.setAttribute("aria-hidden", "true");
+				} else {
+					if ("inert" in n) n.inert = false;
+					n.removeAttribute("aria-hidden");
+				}
+			} catch (e) { /* inert may not be writable on all elements */ }
+		}
+		if (on) document.body.classList.add("lms-modal-open");
+		else document.body.classList.remove("lms-modal-open");
+	}
+
 	function LMSModal() {}
 
 	LMSModal._current = null;
@@ -98,10 +168,20 @@
 		promise.root = root;
 		promise.close = function (value) { closeWith(value); };
 
+		var trapRelease = null;
+		var triggerEl = document.activeElement;
+
 		function closeWith(value) {
 			if (!root.isConnected) return;
 			root.remove();
 			document.removeEventListener("keydown", onKey, true);
+			if (typeof trapRelease === "function") trapRelease();
+			// R18-12: restore the inert siblings so the page is interactive again.
+			setBackgroundInert(dlg, false);
+			// R18-12: return focus to the trigger so keyboard users land where they were.
+			if (triggerEl && typeof triggerEl.focus === "function") {
+				try { triggerEl.focus(); } catch (e) { /* noop */ }
+			}
 			if (LMSModal._current === root) LMSModal._current = null;
 			if (resolveFn) resolveFn(value);
 		}
@@ -132,6 +212,10 @@
 
 		document.body.appendChild(root);
 		LMSModal._current = root;
+		// R18-12: install focus trap + make siblings inert BEFORE we move
+		// focus, so the focus transition is invisible to assistive tech.
+		trapRelease = installFocusTrap(dlg, closeWith);
+		setBackgroundInert(dlg, true);
 		// Defer focus until after paint so the dialog is in the DOM
 		setTimeout(function () { focusFirst(dlg); }, 0);
 		// Auto-upgrade any <select> in the dialog to a popout combobox.
@@ -175,7 +259,12 @@
 	};
 
 	LMSModal.close = function () {
-		if (LMSModal._current && LMSModal._current.remove) LMSModal._current.remove();
+		if (LMSModal._current && LMSModal._current.remove) {
+			// R18-12: tear down inert + restore focus.
+			document.body.classList.remove("lms-modal-open");
+			LMSModal._current.remove();
+			LMSModal._current = null;
+		}
 	};
 
 	window.LMSModal = LMSModal;

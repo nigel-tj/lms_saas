@@ -9,6 +9,7 @@ from lms_saas.lms_saas.report.collection_sheet.collection_sheet import execute a
 
 
 from lms_saas.install import PORTAL_STAFF_ROLE
+from lms_saas.api.pii_access import mask_mobile, record_pii_access
 
 
 def _require_collector():
@@ -31,9 +32,17 @@ def _require_collector():
 
 
 @frappe.whitelist()
-def get_collection_run_sheet(days_ahead=7, company=None):
+def get_collection_run_sheet(days_ahead=7, company=None, reveal=False):
+	"""Return today's run sheet for the collector.
+
+	R18-4: borrower mobile is MASKED by default. Pass ``reveal=True`` to
+	get the full MSISDN — every reveal is recorded in the LMS PII Access
+	Log so the regulator has an audit trail.
+	"""
 	_require_collector()
 	columns, data = collection_sheet_execute({"days_ahead": days_ahead, "company": company})
+	# R18-4: `reveal` can come in as a string from the JS query. Coerce.
+	reveal_flag = str(reveal).lower() in ("1", "true", "yes")
 
 	# Enrich rows with borrower contact info and loan officer
 	for row in data:
@@ -44,8 +53,22 @@ def get_collection_run_sheet(days_ahead=7, company=None):
 			as_dict=True,
 		)
 		if loan:
-			row["borrower_mobile"] = _contact_for_applicant(loan.applicant_type, loan.applicant)
-			row["borrower_address"] = _address_for_applicant(loan.applicant_type, loan.applicant)
+			mobile = _contact_for_applicant(loan.applicant_type, loan.applicant)
+			address = _address_for_applicant(loan.applicant_type, loan.applicant)
+			if reveal_flag:
+				# R18-4: log every reveal so the operator can prove no PII
+				# was abused.
+				record_pii_access(
+					reference_doctype="Loan",
+					reference_name=row.get("loan"),
+					field="mobile_no",
+					reason="Field collection run sheet reveal",
+				)
+				row["borrower_mobile"] = mobile
+			else:
+				row["borrower_mobile"] = mask_mobile(mobile)
+				row["borrower_mobile_masked"] = True
+			row["borrower_address"] = address  # address is not PII-grade here; left in place
 			row["loan_officer"] = loan.custom_loan_officer or ""
 			row["branch"] = loan.custom_lms_branch or row.get("branch") or ""
 
@@ -56,7 +79,42 @@ def get_collection_run_sheet(days_ahead=7, company=None):
 			frappe.throw("No branch assigned — cannot view run sheet.", frappe.PermissionError)
 		data = [row for row in data if row.get("branch") == scope_branch]
 
-	return {"columns": columns, "rows": data}
+	return {
+		"columns": columns,
+		"rows": data,
+		"pii_revealed": bool(reveal_flag),
+	}
+
+
+@frappe.whitelist()
+def reveal_borrower_pii(loan: str, field: str = "mobile_no"):
+	"""One-shot PII reveal endpoint with a mandatory audit row.
+
+	R18-4: the run sheet masks the borrower's mobile by default. When the
+	collector taps "Reveal" on a row, this endpoint returns the cleartext
+	and writes one row to LMS PII Access Log so the regulator sees who
+	looked at what.
+	"""
+	_require_collector()
+	_assert_loan_in_scope(loan)
+	loan_doc = frappe.db.get_value(
+		"Loan",
+		loan,
+		["applicant", "applicant_type"],
+		as_dict=True,
+	)
+	if not loan_doc:
+		frappe.throw("Loan not found.", frappe.DoesNotExistError)
+	if field != "mobile_no":
+		frappe.throw("Unsupported field for reveal.")
+	mobile = _contact_for_applicant(loan_doc.applicant_type, loan_doc.applicant)
+	record_pii_access(
+		reference_doctype="Loan",
+		reference_name=loan,
+		field=field,
+		reason="Field collection explicit reveal",
+	)
+	return {"loan": loan, "field": field, "value": mobile}
 
 
 def _contact_for_applicant(applicant_type, applicant):
@@ -206,6 +264,52 @@ def create_promise_to_pay(loan: str, promised_date, promised_amount=None, note: 
 	)
 	todo.insert(ignore_permissions=True)
 	return {"todo": todo.name, "loan": loan, "promised_date": promised_date}
+
+
+@frappe.whitelist()
+def undo_collection(loan: str, repayment: str):
+	"""R18-6: cancel a repayment recorded in the last 5 minutes.
+
+	Paired with the B12 15-min dedup window — but the Undo window is
+	deliberately tighter because the operator has the customer's cash in
+	hand and needs to act fast. Refunds the GL entry, marks the repayment
+	cancelled, and records a money event for the audit trail.
+	"""
+	_require_collector()
+	_assert_loan_in_scope(loan)
+
+	if not repayment or not frappe.db.exists("Loan Repayment", repayment):
+		frappe.throw("Repayment not found.", frappe.DoesNotExistError)
+
+	r = frappe.get_doc("Loan Repayment", repayment)
+	# Only the recording collector (or an admin) can undo. We approximate
+	# "recording collector" by checking the loan is in their branch and
+	# the repayment was created within the last 5 minutes.
+	from frappe.utils import time_diff_in_seconds
+	if time_diff_in_seconds(frappe.utils.now_datetime(), r.creation) > 300 and not _is_admin():
+		frappe.throw("Undo window has closed. Reverse this through Manager Books instead.", frappe.PermissionError)
+
+	if r.docstatus == 2:
+		return {"loan": loan, "repayment": repayment, "status": "already_cancelled"}
+
+	# Cancel the repayment and reverse the GL entry.
+	if r.docstatus == 1:
+		r.cancel()
+	else:
+		r.delete()
+
+	# R18-6: money-event audit row so the operator can prove the reversal.
+	from lms_saas.api.compliance import record_money_event
+
+	record_money_event(
+		event_type="Loan Repayment Cancelled",
+		reference_doctype="Loan Repayment",
+		reference_name=repayment,
+		amount=-flt(r.amount_paid or 0),
+		details=f"Undone by collector via R18-6 Undo toast within 5 min of creation.",
+	)
+
+	return {"loan": loan, "repayment": repayment, "status": "cancelled"}
 
 
 @frappe.whitelist()

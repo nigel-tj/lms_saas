@@ -250,6 +250,29 @@ body.lms-portal {
 	box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.06);
 }
 
+/* R18-16: sidebars must be role-honest — items the user lacks permission
+ * for get greyed + aria-disabled so they cannot phantom-click a 403. */
+.lms-sidebar__item.is-disabled,
+.lms-sidebar__item[aria-disabled="true"] {
+	color: var(--lms-text-muted);
+	opacity: 0.45;
+	cursor: not-allowed;
+	pointer-events: auto; /* keep clickable so we can show the "you don't have permission" toast on tap */
+}
+
+.lms-sidebar__item.is-disabled:hover,
+.lms-sidebar__item[aria-disabled="true"]:hover {
+	background: transparent;
+	color: var(--lms-text-muted);
+	border-left-color: transparent;
+}
+
+.lms-sidebar__item.is-disabled:focus-visible,
+.lms-sidebar__item[aria-disabled="true"]:focus-visible {
+	outline: 2px dashed var(--lms-text-muted);
+	outline-offset: -2px;
+}
+
 .lms-sidebar__icon {
 	flex-shrink: 0;
 	display: inline-flex;
@@ -410,6 +433,22 @@ body.lms-portal {
 
 .lms-connectivity.is-offline .lms-connectivity__dot {
 	background: var(--lms-warning);
+}
+
+/* R18-7: degraded state for "online but server slow" (>5s probe). */
+.lms-connectivity.is-degraded {
+	background: color-mix(in oklab, var(--lms-warning) 18%, var(--lms-surface));
+	color: color-mix(in oklab, var(--lms-text) 80%, var(--lms-warning));
+}
+
+.lms-connectivity.is-degraded .lms-connectivity__dot {
+	background: var(--lms-warning);
+	animation: lms-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes lms-pulse {
+	0%, 100% { opacity: 0.5; }
+	50% { opacity: 1; }
 }
 
 .lms-reg-banner {
@@ -2582,4 +2621,105 @@ body:not(.lms-portal-borrower):not(.lms-page-loans):not(.lms-page-apply):not(.lm
 .lms-data-table th.is-num {
 	text-align: right;
 	font-variant-numeric: tabular-nums;
+}
+
+/* ------------------------------------------------------------------ */
+/* R18-5: Sandbox / demo-mode banner                                  */
+/* ------------------------------------------------------------------ */
+.lms-sandbox-banner {
+	display: flex;
+	align-items: center;
+	gap: 0.85rem;
+	padding: 0.75rem 1.25rem;
+	background: color-mix(in oklab, var(--lms-warning, #f59e0b) 14%, var(--lms-surface));
+	border-bottom: 1px solid color-mix(in oklab, var(--lms-warning, #f59e0b) 45%, var(--lms-border));
+	color: color-mix(in oklab, var(--lms-text) 88%, var(--lms-warning, #b45309));
+	font-size: 0.875rem;
+	line-height: 1.45;
+	position: sticky;
+	top: 64px; /* sits below the topbar */
+	z-index: 75;
+}
+
+.lms-sandbox-banner__icon {
+	flex-shrink: 0;
+	font-size: 1.05rem;
+	color: var(--lms-warning, #b45309);
+}
+
+.lms-sandbox-banner__text {
+	flex: 1;
+	min-width: 0;
+}
+
+.lms-sandbox-banner__text code {
+	font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+	font-size: 0.8rem;
+	background: color-mix(in oklab, var(--lms-surface) 80%, transparent);
+	padding: 0.05rem 0.35rem;
+	border-radius: 4px;
+	border: 1px solid color-mix(in oklab, var(--lms-warning, #f59e0b) 30%, transparent);
+}
+
+.lms-sandbox-banner__dismiss {
+	flex-shrink: 0;
+	background: transparent;
+	border: 1px solid transparent;
+	color: inherit;
+	font-size: 1.25rem;
+	line-height: 1;
+	padding: 0.15rem 0.55rem;
+	border-radius: 999px;
+	cursor: pointer;
+}
+
+.lms-sandbox-banner__dismiss:hover,
+.lms-sandbox-banner__dismiss:focus-visible {
+	background: color-mix(in oklab, var(--lms-warning, #f59e0b) 22%, transparent);
+	border-color: color-mix(in oklab, var(--lms-warning, #f59e0b) 40%, transparent);
+	outline: none;
+}
+
+.lms-sandbox-banner[hidden] {
+	display: none;
+}
+
+/* ------------------------------------------------------------------ */
+/* R18-4: PII masked-value styling                                     */
+/* ------------------------------------------------------------------ */
+.lms-pii-masked {
+	font-variant-numeric: tabular-nums;
+	letter-spacing: 0.04em;
+	color: var(--lms-text);
+}
+
+.lms-pii-reveal {
+	background: transparent;
+	border: 1px dashed var(--lms-border);
+	color: var(--lms-primary);
+	padding: 0.15rem 0.55rem;
+	border-radius: 999px;
+	font-size: 0.75rem;
+	font-weight: 600;
+	cursor: pointer;
+}
+
+.lms-pii-reveal:hover,
+.lms-pii-reveal:focus-visible {
+	background: var(--lms-surface-alt);
+	border-color: var(--lms-primary);
+	outline: none;
+}
+
+/* ------------------------------------------------------------------ */
+/* R18-12: Modal focus trap visuals                                    */
+/* ------------------------------------------------------------------ */
+.lms-modal-open main,
+.lms-modal-open [role="main"] {
+	/* Subtle dimming of the underlying page when a modal is open. The real
+	 * focus trap is enforced via JS (aria-hidden + inert on siblings). */
+	filter: opacity(0.96);
+	pointer-events: none;
+	user-select: none;
+	transition: filter 0.15s ease;
 }
