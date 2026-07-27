@@ -1610,7 +1610,7 @@ lms_portal._bindUploadWidgets = function (root, fieldnameMap) {
 				if (oldStatus) oldStatus.remove();
 				var link = document.createElement("a");
 				link.className = "lms-upload-status lms-upload-status--link";
-				link.href = fileUrl;
+				link.href = encodeURI(fileUrl);
 				link.target = "_blank";
 				link.rel = "noopener";
 				link.innerHTML = (typeof lms_icons !== "undefined" ? lms_icons.icon("check") : "✓") + " Uploaded";
