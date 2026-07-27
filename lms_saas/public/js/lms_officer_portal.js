@@ -1820,9 +1820,11 @@ lms_officer._showKycReviewModal = function (data, content) {
 	});
 
 	// Wire up the upload buttons. Each opens the standard Frappe file
-	// uploader, then calls the officer-side endpoint with the right
-	// fieldname. The returned file_url is written to the matching
-	// hidden input so the save handler picks it up.
+	// uploader (hoisted above the LMS modal via lms_portal._openFileUploader
+	// — without the hoist the file picker paints behind the modal body),
+	// then calls the officer-side endpoint with the right fieldname. The
+	// returned file_url is written to the matching hidden input so the
+	// save handler picks it up.
 	var customer = kyc.customer;
 	dlgRoot.querySelectorAll("[data-upload-field]").forEach(function (btn) {
 		btn.addEventListener("click", function () {
@@ -1830,18 +1832,12 @@ lms_officer._showKycReviewModal = function (data, content) {
 			var hidden = dlgRoot.querySelector(
 				fieldname === "id_document_proof" ? "#lms-kyc-iddoc-url" : "#lms-kyc-poa-url"
 			);
-			// Open the file uploader. The uploader doesn't natively
-			// support an officer-side call, so we go through the
-			// standard LMS upload and then mirror the file_url onto
-			// the LMS Borrower Compliance record via our own endpoint.
-			var fu = new frappe.ui.FileUploader({
-				folder: "Home/Attachments",
-				method: "frappe.handler.upload_file",
-				on_success: function (file) {
-					if (!file || !file.file_url) {
-						lms_portal.toast("Upload failed.", "danger");
-						return;
-					}
+			// Go through lms_portal._openFileUploader so the FileUploader
+			// dialog + backdrop are z-hoisted above the LMS modal (z=1000)
+			// and the LMS popover (z=1100). The FileUploader otherwise paints
+			// at/below the LMS modal and the file picker is unusable.
+			lms_portal._openFileUploader(null, function () {}, {
+				on_uploaded: function (file) {
 					lms_portal.safeCall({
 						method: "lms_saas.api.officer.upload_kyc_document_for_borrower",
 						args: {

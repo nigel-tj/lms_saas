@@ -1437,16 +1437,30 @@ lms_portal._validateStep = function (state) {
 	return true;
 };
 
-lms_portal._openFileUploader = function (fieldname, callback) {
+lms_portal._openFileUploader = function (fieldname, callback, opts) {
 	// fieldname === null → skip the KYC registration call (the file is
 	// uploaded to /files but the caller is responsible for saving the
 	// file_url to its own field, e.g. LMS Field Visit.photos).
+	//
+	// opts.on_uploaded(file): if provided, called after the file is
+	// uploaded with the file object (with file_url). The caller is then
+	// responsible for any post-upload binding (e.g. the officer KYC
+	// review needs to call officer.upload_kyc_document_for_borrower
+	// instead of portal.upload_kyc_document, because the officer is not
+	// a Customer). When on_uploaded is set, fieldname is ignored.
+	opts = opts || {};
 	var uploader = new frappe.ui.FileUploader({
 		folder: "Home/Attachments",
 		method: "frappe.handler.upload_file",
 		on_success: function (file) {
 			if (!file || !file.file_url) {
 				frappe.show_alert({ message: "Upload failed. Please try again.", indicator: "red" });
+				return;
+			}
+			// Custom upload handler (caller does the post-upload binding).
+			if (typeof opts.on_uploaded === "function") {
+				opts.on_uploaded(file);
+				if (typeof callback === "function") callback(file.file_url);
 				return;
 			}
 			if (!fieldname) {
@@ -1467,18 +1481,58 @@ lms_portal._openFileUploader = function (fieldname, callback) {
 			});
 		},
 	});
-	// The LMS modal overlay uses z-index: 1000. Frappe's FileUploader is a
-	// Bootstrap modal that can render at/below that in some builds, so it
-	// paints BEHIND the modal. Hoist the uploader dialog + backdrop above the
-	// LMS modal so it is always usable from inside any LMS modal.
+	// The LMS modal overlay uses z-index: 1000 and is `position: fixed;
+	// inset: 0` (full-screen). Frappe's FileUploader is a Bootstrap modal
+	// that can render at/below that in some builds, so it paints BEHIND
+	// the modal. Hoist the uploader dialog + backdrop above the LMS modal
+	// so it is always usable from inside any LMS modal. Also raise the
+	// backdrop's z-index above the LMS modal so the FileUploader is
+	// fully clickable and visible (without the hoist the file picker
+	// paints behind the LMS modal body — the bug the user reported when
+	// uploading KYC documents from the officer review modal).
+	//
+	// Additionally, while the FileUploader is open, disable pointer events
+	// on the LMS modal's overlay AND the LMS shell (sidebar / footer) so
+	// clicks pass through to the FileUploader. The LMS shell is at
+	// z-index 100 with `position: fixed` and covers the bottom of the
+	// viewport, which can otherwise intercept clicks on the FileUploader's
+	// "Upload" button when the dialog is at the bottom of the screen.
+	var lmsOverlay = document.querySelector(".lms-modal-overlay");
+	var lmsShell = document.querySelector(".lms-shell");
+	var savedOverlayPointer, savedShellPointer;
+	if (lmsOverlay) {
+		savedOverlayPointer = lmsOverlay.style.pointerEvents;
+		lmsOverlay.style.pointerEvents = "none";
+	}
+	if (lmsShell) {
+		savedShellPointer = lmsShell.style.pointerEvents;
+		lmsShell.style.pointerEvents = "none";
+	}
 	try {
 		setTimeout(function () {
 			if (uploader.dialog && uploader.dialog.$wrapper) {
-				uploader.dialog.$wrapper.css("z-index", 2000);
+				// Hoist the uploader dialog well above any LMS modal (1000)
+				// and the LMS popover (1100) so it always wins.
+				uploader.dialog.$wrapper.css("z-index", 3000);
 			}
-			$(".modal-backdrop").css("z-index", 1990);
+			// Frappe FileUploader uses its own modal-backdrop; raise that
+			// too so the uploader is properly dimmed above the LMS modal.
+			$(".modal-backdrop").css("z-index", 2990);
 		}, 0);
 	} catch (e) { /* non-fatal */ }
+	// Restore pointer-events on the LMS overlay/shell when the FileUploader
+	// closes. Hook on the dialog's hidden event.
+	var restorePointers = function () {
+		if (lmsOverlay && lmsOverlay.isConnected) {
+			lmsOverlay.style.pointerEvents = savedOverlayPointer || "";
+		}
+		if (lmsShell && lmsShell.isConnected) {
+			lmsShell.style.pointerEvents = savedShellPointer || "";
+		}
+	};
+	if (uploader.dialog && uploader.dialog.$wrapper) {
+		uploader.dialog.$wrapper.on("hidden.bs.modal", restorePointers);
+	}
 	return uploader;
 };
 
