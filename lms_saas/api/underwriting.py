@@ -8,19 +8,29 @@ DEFAULT_TIMEOUT = 10
 def _bureau_config():
     """Credit bureau settings, sourced from site_config with safe defaults.
 
+    The canonical fail-CLOSED default is owned by
+    ``lms_saas.api.compliance_config.PRODUCTION_DEFAULTS`` (and flipped
+    to fail-open in sandbox mode by ``get_effective_compliance_config``).
+    Callers should use ``lms_saas.api.compliance_config.get_effective_compliance_config()``
+    to resolve the operator-aware flag. This helper is kept as a
+    lightweight accessor for the credit-bureau flow.
+
     Configure per environment in site_config.json:
         lms_credit_bureau_enabled       (bool)  default False
         lms_credit_bureau_url           (str)   bureau scoring endpoint
         lms_credit_bureau_min_score     (int)   default 600
-        lms_credit_bureau_block_on_error(bool)  default False (fail-open)
         lms_credit_bureau_timeout       (int)   seconds, default 10
     """
+    from lms_saas.api.compliance_config import get_effective_compliance_config
+
     conf = frappe.conf
+    effective = get_effective_compliance_config()
     return {
         "enabled": bool(conf.get("lms_credit_bureau_enabled", False)),
         "url": conf.get("lms_credit_bureau_url"),
         "min_score": int(conf.get("lms_credit_bureau_min_score", DEFAULT_MIN_SCORE)),
-        "block_on_error": bool(conf.get("lms_credit_bureau_block_on_error", False)),
+        # B17: fail-closed default — provider outage blocks origination.
+        "block_on_error": bool(effective.get("lms_credit_bureau_block_on_error", True)),
         "timeout": int(conf.get("lms_credit_bureau_timeout", DEFAULT_TIMEOUT)),
     }
 

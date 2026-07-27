@@ -194,7 +194,15 @@ def _format_repayment_amount(doc) -> str:
 
 
 def send_repayment_branded_email(doc, method=None):
-	"""Branded thank-you email on Loan Repayment submit (Customer applicants)."""
+	"""Branded thank-you email on Loan Repayment submit (Customer applicants).
+
+	This is a best-effort notification: a failure here MUST NOT break the
+	money path (Loan Repayment submit). The board's B13 finding requires
+	non-critical side-effects to log + swallow, not propagate. The email
+	pipeline (frappe.sendmail → inline_style_in_html → bundled_asset) can
+	raise when the bench has not built assets (test env) or the email
+	server is unconfigured — neither should abort a real repayment.
+	"""
 	if doc.docstatus != 1 or doc.applicant_type != "Customer":
 		return
 
@@ -203,15 +211,21 @@ def send_repayment_branded_email(doc, method=None):
 		return
 
 	customer_name = frappe.db.get_value("Customer", doc.applicant, "customer_name")
-	send_branded_email(
-		recipients=[email],
-		subject=_("Payment received for {0}").format(doc.against_loan),
-		body_key="repayment_received",
-		context={
-			"customer_name": customer_name,
-			"loan_name": doc.against_loan,
-			"amount_paid": _format_repayment_amount(doc),
-		},
-		reference_doctype=doc.doctype,
-		reference_name=doc.name,
-	)
+	try:
+		send_branded_email(
+			recipients=[email],
+			subject=_("Payment received for {0}").format(doc.against_loan),
+			body_key="repayment_received",
+			context={
+				"customer_name": customer_name,
+				"loan_name": doc.against_loan,
+				"amount_paid": _format_repayment_amount(doc),
+			},
+			reference_doctype=doc.doctype,
+			reference_name=doc.name,
+		)
+	except Exception:
+		frappe.log_error(
+			title="send_repayment_branded_email failed",
+			message=frappe.get_traceback(),
+		)

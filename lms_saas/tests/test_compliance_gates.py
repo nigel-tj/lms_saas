@@ -29,6 +29,103 @@ class TestComplianceGates(FrappeTestCase):
 		self.assertIn("onemoney", ADAPTERS)
 		self.assertIn("bank_transfer", ADAPTERS)
 
+	def test_aml_default_is_fail_closed(self):
+		"""B5: AML must default to fail-CLOSED so a provider outage cannot
+		silently clear a borrower for origination. Sandbox fail-open is an
+		explicit opt-in via lms_sandbox_end_date or lms_compliance_relaxed.
+		"""
+		from lms_saas.api.aml import _aml_config
+		from lms_saas.api.compliance_config import get_effective_compliance_config
+
+		# Production mode (no sandbox date, no relax flags) — fail-CLOSED.
+		frappe.conf.pop("lms_sandbox_end_date", None)
+		frappe.conf.pop("lms_compliance_relaxed", None)
+		frappe.conf.pop("lms_aml_block_on_error", None)
+		cfg = _aml_config()
+		effective = get_effective_compliance_config()
+		self.assertTrue(
+			cfg["block_on_error"],
+			"B5: AML must default to fail-CLOSED (provider outage blocks origination)",
+		)
+		self.assertTrue(
+			effective.get("lms_aml_block_on_error"),
+			"B5: effective compliance config must also be fail-CLOSED in production",
+		)
+
+		# Sandbox mode — fail-OPEN so seeding smoke tests can run.
+		frappe.conf["lms_sandbox_end_date"] = "2099-12-31"
+		try:
+			cfg = _aml_config()
+			self.assertFalse(
+				cfg["block_on_error"],
+				"B5: AML must be fail-OPEN in sandbox mode (operator opt-in)",
+			)
+		finally:
+			frappe.conf.pop("lms_sandbox_end_date", None)
+
+	def test_bureau_default_is_fail_closed(self):
+		"""B17: credit bureau must default to fail-CLOSED so a provider
+		outage cannot silently skip the credit-score gate at origination.
+		"""
+		from lms_saas.api.underwriting import _bureau_config
+		from lms_saas.api.compliance_config import get_effective_compliance_config
+
+		frappe.conf.pop("lms_sandbox_end_date", None)
+		frappe.conf.pop("lms_credit_bureau_block_on_error", None)
+		cfg = _bureau_config()
+		effective = get_effective_compliance_config()
+		self.assertTrue(
+			cfg["block_on_error"],
+			"B17: bureau must default to fail-CLOSED",
+		)
+		self.assertTrue(
+			effective.get("lms_credit_bureau_block_on_error"),
+			"B17: effective compliance config must also be fail-CLOSED in production",
+		)
+
+	def test_bureau_score_applicant_refuses_when_disabled(self):
+		"""B17: score_applicant must refuse when the bureau is not enabled,
+		rather than echoing the config as if it were a score.
+		"""
+		from lms_saas.api.integrations import bureau
+
+		frappe.conf["lms_credit_bureau_enabled"] = False
+		frappe.conf["lms_credit_bureau_url"] = None
+		# Bypass the API key check by stubbing it.
+		import unittest.mock as _mock
+		with _mock.patch.object(bureau, "validate_api_key", lambda: None):
+			with self.assertRaises(frappe.exceptions.PermissionError):
+				bureau.score_applicant(customer="NONE")
+
+	def test_bureau_score_applicant_refuses_when_no_url(self):
+		"""B17: score_applicant must refuse when bureau is enabled but no
+		URL is configured, rather than echoing the config.
+		"""
+		from lms_saas.api.integrations import bureau
+
+		frappe.conf["lms_credit_bureau_enabled"] = True
+		frappe.conf["lms_credit_bureau_url"] = None
+		import unittest.mock as _mock
+		with _mock.patch.object(bureau, "validate_api_key", lambda: None):
+			with self.assertRaises(frappe.exceptions.ValidationError):
+				bureau.score_applicant(customer="NONE")
+
+	def test_required_apps_pin_versions(self):
+		"""B19: required_apps must declare major-version pins so a site on
+		Frappe 14 cannot install this app (which uses the popover API and
+		newer loan Repayment Schedule schema)."""
+		from lms_saas import hooks
+
+		apps = hooks.required_apps
+		self.assertIsInstance(apps, list)
+		self.assertGreater(len(apps), 0)
+		for entry in apps:
+			if isinstance(entry, dict):
+				self.assertIn("name", entry)
+				self.assertIn("version", entry)
+				# Version pin must be a non-empty constraint string.
+				self.assertTrue(entry["version"])
+
 	def test_four_eyes_enforced_by_default(self):
 		"""B5: four-eyes must be ON unless the site explicitly opts into relaxed mode."""
 		from lms_saas.api.compliance import enforce_four_eyes

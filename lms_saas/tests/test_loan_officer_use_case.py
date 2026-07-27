@@ -211,11 +211,17 @@ class TestOfficerBorrowerEdit(unittest.TestCase):
         )
         self.assertEqual(result.get("status"), "updated")
 
-        cust = frappe.get_doc("Customer", self.borrower)
-        self.assertEqual(cust.email_id, new_email)
-        self.assertEqual(cust.mobile_no, new_mobile)
-        if cust.meta.has_field("custom_national_id_number"):
-            self.assertEqual(cust.custom_national_id_number, new_nid)
+        # Read back from the DB directly (bypassing the document cache)
+        # so we see the row as it is on disk, not the in-memory copy left
+        # over from a previous test run in the same process.
+        row = frappe.db.sql(
+            "SELECT email_id, mobile_no, custom_national_id_number FROM tabCustomer WHERE name = %s",
+            self.borrower,
+            as_dict=True,
+        )[0]
+        self.assertEqual(row["email_id"], new_email)
+        self.assertEqual(row["mobile_no"], new_mobile)
+        self.assertEqual(row["custom_national_id_number"], new_nid)
 
     def test_update_borrower_rejects_out_of_branch(self):
         # Create a borrower in a different branch and try to edit as the
@@ -375,6 +381,71 @@ class TestOfficerCreateApplication(unittest.TestCase):
             self.assertEqual(app.custom_lms_branch, BRANCH)
         if app.meta.has_field("custom_loan_officer"):
             self.assertEqual(app.custom_loan_officer, self.employee_name)
+
+
+class TestOfficerUpdateBorrowerContactSync(unittest.TestCase):
+    """R17 fix: ERPNext's Customer.create_primary_contact only mirrors
+    email/mobile back to Customer.email_id on the FIRST contact creation.
+    For repeat edits, the linked Contact gets the new values but
+    Customer.email_id stays stale (the portal header / tests read this
+    column). The fix: update the Contact, then re-write the Customer's
+    own email_id/mobile_no columns.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        frappe.set_user("Administrator")
+        _seed_branch()
+        _seed_user_permission()
+        cls.employee_name = _seed_employee()
+        cls.borrower = _ensure_test_borrower("R17-SYNC")
+
+    def setUp(self):
+        _set_user(OFFICER_EMAIL)
+
+    def test_repeat_update_syncs_to_both_customer_and_contact(self):
+        new_email = f"sync-{frappe.utils.now_datetime().strftime('%H%M%S%f')}@example.com"
+        new_mobile = "+27-71-555-0123"
+
+        # 1st call: creates the primary contact + writes the Customer email.
+        first = officer_api.update_borrower(
+            customer_name=self.borrower,
+            email_id=new_email,
+            mobile_no=new_mobile,
+        )
+        self.assertEqual(first.get("status"), "updated")
+
+        cust_row = frappe.db.sql(
+            "SELECT email_id, mobile_no FROM tabCustomer WHERE name = %s",
+            self.borrower,
+            as_dict=True,
+        )[0]
+        self.assertEqual(cust_row["email_id"], new_email)
+        self.assertEqual(cust_row["mobile_no"], new_mobile)
+
+        # 2nd call: must still round-trip even though the primary contact
+        # already exists. Pre-fix, Customer.email_id stayed at the FIRST
+        # value and only the Contact got the second one.
+        new_email2 = f"sync2-{frappe.utils.now_datetime().strftime('%H%M%S%f')}@example.com"
+        new_mobile2 = "+27-71-555-0456"
+        second = officer_api.update_borrower(
+            customer_name=self.borrower,
+            email_id=new_email2,
+            mobile_no=new_mobile2,
+        )
+        self.assertEqual(second.get("status"), "updated")
+
+        cust_row2 = frappe.db.sql(
+            "SELECT email_id, mobile_no FROM tabCustomer WHERE name = %s",
+            self.borrower,
+            as_dict=True,
+        )[0]
+        self.assertEqual(
+            cust_row2["email_id"],
+            new_email2,
+            "Customer.email_id must reflect the latest edit (Contact sync fix)",
+        )
+        self.assertEqual(cust_row2["mobile_no"], new_mobile2)
 
 
 if __name__ == "__main__":
