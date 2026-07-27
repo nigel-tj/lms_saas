@@ -548,50 +548,141 @@ lms_officer._openApplicationModal = function (customers, products, root) {
 
 	// Collateral: append a repeatable row each time "Add collateral item" is clicked.
 	var collateralRows = dlg.dialog.querySelector("#lms-app-collateral-rows");
+	// Field-builder helpers. Each closure returns the label HTML for one field;
+	// `which` lists the collateral types where the field should be visible.
+	// Generic fields (Description, Serial No, Value, Valuation date) are always
+	// shown — only the type-specific extras are toggled.
+	function fieldLabel(html, which) {
+		return {
+			html: html,
+			visible: function (t) { return which.indexOf(t) !== -1; }
+		};
+	}
+	var COL_FIELDS = {
+		stand_plot_number: fieldLabel(
+			'<label>Stand / plot number<input type="text" class="lms-input lms-col-stand" placeholder="Stand 12, Plot 34"></label>',
+			["Real Estate / Property"]
+		),
+		area_sqm: fieldLabel(
+			'<label>Area (sqm)<input type="text" class="lms-input lms-col-area" placeholder="e.g. 250"></label>',
+			["Real Estate / Property"]
+		),
+		manufacturer_year: fieldLabel(
+			'<label>Year of manufacture<input type="number" class="lms-input lms-col-year" min="1900" max="2100" placeholder="e.g. 2019"></label>',
+			["Equipment / Machinery"]
+		),
+		inventory_sku: fieldLabel(
+			'<label>SKU / lot code<input type="text" class="lms-input lms-col-sku" placeholder="LOT-001"></label>',
+			["Inventory / Stock"]
+		),
+		inventory_quantity: fieldLabel(
+			'<label>Quantity<input type="number" class="lms-input lms-col-qty" min="0" step="1" placeholder="0"></label>',
+			["Inventory / Stock"]
+		),
+		cash_bank_name: fieldLabel(
+			'<label>Bank name<input type="text" class="lms-input lms-col-bank" placeholder="e.g. ZB Bank"></label>',
+			["Cash Deposit / Lien"]
+		),
+		cash_account_number: fieldLabel(
+			'<label>Account number<input type="text" class="lms-input lms-col-acct" placeholder="0000-0000-0000"></label>',
+			["Cash Deposit / Lien"]
+		),
+		security_certificate: fieldLabel(
+			'<label>Share certificate no<input type="text" class="lms-input lms-col-cert" placeholder="SHR-2024-001"></label>',
+			["Securities / Shares"]
+		),
+		security_units: fieldLabel(
+			'<label>Number of units / shares<input type="number" class="lms-input lms-col-units" min="0" step="1" placeholder="0"></label>',
+			["Securities / Shares"]
+		),
+		guarantor_name: fieldLabel(
+			'<label>Guarantor full name<input type="text" class="lms-input lms-col-guarantor" placeholder="Jane Doe"></label>',
+			["Third-Party Guarantee"]
+		),
+		guarantor_id: fieldLabel(
+			'<label>Guarantor national ID<input type="text" class="lms-input lms-col-guarantor-id" placeholder="99-000000-A99"></label>',
+			["Third-Party Guarantee"]
+		),
+		guarantor_relationship: fieldLabel(
+			'<label>Relationship to borrower<input type="text" class="lms-input lms-col-guarantor-rel" placeholder="Spouse / Parent / Friend"></label>',
+			["Third-Party Guarantee"]
+		),
+		// Vehicle fields (kept for backward compat — vehicle type uses these).
+		vehicle_registration: fieldLabel(
+			'<label>Vehicle registration<input type="text" class="lms-input lms-col-reg" placeholder="ABC123GP"></label>',
+			["Vehicle"]
+		),
+		vehicle_brand: fieldLabel(
+			'<label>Brand<input type="text" class="lms-input lms-col-brand" placeholder="Toyota"></label>',
+			["Vehicle", "Equipment / Machinery"]
+		),
+		vehicle_model: fieldLabel(
+			'<label>Model<input type="text" class="lms-input lms-col-model" placeholder="Hilux"></label>',
+			["Vehicle", "Equipment / Machinery"]
+		),
+		engine_number: fieldLabel(
+			'<label>Engine number<input type="text" class="lms-input lms-col-engine" placeholder="Engine #"></label>',
+			["Vehicle"]
+		),
+	};
+
 	var addCollateralBtn = dlg.dialog.querySelector("#lms-app-add-collateral");
 	if (addCollateralBtn && collateralRows) {
 		addCollateralBtn.addEventListener("click", function () {
 			var row = document.createElement("div");
 			row.className = "lms-collateral-row lms-grid-2";
-			row.innerHTML =
-				'<label>Grantor(s)<input type="text" class="lms-input lms-col-grantor" placeholder="Owner name / customer"></label>' +
+			// Header (always shown): grantor + type.
+			var html = '<label>Grantor(s)<input type="text" class="lms-input lms-col-grantor" placeholder="Owner name / customer"></label>' +
 				'<label>Collateral type<select class="lms-input lms-fallback-select lms-col-type">' +
 				'<option value="Vehicle">Vehicle</option><option value="Real Estate / Property">Real Estate / Property</option><option value="Equipment / Machinery">Equipment / Machinery</option><option value="Inventory / Stock">Inventory / Stock</option><option value="Cash Deposit / Lien">Cash Deposit / Lien</option><option value="Securities / Shares">Securities / Shares</option><option value="Third-Party Guarantee">Third-Party Guarantee</option><option value="Other">Other</option>' +
 				'</select></label>' +
+				// Generic asset section (always shown): description, serial/registration no, value, valuation date.
 				'<label>Description<input type="text" class="lms-input lms-col-desc" placeholder="e.g. Toyota Hilux 2019"></label>' +
-				'<label>Serial number<input type="text" class="lms-input lms-col-serial" placeholder="Chassis / serial"></label>' +
-				// Vehicle-specific fields: wrapped in a container so the type-change
-				// handler can hide them when the officer picks a non-vehicle type.
-				'<div class="lms-col-vehicle-fields lms-grid-2 lms-grid-2__full" style="display:grid;">' +
-				'<label>Vehicle registration<input type="text" class="lms-input lms-col-reg" placeholder="ABC123GP"></label>' +
-				'<label>Brand<input type="text" class="lms-input lms-col-brand" placeholder="Toyota"></label>' +
-				'<label>Model<input type="text" class="lms-input lms-col-model" placeholder="Hilux"></label>' +
-				'<label>Engine number<input type="text" class="lms-input lms-col-engine" placeholder="Engine #"></label>' +
-				'</div>' +
+				'<label>Registration / serial no<input type="text" class="lms-input lms-col-serial" placeholder="Chassis / serial / deed no"></label>' +
+				'<div class="lms-col-type-fields" style="display:contents;"></div>' +
 				'<label>Collateral value<input type="number" class="lms-input lms-col-value" min="0" step="0.01" placeholder="0.00"></label>' +
 				'<label>Valuation date<input type="date" class="lms-input lms-col-valuation"></label>';
+
+			row.innerHTML = html;
 			collateralRows.appendChild(row);
 			if (window.LMSForms && typeof LMSForms.bindAll === "function") {
 				LMSForms.bindAll(row);
 			}
-			// Show / hide vehicle-only fields when the user changes type
-			// (Vehicle shows them; everything else hides them and clears
-			// any leftover values).
-			var updateVehicleFields = function () {
+
+			// Render all type-specific fields into the container, hidden by default.
+			// Show only the ones matching the selected collateral type.
+			var fieldsBox = row.querySelector(".lms-col-type-fields");
+			Object.keys(COL_FIELDS).forEach(function (key) {
+				var wrap = document.createElement("div");
+				wrap.className = "lms-col-field lms-col-field--" + key;
+				wrap.style.display = "none";
+				wrap.innerHTML = COL_FIELDS[key].html;
+				fieldsBox.appendChild(wrap);
+			});
+
+			// On type change: show only fields matching the type, hide others
+			// and clear any leftover values so they don't bleed across forms.
+			var updateTypeFields = function () {
 				var typeSel = row.querySelector(".lms-col-type");
-				var vehBox = row.querySelector(".lms-col-vehicle-fields");
-				if (!typeSel || !vehBox) return;
-				var isVehicle = typeSel.value === "Vehicle";
-				vehBox.style.display = isVehicle ? "" : "none";
-				if (!isVehicle) {
-					row.querySelectorAll(".lms-col-reg, .lms-col-brand, .lms-col-model, .lms-col-engine").forEach(function (el) {
-						if (el) el.value = "";
+				var t = typeSel ? typeSel.value : "";
+				row.querySelectorAll(".lms-col-field").forEach(function (el) {
+					var key = "";
+					el.className.split(" ").forEach(function (c) {
+						if (c.indexOf("lms-col-field--") === 0) key = c.replace("lms-col-field--", "");
 					});
-				}
+					var def = COL_FIELDS[key];
+					var visible = def && def.visible(t);
+					el.style.display = visible ? "" : "none";
+					if (!visible) {
+						el.querySelectorAll("input, textarea, select").forEach(function (inp) {
+							inp.value = "";
+						});
+					}
+				});
 			};
 			var typeSel = row.querySelector(".lms-col-type");
-			if (typeSel) typeSel.addEventListener("change", updateVehicleFields);
-			updateVehicleFields();
+			if (typeSel) typeSel.addEventListener("change", updateTypeFields);
+			updateTypeFields();
 		});
 	}
 
@@ -623,7 +714,8 @@ lms_officer._openApplicationModal = function (customers, products, root) {
 		var spouseContact = $("lms-app-spouse-contact") || "";
 		var physical = $("lms-app-physical") || "";
 
-		// Collect collateral rows (if any were added).
+		// Collect collateral rows (if any were added). Each row carries the
+		// generic + type-specific fields captured by the conditional form.
 		var collateral = [];
 		dlg.dialog.querySelectorAll(".lms-collateral-row").forEach(function (row) {
 			var get = function (cls) { var el = row.querySelector(cls); return el ? el.value : ""; };
@@ -636,6 +728,18 @@ lms_officer._openApplicationModal = function (customers, products, root) {
 				brand: get(".lms-col-brand"),
 				model: get(".lms-col-model"),
 				engine_number: get(".lms-col-engine"),
+				stand_plot_number: get(".lms-col-stand"),
+				area_sqm: get(".lms-col-area"),
+				manufacturer_year: get(".lms-col-year"),
+				inventory_sku: get(".lms-col-sku"),
+				inventory_quantity: get(".lms-col-qty"),
+				cash_bank_name: get(".lms-col-bank"),
+				cash_account_number: get(".lms-col-acct"),
+				security_certificate: get(".lms-col-cert"),
+				security_units: get(".lms-col-units"),
+				guarantor_name: get(".lms-col-guarantor"),
+				guarantor_id: get(".lms-col-guarantor-id"),
+				guarantor_relationship: get(".lms-col-guarantor-rel"),
 				collateral_value: parseFloat(get(".lms-col-value")) || 0,
 				valuation_date: get(".lms-col-valuation"),
 			});

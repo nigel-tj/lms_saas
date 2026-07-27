@@ -429,5 +429,113 @@
     "fieldtype": "Data",
     "label": "Vehicle Registration Number",
     "insert_after": "lms_engine_number"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "LMS Collateral-lms_stand_plot_number",
+    "dt": "LMS Collateral",
+    "fieldname": "lms_stand_plot_number",
+    "fieldtype": "Data",
+    "label": "Stand / Plot Number",
+    "insert_after": "lms_vehicle_registration"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "LMS Collateral-lms_area_sqm",
+    "dt": "LMS Collateral",
+    "fieldname": "lms_area_sqm",
+    "fieldtype": "Data",
+    "label": "Area (sqm)",
+    "insert_after": "lms_stand_plot_number"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "LMS Collateral-lms_manufacturer_year",
+    "dt": "LMS Collateral",
+    "fieldname": "lms_manufacturer_year",
+    "fieldtype": "Int",
+    "label": "Year of Manufacture",
+    "insert_after": "lms_area_sqm"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "LMS Collateral-lms_inventory_sku",
+    "dt": "LMS Collateral",
+    "fieldname": "lms_inventory_sku",
+    "fieldtype": "Data",
+    "label": "SKU / Lot Code",
+    "insert_after": "lms_manufacturer_year"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "LMS Collateral-lms_inventory_quantity",
+    "dt": "LMS Collateral",
+    "fieldname": "lms_inventory_quantity",
+    "fieldtype": "Int",
+    "label": "Quantity",
+    "insert_after": "lms_inventory_sku"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "LMS Collateral-lms_cash_bank_name",
+    "dt": "LMS Collateral",
+    "fieldname": "lms_cash_bank_name",
+    "fieldtype": "Data",
+    "label": "Bank Name",
+    "insert_after": "lms_inventory_quantity"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "LMS Collateral-lms_cash_account_number",
+    "dt": "LMS Collateral",
+    "fieldname": "lms_cash_account_number",
+    "fieldtype": "Data",
+    "label": "Account Number",
+    "insert_after": "lms_cash_bank_name"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "LMS Collateral-lms_security_certificate",
+    "dt": "LMS Collateral",
+    "fieldname": "lms_security_certificate",
+    "fieldtype": "Data",
+    "label": "Share Certificate No",
+    "insert_after": "lms_cash_account_number"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "LMS Collateral-lms_security_units",
+    "dt": "LMS Collateral",
+    "fieldname": "lms_security_units",
+    "fieldtype": "Int",
+    "label": "Number of Units / Shares",
+    "insert_after": "lms_security_certificate"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "LMS Collateral-lms_guarantor_name",
+    "dt": "LMS Collateral",
+    "fieldname": "lms_guarantor_name",
+    "fieldtype": "Data",
+    "label": "Guarantor Full Name",
+    "insert_after": "lms_security_units"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "LMS Collateral-lms_guarantor_id",
+    "dt": "LMS Collateral",
+    "fieldname": "lms_guarantor_id",
+    "fieldtype": "Data",
+    "label": "Guarantor National ID",
+    "insert_after": "lms_guarantor_name"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "LMS Collateral-lms_guarantor_relationship",
+    "dt": "LMS Collateral",
+    "fieldname": "lms_guarantor_relationship",
+    "fieldtype": "Data",
+    "label": "Relationship to Borrower",
+    "insert_after": "lms_guarantor_id"
   }
 ]
