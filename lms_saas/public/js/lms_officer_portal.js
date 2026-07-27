@@ -560,16 +560,38 @@ lms_officer._openApplicationModal = function (customers, products, root) {
 				'</select></label>' +
 				'<label>Description<input type="text" class="lms-input lms-col-desc" placeholder="e.g. Toyota Hilux 2019"></label>' +
 				'<label>Serial number<input type="text" class="lms-input lms-col-serial" placeholder="Chassis / serial"></label>' +
+				// Vehicle-specific fields: wrapped in a container so the type-change
+				// handler can hide them when the officer picks a non-vehicle type.
+				'<div class="lms-col-vehicle-fields lms-grid-2 lms-grid-2__full" style="display:grid;">' +
 				'<label>Vehicle registration<input type="text" class="lms-input lms-col-reg" placeholder="ABC123GP"></label>' +
 				'<label>Brand<input type="text" class="lms-input lms-col-brand" placeholder="Toyota"></label>' +
 				'<label>Model<input type="text" class="lms-input lms-col-model" placeholder="Hilux"></label>' +
 				'<label>Engine number<input type="text" class="lms-input lms-col-engine" placeholder="Engine #"></label>' +
+				'</div>' +
 				'<label>Collateral value<input type="number" class="lms-input lms-col-value" min="0" step="0.01" placeholder="0.00"></label>' +
 				'<label>Valuation date<input type="date" class="lms-input lms-col-valuation"></label>';
 			collateralRows.appendChild(row);
 			if (window.LMSForms && typeof LMSForms.bindAll === "function") {
 				LMSForms.bindAll(row);
 			}
+			// Show / hide vehicle-only fields when the user changes type
+			// (Vehicle shows them; everything else hides them and clears
+			// any leftover values).
+			var updateVehicleFields = function () {
+				var typeSel = row.querySelector(".lms-col-type");
+				var vehBox = row.querySelector(".lms-col-vehicle-fields");
+				if (!typeSel || !vehBox) return;
+				var isVehicle = typeSel.value === "Vehicle";
+				vehBox.style.display = isVehicle ? "" : "none";
+				if (!isVehicle) {
+					row.querySelectorAll(".lms-col-reg, .lms-col-brand, .lms-col-model, .lms-col-engine").forEach(function (el) {
+						if (el) el.value = "";
+					});
+				}
+			};
+			var typeSel = row.querySelector(".lms-col-type");
+			if (typeSel) typeSel.addEventListener("change", updateVehicleFields);
+			updateVehicleFields();
 		});
 	}
 
