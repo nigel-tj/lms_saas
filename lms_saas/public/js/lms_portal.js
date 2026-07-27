@@ -1448,92 +1448,96 @@ lms_portal._openFileUploader = function (fieldname, callback, opts) {
 	// review needs to call officer.upload_kyc_document_for_borrower
 	// instead of portal.upload_kyc_document, because the officer is not
 	// a Customer). When on_uploaded is set, fieldname is ignored.
+	//
+	// IMPLEMENTATION: uses a hidden <input type="file"> + AJAX upload
+	// to frappe.handler.upload_file. This opens the NATIVE OS file
+	// dialog (always on top of every DOM element — no z-index battles,
+	// no second modal, no hiding the LMS modal). The previous approach
+	// used frappe.ui.FileUploader (a Bootstrap modal) which stacked
+	// on top of the LMS modal and caused the file picker to render
+	// behind / intercept clicks / require display:none hacks.
 	opts = opts || {};
-	var uploader = new frappe.ui.FileUploader({
-		folder: "Home/Attachments",
-		method: "frappe.handler.upload_file",
-		on_success: function (file) {
-			if (!file || !file.file_url) {
+	var input = document.createElement("input");
+	input.type = "file";
+	if (opts.accept) input.accept = opts.accept;
+	input.style.display = "none";
+	document.body.appendChild(input);
+	input.addEventListener("change", function () {
+		var file = (input.files && input.files[0]) || null;
+		if (!file) {
+			document.body.removeChild(input);
+			return;
+		}
+		// Upload via XMLHttpRequest POST to /api/method/upload_file.
+		// We can't use frappe.xcall (serializes as JSON) or frappe.call
+		// (doesn't handle file uploads). The frappe.ui.FileUploader uses
+		// XMLHttpRequest internally; we replicate the minimal version
+		// here so the upload happens in-place without a second modal.
+		var xhr = new XMLHttpRequest();
+		var formData = new FormData();
+		formData.append("file", file, file.name);
+		formData.append("is_private", opts.is_private ? 1 : 0);
+		formData.append("folder", opts.folder || "Home/Attachments");
+		formData.append("cmd", "upload_file");
+		// Show a spinner on the trigger button if provided.
+		var triggerBtn = opts.trigger_btn;
+		var origText = triggerBtn ? triggerBtn.textContent : "";
+		if (triggerBtn) {
+			triggerBtn.disabled = true;
+			triggerBtn.textContent = "Uploading…";
+		}
+		xhr.open("POST", "/api/method/upload_file", true);
+		xhr.setRequestHeader("X-Frappe-CSRF-Token", frappe.csrf_token);
+		xhr.onreadystatechange = function () {
+			if (xhr.readyState !== 4) return;
+			if (input.isConnected) document.body.removeChild(input);
+			if (triggerBtn) { triggerBtn.disabled = false; triggerBtn.textContent = origText; }
+			if (xhr.status !== 200) {
+				var errMsg = "Upload failed (HTTP " + xhr.status + ").";
+				try {
+					var errParsed = JSON.parse(xhr.responseText);
+					if (errParsed && errParsed._server_messages) {
+						errMsg = JSON.parse(errParsed._server_messages)[0] || errMsg;
+					}
+				} catch (e) { /* keep default */ }
+				frappe.show_alert({ message: errMsg, indicator: "red" });
+				return;
+			}
+			var uploaded;
+			try { uploaded = JSON.parse(xhr.responseText); } catch (e) { uploaded = null; }
+			var result = uploaded && uploaded.message ? uploaded.message : uploaded;
+			if (!result || !result.file_url) {
 				frappe.show_alert({ message: "Upload failed. Please try again.", indicator: "red" });
 				return;
 			}
 			// Custom upload handler (caller does the post-upload binding).
 			if (typeof opts.on_uploaded === "function") {
-				opts.on_uploaded(file);
-				if (typeof callback === "function") callback(file.file_url);
-				return;
-			}
-			if (!fieldname) {
-				callback(file.file_url);
+				opts.on_uploaded(result);
+				if (typeof callback === "function") callback(result.file_url);
+			} else if (!fieldname) {
+				if (typeof callback === "function") callback(result.file_url);
 				frappe.show_alert({ message: "File uploaded.", indicator: "green" });
-				return;
+			} else {
+				frappe.call({
+					method: "lms_saas.api.portal.upload_kyc_document",
+					args: { file_url: result.file_url, fieldname: fieldname },
+					callback: function () {
+						if (typeof callback === "function") callback(result.file_url);
+						frappe.show_alert({ message: "Document uploaded.", indicator: "green" });
+					},
+					error: function () {
+						frappe.show_alert({ message: "Upload failed. Please try again.", indicator: "red" });
+					},
+				});
 			}
-			frappe.call({
-				method: "lms_saas.api.portal.upload_kyc_document",
-				args: { file_url: file.file_url, fieldname: fieldname },
-				callback: function () {
-					callback(file.file_url);
-					frappe.show_alert({ message: "Document uploaded.", indicator: "green" });
-				},
-				error: function () {
-					frappe.show_alert({ message: "Upload failed. Please try again.", indicator: "red" });
-				},
-			});
-		},
+		};
+		xhr.send(formData);
 	});
-	// The LMS modal overlay uses z-index: 1000 and is `position: fixed;
-	// inset: 0` (full-screen). Frappe's FileUploader is a Bootstrap modal
-	// that can render at/below that in some builds, so it paints BEHIND
-	// the modal. Hoist the uploader dialog + backdrop above the LMS modal
-	// so it is always usable from inside any LMS modal. Also raise the
-	// backdrop's z-index above the LMS modal so the FileUploader is
-	// fully clickable and visible (without the hoist the file picker
-	// paints behind the LMS modal body — the bug the user reported when
-	// uploading KYC documents from the officer review modal).
-	//
-	// Additionally, while the FileUploader is open, disable pointer events
-	// on the LMS modal's overlay AND the LMS shell (sidebar / footer) so
-	// clicks pass through to the FileUploader. The LMS shell is at
-	// z-index 100 with `position: fixed` and covers the bottom of the
-	// viewport, which can otherwise intercept clicks on the FileUploader's
-	// "Upload" button when the dialog is at the bottom of the screen.
-	var lmsOverlay = document.querySelector(".lms-modal-overlay");
-	var lmsShell = document.querySelector(".lms-shell");
-	var savedOverlayPointer, savedShellPointer;
-	if (lmsOverlay) {
-		savedOverlayPointer = lmsOverlay.style.pointerEvents;
-		lmsOverlay.style.pointerEvents = "none";
-	}
-	if (lmsShell) {
-		savedShellPointer = lmsShell.style.pointerEvents;
-		lmsShell.style.pointerEvents = "none";
-	}
-	try {
-		setTimeout(function () {
-			if (uploader.dialog && uploader.dialog.$wrapper) {
-				// Hoist the uploader dialog well above any LMS modal (1000)
-				// and the LMS popover (1100) so it always wins.
-				uploader.dialog.$wrapper.css("z-index", 3000);
-			}
-			// Frappe FileUploader uses its own modal-backdrop; raise that
-			// too so the uploader is properly dimmed above the LMS modal.
-			$(".modal-backdrop").css("z-index", 2990);
-		}, 0);
-	} catch (e) { /* non-fatal */ }
-	// Restore pointer-events on the LMS overlay/shell when the FileUploader
-	// closes. Hook on the dialog's hidden event.
-	var restorePointers = function () {
-		if (lmsOverlay && lmsOverlay.isConnected) {
-			lmsOverlay.style.pointerEvents = savedOverlayPointer || "";
-		}
-		if (lmsShell && lmsShell.isConnected) {
-			lmsShell.style.pointerEvents = savedShellPointer || "";
-		}
-	};
-	if (uploader.dialog && uploader.dialog.$wrapper) {
-		uploader.dialog.$wrapper.on("hidden.bs.modal", restorePointers);
-	}
-	return uploader;
+	// Trigger the native OS file dialog. This is the key: the OS
+	// dialog renders above EVERYTHING in the browser, including any
+	// open LMS modal. No z-index, no display:none, no stacking context.
+	input.click();
+	return input;
 };
 
 /* Reusable file-upload widget markup for use inside LMSModal / lms_portal.modal.
@@ -1568,7 +1572,7 @@ lms_portal._fileUploadField = function (opts) {
 		? '<a class="lms-upload-status lms-upload-status--link" href="' + lms_portal.escape(opts.initialUrl) + '" target="_blank" rel="noopener">' + (typeof lms_icons !== "undefined" ? lms_icons.icon("check") : "✓") + " Uploaded</a>"
 		: '<span class="lms-upload-status" data-empty="true">No file uploaded</span>';
 	return (
-		'<div class="lms-upload-field" data-lms-upload-field="' + lms_portal.escape(id) + '">' +
+		'<div class="lms-upload-field" data-lms-upload-field="' + lms_portal.escape(id) + '"' + (opts.accept ? ' data-accept="' + lms_portal.escape(opts.accept) + '"' : "") + '>' +
 		labelHtml + required +
 		'<div class="lms-upload-field__row">' +
 		'<button type="button" class="lms-btn lms-btn--ghost lms-btn--sm" data-lms-upload-trigger="' + lms_portal.escape(id) + '">' +
@@ -1593,6 +1597,9 @@ lms_portal._bindUploadWidgets = function (root, fieldnameMap) {
 		btn.addEventListener("click", function (ev) {
 			ev.preventDefault();
 			var fieldname = fieldnameMap[id] !== undefined ? fieldnameMap[id] : id;
+			// Read the accept attribute from the upload field (if set).
+			var field = btn.closest(".lms-upload-field");
+			var accept = field && field.getAttribute("data-accept") ? field.getAttribute("data-accept") : "";
 			lms_portal._openFileUploader(fieldname, function (fileUrl) {
 				var input = root.querySelector("#" + id);
 				if (input) input.value = fileUrl;
