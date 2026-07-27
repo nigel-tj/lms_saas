@@ -1749,14 +1749,14 @@ lms_officer._showKycReviewModal = function (data, content) {
 		'<div class="lms-grid-2">' +
 		'<div class="lms-doc-cell">' +
 		'<div class="lms-doc-label">ID document ' +
-		(kyc.id_document_proof ? '<a class="lms-doc-link" href="' + lms_portal.escape(kyc.id_document_proof) + '" target="_blank">view</a>' : '') +
+		(kyc.id_document_proof ? '<a class="lms-doc-link" href="' + lms_portal.escape(encodeURI(kyc.id_document_proof)) + '" target="_blank">view</a>' : '') +
 		'</div>' +
 		'<input type="hidden" id="lms-kyc-iddoc-url" value="' + lms_portal.escape(kyc.id_document_proof || "") + '" />' +
 		'<button type="button" class="lms-btn lms-btn--ghost lms-btn--sm" data-upload-field="id_document_proof">Upload / replace</button>' +
 		'</div>' +
 		'<div class="lms-doc-cell">' +
 		'<div class="lms-doc-label">Proof of address ' +
-		(kyc.proof_of_address ? '<a class="lms-doc-link" href="' + lms_portal.escape(kyc.proof_of_address) + '" target="_blank">view</a>' : '') +
+		(kyc.proof_of_address ? '<a class="lms-doc-link" href="' + lms_portal.escape(encodeURI(kyc.proof_of_address)) + '" target="_blank">view</a>' : '') +
 		'</div>' +
 		'<input type="hidden" id="lms-kyc-poa-url" value="' + lms_portal.escape(kyc.proof_of_address || "") + '" />' +
 		'<button type="button" class="lms-btn lms-btn--ghost lms-btn--sm" data-upload-field="proof_of_address">Upload / replace</button>' +
@@ -1851,7 +1851,7 @@ lms_officer._showKycReviewModal = function (data, content) {
 								if (existing) existing.remove();
 								var a = document.createElement("a");
 								a.className = "lms-doc-link";
-								a.href = file.file_url;
+								a.href = encodeURI(file.file_url);
 								a.target = "_blank";
 								a.textContent = "view";
 								label.appendChild(document.createTextNode(" "));
