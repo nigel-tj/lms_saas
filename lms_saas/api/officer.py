@@ -12,6 +12,32 @@ from frappe import _
 from frappe.utils import flt, today, cint, getdate
 
 from lms_saas.install import PORTAL_STAFF_ROLE
+from lms_saas.api.compliance_config import is_sandbox_mode
+
+
+# R18-1: in sandbox mode, hide demo seed data from the staff-facing lists so
+# a regulator's first click on the dashboard doesn't show 14 copies of the
+# same "Officer Test Borrower R14-APP". Operators in production mode see
+# every record (no filtering).
+DEMO_NAME_PATTERNS = (
+        "%Test%",
+        "%R14-APP%",
+        "%Borrower 003%",
+        "%Borrower 002%",
+        "%Demo%",
+)
+
+
+def _is_demo_applicant(applicant_name: str) -> bool:
+    """Return True if the applicant name looks like a demo seed record.
+
+    Case-insensitive substring match against DEMO_NAME_PATTERNS. Used by
+    officer / manager pending-list queries in sandbox mode.
+    """
+    if not applicant_name:
+        return False
+    needle = applicant_name.lower()
+    return any(p.strip("%").lower() in needle for p in DEMO_NAME_PATTERNS)
 
 
 def _require_officer():
@@ -141,9 +167,15 @@ def get_officer_dashboard():
 
 @frappe.whitelist()
 def get_pending_applications():
-	"""Loan Applications pending review — prefers branch, falls back to all."""
+	"""Loan Applications pending review — prefers branch, falls back to all.
+
+	R18-1: in sandbox mode, hide demo seed records (Test / R14-APP / Demo)
+	so a regulator's first click does not show 14 copies of the same
+	applicant. Production operators see every record.
+	"""
 	_require_officer()
 	branch = _officer_branch()
+	sandbox = is_sandbox_mode()
 
 	applications = []
 	if branch:
@@ -195,7 +227,20 @@ def get_pending_applications():
 			frappe.db.get_value("Loan Product", app.loan_product, "product_name") if app.loan_product else ""
 		)
 
-	return {"applications": applications}
+	# R18-1: drop demo seed applicants in sandbox mode so a regulator's
+	# first click does not show 14 copies of the same Test/R14-APP row.
+	# Customer name is matched because the demo seeds put the name on the
+	# Customer record (applicant), not on the Loan Application.
+	if sandbox and applications:
+		applications = [
+			app for app in applications
+			if not (
+				_is_demo_applicant(app.get("customer_name"))
+				or _is_demo_applicant(app.get("applicant"))
+			)
+		]
+
+	return {"applications": applications, "sandbox_filtered": bool(sandbox and applications)}
 
 
 @frappe.whitelist()

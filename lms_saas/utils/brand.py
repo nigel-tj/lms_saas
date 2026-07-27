@@ -215,6 +215,12 @@ def apply_portal_context(context, nav_active="loans", page_js=None):
 		or frappe.conf.get("lms_email_legal_footer")
 		or frappe._("Lending involves credit risk. Terms apply to approved borrowers only.")
 	)
+	# R18-5: surface the sandbox / production mode flag for the top banner.
+	from lms_saas.api.compliance_config import is_sandbox_mode
+
+	context.lms_sandbox_mode = is_sandbox_mode()
+	# R18-9: full display name (Employee / Customer / email-prefix fallback).
+	context.lms_user_display_name = _resolve_user_display_name(frappe.session.user, context.lms_persona)
 	context.show_sidebar = False
 	context.no_header = True
 	context.no_cache = 1
@@ -307,13 +313,19 @@ def _build_lms_nav(context):
 			{"key": "pay", "label": "Pay", "route": "/lms/pay", "icon": "pay"},
 		])
 
+	# R18-16: tag each staff nav item with the perm that gates it so the
+	# sidebar template can render `aria-disabled` honestly when the current
+	# user lacks the perm (avoids the "22 nav items, 19 of which 403" trap).
 	if is_staff:
 		if persona == "Loan Officer":
-			items.append({"key": "officer", "label": "Officer", "route": "/lms/officer", "icon": "officer"})
+			items.append({"key": "officer", "label": "Officer", "route": "/lms/officer", "icon": "officer", "requires_perm": "can_officer"})
 		elif persona == "Branch Manager":
-			items.append({"key": "manager", "label": "Manager", "route": "/lms/manager", "icon": "manager"})
-			items.append({"key": "manager_books", "label": "Books & Import", "route": "/lms/manager-books", "icon": "books"})
-		items.append({"key": "collect", "label": "Collection Run", "route": "/lms/collect", "icon": "collect"})
+			items.append({"key": "manager", "label": "Manager", "route": "/lms/manager", "icon": "manager", "requires_perm": "can_manager"})
+			items.append({"key": "manager_books", "label": "Books & Import", "route": "/lms/manager-books", "icon": "books", "requires_perm": "can_manager"})
+		# R18-17: the page, title, nav item, and Help link all use the single
+	# string "Field Collection" — matches /lms/collect (page title) and
+	# /lms-help/collector (nav label).
+	items.append({"key": "collect", "label": "Field Collection", "route": "/lms/collect", "icon": "collect", "requires_perm": "can_collect"})
 
 	# ── Addon nav items ──
 	# Borrowers see borrower-tagged addons; staff see persona-matched addons.
@@ -341,7 +353,7 @@ def _lms_page_title(nav_active, context):
 		"officer": "Loan Officer Dashboard",
 		"manager": "Branch Manager Dashboard",
 		"manager_books": "Books & Import",
-		"collect": "Collection Run",
+		"collect": "Field Collection",
 		# ── Addon page titles ──
 		"announcements": "Announcements",
 		"tasks": "Tasks",
@@ -514,10 +526,49 @@ def lms_icon_svg(name, size=18):
 		seen.add(key)
 		key = _LMS_ICON_PATHS[key]
 	body = _LMS_ICON_PATHS.get(key)
-	if not isinstance(body, str) or "<" not in body:
+	if not isinstance(body, str) or "<" in body or not body.strip():
 		body = _LMS_ICON_PATHS["diamond"]
 	return (
 		'<svg class="lms-icon" width="{size}" height="{size}" viewBox="0 0 24 24" '
 		'fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" '
 		'stroke-linejoin="round" aria-hidden="true" focusable="false">{body}</svg>'
 	).format(size=size, body=body)
+
+
+def _resolve_user_display_name(user, persona=None):
+	"""Return the full display name for the current user.
+
+	R18-9: stops showing "A / Admin" in the topbar avatar. Resolution order:
+	  1. Employee.employee_name linked to the user (staff)
+	  2. Customer.customer_name linked to the user (borrower)
+	  3. Full Name from the User record (frappe.user.first_name + last_name)
+	  4. Email-prefix fallback ("nigel.tj" from "nigel.tj@example.com")
+
+	Returns "" for Guest sessions.
+	"""
+	if not user or user == "Guest":
+		return ""
+	try:
+		import frappe as _fr
+		# 1. Employee
+		employee = _fr.db.get_value("Employee", {"user_id": user, "status": "Active"}, "employee_name")
+		if employee:
+			return employee
+		# 2. Customer
+		customer = _fr.db.get_value("Customer", {"user": user}, "customer_name")
+		if customer:
+			return customer
+		# 3. User record
+		first = _fr.db.get_value("User", user, "first_name") or ""
+		last = _fr.db.get_value("User", user, "last_name") or ""
+		full = f"{first} {last}".strip()
+		if full:
+			return full
+		# 4. Email-prefix fallback
+		if "@" in user:
+			return user.split("@", 1)[0].replace(".", " ").replace("_", " ").title()
+		return user
+	except Exception:  # noqa: BLE001
+		# Never break page rendering on a name lookup miss; fall through to a
+		# generic placeholder.
+		return user or ""

@@ -8,6 +8,11 @@ if (typeof frappe !== "undefined" && typeof frappe.provide === "function") {
 lms_officer._currentTab = "dashboard";
 
 lms_officer.init = function () {
+	// R18-defensive: lms_officer may be initialised before lms_portal.js
+	// has finished parsing. Retry once on the next tick.
+	if (typeof lms_portal === "undefined" || typeof lms_portal.tabNav !== "function") {
+		return setTimeout(lms_officer.init, 0);
+	}
 	var root = document.getElementById("lms-officer-root");
 	if (!root) return;
 

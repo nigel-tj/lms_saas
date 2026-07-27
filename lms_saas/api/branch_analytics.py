@@ -12,6 +12,7 @@ from frappe import _
 from frappe.utils import flt, getdate, today, add_to_date, formatdate
 
 from lms_saas.utils.addons import require_addon_persona
+from lms_saas.api.labels import officer_label, branch_label
 
 
 # ---------------------------------------------------------------------------
@@ -209,7 +210,7 @@ def get_officer_leaderboard(metric="disbursements", period_days=30):
                 continue
             if branch_filter and loan.get("custom_lms_branch") != branch_filter:
                 continue
-            officer = loan.custom_loan_officer or "Unassigned"
+            officer = officer_label(loan.custom_loan_officer, loan.custom_days_past_due)
             if officer not in leaderboard:
                 leaderboard[officer] = {
                     "officer": officer,
@@ -237,7 +238,7 @@ def get_officer_leaderboard(metric="disbursements", period_days=30):
                 continue
             if branch_filter and loan.get("custom_lms_branch") != branch_filter:
                 continue
-            officer = loan.custom_loan_officer or "Unassigned"
+            officer = officer_label(loan.custom_loan_officer, loan.custom_days_past_due)
             if officer not in leaderboard:
                 leaderboard[officer] = {
                     "officer": officer,
@@ -272,7 +273,7 @@ def get_officer_leaderboard(metric="disbursements", period_days=30):
             dpd = flt(loan.custom_days_past_due or loan.days_past_due or 0)
             if dpd <= 30:
                 continue
-            officer = loan.custom_loan_officer or "Unassigned"
+            officer = officer_label(loan.custom_loan_officer, loan.custom_days_past_due)
             bal = principal_outstanding(
                 loan.loan_amount, loan.total_principal_paid, loan.written_off_amount
             )

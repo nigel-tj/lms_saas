@@ -12,6 +12,27 @@ from frappe import _
 from frappe.utils import flt, getdate, today, add_days, cint
 
 from lms_saas.install import PORTAL_STAFF_ROLE
+from lms_saas.api.compliance_config import is_sandbox_mode
+from lms_saas.api.labels import officer_label, branch_label
+
+
+# R18-1: in sandbox mode, hide demo seed records from the manager approval
+# queue. Pattern match covers both the applicant (Customer link) and the
+# resolved customer_name.
+DEMO_NAME_PATTERNS = (
+	"%Test%",
+	"%R14-APP%",
+	"%Borrower 003%",
+	"%Borrower 002%",
+	"%Demo%",
+)
+
+
+def _is_demo_applicant(applicant_name: str) -> bool:
+	if not applicant_name:
+		return False
+	needle = applicant_name.lower()
+	return any(p.strip("%").lower() in needle for p in DEMO_NAME_PATTERNS)
 
 
 def _require_manager():
@@ -103,9 +124,14 @@ def get_manager_dashboard():
 
 @frappe.whitelist()
 def get_approval_queue():
-	"""Loan Applications pending approval in the manager's branch."""
+	"""Loan Applications pending approval in the manager's branch.
+
+	R18-1: in sandbox mode, hide demo seed records so the manager's
+	Approval Queue tab doesn't show 14 copies of the same Test/R14-APP row.
+	"""
 	_require_manager()
 	branch = _manager_branch()
+	sandbox = is_sandbox_mode()
 
 	filters = {"docstatus": 0}
 	if branch:
@@ -144,7 +170,17 @@ def get_approval_queue():
 			else ""
 		)
 
-	return {"applications": applications}
+	# R18-1: drop demo seed applicants in sandbox mode.
+	if sandbox and applications:
+		applications = [
+			app for app in applications
+			if not (
+				_is_demo_applicant(app.get("customer_name"))
+				or _is_demo_applicant(app.get("applicant"))
+			)
+		]
+
+	return {"applications": applications, "sandbox_filtered": bool(sandbox and applications)}
 
 
 @frappe.whitelist()
@@ -307,14 +343,17 @@ def get_team_performance():
 
 	officers: dict[str, dict] = {}
 	for loan in loans:
-		officer = loan.custom_loan_officer or "Unassigned"
+		# R18-3: replace "Unassigned" with a chart-friendly label that tells
+		# the operator what work is genuinely missing vs. what is just
+		# onboarded-but-unassigned.
+		officer = officer_label(loan.custom_loan_officer, loan.custom_days_past_due)
 		if officer not in officers:
 			officers[officer] = {
 				"officer": officer,
 				"officer_name": (
 					frappe.db.get_value("Employee", officer, "employee_name")
-					if officer != "Unassigned"
-					else "Unassigned"
+					if officer and frappe.db.exists("Employee", officer)
+					else officer
 				),
 				"loan_count": 0,
 				"outstanding": 0,
@@ -933,8 +972,12 @@ def get_disbursement_report(from_date: str | None = None, to_date: str | None = 
 		# Fail-closed: skip if manager has no branch, or loan is in another branch.
 		if not branch or not loan or not loan.get("custom_lms_branch") or loan["custom_lms_branch"] != branch:
 			continue
-		officer = (loan.custom_loan_officer if loan else "") or "Unassigned"
-		officer_name = frappe.db.get_value("Employee", officer, "employee_name") if officer != "Unassigned" else "Unassigned"
+		officer = officer_label(loan.custom_loan_officer if loan else "") if loan else ""
+		officer_name = (
+			frappe.db.get_value("Employee", officer, "employee_name")
+			if officer and frappe.db.exists("Employee", officer)
+			else officer
+		)
 		if officer not in by_officer:
 			by_officer[officer] = {"officer_name": officer_name, "count": 0, "total": 0}
 		by_officer[officer]["count"] += 1
@@ -983,8 +1026,12 @@ def get_collections_report(from_date: str | None = None, to_date: str | None = N
 		# Fail-closed: skip if manager has no branch, or loan is in another branch.
 		if not branch or not loan or not loan.get("custom_lms_branch") or loan["custom_lms_branch"] != branch:
 			continue
-		officer = (loan.custom_loan_officer if loan else "") or "Unassigned"
-		officer_name = frappe.db.get_value("Employee", officer, "employee_name") if officer != "Unassigned" else "Unassigned"
+		officer = officer_label(loan.custom_loan_officer if loan else "") if loan else ""
+		officer_name = (
+			frappe.db.get_value("Employee", officer, "employee_name")
+			if officer and frappe.db.exists("Employee", officer)
+			else officer
+		)
 		if officer not in by_officer:
 			by_officer[officer] = {"officer_name": officer_name, "count": 0, "total": 0}
 		by_officer[officer]["count"] += 1

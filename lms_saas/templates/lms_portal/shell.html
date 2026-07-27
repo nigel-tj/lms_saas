@@ -236,16 +236,36 @@
 	    init();
 	  }
 	})();
-	</script>
-	{% endblock %}
 
-	{% block script %}{% endblock %}
+        // R18-5: Sandbox banner dismiss (per-session, localStorage). The
+        // banner re-appears on every page-load by default because
+        // `lms_sandbox_mode` is set in the server-rendered context. A click on
+        // × hides it for the rest of the session; clearing localStorage
+        // (or `lms_sandbox_mode` flipping off) brings it back.
+        (function () {
+          var btn = document.getElementById('lms-sandbox-dismiss');
+          var banner = document.getElementById('lms-sandbox-banner');
+          if (!btn || !banner) return;
+          try {
+            if (sessionStorage.getItem('lms.sandbox.banner.dismissed') === '1') {
+              banner.setAttribute('hidden', 'hidden');
+            }
+          } catch (e) { /* localStorage may be blocked */ }
+          btn.addEventListener('click', function () {
+            banner.setAttribute('hidden', 'hidden');
+            try { sessionStorage.setItem('lms.sandbox.banner.dismissed', '1'); } catch (e) {}
+          });
+        })();
+        </script>
+        {% endblock %}
 
-	{# Frappe's base_template_page.add_csrf_token replaces this marker with
-	   <script>frappe.csrf_token = "...";</script>. It must come AFTER the
-	   frappe boot script (which defines window.frappe) so the assignment
-	   doesn't fail with "frappe is not defined". Without the CSRF token,
-	   every frappe.call() returns 400 and the UI stays on "Loading…". #}
-	<!-- csrf_token -->
+        {% block script %}{% endblock %}
+
+        {# Frappe's base_template_page.add_csrf_token replaces this marker with
+           <script>frappe.csrf_token = "...";</script>. It must come AFTER the
+           frappe boot script (which defines window.frappe) so the assignment
+           doesn't fail with "frappe is not defined". Without the CSRF token,
+           every frappe.call() returns 400 and the UI stays on "Loading…". #}
+        <!-- csrf_token -->
 </body>
 </html>
