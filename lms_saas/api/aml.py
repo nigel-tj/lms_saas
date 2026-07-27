@@ -12,12 +12,23 @@ BLOCKED_STATUSES = frozenset({"Flagged", "Rejected"})
 
 
 def _aml_config():
-	"""AML provider settings from site_config."""
+	"""AML provider settings from site_config.
+
+	The canonical fail-CLOSED default is owned by
+	``lms_saas.api.compliance_config.PRODUCTION_DEFAULTS`` (and flipped
+	to fail-open in sandbox mode by ``get_effective_compliance_config``).
+	Callers should use ``lms_saas.api.compliance_config.get_effective_compliance_config()``
+	to resolve the operator-aware flag. This helper is kept as a
+	lightweight accessor for the AML screen flow.
+	"""
+	from lms_saas.api.compliance_config import get_effective_compliance_config
+
 	conf = frappe.conf
+	effective = get_effective_compliance_config()
 	return {
 		"enabled": bool(conf.get("lms_aml_enabled", False)),
 		"url": conf.get("lms_aml_url"),
-		"block_on_error": bool(conf.get("lms_aml_block_on_error", False)),
+		"block_on_error": bool(effective.get("lms_aml_block_on_error", True)),
 		"timeout": int(conf.get("lms_aml_timeout", DEFAULT_TIMEOUT)),
 		"require_clear": bool(conf.get("lms_aml_require_clear", True)),
 	}

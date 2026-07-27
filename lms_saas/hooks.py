@@ -32,7 +32,17 @@ boot_session = "lms_saas.boot.apply_default_route"
 # Desk boot splash (overridden by Website Settings splash_image on migrate).
 splash_image = "/assets/lms_saas/images/lms-favicon.svg"
 
-required_apps = ["erpnext", "lending", "hrms"]
+required_apps = [
+	{"name": "frappe", "version": ">=15.0.0,<16.0.0"},
+	{"name": "erpnext", "version": ">=15.0.0,<16.0.0"},
+	{"name": "lending", "version": ">=0.0.1"},
+	{"name": "hrms", "version": ">=15.0.0,<16.0.0"},
+]
+# B19 (board MEDIUM): declare minimum versions. Major-version mismatches
+# (e.g. installing against Frappe 14) cause silent breakage in newer
+# loan Repayment Schedule schema and the popover API. Bench enforce
+# these via `bench update --patch`; the historical bare-list form
+# (`required_apps = ["erpnext", ...]`) accepted any version.
 
 add_to_apps_screen = [
 	{

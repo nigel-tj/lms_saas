@@ -1400,6 +1400,39 @@ def update_borrower(
 	# so the Loan Officer write permission is real, not bypassed.
 	cust.save()
 
+	# ERPNext's Customer.create_primary_contact only mirrors email/mobile
+	# back to Customer.email_id when there is NO existing primary contact.
+	# For repeat edits the contact exists and gets the new values, but
+	# Customer.email_id stays stale (the test and the portal header read
+	# this column). Force the sync both ways:
+	#   1) Update the linked primary Contact's `email_id`/`mobile_no` and
+	#      the child email/phone rows.
+	#   2) Re-write the Customer's own email_id/mobile_no columns so the
+	#      Customer doc, the Contact doc, and the child tables agree.
+	if cust.customer_primary_contact and (email_id is not None or mobile_no is not None):
+		contact = frappe.get_doc("Contact", cust.customer_primary_contact)
+		if email_id is not None:
+			contact.email_id = email_id
+		if mobile_no is not None:
+			contact.mobile_no = mobile_no
+		if hasattr(contact, "email_ids") and contact.email_ids:
+			if email_id is not None:
+				contact.email_ids[0].email_id = email_id
+		if hasattr(contact, "phone_nos") and contact.phone_nos:
+			if mobile_no is not None:
+				contact.phone_nos[0].phone = mobile_no
+		contact.flags.ignore_permissions = True
+		contact.save(ignore_permissions=True)
+		# Mirror to the Customer's own columns (create_primary_contact only
+		# does this on the first creation, not on repeat edits).
+		if email_id is not None or mobile_no is not None:
+			mirror = {}
+			if email_id is not None:
+				mirror["email_id"] = email_id
+			if mobile_no is not None:
+				mirror["mobile_no"] = mobile_no
+			frappe.db.set_value("Customer", customer_name, mirror, update_modified=False)
+
 	return {"status": "updated", "customer": customer_name}
 
 
