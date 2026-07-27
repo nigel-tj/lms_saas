@@ -588,10 +588,29 @@ def submit_application_on_behalf(
 					"market_value": flt(c.get("collateral_value") or 0),
 					"reference_no": c.get("serial_number") or c.get("vehicle_registration") or "",
 					"lms_grantor": c.get("grantor") or "",
+					# Vehicle-specific
 					"lms_brand": c.get("brand") or "",
 					"lms_model": c.get("model") or "",
 					"lms_engine_number": c.get("engine_number") or "",
 					"lms_vehicle_registration": c.get("vehicle_registration") or "",
+					# Real Estate / Property
+					"lms_stand_plot_number": c.get("stand_plot_number") or "",
+					"lms_area_sqm": c.get("area_sqm") or "",
+					# Equipment / Machinery
+					"lms_manufacturer_year": cint(c.get("manufacturer_year") or 0),
+					# Inventory / Stock
+					"lms_inventory_sku": c.get("inventory_sku") or "",
+					"lms_inventory_quantity": cint(c.get("inventory_quantity") or 0),
+					# Cash Deposit / Lien
+					"lms_cash_bank_name": c.get("cash_bank_name") or "",
+					"lms_cash_account_number": c.get("cash_account_number") or "",
+					# Securities / Shares
+					"lms_security_certificate": c.get("security_certificate") or "",
+					"lms_security_units": cint(c.get("security_units") or 0),
+					# Third-Party Guarantee
+					"lms_guarantor_name": c.get("guarantor_name") or "",
+					"lms_guarantor_id": c.get("guarantor_id") or "",
+					"lms_guarantor_relationship": c.get("guarantor_relationship") or "",
 					"valuation_date": c.get("valuation_date") or "",
 					"notes": c.get("description") or "",
 					"loan_application": app.name,
