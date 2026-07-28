@@ -72,8 +72,10 @@ def get_collection_run_sheet(days_ahead=7, company=None, reveal=False):
 			row["loan_officer"] = loan.custom_loan_officer or ""
 			row["branch"] = loan.custom_lms_branch or row.get("branch") or ""
 
-	# Horizontal scope: collectors only see rows in their own branch (admins keep all).
-	if not _is_admin():
+	# Horizontal scope: collectors only see rows in their own branch.
+	# Admins and Branch Managers see all branches (managers oversee the
+	# whole branch, not just one cost-center slice).
+	if not _is_admin() and not _is_branch_manager():
 		scope_branch = _collector_branch()
 		if not scope_branch:
 			frappe.throw("No branch assigned — cannot view run sheet.", frappe.PermissionError)
@@ -135,6 +137,13 @@ def _is_admin() -> bool:
 	return bool(set(frappe.get_roles()).intersection({"System Manager", "Administrator"}))
 
 
+def _is_branch_manager() -> bool:
+	"""True if the signed-in user's persona is Branch Manager."""
+	from lms_saas.utils.portal import resolve_portal_persona
+
+	return resolve_portal_persona() == "Branch Manager"
+
+
 def _collector_branch() -> str | None:
 	# Top-level import so tests can monkey-patch staff.get_current_user_branch
 	# via the staff module reference (R12 board feedback: late imports defeat
@@ -147,10 +156,11 @@ def _collector_branch() -> str | None:
 def _assert_loan_in_scope(loan_name: str) -> None:
 	"""Fail closed: collectors may only act on loans in their branch.
 
-	Admins bypass. Branch Managers / Officers without a branch cannot collect
+	Admins and Branch Managers bypass (managers oversee all loans in the
+	branch). Collectors/Officers without a branch cannot collect
 	cross-branch by guessing loan names.
 	"""
-	if _is_admin():
+	if _is_admin() or _is_branch_manager():
 		return
 	if not frappe.db.exists("Loan", loan_name):
 		frappe.throw("Loan not found.", frappe.DoesNotExistError)
