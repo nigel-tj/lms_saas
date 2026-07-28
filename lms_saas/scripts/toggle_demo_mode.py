@@ -100,7 +100,9 @@ def enable_for_demo() -> dict:
 
 	# 4. Ensure the demo passwords are set so the demo client can sign in.
 	#    Covers BOTH the Frappe Cloud "Administrator" account (the bench's
-	#    default super-admin) AND the lms_saas demo personas.
+	#    default super-admin) AND the lms_saas demo personas. This block
+	#    runs even if the seeder above failed — that way the operator can
+	#    always recover an admin login after a botched toggle.
 	try:
 		from frappe.utils.password import update_password
 
@@ -167,3 +169,39 @@ def status() -> dict:
 		"operator_profile": operator_profile(),
 		"demo_seed_filter_enabled": frappe.db.get_default("lms_demo_filter_enabled") or "1",
 	}
+
+
+def reset_admin_password(new_password: str = "Welcome1!") -> dict:
+	"""Reset the Frappe Cloud bench's Administrator password.
+
+	Standalone helper for the case where `enable_for_demo` failed before
+	reaching the password-reset block (e.g. on a brand-new bench where
+	no LMS personas exist yet). Use this to recover an admin login
+	without re-running the full demo bootstrap.
+
+	Usage:
+	  bench --site <site> execute \
+	    lms_saas.scripts.toggle_demo_mode.reset_admin_password
+	  bench --site <site> execute \
+	    lms_saas.scripts.toggle_demo_mode.reset_admin_password --kwargs \
+	    '{"new_password": "SomethingSecure123!"}'
+	"""
+	from frappe.utils.password import update_password
+
+	result = {"reset": [], "skipped": []}
+	for email in (
+		"Administrator",
+		"administrator@example.com",
+		"manager@kesari.africa",
+		"officer@kesari.africa",
+	):
+		if not frappe.db.exists("User", email):
+			result["skipped"].append(email)
+			continue
+		try:
+			update_password(email, new_password)
+			result["reset"].append(email)
+		except Exception as exc:  # noqa: BLE001
+			result["skipped"].append(f"{email} ({exc})")
+	frappe.db.commit()
+	return result
