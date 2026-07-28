@@ -31,6 +31,172 @@ SANDBOX_KEY = "lms_sandbox_end_date"
 DEFAULT_SANDBOX_END = (date.today() + timedelta(days=365)).isoformat()
 
 
+# Canonical demo personas + passwords from scripts/create-test-users.sh.
+# Keeping these in sync with that script means a fresh Frappe Cloud bench
+# can use this toggle to bootstrap everything in one shot.
+DEMO_USERS = (
+	{
+		"email": "manager@kesari.africa",
+		"first_name": "Branch",
+		"last_name": "Manager",
+		"password": "Manager@123",
+		"persona": "Branch Manager",
+		"branch_cost_center": None,
+	},
+	{
+		"email": "officer@kesari.africa",
+		"first_name": "Loan",
+		"last_name": "Officer",
+		"password": "Officer@123",
+		"persona": "Loan Officer",
+		"branch_cost_center": None,
+	},
+	{
+		"email": "collector@kesari.africa",
+		"first_name": "Collection",
+		"last_name": "Agent",
+		"password": "Collector@123",
+		"persona": "Collector",
+		"branch_cost_center": None,
+	},
+)
+
+
+def _ensure_demo_user(spec: dict) -> str:
+	"""Create the User + Employee + persona link for a demo persona if missing.
+
+	Returns "created" / "reset" / "skipped" so the toggle log is useful.
+	"""
+	email = spec["email"]
+	if not frappe.db.exists("User", email):
+		try:
+			user = frappe.new_doc("User")
+			user.email = email
+			user.first_name = spec["first_name"]
+			user.last_name = spec.get("last_name") or ""
+			user.send_welcome_email = 0
+			user.enabled = 1
+			# CRITICAL: must be System User (not Website User). Frappe's
+			# auth.py treats Website Users as portal-only and at login
+			# sets home_page = "/" + get_home_page() — for portal staff
+			# that resolves to /desk/lending which 403s. System Users
+			# get the bootinfo.default_route (/lms/manager for managers).
+			user.user_type = "System User"
+			user.append("roles", {"role": "LMS Portal Staff"})
+			user.save(ignore_permissions=True)
+			frappe.utils.password.update_password(email, spec["password"])
+			_ensure_demo_employee(spec)
+			return "created"
+		except Exception as exc:  # noqa: BLE001
+			return f"skipped: {exc}"
+
+	# User already exists — make sure LMS Portal Staff role is attached so
+	# the portal nav is populated, AND correct user_type if it was created
+	# with the old Website User default (would otherwise 403 on /desk/lending
+	# post-login redirect).
+	try:
+		user = frappe.get_doc("User", email)
+		role_names = {r.role for r in user.roles}
+		needs_save = False
+		if "LMS Portal Staff" not in role_names:
+			user.append("roles", {"role": "LMS Portal Staff"})
+			needs_save = True
+		if getattr(user, "user_type", None) != "System User":
+			user.user_type = "System User"
+			needs_save = True
+		if needs_save:
+			try:
+				user.save(ignore_permissions=True)
+				frappe.db.commit()
+			except Exception as doc_exc:
+				# Fallback: doc save may fail on System Manager users with
+				# strict perm checks. Use SQL so the fix is durable even when
+				# the doc layer rejects changes.
+				print(
+					f"[toggle_demo_mode] doc.save() failed for {email} "
+					f"({doc_exc!s}); falling back to SQL for user_type"
+				)
+				frappe.db.sql(
+					"UPDATE tabUser SET user_type='System User' "
+					"WHERE name=%s AND user_type != 'System User'",
+					(email,),
+				)
+				frappe.db.commit()
+	except Exception:  # noqa: BLE001
+		pass
+
+	# Reset password to the canonical value so the operator always has the
+	# demo sign-in sheet working.
+	try:
+		frappe.utils.password.update_password(email, spec["password"])
+	except Exception as exc:  # noqa: BLE001
+		return f"skipped: {exc}"
+
+	# Ensure the Employee + persona link exists (resolve_portal_persona reads
+	# Employee.custom_lms_persona; without it the persona is None, can_manager
+	# is False, and /lms/manager 301-redirects to itself in an infinite loop).
+	_ensure_demo_employee(spec)
+	return "reset"
+
+
+def _ensure_demo_employee(spec: dict) -> None:
+	"""Create or update the Employee record carrying ``custom_lms_persona``.
+
+	``resolve_portal_persona()`` reads ``Employee.custom_lms_persona`` to
+	decide which portal page a staff user lands on. Without an Employee
+	record, the persona is ``None``, ``can_manager``/``can_officer`` are
+	``False``, and ``require_persona_for_page`` redirects to the persona
+	landing — which for portal staff defaults to ``/lms/manager``, causing
+	an infinite redirect loop when a Branch Manager hits ``/lms/manager``.
+	"""
+	email = spec["email"]
+	persona = spec.get("persona")
+	if not persona:
+		return
+
+	emp_name = frappe.db.get_value(
+		"Employee", {"user_id": email, "status": "Active"}, "name"
+	)
+	if emp_name:
+		# Update persona if the field exists and is empty/wrong.
+		if frappe.get_meta("Employee").has_field("custom_lms_persona"):
+			current = frappe.db.get_value("Employee", emp_name, "custom_lms_persona")
+			if current != persona:
+				frappe.db.set_value(
+					"Employee", emp_name, "custom_lms_persona", persona
+				)
+		return
+
+	# No Employee — create one linked to the User.
+	try:
+		company = frappe.db.get_single_value("Global Defaults", "default_company")
+		if not company:
+			# No company set up yet; skip silently (after_install may not
+			# have run). The toggle log will show "reset" regardless.
+			return
+		emp = frappe.new_doc("Employee")
+		emp.employee_name = " ".join(
+			filter(None, [spec.get("first_name"), spec.get("last_name")])
+		)
+		emp.first_name = spec.get("first_name") or "Demo"
+		emp.last_name = spec.get("last_name") or ""
+		emp.user_id = email
+		emp.company = company
+		emp.status = "Active"
+		emp.gender = "Male"
+		emp.date_of_birth = "1990-01-01"
+		emp.date_of_joining = "2024-01-01"
+		if frappe.get_meta("Employee").has_field("custom_lms_persona"):
+			emp.custom_lms_persona = persona
+		emp.insert(ignore_permissions=True)
+		frappe.db.commit()
+	except Exception as exc:  # noqa: BLE001
+		print(
+			f"[toggle_demo_mode] Employee creation failed for {email} "
+			f"({exc!s}); persona link may be missing"
+		)
+
+
 def _write_site_config(updates: dict) -> None:
 	"""Patch the site_config.json on disk with the given key/values."""
 	sites_root = frappe.get_site_path()
@@ -98,31 +264,15 @@ def enable_for_demo() -> dict:
 	except Exception as exc:  # noqa: BLE001
 		result["actions"].append(f"re-seed skipped: {exc}")
 
-	# 4. Ensure the demo passwords are set so the demo client can sign in.
-	#    Covers BOTH the Frappe Cloud "Administrator" account (the bench's
-	#    default super-admin) AND the lms_saas demo personas. This block
-	#    runs even if the seeder above failed — that way the operator can
-	#    always recover an admin login after a botched toggle.
-	try:
-		from frappe.utils.password import update_password
-
-		# Frappe Cloud benches always have an "Administrator" user — that's
-		# the real admin login the operator uses. Reset it to a known
-		# password so they can sign in after the toggle.
-		if frappe.db.exists("User", "Administrator"):
-			update_password("Administrator", "Welcome1!")
-			result["actions"].append("reset password for Administrator")
-
-		for email, pw in (
-			("administrator@example.com", "Welcome1!"),
-			("manager@kesari.africa", "Welcome1!"),
-			("officer@kesari.africa", "Welcome1!"),
-		):
-			if frappe.db.exists("User", email):
-				update_password(email, pw)
-				result["actions"].append(f"reset password for {email}")
-	except Exception as exc:  # noqa: BLE001
-		result["actions"].append(f"password reset skipped: {exc}")
+	# 4. Bootstrap the lms_saas demo personas so the client can sign in.
+	#    Each persona is created (User + LMS Portal Staff role) if it
+	#    doesn't exist, AND its password is reset to the canonical
+	#    value from DEMO_USERS. NEVER touches the Frappe Cloud
+	#    "Administrator" account — the bench operator controls that
+	#    password themselves.
+	for spec in DEMO_USERS:
+		status = _ensure_demo_user(spec)
+		result["actions"].append(f"{spec['email']}: {status}")
 
 	frappe.db.commit()
 	result["sandbox_after"] = bool(frappe.conf.get(SANDBOX_KEY))
@@ -172,36 +322,31 @@ def status() -> dict:
 
 
 def reset_admin_password(new_password: str = "Welcome1!") -> dict:
-	"""Reset the Frappe Cloud bench's Administrator password.
+	"""OPT-IN: reset the bench's Administrator password.
 
-	Standalone helper for the case where `enable_for_demo` failed before
-	reaching the password-reset block (e.g. on a brand-new bench where
-	no LMS personas exist yet). Use this to recover an admin login
-	without re-running the full demo bootstrap.
+	Standalone helper that exists ONLY for the operator who has lost
+	their Frappe Cloud bench's Administrator password. It is NEVER called
+	from `enable_for_demo` or `restore_sandbox` — those toggles touch only
+	the lms_saas demo personas. Calling this is the operator's explicit
+	choice; it does not happen as a side-effect of the demo toggle.
 
 	Usage:
-	  bench --site <site> execute \
+	  bench --site <site> execute \\
 	    lms_saas.scripts.toggle_demo_mode.reset_admin_password
-	  bench --site <site> execute \
-	    lms_saas.scripts.toggle_demo_mode.reset_admin_password --kwargs \
+	  bench --site <site> execute \\
+	    lms_saas.scripts.toggle_demo_mode.reset_admin_password --kwargs \\
 	    '{"new_password": "SomethingSecure123!"}'
 	"""
 	from frappe.utils.password import update_password
 
 	result = {"reset": [], "skipped": []}
-	for email in (
-		"Administrator",
-		"administrator@example.com",
-		"manager@kesari.africa",
-		"officer@kesari.africa",
-	):
-		if not frappe.db.exists("User", email):
-			result["skipped"].append(email)
-			continue
-		try:
-			update_password(email, new_password)
-			result["reset"].append(email)
-		except Exception as exc:  # noqa: BLE001
-			result["skipped"].append(f"{email} ({exc})")
+	if not frappe.db.exists("User", "Administrator"):
+		result["skipped"].append("Administrator (user does not exist)")
+		return result
+	try:
+		update_password("Administrator", new_password)
+		result["reset"].append("Administrator")
+	except Exception as exc:  # noqa: BLE001
+		result["skipped"].append(f"Administrator ({exc})")
 	frappe.db.commit()
 	return result
