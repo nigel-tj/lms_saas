@@ -2527,6 +2527,16 @@ body:not(.lms-portal-borrower):not(.lms-page-loans):not(.lms-page-apply):not(.lm
 	align-items: center;
 }
 
+/* JS-rendered portal pages inject their content into a root div that
+ * sits inside .lms-content. Without this, the flex+gap from .lms-content
+ * only applies to the single root child, so inner sections (header,
+ * tabs, KPIs, panels) sit flush with no spacing. */
+.lms-page-stack {
+	display: flex;
+	flex-direction: column;
+	gap: 1.25rem;
+}
+
 /* ------------------------------------------------------------------ */
 /* Clean visual hierarchy — KPIs above tables, charts below            */
 /* ------------------------------------------------------------------ */

@@ -1149,6 +1149,24 @@ lms_portal.initApplyPage = function () {
                                 });
                                 return;
                         }
+                        // Populate wizard state from the server context.
+                        wizardState.products = ctx.products || [];
+                        wizardState.compliance = ctx.compliance || {};
+                        wizardState.selectedProduct = wizardState.products.length
+                                ? wizardState.products[0].name
+                                : null;
+                        lms_portal._renderApplyWizard(root, wizardState);
+                },
+                error: function (err) {
+                        root.innerHTML = lms_portal.renderError({
+                                title: "Could not load application",
+                                message: (err && err.message) || "Please try again later.",
+                                home: "/lms",
+                        });
+                },
+        });
+};
+
 lms_portal._renderApplyWizard = function (root, state) {
 	root.innerHTML = lms_portal._applyWizardHtml(state);
 	lms_portal._bindWizardEvents(root, state);
@@ -2187,10 +2205,10 @@ lms_portal._initNavSearch = function () {
 			recentsEl.hidden = false;
 			recentsEl.innerHTML =
 				'<div class="lms-sidebar__group">Recent</div>' +
-				recents.slice(0, 5).map(function (r) {
-					return '<a class="lms-sidebar__item lms-sidebar__item--recent" href="' +
-						lms_portal.escape(r.route) + '"><span class="lms-sidebar__label">' +
-						lms_portal.escape(r.label) + "</span></a>";
+				recents.slice(0, 3).map(function (r) {
+					return '<a class="lms-sidebar__item" href="' + lms_portal.escape(r.route) + '">' +
+						'<span class="lms-sidebar__label">' + lms_portal.escape(r.label) + '</span>' +
+						'</a>';
 				}).join("");
 		}
 	}
@@ -2207,7 +2225,7 @@ lms_portal._recordNavRecent = function () {
 	try { recents = JSON.parse(sessionStorage.getItem(key) || "[]"); } catch (e) { recents = []; }
 	recents = recents.filter(function (r) { return r.route !== route; });
 	recents.unshift({ route: route, label: String(label).trim() });
-	try { sessionStorage.setItem(key, JSON.stringify(recents.slice(0, 8))); } catch (e2) { /* ignore */ }
+	try { sessionStorage.setItem(key, JSON.stringify(recents.slice(0, 5))); } catch (e2) { /* ignore */ }
 };
 
 /* R18-16: when the user clicks a sidebar item that is `aria-disabled`,

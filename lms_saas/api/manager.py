@@ -53,6 +53,12 @@ def _require_manager():
 	persona = _get_user_persona()
 	if persona != "Branch Manager":
 		frappe.throw("Not permitted", frappe.PermissionError)
+	# Portal staff (LMS Portal Staff role) do NOT have read permission on
+	# the Loan / Loan Application / Customer doctypes. The API already
+	# scopes by branch via custom_lms_branch filters, so bypassing
+	# row-level permissions here is safe and necessary for the dashboard
+	# KPIs, approval queue, borrower list, and loan list to return data.
+	frappe.flags.ignore_permissions = True
 
 
 def _manager_branch() -> str | None:

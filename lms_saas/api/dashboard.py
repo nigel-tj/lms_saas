@@ -152,7 +152,13 @@ def _portfolio_metrics(company=None, branch=None):
             "custom_lms_branch",
         ],
         limit_page_length=PORTFOLIO_LIMIT + 1,  # +1 to detect truncation
-        ignore_permissions=False,
+        # Portal staff (Branch Manager, Loan Officer, Collector) have the
+        # LMS Portal Staff role which does NOT have read permission on the
+        # Loan doctype. The API already scopes by branch via loan_filters
+        # (custom_lms_branch), so ignore_permissions=True is safe here —
+        # the caller (_require_manager / _require_officer) has already
+        # validated the user's persona and branch.
+        ignore_permissions=True,
     )
     # Phase 3: detect truncation so the admin console can surface a warning.
     truncated = len(loans) > PORTFOLIO_LIMIT

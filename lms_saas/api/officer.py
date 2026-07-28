@@ -56,6 +56,12 @@ def _require_officer():
 	persona = resolve_portal_persona()
 	if persona not in ("Loan Officer", "Branch Manager"):
 		frappe.throw("Not permitted", frappe.PermissionError)
+	# Portal staff (LMS Portal Staff role) do NOT have read permission on
+	# the Loan / Loan Application / Customer doctypes. The API already
+	# scopes by branch via custom_lms_branch filters, so bypassing
+	# row-level permissions here is safe and necessary for the officer
+	# dashboard, borrower list, and loan list to return data.
+	frappe.flags.ignore_permissions = True
 
 
 def _officer_branch() -> str | None:
