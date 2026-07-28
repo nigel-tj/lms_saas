@@ -68,17 +68,49 @@ def enable_for_demo() -> dict:
 	result["actions"].append("disabled demo-seed filter (lms_demo_filter_enabled=0)")
 
 	# 3. Re-seed the canonical demo portfolio so the dashboard is full.
+	#    On a fresh Frappe Cloud bench the Loan Product + Chart of Accounts
+	#    may not be set up yet, so bootstrap via after_install() first and
+	#    then retry the seeder. This makes the toggle idempotent on a brand
+	#    new bench, not just on a sandbox-mode bench.
 	try:
 		from lms_saas.setup.seed_demo import run as seed_run
+
+		# Pre-flight: if no LMS-STD Loan Product, run after_install to create
+		# the chart-of-accounts + product. after_install is idempotent.
+		company = frappe.db.get_single_value("Global Defaults", "default_company")
+		has_product = bool(
+			company
+			and frappe.db.exists(
+				"Loan Product", {"company": company, "product_code": "LMS-STD"}
+			)
+		)
+		if not has_product:
+			try:
+				from lms_saas.install import after_install
+
+				after_install()
+				result["actions"].append("bootstrapped LMS Standard Loan Product via after_install()")
+			except Exception as exc:  # noqa: BLE001
+				result["actions"].append(f"after_install bootstrap failed: {exc}")
+
 		seed_run()
 		result["actions"].append("re-seeded canonical demo portfolio")
 	except Exception as exc:  # noqa: BLE001
 		result["actions"].append(f"re-seed skipped: {exc}")
 
-	# 4. Ensure the demo admin user has a known password so the demo
-	#    client can sign in.
+	# 4. Ensure the demo passwords are set so the demo client can sign in.
+	#    Covers BOTH the Frappe Cloud "Administrator" account (the bench's
+	#    default super-admin) AND the lms_saas demo personas.
 	try:
 		from frappe.utils.password import update_password
+
+		# Frappe Cloud benches always have an "Administrator" user — that's
+		# the real admin login the operator uses. Reset it to a known
+		# password so they can sign in after the toggle.
+		if frappe.db.exists("User", "Administrator"):
+			update_password("Administrator", "Welcome1!")
+			result["actions"].append("reset password for Administrator")
+
 		for email, pw in (
 			("administrator@example.com", "Welcome1!"),
 			("manager@kesari.africa", "Welcome1!"),
