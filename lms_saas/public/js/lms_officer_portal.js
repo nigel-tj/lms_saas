@@ -350,7 +350,9 @@ lms_officer._renderAll = function (root, dash, apps, loans, branch, collections,
 			perfEl.innerHTML = '<p class="lms-muted">No officer data yet.</p>';
 		} else {
 			var perfData = perf.map(function (o) {
-				return { label: o.officer || "Unassigned", value: o.outstanding || 0 };
+				// R20-C1: mirror api/labels.py.officer_label so the
+				// chart never falls back to the literal "Unassigned".
+				return { label: (lms_portal && lms_portal.officerLabel) ? lms_portal.officerLabel(o.officer, o.days_past_due) : (o.officer || "\u26a0 Needs assignment"), value: o.outstanding || 0 };
 			});
 			try {
 				lms_charts.bars("lms-officer-performance", perfData);

@@ -237,16 +237,30 @@ def get_pending_applications():
 	# first click does not show 14 copies of the same Test/R14-APP row.
 	# Customer name is matched because the demo seeds put the name on the
 	# Customer record (applicant), not on the Loan Application.
+	total_before_filter = len(applications)
+	demo_filtered_count = 0
 	if sandbox and applications:
-		applications = [
-			app for app in applications
-			if not (
+		filtered = []
+		for app in applications:
+			if (
 				_is_demo_applicant(app.get("customer_name"))
 				or _is_demo_applicant(app.get("applicant"))
-			)
-		]
+			):
+				demo_filtered_count += 1
+				continue
+			filtered.append(app)
+		applications = filtered
 
-	return {"applications": applications, "sandbox_filtered": bool(sandbox and applications)}
+	return {
+		"applications": applications,
+		"sandbox_filtered": bool(sandbox and applications),
+		# R20-M1: situational awareness for the operator. When sandbox_filtered
+		# is True but applications is empty, the operator needs to know whether
+		# there were 0 real applications (total_before_filter == 0) or whether
+		# demo rows buried them.
+		"total_before_filter": total_before_filter,
+		"demo_filtered_count": demo_filtered_count,
+	}
 
 
 @frappe.whitelist()

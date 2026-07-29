@@ -82,20 +82,24 @@
   {
    "role": "System Manager",
    "read": 1,
-   "write": 1,
+   "write": 0,
    "create": 1,
-   "delete": 1,
+   "delete": 0,
    "export": 1,
-   "report": 1
+   "report": 1,
+   "if_owner": 0,
+   "select": 1
   },
   {
    "role": "LMS Portal Staff",
    "read": 1,
-   "write": 1,
+   "write": 0,
    "create": 1,
-   "delete": 1,
-   "export": 1,
-   "report": 1
+   "delete": 0,
+   "export": 0,
+   "report": 1,
+   "if_owner": 1,
+   "select": 1
   }
  ]
 }

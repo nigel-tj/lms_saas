@@ -4,6 +4,20 @@ import frappe
 
 from lms_saas.utils.frappe_version import desk_url, lending_home_url
 
+# R23 decision: the operator's product brand is "Kesari" (a competitive
+# identity against the operator's peers in microfinance). The brand mark
+# (logo + favicon) defaults to the Kesari mark — that's intentional, not
+# an accident. The fallback is config-overridable so a rebrand to a
+# different product line (e.g. a future white-label partner) can swap
+# the mark without a code change.
+#
+#   lms_brand_logo_path    (site_config) — operator-supplied logo path
+#   lms_brand_favicon_path (site_config) — operator-supplied favicon path
+#
+# The fallback chain is:
+#   1. lms_brand_logo_path / lms_brand_favicon_path (operator override)
+#   2. BRAND_LOGO_PATH / BRAND_FAVICON_PATH (default — the Kesari mark)
+#   3. Website Settings.app_logo / favicon (the desk-side value)
 BRAND_LOGO_PATH = "/assets/lms_saas/images/lms-logo.svg"
 BRAND_FAVICON_PATH = "/assets/lms_saas/images/lms-favicon.svg"
 
@@ -71,17 +85,60 @@ def _get_user_permissions(persona: str | None, roles: set) -> dict:
 	}
 
 
+# R23-C1 fix: DEFAULT_BRAND is the vendor-neutral product family fallback.
+# The OPERATOR's brand (e.g. "Kesari") is set per-site via
+# `lms_brand_portal_title` in site_config and overrides these defaults.
+# Keeping these as the product-family defaults (rather than the operator's
+# brand) is correct because:
+#   1. The package name is `lms_saas` (vendor-neutral) and ships to any
+#      site. If a different operator installs it, the visible brand should
+#      not be "Kesari" by accident.
+#   2. A typo / unset `lms_brand_portal_title` should fall through to a
+#      neutral product name, not a competitor's brand.
+#   3. Operators can set `lms_brand_portal_title` in site_config and the
+#      after_install hook writes the value to Website Settings + System
+#      Settings + Navbar Settings (see install.py).
 DEFAULT_BRAND = {
-	"portal_title": "Kesari",
+	"portal_title": "LMS",
 	"tagline": "Stewardship in every repayment",
 	"product_subtitle": "Loan management with accountability",
 	"primary_color": "#2f4f46",
 	"theme_id": "default",
 	"support_email": "",
-	"footer_text": "Powered by Kesari",
+	"footer_text": "Powered by LMS",
 	"logo_url": None,
 	"favicon_url": None,
 }
+
+# Brand aliases — operator-specific brand strings that some fallback paths
+# use (e.g. error paths in user setup, email subjects when no portal_title
+# is configured). These are read from site_config so the operator can
+# override them without a code change. Default to the product family name
+# (vendor-neutral) — the operator's actual brand is set via
+# lms_brand_portal_title.
+_BRAND_ALIAS_DEFAULTS = {
+	"operator_brand": "LMS",
+	"operator_tagline": "Stewardship in every repayment",
+}
+
+
+def _brand_alias(key: str) -> str:
+	"""Return the operator-specific brand string for ``key``.
+
+	The operator sets these in site_config so the same code base can ship
+	under different operator brands without code changes. The fallback chain
+	is:
+	  1. site_config ``lms_brand_<key>`` (operator override)
+	  2. ``lms_brand_portal_title`` (the main operator brand)
+	  3. ``_BRAND_ALIAS_DEFAULTS[key]`` (vendor-neutral fallback)
+	"""
+	override = frappe.conf.get(f"lms_brand_{key}")
+	if override:
+		return override
+	main = frappe.conf.get("lms_brand_portal_title")
+	if main:
+		return main
+	return _BRAND_ALIAS_DEFAULTS.get(key, "LMS")
 
 VALID_LMS_THEMES = frozenset({"default", "midnight", "dark", "auto"})
 
@@ -95,9 +152,18 @@ def get_lms_theme():
 
 
 def get_brand_logo_url() -> str:
-	"""Desk/portal logo — Website Settings app_logo, else bundled LMS logo."""
+	"""Desk/portal logo — operator-supplied, then Website Settings, then bundled mark.
+
+	Fallback chain (R23-H2 fix):
+	  1. ``lms_brand_logo_path`` site_config (operator override)
+	  2. Website Settings.app_logo (DB value the operator may have set)
+	  3. BRAND_LOGO_PATH (the bundled Kesari mark — operator's product brand)
+	"""
 	import frappe
 
+	override = frappe.conf.get("lms_brand_logo_path")
+	if override:
+		return override
 	try:
 		logo = frappe.get_single_value("Website Settings", "app_logo")
 		if logo:
@@ -108,9 +174,18 @@ def get_brand_logo_url() -> str:
 
 
 def get_brand_favicon_url() -> str:
-	"""Tab icon + loading indicator — Website Settings favicon, else bundled mark."""
+	"""Tab icon + loading indicator — operator-supplied, then Website Settings, then bundled mark.
+
+	Fallback chain (R23-H2 fix):
+	  1. ``lms_brand_favicon_path`` site_config (operator override)
+	  2. Website Settings.favicon (DB value the operator may have set)
+	  3. BRAND_FAVICON_PATH (the bundled Kesari mark)
+	"""
 	import frappe
 
+	override = frappe.conf.get("lms_brand_favicon_path")
+	if override:
+		return override
 	try:
 		favicon = frappe.get_single_value("Website Settings", "favicon")
 		if favicon:
@@ -134,7 +209,12 @@ def get_brand_splash_url() -> str:
 
 
 def enrich_brand(brand: dict | None = None) -> dict:
-	"""Attach resolved logo/favicon URLs to a brand dict."""
+	"""Attach resolved logo/favicon URLs to a brand dict.
+
+	R23-H1 fix: validate the operator's configured brand values. A typo
+	or unrendered template placeholder in `lms_brand_portal_title` would
+	otherwise leak verbatim to the portal boot, navbar, and email footers.
+	"""
 	merged = dict(DEFAULT_BRAND)
 	if brand:
 		merged.update(brand)
@@ -152,10 +232,58 @@ def enrich_brand(brand: dict | None = None) -> dict:
 	):
 		override = frappe.conf.get(conf_key)
 		if override:
-			merged[key] = override
+			merged[key] = _sanitize_brand_value(key, override)
+	# R23-H1: surface a validation warning so the operator's portal boot
+	# shows a banner if any brand value looks suspicious. The warning is
+	# best-effort — it's a list, not a raise, so the portal still renders.
+	merged["brand_validation_warnings"] = _validate_brand(merged)
 	merged["logo_url"] = get_brand_logo_url()
 	merged["favicon_url"] = get_brand_favicon_url()
 	return merged
+
+
+def _sanitize_brand_value(key: str, value: str) -> str:
+	"""Strip a brand value of obviously-broken placeholders.
+
+	A misconfigured `lms_brand_portal_title` with a literal `{{ ... }}`
+	or `<placeholder>` token would render verbatim to the portal. Strip
+	common template markers but keep the value otherwise intact.
+	"""
+	if not isinstance(value, str):
+		return value
+	import re
+
+	# Remove literal Jinja / mustache / angle-bracket placeholders that
+	# would otherwise render as visible text in the portal.
+	patterns = (
+		r"\{\{[^}]*\}\}",     # {{ ... }}
+		r"\{%[^}]*%\}",       # {% ... %}
+		r"<placeholder[^>]*>", # <placeholder ...>
+	)
+	for pat in patterns:
+		value = re.sub(pat, "", value)
+	return value.strip()
+
+
+def _validate_brand(brand: dict) -> list[str]:
+	"""Return a list of human-readable warnings for suspicious brand values.
+
+	R23-H1: a configured `lms_brand_portal_title` with a typo, RTL
+	characters, or unrendered placeholder is the operator's first
+	surface for the new client. Surface a warning in the portal boot
+	so the operator notices before going live.
+	"""
+	warnings = []
+	title = brand.get("portal_title") or ""
+	if not title:
+		warnings.append("portal_title is empty — set lms_brand_portal_title in site_config")
+	elif len(title) > 60:
+		warnings.append(f"portal_title is {len(title)} chars — most brand names fit in 30")
+	# Detect right-to-left override (U+202E) which has been used in
+	# phishing-style brand spoofing.
+	if "\u202e" in title:
+		warnings.append("portal_title contains a right-to-left override (U+202E) — possible spoofing")
+	return warnings
 
 
 def get_portal_brand():
@@ -376,7 +504,11 @@ def _lms_page_title(nav_active, context):
 		"whatsapp": "WhatsApp",
 		"reconciliation": "Wallet Reconciliation",
 	}
-	return labels.get(nav_active, context.get("brand", {}).get("portal_title", "Kesari"))
+	# R23-C1 fix: vendor-neutral fallback. The operator's brand is
+	# available in context["brand"]["portal_title"] when configured;
+	# when not, fall through to the vendor-neutral product family name
+	# so a fresh install never leaks a competitor's brand.
+	return labels.get(nav_active, context.get("brand", {}).get("portal_title") or "LMS")
 
 
 def update_website_context(context):
@@ -400,7 +532,11 @@ def apply_login_context(context):
 	context.lms_theme = get_lms_theme()
 	context.lms_primary_color = brand.get("primary_color")
 	context.lms_desk_home = lending_home_url()
-	product = brand.get("portal_title") or "Kesari"
+	# R23-C1 fix: vendor-neutral fallback. The operator's brand from
+	# `lms_brand_portal_title` shows on the login page when configured;
+	# when not, fall through to the vendor-neutral product family name
+	# so a fresh install never leaks a competitor's brand.
+	product = brand.get("portal_title") or "LMS"
 	context.lms_login = {
 		"headline": frappe._("Sign in to {0}").format(product),
 		"subtitle": brand.get("product_subtitle") or frappe._("Loan management with accountability"),

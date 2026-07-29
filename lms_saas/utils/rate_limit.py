@@ -14,6 +14,7 @@ Returns 429 Too Many Requests with a friendly message on limit hit.
 
 from __future__ import annotations
 
+import contextlib
 import functools
 
 import frappe
@@ -57,3 +58,20 @@ def rate_limit(max_calls: int = 10, window_seconds: int = 60):
         return wrapper
 
     return decorator
+
+
+@contextlib.contextmanager
+def ignore_permissions():
+    """R20-L1: context manager that flips `frappe.flags.ignore_permissions`
+    on entry and restores the prior value on exit — even on exception.
+
+    Use this in place of bare `frappe.flags.ignore_permissions = True` so
+    a single call site cannot leak the bypass into a later endpoint in
+    the same request lifecycle.
+    """
+    prior = bool(getattr(frappe.flags, "ignore_permissions", False))
+    frappe.flags.ignore_permissions = True
+    try:
+        yield
+    finally:
+        frappe.flags.ignore_permissions = prior

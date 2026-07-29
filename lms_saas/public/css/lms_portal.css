@@ -2086,6 +2086,61 @@ body.lms-portal-borrower .form-control:focus {
 	font-size: 1.5rem;
 	margin-bottom: 1rem;
 }
+/* R20-P3: post-submit "what happens next" block. Plain language for borrowers
+   with low literacy — numbered steps, no jargon, bold key timeframes. */
+.lms-success-next {
+	text-align: left;
+	margin: 1.25rem auto 1rem;
+	max-width: 36rem;
+	padding: 1rem 1.25rem;
+	border: 1px solid var(--lms-border, #e5e7eb);
+	border-radius: 12px;
+	background: var(--lms-surface-alt, #f8fafc);
+}
+.lms-success-next h4 {
+	margin: 0 0 0.5rem 0;
+	font-size: 0.95rem;
+	color: var(--lms-text-strong, #111827);
+}
+.lms-success-list {
+	margin: 0;
+	padding-left: 1.25rem;
+	color: var(--lms-text, #374151);
+	line-height: 1.55;
+}
+.lms-success-list li {
+	margin-bottom: 0.4rem;
+}
+
+/* R20-P3: privacy notice on the apply page. Collapsible so it doesn't push
+   the form below the fold; visible by default for transparency. */
+.lms-privacy-notice {
+	max-width: 48rem;
+	margin: 0 auto 1rem;
+	padding: 0.5rem 1rem;
+	border: 1px solid var(--lms-border, #e5e7eb);
+	border-left: 3px solid var(--lms-primary, #2f4f46);
+	border-radius: 8px;
+	background: var(--lms-surface-alt, #f8fafc);
+	font-size: 0.9rem;
+	color: var(--lms-text, #374151);
+}
+.lms-privacy-notice summary {
+	cursor: pointer;
+	padding: 0.25rem 0;
+	list-style: none;
+}
+.lms-privacy-notice summary::-webkit-details-marker { display: none; }
+.lms-privacy-notice summary::before {
+	content: "▸ ";
+	display: inline-block;
+	transition: transform 0.15s ease;
+}
+.lms-privacy-notice details[open] summary::before { content: "▾ "; }
+.lms-privacy-notice p {
+	margin: 0.5rem 0;
+	line-height: 1.5;
+}
 
 /* ------------------------------------------------------------------ */
 /* Payment confirmation + bank instructions                           */

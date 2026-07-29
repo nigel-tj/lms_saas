@@ -1,4 +1,18 @@
-"""AML/CFT screening — config-driven external provider hook (RBZ 3.18)."""
+"""AML/CFT screening — config-driven external provider hook.
+
+ARCHITECTURE NOTE:
+    AML/CFT (Anti-Money Laundering / Countering Financing of Terrorism)
+    is enforced as a POLICY LAYER on top of the general-purpose loan
+    software. The screening provider is configured by the operator via
+    site_config (``lms_aml_url``, ``lms_aml_enabled``); the operator's
+    own regulator requirements are surfaced as audit-trail evidence but
+    the code base does not name a specific regulator.
+
+    AML/CFT is a hard gate before origination: a Loan Application
+    cannot be submitted unless the borrower's AML status is "Clear".
+    The provider call is idempotent (cached on the compliance record)
+    so re-submissions don't re-charge the screening fee.
+"""
 
 from __future__ import annotations
 
@@ -120,6 +134,75 @@ def _normalize_aml_status(raw: str) -> str:
 	if value.lower() in ("fail", "block", "blocked"):
 		return "Rejected"
 	return "Pending"
+
+
+def override_aml_flag(compliance_name: str, new_status: str, reason: str) -> dict:
+	"""Branch Manager override of an AML flag (false-positive review).
+
+	R22 board hardening: the AML/CFT regime requires segregation of
+	duties between the customer-facing staff (Loan Officer / Collector)
+	who onboards the borrower and the reviewer who clears the flag.
+	Only a Branch Manager (or higher) may invoke this. The override is
+	written as a critical LMS Audit Event so the regulator can request
+	"show me every AML override in the last quarter" and get a
+	verifiable, attributable list.
+
+	The new_status must be one of "Clear" (false-positive) or "Flagged"
+	/ "Rejected" (confirmed after review). Setting to "Clear" without
+	a reason is forbidden.
+	"""
+	# Permission check via the role-gate module — keeps the AML/CFT
+	# segregation-of-duties rule in one place.
+	from lms_saas.api.aml_role_gates import assert_loan_officer_cannot_clear_aml
+
+	assert_loan_officer_cannot_clear_aml()
+
+	allowed = {"Clear", "Flagged", "Rejected"}
+	if new_status not in allowed:
+		frappe.throw(f"Invalid AML override status '{new_status}'.")
+	if new_status == "Clear" and not (reason or "").strip():
+		frappe.throw(
+			"An override clearing an AML flag requires a written reason. "
+			"The reason is recorded in LMS Audit Event."
+		)
+
+	old_status = frappe.db.get_value(
+		"LMS Borrower Compliance", compliance_name, "aml_status"
+	)
+	frappe.db.set_value(
+		"LMS Borrower Compliance",
+		compliance_name,
+		{
+			"aml_status": new_status,
+			"aml_screened_at": frappe.utils.now_datetime(),
+			"aml_details": (
+				(frappe.db.get_value("LMS Borrower Compliance", compliance_name, "aml_details") or "")
+				+ f"\nMANUAL_OVERRIDE by {frappe.session.user} at {frappe.utils.now_datetime()}: "
+				+ f"old_status={old_status} new_status={new_status} reason={reason}"
+			),
+		},
+		update_modified=False,
+	)
+
+	from lms_saas.api.compliance import write_audit_event
+
+	write_audit_event(
+		event_type="AML:Override",
+		reference_doctype="LMS Borrower Compliance",
+		reference_name=compliance_name,
+		details=(
+			f"old_status={old_status} new_status={new_status} "
+			f"reason={reason} reviewer={frappe.session.user}"
+		),
+		critical=True,
+	)
+
+	return {
+		"compliance": compliance_name,
+		"old_status": old_status,
+		"new_status": new_status,
+		"reason": reason,
+	}
 
 
 def on_compliance_after_insert(doc, method=None):

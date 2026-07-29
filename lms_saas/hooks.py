@@ -14,9 +14,20 @@ def _versioned_asset(public_path: str, assets_path: str) -> str:
 
 
 app_name = "lms_saas"
-app_title = "Kesari"
+# R23 decision: app_title is the VENDOR-NEUTRAL product family name shown in
+# the desk's Apps screen, the navbar Help dropdown, and the System Settings
+# `app_name` field. The operator's visible brand (e.g. "Kesari") is set
+# per-site via `lms_brand_portal_title` in site_config and written to Website
+# Settings + System Settings by the after_install hook (see install.py).
+#
+# This split lets the same `lms_saas` package be installed on any site — the
+# package itself is "LMS" (a vendor-neutral family), and the operator's
+# brand comes from the config. Sites that want the desk to show their own
+# brand can set `lms_app_title` in site_config and the boot hook will mirror
+# it into frappe.conf["app_name"] at request time.
+app_title = "LMS"
 app_publisher = "Nigel Tsungai Jena"
-app_description = "Kesari — loan management with stewardship and accountability"
+app_description = "Loan management with stewardship and accountability — vendor-neutral LMS package, rebrand per operator"
 app_email = "admin@3dprintingvillage.co.za"
 app_license = "mit"
 
@@ -28,6 +39,13 @@ jinja = {
 after_install = "lms_saas.install.after_install"
 after_migrate = "lms_saas.install.after_install"
 boot_session = "lms_saas.boot.apply_default_route"
+
+# R20-L1: clear transient security flags at end of request so a leaked
+# `frappe.flags.ignore_permissions` set inside one endpoint cannot carry
+# into a later endpoint within the same request lifecycle.
+after_request = [
+	"lms_saas.utils.request_lifecycle.reset_permission_flags",
+]
 
 # Desk boot splash (overridden by Website Settings splash_image on migrate).
 splash_image = "/assets/lms_saas/images/lms-favicon.svg"
@@ -242,6 +260,11 @@ doc_events = {
         "on_cancel": "lms_saas.api.collateral.record_collateral_event",
     },
     "Loan": {
+        # R20-P5: four-eyes must gate the Loan submit too — without this,
+        # the maker of a Loan can self-disburse because the maker of the
+        # originating Loan Application and the maker of the Loan are the
+        # same user.
+        "before_submit": "lms_saas.api.compliance.enforce_four_eyes",
         "on_submit": "lms_saas.api.compliance.record_money_event",
         "on_cancel": "lms_saas.api.compliance.record_money_event",
     },

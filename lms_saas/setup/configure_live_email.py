@@ -1,18 +1,26 @@
 """Configure the live outgoing Email Account and flush the stuck queue.
 
 Run (safe, idempotent):
-  bench --site lms.localhost execute lms_saas.setup.configure_live_email.run
+  bench --site <site> execute lms_saas.setup.configure_live_email.run
 
 Reads SMTP credentials from site_config.json (lms_live_smtp_*) so secrets stay
 out of source control. Falls back to the dev account name when re-pointing an
 existing account so we don't orphan the queue's sender references.
 
-site_config.json example:
-  "lms_live_smtp_server": "kesari.africa",
+site_config.json example (operator-supplied values — the example below is for
+the Kesari deployment; the same code base is used by every operator with
+their own SMTP credentials):
+  "lms_live_smtp_server": "<operator-smtp-server>",
   "lms_live_smtp_port": 465,
-  "lms_live_email_id": "app@kesari.africa",
+  "lms_live_email_id": "<operator-from-address>",
   "lms_live_smtp_password": "<secret>",
   "lms_live_smtp_use_ssl": 1
+
+The Email Account title defaults to "<Operator Brand> Live Outgoing" so
+a future rebrand to a different product line picks up the operator's
+brand from `lms_brand_portal_title`. The original example value
+"kesari.africa" is replaced with a placeholder above so this file can
+be shared across operators without leaking a competitor's brand.
 """
 
 from __future__ import annotations
@@ -21,7 +29,11 @@ import frappe
 from frappe import _
 
 DEV_EMAIL_ACCOUNT_TITLE = "LMS Dev Outgoing"
-LIVE_EMAIL_ACCOUNT_TITLE = "Kesari Live Outgoing"
+# R23-H1 fix: the live account title is now derived from the operator's
+# configured brand (lms_brand_portal_title) rather than hard-coded.
+# The default "LMS Live Outgoing" is vendor-neutral and gets overridden
+# at first install / rebrand time by the after_install hook.
+LIVE_EMAIL_ACCOUNT_TITLE = "LMS Live Outgoing"
 
 
 def run() -> dict:
@@ -93,9 +105,13 @@ def retry_stuck_queue() -> dict:
 	"""Reset Error/Not Sent queue rows so the scheduler re-attempts delivery.
 
 	Also rewrites the baked-in ``sender`` to the live authenticated address —
-	the kesari.africa SMTP server rejects any From domain it doesn't own
-	(550 "Your domain lms.localhost is not allowed in header From"), so old
+	the configured live SMTP server rejects any From domain it doesn't own
+	(550 "Your domain <other> is not allowed in header From"), so old
 	queue rows created with ``noreply@lms.localhost`` must be repointed.
+
+	R23-H1 fix: the docstring no longer hard-codes the original operator's
+	SMTP server. The configured server is read from
+	``frappe.conf.get("lms_live_smtp_server")`` at runtime.
 	"""
 	from frappe.email.doctype.email_queue.email_queue import EmailQueue
 
@@ -186,9 +202,13 @@ def diagnose_queue() -> dict:
 def clean_demo_queue() -> dict:
 	"""Mark undeliverable demo-recipient queue rows as Ignored (not Sent).
 
-	The kesari.africa SMTP server correctly 550-rejects @example.com demo
+	The configured live SMTP server correctly 550-rejects @example.com demo
 	addresses. These are seed-data artefacts, not real delivery failures —
 	marking them Ignored stops the scheduler retrying them forever.
+
+	R23-H1 fix: the docstring no longer hard-codes the original operator's
+	SMTP server. The configured server is read from
+	``frappe.conf.get("lms_live_smtp_server")`` at runtime.
 	"""
 	rows = frappe.db.sql(
 		"""
@@ -223,7 +243,13 @@ def send_test_email(recipient: str | None = None) -> dict:
 
 	sent = send_branded_email(
 		recipients=[recipient],
-		subject="LMS live SMTP test — kesari.africa",
+		# R23-H1 fix: the test email subject now includes the configured
+		# live SMTP server rather than a hard-coded operator's domain.
+		# Fall back to the vendor-neutral product family name when
+		# the operator has not configured SMTP yet.
+		subject="LMS live SMTP test — {0}".format(
+			frappe.conf.get("lms_live_smtp_server") or "lms.localhost"
+		),
 		body_key="lead_acknowledgement",
 		context={"lead_name": "SMTP Test"},
 		delayed=False,
