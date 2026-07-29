@@ -57,7 +57,13 @@ def submit_loan_application_officer(
 	loan_product: str | None = None,
 	repayment_periods: int = 6,
 ):
-	"""Loan Officer creates a draft Loan Application on behalf of a client."""
+	"""Loan Officer creates a draft Loan Application on behalf of a client.
+
+	R22-C2: writes LMS Audit Event for the officer-initiated submission.
+	Also fixes the branch-scoping bug: prior versions did not set
+	custom_lms_branch on the application, so manager approval queues
+	filtered by branch missed officer-submitted applications.
+	"""
 	_require_role("LMS Loan Officer")
 
 	loan_amount = flt(loan_amount)
@@ -81,6 +87,26 @@ def submit_loan_application_officer(
 
 	rate = flt(frappe.db.get_value("Loan Product", loan_product, "rate_of_interest") or 0)
 
+	# R22-C2 fix: branch scoping. Resolve the branch from the Customer
+	# record (the source of truth used by all other flows). Without
+	# this, the manager's approval queue — which filters by
+	# custom_lms_branch — would not return officer-submitted apps
+	# belonging to a customer in a different branch from the manager.
+	cust_branch = frappe.db.get_value("Customer", applicant, "custom_lms_branch")
+	cust_officer = frappe.db.get_value("Customer", applicant, "custom_loan_officer")
+	# Officer's own branch wins when the customer has no branch (a
+	# brand-new borrower who hasn't been assigned yet). This matches
+	# the policy used elsewhere — the queue falls back to "all
+	# branches" if the manager has no branch set.
+	if not cust_branch:
+		import lms_saas.api.staff as _staff
+		cust_branch = _staff.get_current_user_branch()
+	# Officer fallback for traceability (the regulator's
+	# "who originated this?" walk).
+	if not cust_officer:
+		from lms_saas.api.officer import _officer_employee
+		cust_officer = _officer_employee()
+
 	app = frappe.get_doc(
 		{
 			"doctype": "Loan Application",
@@ -91,9 +117,33 @@ def submit_loan_application_officer(
 			"loan_amount": loan_amount,
 			"repayment_periods": repayment_periods,
 			"rate_of_interest": rate,
+			"custom_lms_branch": cust_branch,
+			"custom_loan_officer": cust_officer,
 		}
 	)
 	app.insert(ignore_permissions=True)
+
+	# R22-C2: audit the officer submission. critical=True so a write
+	# failure surfaces in the operator's error log.
+	from lms_saas.api.compliance import write_audit_event
+
+	try:
+		write_audit_event(
+			event_type="LoanApplication:Submitted:Officer",
+			reference_doctype="Loan Application",
+			reference_name=app.name,
+			amount=loan_amount,
+			details=(
+				f"applicant={applicant} loan_product={loan_product} "
+				f"branch={cust_branch or 'unassigned'} officer={cust_officer or 'unassigned'}"
+			),
+			critical=True,
+		)
+	except Exception:
+		frappe.log_error(
+			title="LMS audit event failed (officer submit)",
+			message=frappe.get_traceback(),
+		)
 
 	return {"application": app.name, "status": app.status or "Draft"}
 

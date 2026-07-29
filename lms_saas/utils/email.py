@@ -6,7 +6,12 @@ import frappe
 from frappe import _
 from frappe.utils import get_url, validate_email_address
 
-from lms_saas.utils.brand import enrich_brand, get_brand_favicon_url, get_brand_logo_url
+from lms_saas.utils.brand import (
+	_brand_alias,
+	enrich_brand,
+	get_brand_favicon_url,
+	get_brand_logo_url,
+)
 
 EMAIL_BODY_TEMPLATES = {
 	"payment_reminder": "templates/email/payment_reminder_body.html",
@@ -30,9 +35,15 @@ EMAIL_TEMPLATE_NAMES = {
 
 
 def get_email_brand_context() -> dict:
-	"""Brand tokens for email templates (logo URL must be absolute for clients)."""
+	"""Brand tokens for email templates (logo URL must be absolute for clients).
+
+	R23-C1 fix: brand fallbacks are vendor-neutral ("LMS") rather than
+	the hard-coded operator name. The operator's brand comes from
+	`lms_brand_portal_title` in site_config and is written to Website
+	Settings by the after_install hook (see install.py).
+	"""
 	brand = enrich_brand()
-	company = brand.get("company_name") or brand.get("portal_title") or "Kesari"
+	company = brand.get("company_name") or brand.get("portal_title") or _brand_alias("operator_brand")
 	site = get_url()
 	logo = brand.get("logo_url") or get_brand_logo_url()
 	if logo and logo.startswith("/"):
@@ -46,7 +57,7 @@ def get_email_brand_context() -> dict:
 	)
 	footer = brand.get("footer_text")
 	if footer is None:
-		footer = _("Powered by {0}").format(brand.get("portal_title") or "LMS")
+		footer = _("Powered by {0}").format(brand.get("portal_title") or _brand_alias("operator_brand"))
 	# Explicit empty string = hide footer line in templates that check truthiness.
 	support = brand.get("support_email") or ""
 	try:
@@ -56,7 +67,7 @@ def get_email_brand_context() -> dict:
 
 	return {
 		"company_name": company,
-		"tagline": brand.get("tagline") or _("Stewardship in every repayment"),
+		"tagline": brand.get("tagline") or _brand_alias("operator_tagline"),
 		"primary_color": brand.get("primary_color") or "#2f4f46",
 		"logo_url": logo,
 		"favicon_url": favicon,
@@ -170,7 +181,15 @@ def _sample_subject_and_context(body_key: str) -> tuple[str, dict]:
 		)
 	if body_key == "welcome":
 		return (
-			_("Welcome to {0}").format("Kesari"),
+			# R23-C1 fix: use the operator's configured brand rather than
+			# the hard-coded original operator's name. The fallback
+			# chain in utils.brand._brand_alias returns "LMS" if the
+			# operator has not configured a brand, so a fresh install
+			# never leaks a competitor's brand into a sample subject.
+			_("Welcome to {0}").format(
+				frappe.conf.get("lms_brand_portal_title")
+				or _brand_alias("operator_brand")
+			),
 			{
 				"customer_name": "Jane Borrower",
 				"reset_password_url": get_url("/update-password"),

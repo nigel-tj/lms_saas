@@ -107,6 +107,41 @@ lms_portal.escape = function (s) {
 	return d.innerHTML;
 };
 
+// R20-C1: client-side mirror of api/labels.py — used by chart code that
+// previously hard-coded "Unassigned". Mirroring (not async-fetching) keeps
+// the render path fast and removes the leak across all chart/table call sites.
+lms_portal._LABEL_SANITISE_RE = /[<>]|[\x00-\x08\x0b-\x1f\x7f]/g;
+lms_portal._NEEDS_ASSIGNMENT_DPD_THRESHOLD = 30;
+lms_portal._UNASSIGNED_DPD_LATE = "\u26a0 Needs assignment";
+lms_portal._UNASSIGNED_DPD_EARLY = "\ud83d\udd52 Awaiting officer";
+
+lms_portal._sanitiseLabel = function (value) {
+	if (value === undefined || value === null) return "";
+	var s = String(value).trim();
+	s = s.replace(lms_portal._LABEL_SANITISE_RE, "");
+	return s.trim();
+};
+
+lms_portal.officerLabel = function (officerName, daysPastDue) {
+	var clean = lms_portal._sanitiseLabel(officerName);
+	if (clean) return clean;
+	var dpd = parseInt(daysPastDue, 10);
+	if (isNaN(dpd)) dpd = 0;
+	return dpd > lms_portal._NEEDS_ASSIGNMENT_DPD_THRESHOLD
+		? lms_portal._UNASSIGNED_DPD_LATE
+		: lms_portal._UNASSIGNED_DPD_EARLY;
+};
+
+lms_portal.branchLabel = function (branchName) {
+	var clean = lms_portal._sanitiseLabel(branchName);
+	if (clean) return clean;
+	return "\u26a0 No branch";
+};
+
+lms_portal.safeChartLabel = function (value) {
+	return lms_portal._sanitiseLabel(value);
+};
+
 lms_portal.formatDate = function (value) {
 	if (!value) return "—";
 	if (typeof frappe !== "undefined" && frappe.datetime && frappe.datetime.str_to_user) {
@@ -1690,14 +1725,26 @@ lms_portal._submitApplication = function (root, state) {
 		},
 		callback: function (res) {
 			var app = res.message || {};
+			// R20-P3: tell the borrower what happens next in plain language.
+			// Borrowers with low literacy may otherwise stop responding once
+			// they hit "submitted" because nobody told them the timeline.
 			root.innerHTML =
 				'<div class="lms-panel lms-success-card">' +
 				'<div class="lms-success-icon">✓</div>' +
-				"<h3>Application submitted!</h3>" +
+				"<h3>Application submitted</h3>" +
 				"<p>Your application reference is <strong>" +
 				lms_portal.escape(app.application || "") +
-				"</strong></p>" +
-				'<p class="lms-muted">It is now under review. You can track its status from your applications list.</p>' +
+				"</strong>.</p>" +
+				'<div class="lms-success-next">' +
+				'<h4>What happens next</h4>' +
+				'<ol class="lms-success-list">' +
+				'<li>A loan officer at your branch reviews your application within <strong>1 business day</strong>.</li>' +
+				'<li>If anything is missing they will call you on the number you gave. Keep your phone reachable.</li>' +
+				'<li>You will be notified by SMS once a decision is made — usually within <strong>3 business days</strong>.</li>' +
+				'<li>If approved, the money is disbursed to your mobile money wallet within <strong>1 business day</strong> of signing.</li>' +
+				'</ol>' +
+				'<p class="lms-muted">Questions? Call your branch or reply to the SMS you receive.</p>' +
+				'</div>' +
 				'<div class="lms-actions">' +
 				'<a class="lms-btn lms-btn--primary" href="/lms/applications">View my applications</a>' +
 				'<a class="lms-btn lms-btn--ghost" href="/lms">Back to dashboard</a>' +

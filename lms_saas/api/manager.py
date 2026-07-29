@@ -177,16 +177,27 @@ def get_approval_queue():
 		)
 
 	# R18-1: drop demo seed applicants in sandbox mode.
+	total_before_filter = len(applications)
+	demo_filtered_count = 0
 	if sandbox and applications:
-		applications = [
-			app for app in applications
-			if not (
+		filtered = []
+		for app in applications:
+			if (
 				_is_demo_applicant(app.get("customer_name"))
 				or _is_demo_applicant(app.get("applicant"))
-			)
-		]
+			):
+				demo_filtered_count += 1
+				continue
+			filtered.append(app)
+		applications = filtered
 
-	return {"applications": applications, "sandbox_filtered": bool(sandbox and applications)}
+	return {
+		"applications": applications,
+		"sandbox_filtered": bool(sandbox and applications),
+		# R20-M1: pre-filter count for operator situational awareness.
+		"total_before_filter": total_before_filter,
+		"demo_filtered_count": demo_filtered_count,
+	}
 
 
 @frappe.whitelist()
@@ -221,6 +232,13 @@ def approve_application(application_name: str):
 	loan.repayment_periods = app.repayment_periods
 	loan.custom_lms_branch = app.custom_lms_branch or ""
 	loan.custom_loan_officer = app.custom_loan_officer or ""
+	# R21-C1: record the direct link to the originating Loan Application
+	# so the four-eyes resolver at Loan.before_submit time can determine
+	# the application owner precisely (without relying on fuzzy
+	# (applicant, loan_product) matching that historically returned
+	# Administrator-owned seed apps and made the check pass vacuously).
+	if frappe.get_meta("Loan").has_field("custom_lms_loan_application"):
+		loan.custom_lms_loan_application = app.name
 	loan.flags.ignore_permissions = True
 	loan.insert()
 

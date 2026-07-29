@@ -1,24 +1,33 @@
-"""Compliance operator mode — production-grade defaults for a licensed MFI.
+"""Compliance operator mode — production-grade defaults for a licensed lender.
 
-The Kesari LMS is a regulated microfinance ledger. Two operator modes are
-supported:
+The Kesari LMS is a regulated lending ledger. Compliance is a POLICY LAYER
+on top of the general-purpose software — the regulator does not drive the
+software architecture. Two operator modes are supported:
 
 * **Sandbox mode** (default) — single-tenant demo, generous limits, the
   regulatory hooks are config-gated so a misconfigured site can't lock
   itself out. Identified by the presence of ``lms_sandbox_end_date`` in
   site_config.
 
-* **Production mode** — the operator is a licensed entity (e.g. an MFI
-  holding a Reserve Bank microfinance licence). The app refuses to
-  process money-movement events until operator identity, licence number,
-  regulator name and an explicit ``lms_operator_license_validated`` flag
-  are set in site_config. The four-eyes / rate-cap / retention / KYC
-  controls are forced ON (no opt-out short of the per-flag relax
-  keys used by the seeding smoke tests).
+* **Production mode** — the operator is a licensed lender (e.g. an MFI
+  holding a microfinance licence issued by the operator's national
+  regulator). The app refuses to process money-movement events until
+  operator identity, licence number, regulator name and an explicit
+  ``lms_operator_license_validated`` flag are set in site_config. The
+  four-eyes / rate-cap / retention / KYC controls are forced ON (no
+  opt-out short of the per-flag relax keys used by the seeding smoke
+  tests).
 
 This module is the single source of truth for "is this a real
 licensed operator?" and is imported by the dashboard, the boot
 context, the regulator export endpoint, and the audit trail.
+
+Regulator-agnostic design:
+    The code base does not hard-code any specific regulator (RBZ, CBK,
+    BoZ, etc.). The regulator name is a config value
+    (``lms_operator_regulator``) and user-facing error messages do not
+    mention the regulator. This allows the same software to ship in
+    any jurisdiction.
 
 Why this exists:
     Previous rounds' ``lms_compliance_relaxed`` was a single kill-switch
@@ -120,9 +129,11 @@ PRODUCTION_DEFAULTS: dict[str, Any] = {
     "lms_require_consent": True,
     # KYC: hard gate, no relax. (enforced by the lending app, mirrored here.)
     "lms_kyc_required_for_origination": True,
-    # Loan book: hard interest-rate ceiling at 20% (RBZ max for
-    # microfinance — sites may lower this in their own site_config but
-    # cannot raise it above 20% in production mode).
+    # Loan book: hard interest-rate ceiling at 20%. This is a conservative
+    # general-purpose default that aligns with common microfinance caps
+    # across multiple jurisdictions. Operators MAY lower the cap for their
+    # jurisdiction but cannot raise it above 20% in production mode
+    # (override requires explicit per-flag relax in a sandbox).
     "lms_max_rate_of_interest": 20,
     # AML: required in production. Even when the AML provider is a
     # local config-echo stub the operator MUST list a sanction-screening
@@ -215,6 +226,32 @@ def assert_production_money_op_allowed() -> None:
                 "to enter production mode.",
                 frappe.PermissionError,
             )
+
+
+def resolve_regulator_message_suffix() -> str:
+    """Return the regulator reference suffix for user-facing messages.
+
+    ARCHITECTURE: compliance is regulator-agnostic by design. The error
+    messages the borrower or staff sees do NOT name the regulator — they
+    say "active-customer cap reached" or "consent is required" without
+    specifying the rule's source. The regulator's identity is appended
+    only when it's actually useful for the user (i.e. when the operator
+    is in production mode and the regulator name is configured).
+
+    Returns an empty string in sandbox mode (no regulator reference), and
+    a short suffix like " (per RBZ directive 3.19)" in production mode.
+    The suffix is for the operator's own staff UI only — never for
+    borrower-facing copy.
+    """
+    if is_sandbox_mode():
+        return ""
+    if not is_production_mode():
+        return ""
+    regulator = (frappe.conf.get("lms_operator_regulator") or "").strip()
+    if not regulator:
+        return ""
+    # Use a short, neutral reference. Operators can localise via this value.
+    return f" (per {regulator} directive)"
 
 
 def effective_relax_flags() -> dict[str, bool]:

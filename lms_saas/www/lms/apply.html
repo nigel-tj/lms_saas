@@ -7,6 +7,17 @@
   <h2 class="lms-hero__title">Apply for a Loan</h2>
   <p class="lms-hero__subtitle">Submit your application and upload supporting documents for review.</p>
 </section>
+{# R20-P3: visible privacy notice. The R19 board surfaced "no privacy notice on apply page".
+   Borrowers must be told what data we collect, why, and how long we keep it BEFORE they upload
+   their ID and proof of address. #}
+<div class="lms-privacy-notice" role="note" aria-label="Privacy notice">
+  <details>
+    <summary><strong>How we handle your information</strong></summary>
+    <p>We collect the information you submit here (your name, national ID number, proof of address, phone number and the loan details) in order to assess your application and, if approved, to originate your loan. We retain this information for the duration of your loan plus the regulatory retention period (currently 7 years) and then securely delete it.</p>
+    <p>Your information is shared only with the branch staff processing your application and the regulator on lawful request. We do not sell or trade your information.</p>
+    <p>You have the right to ask for a copy of the information we hold about you and to request corrections. Contact your branch to exercise either right.</p>
+  </details>
+</div>
 <div id="lms-apply-root" aria-live="polite"></div>
 {% endblock %}
 

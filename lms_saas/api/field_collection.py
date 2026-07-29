@@ -9,7 +9,7 @@ from lms_saas.lms_saas.report.collection_sheet.collection_sheet import execute a
 
 
 from lms_saas.install import PORTAL_STAFF_ROLE
-from lms_saas.api.pii_access import mask_mobile, record_pii_access
+from lms_saas.api.pii_access import mask_mobile, record_pii_access, record_pii_access_strict
 
 
 def _require_collector():
@@ -57,8 +57,10 @@ def get_collection_run_sheet(days_ahead=7, company=None, reveal=False):
 			address = _address_for_applicant(loan.applicant_type, loan.applicant)
 			if reveal_flag:
 				# R18-4: log every reveal so the operator can prove no PII
-				# was abused.
-				record_pii_access(
+				# was abused. R20-M3: STRICT — if the audit row cannot be
+				# written, abort the reveal so we never serve cleartext
+				# PII without an audit row.
+				record_pii_access_strict(
 					reference_doctype="Loan",
 					reference_name=row.get("loan"),
 					field="mobile_no",
@@ -110,7 +112,9 @@ def reveal_borrower_pii(loan: str, field: str = "mobile_no"):
 	if field != "mobile_no":
 		frappe.throw("Unsupported field for reveal.")
 	mobile = _contact_for_applicant(loan_doc.applicant_type, loan_doc.applicant)
-	record_pii_access(
+	# R20-M3: STRICT audit — a failed insert aborts the reveal. The collector
+	# never sees the cleartext unless the regulator can see the audit row.
+	record_pii_access_strict(
 		reference_doctype="Loan",
 		reference_name=loan,
 		field=field,

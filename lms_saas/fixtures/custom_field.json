@@ -69,6 +69,17 @@
   },
   {
     "doctype": "Custom Field",
+    "name": "Loan-custom_lms_loan_application",
+    "dt": "Loan",
+    "fieldname": "custom_lms_loan_application",
+    "fieldtype": "Link",
+    "label": "Originating Loan Application (LMS)",
+    "options": "Loan Application",
+    "insert_after": "custom_approved_by",
+    "description": "R21-C1: direct link from Loan to its originating Loan Application. The four-eyes resolver reads this field to determine the application owner, so a maker self-origination (same user creates the app AND the Loan) is blocked at submit time."
+  },
+  {
+    "doctype": "Custom Field",
     "name": "Loan Application-custom_loan_officer",
     "dt": "Loan Application",
     "fieldname": "custom_loan_officer",

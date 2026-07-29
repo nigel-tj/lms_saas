@@ -381,8 +381,34 @@ def get_portal_shell():
 @frappe.whitelist()
 @rate_limit(max_calls=5, window_seconds=60)
 def submit_loan_application(loan_amount, loan_product=None, repayment_periods=6):
-    """Borrower self-service loan application (draft, desk review required)."""
+    """Borrower self-service loan application (draft, desk review required).
+
+    R22-C2: writes LMS Audit Event rows so the borrower submission is
+    visible in the regulator's audit-trail walk-through (R22 board
+    finding: prior 5 boards only audited the staff-side flows).
+    """
     customer = _require_customer()
+
+    # R22-C2: audit the attempt BEFORE the consent/KYC check. The
+    # regulator expects every portal hit to be recorded — even the ones
+    # blocked on missing consent. The row is informational (not
+    # critical) so an audit-write failure does not block the user.
+    from lms_saas.api.compliance import write_audit_event
+
+    try:
+        write_audit_event(
+            event_type="LoanApplication:Submit:Attempt",
+            reference_doctype="Loan Application",
+            reference_name="",
+            amount=flt(loan_amount),
+            details=(
+                f"customer={customer} loan_product={loan_product or 'default'} "
+                f"repayment_periods={int(repayment_periods)}"
+            ),
+        )
+    except Exception:
+        # Never block the user on an audit-write failure.
+        pass
 
     compliance = frappe.db.get_value(
         "LMS Borrower Compliance",
@@ -409,6 +435,16 @@ def submit_loan_application(loan_amount, loan_product=None, repayment_periods=6)
     if not loan_product:
         loan_product = frappe.db.get_value("Loan Product", {"company": company, "product_code": "LMS-STD"}, "name")
 
+    # R22-C2 fix: branch scoping. The approval queue filters by
+    # custom_lms_branch, so a borrower-submitted application without a
+    # branch is invisible to the manager. Resolve the branch from the
+    # Customer record (single source of truth) and set it on the
+    # application.
+    branch = frappe.db.get_value("Customer", customer, "custom_lms_branch")
+    # Loan officer for traceability — not required for the queue filter
+    # but useful for the regulator's "who originated this?" walk.
+    loan_officer = frappe.db.get_value("Customer", customer, "custom_lms_loan_officer") or None
+
     app = frappe.get_doc(
         {
             "doctype": "Loan Application",
@@ -419,9 +455,33 @@ def submit_loan_application(loan_amount, loan_product=None, repayment_periods=6)
             "loan_amount": flt(loan_amount),
             "repayment_periods": int(repayment_periods),
             "rate_of_interest": frappe.db.get_value("Loan Product", loan_product, "rate_of_interest") or 0,
+            "custom_lms_branch": branch,
+            "custom_loan_officer": loan_officer,
         }
     )
     app.insert(ignore_permissions=True)
+
+    # R22-C2: audit the successful submission. critical=True so a failure
+    # to write rolls back the insert (no audit = no business op).
+    try:
+        write_audit_event(
+            event_type="LoanApplication:Submitted",
+            reference_doctype="Loan Application",
+            reference_name=app.name,
+            amount=flt(loan_amount),
+            details=(
+                f"customer={customer} loan_product={app.loan_product} "
+                f"branch={branch or 'unassigned'} officer={loan_officer or 'unassigned'}"
+            ),
+            critical=True,
+        )
+    except Exception:
+        # Critical failure already raises; this catch is for the
+        # non-critical fallback. Never silently drop the audit row.
+        frappe.log_error(
+            title="LMS audit event failed (borrower submit)",
+            message=frappe.get_traceback(),
+        )
 
     try:
         from lms_saas.api.webhooks import dispatch_webhook_event
@@ -436,7 +496,15 @@ def submit_loan_application(loan_amount, loan_product=None, repayment_periods=6)
 @frappe.whitelist()
 @rate_limit(max_calls=10, window_seconds=60)
 def upload_kyc_document(file_url, fieldname="id_document_proof"):
-    """Attach KYC document to borrower compliance record."""
+    """Attach KYC document to borrower compliance record.
+
+    R22-C2: writes an LMS Audit Event for the upload. KYC document
+    uploads are evidence that a borrower can produce identity / address
+    documents — a regulator's first walk-through question is "show me
+    the audit trail of every KYC document your portal received in Q3".
+    """
+    from lms_saas.api.compliance import write_audit_event
+
     customer = _require_customer()
     compliance_name = frappe.db.get_value("LMS Borrower Compliance", {"customer": customer}, "name")
     if not compliance_name:
@@ -447,6 +515,24 @@ def upload_kyc_document(file_url, fieldname="id_document_proof"):
         frappe.throw("Invalid document field")
 
     frappe.db.set_value("LMS Borrower Compliance", compliance_name, fieldname, file_url)
+
+    # R22-C2: audit the KYC upload. critical=True — KYC docs are
+    # regulator-facing evidence; a failure to record must surface, not
+    # be silently dropped.
+    try:
+        write_audit_event(
+            event_type="KYC:Document:Uploaded",
+            reference_doctype="LMS Borrower Compliance",
+            reference_name=compliance_name,
+            details=f"customer={customer} field={fieldname} file_url={file_url}",
+            critical=True,
+        )
+    except Exception:
+        frappe.log_error(
+            title="LMS audit event failed (KYC upload)",
+            message=frappe.get_traceback(),
+        )
+
     return {"compliance": compliance_name, "field": fieldname, "file_url": file_url}
 
 

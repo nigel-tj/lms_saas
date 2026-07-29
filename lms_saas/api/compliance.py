@@ -1,15 +1,24 @@
-"""RBZ Fintech Sandbox compliance controls.
+"""Origination compliance controls — config-driven, regulator-agnostic.
 
-Implements audit logging, maker-checker (four-eyes), origination limits /
-consent / sandbox-window enforcement, and the weekly sandbox KPI report.
+ARCHITECTURE NOTE (R22 review feedback):
+    Compliance is a POLICY LAYER on top of general-purpose loan management,
+    not the engine of the software. This module enforces borrower-consent,
+    transaction caps, interest-rate ceilings, and customer-count limits
+    that the operator's regulator mandates. The regulator identity is a
+    config value (``lms_operator_regulator``); user-facing messages do NOT
+    name the regulator, so the same code base ships against multiple
+    jurisdictions (RBZ, CBK, BoZ, etc.) without code changes.
 
-Enforcement controls are config-gated via site_config so they can be switched
-on per environment without code changes (and kept off for automated seeding):
+    The defaults below are conservative general-purpose floors. Operators
+    MAY raise (or, where the regulator allows, lower) them via site_config.
+
+Enforcement controls are config-gated so they can be switched on per
+environment without code changes:
     lms_enforce_four_eyes      (bool)  maker != checker on disbursement/write-off
     lms_require_consent        (bool)  borrower consent required before origination
     lms_max_loan_amount        (number) per-loan transaction cap
-    lms_max_active_customers   (number) volunteer customer cap
-    lms_sandbox_end_date       (date)  testing window end (<=24 months, RBZ 3.32)
+    lms_max_active_customers   (number) active-customer cap
+    lms_sandbox_end_date       (date)  testing window end (if set, blocks new originations after)
 """
 
 import frappe
@@ -18,12 +27,16 @@ from frappe.utils import add_days, cint, flt, getdate, now_datetime, today
 from lms_saas.api.compliance_config import (
 	assert_production_money_op_allowed,
 	operator_profile,
+	resolve_regulator_message_suffix,
 )
 
 MONEY_DOCTYPES = ("Loan", "Loan Disbursement", "Loan Repayment", "Loan Write Off", "LMS Investor Transaction")
 
 # B7: default maximum permitted interest rate (percent) at origination when no
 # site-specific `lms_max_rate_of_interest` is configured. Fail-closed ceiling.
+# This is a conservative general-purpose default — operators in jurisdictions
+# with higher caps may raise it via site_config; jurisdictions with lower caps
+# should set the cap explicitly.
 DEFAULT_MAX_RATE_OF_INTEREST = 20
 
 
@@ -138,6 +151,15 @@ def enforce_four_eyes(doc, method):
 	flag `lms_compliance_relaxed=True` is honoured for backward compatibility
 	but per-flag opt-out is preferred so a site can relax four-eyes without
 	disabling every other compliance control.
+
+	R20-P5: the four-eyes check now also covers Loan creation. A Loan is the
+	immutable record of the originated facility; if a Branch Manager can
+	create the Loan and then submit the Loan Disbursement under their own
+	ownership, the maker of the Loan and the maker of the Disbursement are
+	the same user and the check is meaningless. We resolve the Loan's
+	originating Loan Application (via ``custom_lms_loan_application`` if
+	set, else the most recent draft Application for the same applicant) and
+	require the Loan submitter to differ from that application's owner.
 	"""
 	if frappe.flags.in_install or frappe.flags.in_migrate:
 		return
@@ -150,6 +172,73 @@ def enforce_four_eyes(doc, method):
 			f"Four-eyes control: the maker ({doc.owner}) cannot approve their own "
 			f"{doc.doctype}. A second authorised user must submit it."
 		)
+	# R20-P5: cross-doctype maker check on Loan. The Loan is the immutable
+	# facility record; its originating Application is what an auditor will
+	# trace back to. If the Loan submitter is the same as the Application
+	# owner, that's a maker-self-origination, which four-eyes forbids.
+	if doc.doctype == "Loan":
+		app_owner = _resolve_loan_application_owner(doc)
+		if app_owner and frappe.session.user == app_owner:
+			frappe.throw(
+				f"Four-eyes control: the maker of the originating Loan Application "
+				f"({app_owner}) cannot also be the maker of Loan {doc.name}. "
+				f"A second authorised user must submit the Loan."
+			)
+
+
+def _resolve_loan_application_owner(loan_doc) -> str | None:
+	"""Return the User that owned the originating Loan Application for a Loan.
+
+	Resolution order (first hit wins):
+	1. ``Loan.custom_lms_loan_application`` direct pointer to the
+	   originating Loan Application (preferred — set by the
+	   borrower-side submit flow and the officer-side submit flow).
+	2. ``Loan Application.applicant == Loan.applicant`` AND same
+	   ``loan_product`` AND ``docstatus == 1`` AND
+	   ``app.creation <= loan.creation`` (time-windowed fallback — the
+	   OLD broken resolver was unbounded here, which let an
+	   Administrator-owned seed app satisfy the check for a later Loan).
+	3. None (Loan was created outside the Loan Application flow \u2014 e.g.
+	   migrated data \u2014 in which case the four-eyes check on the Loan
+	   itself via ``doc.owner`` above is sufficient).
+	"""
+	loan_name = getattr(loan_doc, "name", None)
+	loan_creation = getattr(loan_doc, "creation", None)
+	# 1. Direct link (R21-C1). The custom field may not exist on installs
+	# that ran the install.py before this fixture was added; in that
+	# case fall through silently.
+	if loan_name and frappe.get_meta("Loan").has_field("custom_lms_loan_application"):
+		direct = frappe.db.get_value("Loan", loan_name, "custom_lms_loan_application")
+		if direct:
+			app = frappe.db.get_value(
+				"Loan Application",
+				direct,
+				["owner", "docstatus"],
+				as_dict=True,
+			)
+			if app and (app.get("docstatus") if hasattr(app, "get") else app.docstatus) == 1:
+				return app.get("owner") if hasattr(app, "get") else app.owner
+	# 2. Time-windowed fallback: most recent submitted Application
+	# for the same (applicant, loan_product) AND app.creation <= loan.creation.
+	applicant = getattr(loan_doc, "applicant", None)
+	loan_product = getattr(loan_doc, "loan_product", None)
+	if applicant and loan_product:
+		filters = {
+			"applicant": applicant,
+			"loan_product": loan_product,
+			"docstatus": 1,
+		}
+		if loan_creation:
+			filters["creation"] = ("<=", loan_creation)
+		app_name = frappe.db.get_value(
+			"Loan Application",
+			filters,
+			"name",
+			order_by="creation desc",
+		)
+		if app_name:
+			return frappe.db.get_value("Loan Application", app_name, "owner")
+	return None
 
 
 # ---------------------------------------------------------------------------
@@ -176,20 +265,24 @@ def enforce_origination_controls(doc, method):
 
 	end_date = frappe.conf.get("lms_sandbox_end_date")
 	if end_date and getdate(today()) > getdate(end_date):
-		frappe.throw("Sandbox testing window has ended. New originations are not permitted.")
+		frappe.throw(
+			"Origination testing window has ended. New originations are not "
+			"permitted." + resolve_regulator_message_suffix()
+		)
 
 	max_amount = frappe.conf.get("lms_max_loan_amount")
 	if max_amount and flt(doc.loan_amount) > flt(max_amount):
 		frappe.throw(
-			f"Loan amount {flt(doc.loan_amount)} exceeds the sandbox transaction limit ({flt(max_amount)})."
+			f"Loan amount {flt(doc.loan_amount)} exceeds the configured "
+			f"transaction limit ({flt(max_amount)})."
 		)
 	# B7: enforce a hard ceiling on the interest rate at origination unless relaxed.
 	if not relaxed:
 		rate_cap = flt(frappe.conf.get("lms_max_rate_of_interest", 0)) or DEFAULT_MAX_RATE_OF_INTEREST
 		if flt(getattr(doc, "rate_of_interest", 0)) > rate_cap:
 			frappe.throw(
-				f"Interest rate {flt(getattr(doc, 'rate_of_interest', 0))}% exceeds the permitted "
-				f"maximum ({rate_cap}%)."
+				f"Interest rate {flt(getattr(doc, 'rate_of_interest', 0))}% exceeds the "
+				f"permitted maximum ({rate_cap}%)."
 			)
 
 	require_consent = frappe.conf.get("lms_require_consent", False) or not relaxed
@@ -199,8 +292,9 @@ def enforce_origination_controls(doc, method):
 		)
 		if not consent:
 			frappe.throw(
-				"Customer consent is required before origination (RBZ Sandbox 3.19). "
+				"Customer consent is required before origination. "
 				"Record consent on the borrower's LMS Borrower Compliance profile."
+				+ resolve_regulator_message_suffix()
 			)
 
 	max_customers = frappe.conf.get("lms_max_active_customers")
@@ -214,7 +308,7 @@ def enforce_origination_controls(doc, method):
 		existing = set(active)
 		if doc.applicant not in existing and len(existing) >= int(max_customers):
 			frappe.throw(
-				f"Volunteer customer cap ({int(max_customers)}) reached for the sandbox test."
+				f"Active-customer cap ({int(max_customers)}) reached."
 			)
 
 
@@ -224,8 +318,13 @@ def enforce_origination_controls(doc, method):
 
 @frappe.whitelist()
 def get_sandbox_report(days=7):
-	"""Return the metrics required for the RBZ weekly sandbox progress report."""
-	# Role check — restrict to admin only (P1 fix: sandbox report is system-wide regulatory data).
+	"""Return the metrics required for the operator's regulatory progress report.
+
+	The report is regulator-agnostic: the operator's profile (regulator name,
+	licence number) is appended to every row so the same export serves any
+	jurisdiction. The shape mirrors the standard microfinance weekly KPI pack.
+	"""
+	# Role check — restrict to admin only (P1 fix: regulatory report is system-wide data).
 	roles = set(frappe.get_roles())
 	if not roles.intersection({"System Manager", "Administrator"}):
 		frappe.throw("Not permitted", frappe.PermissionError)

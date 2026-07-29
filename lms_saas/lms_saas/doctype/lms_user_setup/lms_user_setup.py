@@ -235,8 +235,15 @@ class LMSUserSetup(Document):
 
 			send_branded_email(
 				recipients=[self.email],
+				# R23-C1 fix: use the operator's configured brand rather
+				# than the hard-coded original operator's name. The
+				# fallback chain in utils.brand._brand_alias returns
+				# "LMS" if the operator has not configured a brand, so
+				# a fresh install never leaks a competitor's brand.
 				subject=_("Welcome to {0}").format(
-					frappe.db.get_single_value("Global Defaults", "default_company") or "Kesari"
+					frappe.db.get_single_value("Global Defaults", "default_company")
+					or frappe.conf.get("lms_brand_portal_title")
+					or "LMS"
 				),
 				body_key="welcome",
 				context={

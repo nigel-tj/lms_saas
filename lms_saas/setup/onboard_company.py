@@ -1,8 +1,9 @@
 """Idempotent single-company onboarding for live/staging sites.
 
-Run examples:
-  bench --site app.kesari.africa execute lms_saas.setup.onboard_company.run --kwargs '{"company":"Kesari","dry_run":1}'
-  bench --site app.kesari.africa execute lms_saas.setup.onboard_company.run --kwargs '{"company":"Kesari","apply":1,"run_verify":1}'
+Run examples (replace <site> with the operator's actual site domain and
+the company name with the operator's actual company name):
+  bench --site <site> execute lms_saas.setup.onboard_company.run --kwargs '{"company":"<operator-company>","dry_run":1}'
+  bench --site <site> execute lms_saas.setup.onboard_company.run --kwargs '{"company":"<operator-company>","apply":1,"run_verify":1}'
 """
 
 from __future__ import annotations

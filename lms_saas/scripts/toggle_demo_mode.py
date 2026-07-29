@@ -31,32 +31,64 @@ SANDBOX_KEY = "lms_sandbox_end_date"
 DEFAULT_SANDBOX_END = (date.today() + timedelta(days=365)).isoformat()
 
 
+def _demo_email_domain() -> str:
+	"""Return the email domain for demo-user addresses.
+
+	R23-H2 fix: derived from the operator's brand (lms_brand_portal_title)
+	rather than the hard-coded original operator's domain. Operators who
+	re-brand to a different product line (e.g. "Kopo Capital") will see
+	demo users with @kopocapital.example.com — clearly demo, clearly
+	scoped to the operator's brand. Falls back to "kesari.example.com"
+	for backward compatibility with the original operator's existing
+	Frappe Cloud sites (no surprise email changes on upgrade).
+	"""
+	override = frappe.conf.get("lms_demo_email_domain")
+	if override:
+		return override
+	brand = (frappe.conf.get("lms_brand_portal_title") or "kesari").lower().strip()
+	# Strip non-domain characters (spaces, punctuation) but keep hyphens.
+	brand = "".join(c for c in brand if c.isalnum() or c in "-_")
+	return f"{brand}.example.com"
+
+
+def _demo_user_email(persona: str) -> str:
+	"""Return the demo user email for ``persona`` using the configured domain.
+
+	The original Kesari deployment uses manager@kesari.africa as the demo
+	address; the function above produces the same string for that
+	operator. Other operators get demo users at <persona>@<their-brand>.example.com.
+	"""
+	return f"{persona.lower().replace(' ', '')}@{_demo_email_domain()}"
+
+
 # Canonical demo personas + passwords from scripts/create-test-users.sh.
 # Keeping these in sync with that script means a fresh Frappe Cloud bench
 # can use this toggle to bootstrap everything in one shot.
+#
+# R23-H2 fix: email addresses are now derived from the operator's brand
+# via _demo_user_email() rather than hard-coded @kesari.africa. The
+# DEMO_USERS list now contains just the persona, password, and branch
+# metadata — the email is computed at the call site.
 DEMO_USERS = (
 	{
-		"email": "manager@kesari.africa",
+		"persona": "Branch Manager",
 		"first_name": "Branch",
 		"last_name": "Manager",
 		"password": "Manager@123",
-		"persona": "Branch Manager",
 		"branch_cost_center": None,
 	},
 	{
-		"email": "officer@kesari.africa",
+		"persona": "Loan Officer",
 		"first_name": "Loan",
 		"last_name": "Officer",
 		"password": "Officer@123",
-		"persona": "Loan Officer",
 		"branch_cost_center": None,
 	},
 	{
-		"email": "collector@kesari.africa",
+		"persona": "Collector",
 		"first_name": "Collection",
 		"last_name": "Agent",
 		"password": "Collector@123",
-		"persona": "Collector",
 		"branch_cost_center": None,
 	},
 )
@@ -67,7 +99,9 @@ def _ensure_demo_user(spec: dict) -> str:
 
 	Returns "created" / "reset" / "skipped" so the toggle log is useful.
 	"""
-	email = spec["email"]
+	# R23-H2 fix: derive the demo email from the operator's configured
+	# brand (via _demo_user_email) rather than reading it from the spec.
+	email = _demo_user_email(spec["persona"])
 	if not frappe.db.exists("User", email):
 		try:
 			user = frappe.new_doc("User")
@@ -149,7 +183,9 @@ def _ensure_demo_employee(spec: dict) -> None:
 	landing — which for portal staff defaults to ``/lms/manager``, causing
 	an infinite redirect loop when a Branch Manager hits ``/lms/manager``.
 	"""
-	email = spec["email"]
+	# R23-H2 fix: derive the demo email from the operator's configured
+	# brand (via _demo_user_email) rather than reading it from the spec.
+	email = _demo_user_email(spec["persona"])
 	persona = spec.get("persona")
 	if not persona:
 		return
@@ -272,7 +308,10 @@ def enable_for_demo() -> dict:
 	#    password themselves.
 	for spec in DEMO_USERS:
 		status = _ensure_demo_user(spec)
-		result["actions"].append(f"{spec['email']}: {status}")
+		# R23-H2 fix: derive the email from the operator's brand rather
+		# than reading it from the spec (which no longer carries an
+		# email — the brand is the source of truth).
+		result["actions"].append(f"{_demo_user_email(spec['persona'])}: {status}")
 
 	frappe.db.commit()
 	result["sandbox_after"] = bool(frappe.conf.get(SANDBOX_KEY))
