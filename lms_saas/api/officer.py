@@ -208,32 +208,15 @@ def get_pending_applications():
 	branch = _officer_branch()
 	sandbox = is_sandbox_mode()
 
+	# R25-F4: branch-scope is non-negotiable. No global fallback. An
+	# officer in Branch A with no in-branch work sees an empty queue,
+	# NOT every branch's confidential deal pipeline. Admins can still
+	# use the desk query for global visibility.
 	applications = []
 	if branch:
 		applications = frappe.get_all(
 			"Loan Application",
 			filters={"docstatus": 0, "custom_lms_branch": branch},
-			fields=[
-				"name",
-				"applicant",
-				"applicant_type",
-				"loan_amount",
-				"loan_product",
-				"repayment_periods",
-				"status",
-				"creation",
-				"custom_lms_branch",
-				"custom_loan_officer",
-			],
-			order_by="creation desc",
-			limit_page_length=50,
-		)
-
-	# Fallback: if no apps in branch, show all pending
-	if not applications:
-		applications = frappe.get_all(
-			"Loan Application",
-			filters={"docstatus": 0},
 			fields=[
 				"name",
 				"applicant",
@@ -468,6 +451,12 @@ def disburse_assigned_loan(loan_name: str, disbursed_amount: float | None = None
 	if not employee or loan.get("custom_loan_officer") != employee:
 		frappe.throw(_("This loan is not assigned to you."), frappe.PermissionError)
 
+	# R25-F6: branch-scope check on the loan itself. An officer assigned
+	# to a loan can only disburse it if the loan is in the officer's
+	# branch (or the loan has no branch set, which the loan-level
+	# _assert_branch_scope allows via the no-target admin-lite path).
+	_assert_branch_scope(loan.get("custom_lms_branch"))
+
 	amount = flt(disbursed_amount) if disbursed_amount else flt(loan.loan_amount)
 	if amount <= 0:
 		frappe.throw(_("Disbursement amount must be positive."))
@@ -610,6 +599,13 @@ def submit_application_on_behalf(
 
 	if not frappe.db.exists("Customer", customer):
 		frappe.throw(_("Customer {0} not found.").format(customer))
+
+	# R25-F7: branch-scope check on the borrower. A Branch A officer
+	# cannot file a Loan Application for a Branch B borrower (which
+	# would then enter the manager's approval queue in B).
+	_assert_branch_scope(
+		frappe.db.get_value("Customer", customer, "custom_lms_branch")
+	)
 
 	# If the officer didn't override the rate, use the product's default.
 	if rate_of_interest is None or flt(rate_of_interest) <= 0:
@@ -895,6 +891,32 @@ def submit_pending_application(application_name: str) -> dict:
 			_("Loan Application {0} is already submitted (docstatus={1}).").format(
 				application_name, app.docstatus
 			)
+		)
+
+	# R25-F3: KYC + AML gate. An officer cannot advance a draft to
+	# Submitted for a borrower whose KYC isn't Approved or whose AML
+	# screening isn't Clear. The manager-side gate (R25-F2) is the
+	# second line of defence; this is the first.
+	compliance = frappe.db.get_value(
+		"LMS Borrower Compliance",
+		{"customer": app.applicant},
+		["kyc_status", "aml_status"],
+		as_dict=True,
+	) or {}
+	if (compliance.get("kyc_status") or "Pending") != "Approved":
+		frappe.throw(
+			_(
+				"Cannot submit: borrower KYC is not Approved (current: {0}). "
+				"Complete KYC review first."
+			).format(compliance.get("kyc_status") or "Pending")
+		)
+	if (compliance.get("aml_status") or "Pending") != "Clear":
+		frappe.throw(
+			_(
+				"Cannot submit: borrower AML screening is not Clear (current: {0}). "
+				"Wait for AML screening to complete or override via the AML "
+				"override flow (Branch Manager only)."
+			).format(compliance.get("aml_status") or "Pending")
 		)
 
 	app.flags.ignore_permissions = True
@@ -1473,6 +1495,18 @@ def create_borrower(
 	"""
 	_require_officer()
 	branch = _officer_branch()
+
+	# R25-F8: an officer without a branch assignment cannot onboard
+	# borrowers — a branchless customer is invisible to branch-scoped
+	# queries and creates a global-readable row. Refuse at the top.
+	if not branch and not _is_admin():
+		frappe.throw(
+			_(
+				"You need a branch assignment to onboard a borrower. "
+				"Contact your HR / system manager."
+			),
+			frappe.PermissionError,
+		)
 
 	if not first_name or not first_name.strip():
 		frappe.throw(_("First name is required."))

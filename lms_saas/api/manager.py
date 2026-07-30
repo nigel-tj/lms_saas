@@ -241,6 +241,47 @@ def approve_application(application_name: str):
 	if app.docstatus != 0:
 		frappe.throw(_("Only draft applications can be approved (current status: {0}).").format(app.docstatus))
 
+	# R25-F1: four-eyes enforcement on approval. The maker of the
+	# originating Loan Application must not also be the approver.
+	# Admins are exempt (operator owner can do anything).
+	if not _is_admin() and app.owner == frappe.session.user:
+		frappe.throw(
+			_(
+				"Four-eyes control: you (the maker of this application) "
+				"cannot also approve it. A second authorised user must "
+				"approve the application."
+			),
+			frappe.PermissionError,
+		)
+
+	# R25-F2: KYC + AML gate. The borrower's compliance record must be
+	# Approved + Clear before a manager can approve the application.
+	# This is the operator's regulator-mandated control and is enforced
+	# here in addition to the AML screen-on-origination hook so a
+	# manager cannot approve an unKYC'd or unscreened borrower even if
+	# the AML provider was offline at origination time.
+	compliance = frappe.db.get_value(
+		"LMS Borrower Compliance",
+		{"customer": app.applicant},
+		["kyc_status", "aml_status"],
+		as_dict=True,
+	) or {}
+	if (compliance.get("kyc_status") or "Pending") != "Approved":
+		frappe.throw(
+			_(
+				"Cannot approve: borrower KYC is not Approved (current: {0}). "
+				"Complete KYC review first."
+			).format(compliance.get("kyc_status") or "Pending")
+		)
+	if (compliance.get("aml_status") or "Pending") != "Clear":
+		frappe.throw(
+			_(
+				"Cannot approve: borrower AML screening is not Clear (current: {0}). "
+				"Wait for AML screening to complete or override via the AML "
+				"override flow (Branch Manager only)."
+			).format(compliance.get("aml_status") or "Pending")
+		)
+
 	# Submit the application (triggers compliance/credit policy hooks)
 	app.flags.ignore_permissions = True
 	app.submit()
