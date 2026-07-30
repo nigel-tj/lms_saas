@@ -338,6 +338,13 @@ def apply_portal_context(context, nav_active="loans", page_js=None):
 		context.lms_persona, user_roles
 	)
 	context.lms_desk_home = lending_home_url()
+	context.lms_show_staff_desk = bool(
+		set(frappe.get_roles(frappe.session.user)) & {
+			"System Manager",
+			"Administrator",
+			"Desk User",
+		}
+	)
 	context.lms_risk_disclosure = (
 		frappe.conf.get("lms_risk_disclosure")
 		or frappe.conf.get("lms_email_legal_footer")
@@ -518,6 +525,7 @@ def update_website_context(context):
 	apply_borrower_web_context(context)
 	apply_favicon_context(context)
 	context.show_staff_desk = show_staff_desk_link()
+	context.lms_show_staff_desk = show_staff_desk_link()
 	context.lms_desk_home = lending_home_url()
 
 
@@ -532,6 +540,16 @@ def apply_login_context(context):
 	context.lms_theme = get_lms_theme()
 	context.lms_primary_color = brand.get("primary_color")
 	context.lms_desk_home = lending_home_url()
+	# R24: hide the desk option on the login page for non-staff users.
+	# The login page is a pre-authentication path chooser, so this is a
+	# client-side UX gate (the server enforces it after login too).
+	context.lms_show_staff_desk = bool(
+		set(frappe.get_roles(frappe.session.user)) & {
+			"System Manager",
+			"Administrator",
+			"Desk User",
+		}
+	)
 	# R23-C1 fix: vendor-neutral fallback. The operator's brand from
 	# `lms_brand_portal_title` shows on the login page when configured;
 	# when not, fall through to the vendor-neutral product family name

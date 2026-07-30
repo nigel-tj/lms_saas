@@ -2041,7 +2041,16 @@ lms_portal._initUserMenu = function () {
 		var dd = document.createElement("div");
 		dd.className = "lms-user-menu__dropdown";
 		dd.setAttribute("role", "menu");
-		dd.innerHTML =
+		// R24-DL01: only render the "Open desk" link for users with desk
+		// access. Borrowers / officers / collectors must not see a desk URL
+		// in their user menu. The shell template sets
+		// window.__lms_show_staff_desk and window.__lms_desk_home.
+		var showStaffDesk = !!(
+			window.__lms_show_staff_desk ||
+			(typeof show_staff_desk !== "undefined" && show_staff_desk)
+		);
+		var deskHref = window.__lms_desk_home || "/desk";
+		var html =
 			'<div class="lms-user-menu__item lms-user-menu__item--info" role="presentation">' +
 			'<div class="lms-user-menu__name">' +
 			lms_portal.escape((trigger.querySelector(".lms-user-menu__name") || {}).textContent || "User") +
@@ -2050,9 +2059,16 @@ lms_portal._initUserMenu = function () {
 			lms_portal.escape((window.frappe && frappe.session && frappe.session.user) || "") +
 			"</div></div>" +
 			'<a class="lms-user-menu__item lms-user-menu__item--action" role="menuitem" href="/lms/account">My account</a>' +
-			'<a class="lms-user-menu__item lms-user-menu__item--action" role="menuitem" href="/lms-help">Help</a>' +
-			'<a class="lms-user-menu__item lms-user-menu__item--action" role="menuitem" href="/desk">Open desk</a>' +
+			'<a class="lms-user-menu__item lms-user-menu__item--action" role="menuitem" href="/lms-help">Help</a>';
+		if (showStaffDesk) {
+			html +=
+				'<a class="lms-user-menu__item lms-user-menu__item--action" role="menuitem" href="' +
+				lms_portal.escape(deskHref) +
+				'">Open desk</a>';
+		}
+		html +=
 			'<a class="lms-user-menu__item lms-user-menu__item--action lms-user-menu__item--danger" role="menuitem" href="/?cmd=web_logout">Log out</a>';
+		dd.innerHTML = html;
 		wrap.appendChild(dd);
 	}
 	function close() {

@@ -559,8 +559,14 @@ def get_recent_activity(limit: int = 20):
     """Return the N most recent LMS Audit Event rows for the admin console timeline.
 
     Each event has event_type, event_user, event_time, reference_doctype,
-    reference_name, and a `route` (`/app/<doctype>/<name>`) when both
-    reference_doctype and reference_name are set (Phase 2 requirement).
+    reference_name, and a `route` (desk URL) when both reference_doctype
+    and reference_name are set AND the caller is a desk admin.
+
+    R24-DL03: non-admin callers (Loan Officer / Branch Manager / Collector
+    / Borrower) receive `route: None` so the client never renders a desk
+    link to a portal user. The desk URL is built via the version-aware
+    `desk_url()` helper so it works on both v15 (`/app/...`) and v16
+    (`/desk/...`) installs.
     """
     _guard()
     try:
@@ -568,6 +574,11 @@ def get_recent_activity(limit: int = 20):
     except (TypeError, ValueError):
         limit = 20
     limit = max(1, min(limit, 100))
+
+    from lms_saas.utils.frappe_version import desk_url
+
+    caller_roles = set(frappe.get_roles(frappe.session.user))
+    is_desk_admin = bool(caller_roles & {"System Manager", "Administrator"})
 
     events = frappe.get_all(
         "LMS Audit Event",
@@ -577,8 +588,9 @@ def get_recent_activity(limit: int = 20):
     )
     for e in events:
         e["event_time"] = str(e["event_time"]) if e.get("event_time") else None
-        if e.get("reference_doctype") and e.get("reference_name"):
-            e["route"] = f"/app/{e['reference_doctype'].lower().replace(' ', '-')}/{e['reference_name']}"
+        if e.get("reference_doctype") and e.get("reference_name") and is_desk_admin:
+            rel = f"{e['reference_doctype'].lower().replace(' ', '-')}/{e['reference_name']}"
+            e["route"] = desk_url(rel)
         else:
             e["route"] = None
     return {"events": events}

@@ -47,11 +47,14 @@ lms_documents.init = function () {
 };
 
 lms_documents._openUploadModal = function () {
+	// R24-DL04: the "from Desk if needed" instruction was a desk leak.
+	// Documents are categorised in the portal; a manager can link them to
+	// a borrower or loan from the Document Center list view, not the desk.
 	var body =
 		'<div class="lms-form">' +
 		'<label>File<input type="file" id="lms-doc-file" class="lms-input"></label>' +
 		'<label>Category<input type="text" id="lms-doc-category" class="lms-input" placeholder="Optional category name"></label>' +
-		'<p class="lms-muted" style="margin:0;">Files attach to the Document Center. Link to a borrower or loan from Desk if needed.</p>' +
+		'<p class="lms-muted" style="margin:0;">Files attach to the Document Center. A manager can categorise or link them to a borrower or loan from the Document Center list.</p>' +
 		"</div>";
 	var dlg = LMSModal.open({
 		title: "Upload document",

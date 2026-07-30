@@ -23,6 +23,7 @@
 	<script>document.documentElement.setAttribute("data-lms-favicon", {{ brand.favicon_url | tojson }});</script>
 	{% endif %}
 	<script>window.__lms_desk_home = {{ (lms_desk_home or "/desk/lending") | tojson }};</script>
+	<script>window.__lms_show_staff_desk = {{ (lms_show_staff_desk or false) | tojson }};</script>
 	<script>window.__lms_home_route = {{ (lms_home_route or "/lms") | tojson }};</script>
 	<script>window.__lms_support_email = {{ (brand.support_email if brand else '') | tojson }};</script>
 	<script>window.__lms_enforce_four_eyes = {{ 'true' if lms_enforce_four_eyes else 'false' }};</script>
