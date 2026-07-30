@@ -31,17 +31,24 @@ def get_current_user_branch():
         employee_filters["status"] = "Active"
 
     employee_meta = frappe.get_meta("Employee")
-    # Prefer `custom_lms_branch` first because Loan / Loan Application /
-    # Lead / Customer branch-scoped queries are all keyed on Cost Center.
-    # The HRMS `branch` field links to the Branch DocType (different name
-    # space) and would silently filter out every record, leaving officers
-    # with empty dashboards.
-    for branch_field in ("custom_lms_branch", "cost_center", "branch"):
+    # R25-F5 followup: HRMS's `branch` field on the Employee doctype
+    # points to the Branch DocType, which is a DIFFERENT namespace from
+    # the Cost Center that custom_lms_branch / cost_center use. Try
+    # them in order, but tag which one was used so the operator can
+    # see why their branch isn't being recognised.
+    employee_branch = None
+    resolved_from = None
+    for branch_field in ("custom_lms_branch", "cost_center"):
         if not employee_meta.has_field(branch_field):
             continue
-        employee_branch = frappe.db.get_value("Employee", employee_filters, branch_field)
-        if employee_branch:
-            return employee_branch
+        val = frappe.db.get_value("Employee", employee_filters, branch_field)
+        if val:
+            employee_branch = val
+            resolved_from = branch_field
+            break
+
+    if employee_branch:
+        return employee_branch
 
     # 2. User Permission on Cost Center (branch isolation set up by the admin).
     cost_center_matches = frappe.get_all(
