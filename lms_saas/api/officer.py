@@ -84,30 +84,40 @@ def _is_admin() -> bool:
 	return bool(set(frappe.get_roles()).intersection({"System Manager", "Administrator"}))
 
 
-def _assert_branch_scope(target_branch: str | None) -> None:
-	"""Enforce branch-scope on officer actions (fail-closed on mismatch).
+def _assert_branch_scope(target_branch: str | None, write: bool = False) -> None:
+	"""Enforce branch-scope on officer actions.
 
-	R24: the previous version was too strict — an officer with no branch
-	assigned could not view ANY borrower. The fixed policy:
+	R25-F5: split read vs write. Branchless officer can read with a
+	soft log (UX) but cannot write (cross-branch write = unsafe).
 
+	Policy:
 	  - Admins (System Manager / Administrator) bypass entirely.
-	  - If the officer has a branch AND the target has a branch AND they
-	    differ → throw (branch isolation held).
-	  - If the officer has no branch assigned → allow (admin-lite fallback;
-	    this is the case for new operators onboarding).
-	  - If the target has no branch assigned → allow (legacy data with
-	    pre-onboarding rows; the officer can still review and assign).
+	  - Officer has a branch + target has a branch + differ → throw.
+	  - Officer has no branch:
+	    - write=True → throw
+	    - write=False → allow with soft log
+	  - Target has no branch → allow with soft log (legacy data).
 	"""
 	if _is_admin():
 		return
 	branch = _officer_branch()
 	if not branch:
-		# Officer without a branch assignment — admin-lite fallback.
-		# New operators and platform owners land here.
+		if write:
+			frappe.throw(
+				_(
+					"Your account is not assigned to a branch. Contact your HR / "
+					"system manager before performing write actions."
+				),
+				frappe.PermissionError,
+			)
+		frappe.log_error(
+			title="LMS branch-scope: officer has no branch (read fallback)",
+			message=(
+				f"officer={frappe.session.user} action=read target_branch={target_branch or '<empty>'}"
+			),
+		)
 		return
 	if not target_branch:
-		# Target has no branch set (legacy / pre-onboarding data).
-		# Allow with a soft log so the regulator can see the gap.
 		frappe.log_error(
 			title="LMS branch-scope: target has no branch",
 			message=(
@@ -451,11 +461,9 @@ def disburse_assigned_loan(loan_name: str, disbursed_amount: float | None = None
 	if not employee or loan.get("custom_loan_officer") != employee:
 		frappe.throw(_("This loan is not assigned to you."), frappe.PermissionError)
 
-	# R25-F6: branch-scope check on the loan itself. An officer assigned
-	# to a loan can only disburse it if the loan is in the officer's
-	# branch (or the loan has no branch set, which the loan-level
-	# _assert_branch_scope allows via the no-target admin-lite path).
-	_assert_branch_scope(loan.get("custom_lms_branch"))
+	# R25-F5/F6: write=True — disbursement is a write, branchless
+	# officer is blocked. Branch mismatch throws.
+	_assert_branch_scope(loan.get("custom_lms_branch"), write=True)
 
 	amount = flt(disbursed_amount) if disbursed_amount else flt(loan.loan_amount)
 	if amount <= 0:
@@ -601,10 +609,10 @@ def submit_application_on_behalf(
 		frappe.throw(_("Customer {0} not found.").format(customer))
 
 	# R25-F7: branch-scope check on the borrower. A Branch A officer
-	# cannot file a Loan Application for a Branch B borrower (which
-	# would then enter the manager's approval queue in B).
+	# R25-F5/F7: write=True — filing a Loan Application is a write.
 	_assert_branch_scope(
-		frappe.db.get_value("Customer", customer, "custom_lms_branch")
+		frappe.db.get_value("Customer", customer, "custom_lms_branch"),
+		write=True,
 	)
 
 	# If the officer didn't override the rate, use the product's default.
