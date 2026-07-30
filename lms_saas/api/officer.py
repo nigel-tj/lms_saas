@@ -606,8 +606,15 @@ def submit_application_on_behalf(
 			"posting_date": posting_date or frappe.utils.nowdate(),
 			"custom_lms_branch": branch or "",
 			"custom_loan_officer": employee or "",
-			# lending app core field is `loan_purpose` (not purpose_of_finance)
-			"loan_purpose": purpose_of_finance or "",
+			# lending app core field is `loan_purpose` (Link → Loan Purpose
+			# doctype). Only set it if the value matches an existing Loan
+			# Purpose record; free-text would cause a LinkValidationError.
+			"loan_purpose": (
+				purpose_of_finance
+				if purpose_of_finance
+				and frappe.db.exists("Loan Purpose", purpose_of_finance)
+				else ""
+			),
 			# application_date + loan_type + loan_start_date are not core on
 			# the lending Loan Application — stored on LMS custom fields.
 			"lms_loan_type": loan_type or "",
