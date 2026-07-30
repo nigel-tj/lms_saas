@@ -101,11 +101,28 @@ def _assert_branch_scope(target_branch: str | None, write: bool = False) -> None
 		# write. A branchless write would be a cross-branch write by
 		# definition (no branch = every branch).
 		if write:
+			# Diagnose: tell the operator exactly what was tried.
+			emp_meta = frappe.get_meta("Employee")
+			emp_filters = {"user_id": frappe.session.user}
+			if emp_meta.has_field("status"):
+				emp_filters["status"] = "Active"
+			emp_name = frappe.db.get_value("Employee", emp_filters, "name")
+			fields_checked = []
+			if emp_meta.has_field("custom_lms_branch"):
+				fields_checked.append("custom_lms_branch=" + repr(frappe.db.get_value("Employee", emp_filters, "custom_lms_branch")))
+			if emp_meta.has_field("cost_center"):
+				fields_checked.append("cost_center=" + repr(frappe.db.get_value("Employee", emp_filters, "cost_center")))
+			diagnostic = (
+				f"Employee={emp_name or '<none>'}; "
+				f"checked fields: {', '.join(fields_checked) or 'no branch fields on Employee'}; "
+				f"User Permission on Cost Center: "
+				f"{frappe.get_all('User Permission', filters={'user': frappe.session.user, 'allow': 'Cost Center'}, pluck='for_value') or '<none>'}"
+			)
 			frappe.throw(
 				_(
 					"Your account is not assigned to a branch. Contact your HR / "
-					"system manager before performing write actions."
-				),
+					"system manager before performing write actions. Diagnostic: {0}"
+				).format(diagnostic),
 				frappe.PermissionError,
 			)
 		frappe.log_error(
