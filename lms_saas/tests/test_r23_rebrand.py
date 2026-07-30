@@ -79,7 +79,9 @@ class TestR23BrandFallbacksAreVendorNeutral(FrappeTestCase):
             self.assertNotIn('"Kesari"', line, f'hard-coded "Kesari" literal in: {line!r}')
 
     def test_lms_user_setup_no_hard_coded_kesari_fallback(self):
-        """lms_user_setup.py uses config-driven brand, not 'Kesari'."""
+        """lms_user_setup.py uses the centralised brand chain (utils.brand.
+        _brand_alias) — the original operator's literal name ("Kesari")
+        must not appear anywhere in the file."""
         path = (
             Path(APP_ROOT)
             / "lms_saas"
@@ -88,10 +90,11 @@ class TestR23BrandFallbacksAreVendorNeutral(FrappeTestCase):
             / "lms_user_setup.py"
         )
         src = path.read_text()
-        # Look for the welcome email subject line — it must use config.
-        self.assertIn('frappe.conf.get("lms_brand_portal_title")', src)
-        # And it must not have a hard-coded "Kesari" fallback.
-        self.assertNotIn('or "Kesari"', src)
+        # The welcome email subject now uses the brand chain helper.
+        self.assertIn("_brand_alias", src)
+        # And it must NOT have a hard-coded "Kesari" literal anywhere.
+        self.assertNotIn('"Kesari"', src)
+        self.assertNotIn("'Kesari'", src)
 
 
 # ---------------------------------------------------------------------------
