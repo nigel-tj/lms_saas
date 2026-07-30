@@ -224,6 +224,7 @@ LMS_NAV_SPEC = (
 def after_install():
     _ensure_loan_agreement_template()
     _seed_branches()
+    _seed_loan_purposes()
     _seed_loan_product()
     _sync_loan_product_accounts()
     _ensure_lending_permissions()
@@ -311,6 +312,30 @@ def _seed_branches():
             }
         )
         doc.insert(ignore_permissions=True)
+
+
+def _seed_loan_purposes():
+    """Seed default Loan Purpose records (lending app Link field target)."""
+    purposes = (
+        "Business Expansion",
+        "Working Capital",
+        "Inventory Purchase",
+        "Equipment Purchase",
+        "Education",
+        "Home Improvement",
+        "Emergency / Medical",
+        "Debt Consolidation",
+        "Agriculture / Farming",
+        "Transport / Vehicle",
+    )
+    for name in purposes:
+        if not frappe.db.exists("Loan Purpose", name):
+            frappe.get_doc(
+                {
+                    "doctype": "Loan Purpose",
+                    "loan_purpose": name,
+                }
+            ).insert(ignore_permissions=True)
 
 
 def _seed_loan_product():

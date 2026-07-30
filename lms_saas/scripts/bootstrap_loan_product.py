@@ -37,6 +37,19 @@ OFFSET_COMPONENTS = [
     {"demand_type": "Principal"},
 ]
 
+DEFAULT_LOAN_PURPOSES = (
+    "Business Expansion",
+    "Working Capital",
+    "Inventory Purchase",
+    "Equipment Purchase",
+    "Education",
+    "Home Improvement",
+    "Emergency / Medical",
+    "Debt Consolidation",
+    "Agriculture / Farming",
+    "Transport / Vehicle",
+)
+
 
 def _ensure_offset_order() -> str:
     """Create the Loan Demand Offset Order if it doesn't exist. Returns name."""
@@ -50,6 +63,19 @@ def _ensure_offset_order() -> str:
     })
     doc.insert(ignore_permissions=True)
     return doc.name
+
+
+def _ensure_loan_purposes() -> int:
+    """Seed default Loan Purpose records. Returns count created."""
+    count = 0
+    for name in DEFAULT_LOAN_PURPOSES:
+        if not frappe.db.exists("Loan Purpose", name):
+            frappe.get_doc({
+                "doctype": "Loan Purpose",
+                "loan_purpose": name,
+            }).insert(ignore_permissions=True)
+            count += 1
+    return count
 
 
 def _ensure_company_offset_sequences(company: str, order_name: str) -> None:
@@ -119,6 +145,8 @@ def run(*, dry_run: bool = False) -> dict:
         summary["offset_order_created"] = True
         _ensure_company_offset_sequences(company, order_name)
         summary["company_offset_set"] = True
+        purposes_created = _ensure_loan_purposes()
+        summary["loan_purposes_created"] = purposes_created
         frappe.db.commit()
 
     # 2. Check if the product already exists — idempotent.
