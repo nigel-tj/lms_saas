@@ -695,6 +695,203 @@ def submit_application_on_behalf(
 
 
 @frappe.whitelist()
+def get_application_detail(application_name: str) -> dict:
+	"""Full Loan Application detail for the portal-side review modal.
+
+	R24-DL02: replaces the desk-link review flow. Returns the application,
+	its customer, the loan product, the repayment schedule, the linked KYC
+	record, the audit trail, and any collateral — all the data the desk
+	view showed, served in a portal-friendly JSON shape with NO desk URLs.
+
+	RBAC: officer must be in the same branch as the application (or have
+	no branch assignment, in which case the application is shown).
+	"""
+	_require_officer()
+	if not application_name or not frappe.db.exists("Loan Application", application_name):
+		frappe.throw(_("Loan Application {0} not found").format(application_name))
+
+	app = frappe.get_doc("Loan Application", application_name)
+
+	# Branch scope check (mirrors the manager portal's _assert_branch_scope).
+	branch = _officer_branch()
+	if branch and app.get("custom_lms_branch") and app.get("custom_lms_branch") != branch:
+		frappe.throw(
+			_("Loan Application {0} is not in your branch.").format(application_name),
+			frappe.PermissionError,
+		)
+
+	# Customer info
+	customer_name = frappe.db.get_value("Customer", app.applicant, "customer_name") or ""
+
+	# Product info
+	product = {}
+	if app.loan_product:
+		product_doc = frappe.get_doc("Loan Product", app.loan_product)
+		product = {
+			"name": product_doc.name,
+			"product_code": product_doc.get("product_code"),
+			"product_name": product_doc.get("product_name"),
+			"rate_of_interest": product_doc.get("rate_of_interest"),
+			"maximum_loan_amount": product_doc.get("maximum_loan_amount"),
+		}
+
+	# Repayment schedule
+	schedule = []
+	for s in app.get("repayment_schedule", []) or []:
+		schedule.append({
+			"date": str(s.payment_date) if s.get("payment_date") else None,
+			"principal": flt(s.get("principal_amount")),
+			"interest": flt(s.get("interest_amount")),
+			"total": flt(s.get("total_payment")),
+			"balance": flt(s.get("balance_loan_amount")),
+		})
+
+	# Linked KYC record (if any) — show the customer-side KYC summary
+	kyc = {}
+	compliance_name = frappe.db.get_value(
+		"LMS Borrower Compliance", {"customer": app.applicant}, "name"
+	)
+	if compliance_name:
+		kyc_row = frappe.db.get_value(
+			"LMS Borrower Compliance",
+			compliance_name,
+			[
+				"name", "kyc_status", "aml_status", "aml_screened_at",
+				"national_id_number", "consent_given", "consent_date",
+			],
+			as_dict=True,
+		)
+		if kyc_row:
+			kyc = {
+				"name": kyc_row.name,
+				"kyc_status": kyc_row.kyc_status,
+				"aml_status": kyc_row.aml_status,
+				"aml_screened_at": str(kyc_row.aml_screened_at) if kyc_row.aml_screened_at else None,
+				"national_id_number": kyc_row.national_id_number,
+				"consent_captured": bool(kyc_row.consent_given),
+				"consent_date": str(kyc_row.consent_date) if kyc_row.consent_date else None,
+			}
+
+	# Collateral
+	collateral = []
+	for c in frappe.get_all(
+		"LMS Collateral",
+		filters={"loan_application": application_name},
+		fields=[
+			"name", "collateral_type", "collateral_title",
+			"market_value", "net_realizable_value", "status",
+			"lms_security_certificate", "lms_security_units",
+			"lms_guarantor_name",
+		],
+	):
+		collateral.append({
+			"name": c.name,
+			"collateral_type": c.collateral_type,
+			"collateral_title": c.collateral_title,
+			"market_value": c.market_value,
+			"net_realizable_value": c.net_realizable_value,
+			"status": c.status,
+			"lms_security_certificate": c.lms_security_certificate,
+			"lms_security_units": c.lms_security_units,
+			"lms_guarantor_name": c.lms_guarantor_name,
+		})
+
+	# Audit trail (last 20 events)
+	audit = []
+	if frappe.db.exists("DocType", "LMS Audit Event"):
+		for e in frappe.get_all(
+			"LMS Audit Event",
+			filters={"reference_doctype": "Loan Application", "reference_name": application_name},
+			fields=["event_type", "details", "event_user", "creation"],
+			order_by="creation desc",
+			limit_page_length=20,
+		):
+			audit.append({
+				"event_type": e.event_type,
+				"details": e.details,
+				"actor": e.event_user,
+				"creation": str(e.creation),
+			})
+
+	return {
+		"application": {
+			"name": app.name,
+			"applicant": app.applicant,
+			"applicant_name": customer_name,
+			"loan_product": app.loan_product,
+			"loan_amount": app.loan_amount,
+			"rate_of_interest": app.rate_of_interest,
+			"repayment_periods": app.repayment_periods,
+			"repayment_method": app.repayment_method,
+			"repayment_start_date": str(app.repayment_start_date) if app.get("repayment_start_date") else None,
+			"loan_purpose": app.get("loan_purpose") or "",
+			"status": app.status,
+			"docstatus": app.docstatus,
+			"custom_lms_branch": app.get("custom_lms_branch"),
+			"custom_loan_officer": app.get("custom_loan_officer"),
+			"company": app.company,
+			"posting_date": str(app.posting_date) if app.get("posting_date") else None,
+			"creation": str(app.creation),
+		},
+		"product": product,
+		"schedule": schedule,
+		"kyc": kyc,
+		"collateral": collateral,
+		"audit": audit,
+	}
+
+
+@frappe.whitelist()
+def submit_pending_application(application_name: str) -> dict:
+	"""Submit a draft Loan Application (R24-DL02).
+
+	The officer reviews a pending application in the portal, confirms
+	everything looks good, then calls this to advance it from Draft
+	(docstatus=0) to Submitted (docstatus=1) so the manager queue picks
+	it up. The application must already exist and be in the officer's
+	branch; this method does NOT create a new application.
+	"""
+	_require_officer()
+	if not application_name or not frappe.db.exists("Loan Application", application_name):
+		frappe.throw(_("Loan Application {0} not found").format(application_name))
+
+	app = frappe.get_doc("Loan Application", application_name)
+
+	# Branch scope check
+	branch = _officer_branch()
+	if branch and app.get("custom_lms_branch") and app.get("custom_lms_branch") != branch:
+		frappe.throw(
+			_("Loan Application {0} is not in your branch.").format(application_name),
+			frappe.PermissionError,
+		)
+
+	if app.docstatus != 0:
+		frappe.throw(
+			_("Loan Application {0} is already submitted (docstatus={1}).").format(
+				application_name, app.docstatus
+			)
+		)
+
+	app.flags.ignore_permissions = True
+	app.submit()
+
+	from lms_saas.api.compliance import write_audit_event
+	write_audit_event(
+		event_type="LoanApplication:Submitted",
+		reference_doctype="Loan Application",
+		reference_name=app.name,
+		details=(
+			f"officer={frappe.session.user} "
+			f"branch={app.get('custom_lms_branch') or ''} "
+			f"amount={app.loan_amount} "
+			f"product={app.loan_product or ''}"
+		),
+	)
+
+	return {"application": app.name, "status": "Submitted", "docstatus": 1}
+
+
+@frappe.whitelist()
 def get_officer_leads():
 	"""Leads for the officer — prefers branch, falls back to all."""
 	_require_officer()

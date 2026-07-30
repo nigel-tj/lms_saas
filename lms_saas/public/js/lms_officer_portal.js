@@ -364,27 +364,151 @@ lms_officer._renderAll = function (root, dash, apps, loans, branch, collections,
 };
 
 lms_officer._reviewApplication = function (app) {
+	// R24-DL02: load the full application via the portal API and render
+	// it in a portal-side modal. The desk link is gone — officers never
+	// see `/app/...` URLs. Submission is also portal-side via
+	// submit_pending_application().
 	app = app || {};
-	var deskHref = "/app/loan-application/" + encodeURIComponent(app.name || "");
-	lms_portal.modal({
-		title: "Application — " + (app.borrower || app.name || ""),
-		size: "lg",
-		body:
-			'<div class="lms-form">' +
-			'<div class="lms-summary" style="margin-bottom:1rem;">' +
-			'<div class="lms-summary-card lms-summary-card--primary"><div class="lms-summary-label">Borrower</div><div class="lms-summary-value">' + lms_portal.escape(app.borrower || "—") + "</div></div>" +
-			'<div class="lms-summary-card lms-summary-card--primary"><div class="lms-summary-label">Amount</div><div class="lms-summary-value">' + format_currency(app.amount || 0) + "</div></div>" +
-			'<div class="lms-summary-card"><div class="lms-summary-label">Product</div><div class="lms-summary-value">' + lms_portal.escape(app.product || "—") + "</div></div>" +
-			'<div class="lms-summary-card"><div class="lms-summary-label">Status</div><div class="lms-summary-value">' + lms_portal.escape(app.status || "—") + "</div></div>" +
-			'<div class="lms-summary-card"><div class="lms-summary-label">Application #</div><div class="lms-summary-value">' + lms_portal.escape(app.name || "—") + "</div></div>" +
-			"</div>" +
-			'<p class="lms-muted">Open the full record in Desk to edit or submit for manager approval.</p>' +
-			'<p><a class="lms-btn lms-btn--ghost lms-btn--sm" href="' + deskHref + '" target="_blank" rel="noopener">Open in Desk</a></p>' +
-			"</div>",
-		confirmText: "Close",
-		confirmVariant: "primary",
-		onConfirm: function () {},
+	if (!app.name) return;
+
+	lms_portal.safeCall({
+		method: "lms_saas.api.officer.get_application_detail",
+		args: { application_name: app.name },
+		callback: function (r) {
+			var data = (r && r.message) || {};
+			if (data._lms_error) {
+				lms_portal.toast("Could not load application details.", "danger");
+				return;
+			}
+			lms_officer._showApplicationReviewModal(data);
+		},
+		error: function (err) {
+			var msg = (err && (err.message || err._server_message)) || "Could not load application details.";
+			lms_portal.toast(msg, "danger");
+		},
 	});
+};
+
+lms_officer._showApplicationReviewModal = function (data) {
+	var a = data.application || {};
+	var p = data.product || {};
+	var kyc = data.kyc || {};
+	var schedule = data.schedule || [];
+	var collateral = data.collateral || [];
+	var audit = data.audit || [];
+
+	var html = '<div class="lms-form">';
+
+	// Summary cards
+	html += '<div class="lms-summary" style="margin-bottom:1rem;">';
+	html += '<div class="lms-summary-card lms-summary-card--primary"><div class="lms-summary-label">Borrower</div><div class="lms-summary-value">' + lms_portal.escape(a.applicant_name || "—") + "</div></div>";
+	html += '<div class="lms-summary-card lms-summary-card--primary"><div class="lms-summary-label">Amount</div><div class="lms-summary-value">' + format_currency(a.loan_amount || 0) + "</div></div>";
+	html += '<div class="lms-summary-card"><div class="lms-summary-label">Product</div><div class="lms-summary-value">' + lms_portal.escape(p.product_name || a.loan_product || "—") + "</div></div>";
+	html += '<div class="lms-summary-card"><div class="lms-summary-label">Rate</div><div class="lms-summary-value">' + (a.rate_of_interest || 0) + "%</div></div>";
+	html += '<div class="lms-summary-card"><div class="lms-summary-label">Periods</div><div class="lms-summary-value">' + (a.repayment_periods || 0) + "</div></div>";
+	html += '<div class="lms-summary-card"><div class="lms-summary-label">Status</div><div class="lms-summary-value">' + lms_portal.escape(a.status || "—") + "</div></div>";
+	html += "</div>";
+
+	// Purpose
+	if (a.loan_purpose) {
+		html += '<p><strong>Purpose:</strong> ' + lms_portal.escape(a.loan_purpose) + "</p>";
+	}
+
+	// KYC summary
+	if (kyc && kyc.name) {
+		html += "<h4>KYC</h4>";
+		html += '<div class="lms-data-table__wrap"><table class="lms-data-table"><tbody>';
+		html += "<tr><td>KYC status</td><td>" + lms_portal.escape(kyc.kyc_status || "—") + "</td></tr>";
+		html += "<tr><td>AML status</td><td>" + lms_portal.escape(kyc.aml_status || "—") + "</td></tr>";
+		html += "<tr><td>AML screened</td><td>" + lms_portal.escape(kyc.aml_screened_at || "—") + "</td></tr>";
+		html += "<tr><td>National ID</td><td>" + lms_portal.escape(kyc.national_id_number || "—") + "</td></tr>";
+		html += "<tr><td>Consent</td><td>" + (kyc.consent_captured ? "✓ captured" : "—") + (kyc.consent_date ? " on " + lms_portal.escape(kyc.consent_date) : "") + "</td></tr>";
+		html += "</tbody></table></div>";
+	}
+
+	// Repayment schedule
+	if (schedule.length) {
+		html += "<h4>Repayment Schedule</h4>";
+		html += '<div class="lms-data-table__wrap"><table class="lms-data-table"><thead><tr><th>Date</th><th>Principal</th><th>Interest</th><th>Total</th><th>Balance</th></tr></thead><tbody>';
+		schedule.forEach(function (s) {
+			html += "<tr>";
+			html += "<td>" + lms_portal.escape(s.date || "") + "</td>";
+			html += "<td>" + format_currency(s.principal) + "</td>";
+			html += "<td>" + format_currency(s.interest) + "</td>";
+			html += "<td>" + format_currency(s.total) + "</td>";
+			html += "<td>" + format_currency(s.balance) + "</td>";
+			html += "</tr>";
+		});
+		html += "</tbody></table></div>";
+	}
+
+	// Collateral
+	if (collateral.length) {
+		html += "<h4>Collateral</h4>";
+		html += '<div class="lms-data-table__wrap"><table class="lms-data-table"><thead><tr><th>Type</th><th>Title</th><th>Market value</th><th>Status</th></tr></thead><tbody>';
+		collateral.forEach(function (c) {
+			html += "<tr>";
+			html += "<td>" + lms_portal.escape(c.collateral_type || "") + "</td>";
+			html += "<td>" + lms_portal.escape(c.collateral_title || c.name || "") + "</td>";
+			html += "<td>" + format_currency(c.market_value) + "</td>";
+			html += "<td>" + lms_portal.escape(c.status || "") + "</td>";
+			html += "</tr>";
+		});
+		html += "</tbody></table></div>";
+	}
+
+	// Audit trail
+	if (audit.length) {
+		html += "<h4>Audit trail</h4>";
+		html += '<div class="lms-data-table__wrap"><table class="lms-data-table"><thead><tr><th>When</th><th>Who</th><th>Event</th><th>Details</th></tr></thead><tbody>';
+		audit.forEach(function (e) {
+			html += "<tr>";
+			html += "<td>" + lms_portal.escape(e.creation || "") + "</td>";
+			html += "<td>" + lms_portal.escape(e.actor || "") + "</td>";
+			html += "<td>" + lms_portal.escape(e.event_type || "") + "</td>";
+			html += "<td>" + lms_portal.escape(e.details || "") + "</td>";
+			html += "</tr>";
+		});
+		html += "</tbody></table></div>";
+	}
+
+	html += "</div>";
+
+	// If the application is still a draft, offer to submit it for manager
+	// approval via the existing "Confirm" button. R24-DL02: all actions
+	// stay in the portal — no desk link.
+	var canSubmit = a.docstatus === 0;
+	var modalOpts = {
+		title: "Application — " + (a.applicant_name || a.name || ""),
+		size: "xl",
+		body: html,
+		confirmText: canSubmit ? "Submit for manager approval" : "Close",
+		confirmVariant: "primary",
+	};
+	if (canSubmit) {
+		modalOpts.onConfirm = function () {
+			lms_portal.safeCall({
+				method: "lms_saas.api.officer.submit_pending_application",
+				args: { application_name: a.name },
+				callback: function (r) {
+					lms_portal.toast(
+						"Application submitted: " + ((r && r.message && r.message.application) || a.name),
+						"success"
+					);
+					// Refresh the pending applications list
+					if (typeof lms_officer._renderApplications === "function") {
+						lms_officer._renderApplications();
+					}
+				},
+				error: function (err) {
+					var msg = (err && (err.message || err._server_message)) || "Submit failed.";
+					lms_portal.toast(msg, "danger");
+				},
+			});
+		};
+	}
+
+	lms_portal.modal(modalOpts);
 };
 
 lms_officer._openApplicationModalFromHeader = function () {
