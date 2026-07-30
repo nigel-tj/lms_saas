@@ -75,30 +75,48 @@ def _is_admin() -> bool:
 	return bool(set(frappe.get_roles()).intersection({"System Manager", "Administrator"}))
 
 
-def _assert_branch_scope(target_branch: str | None) -> None:
-	"""Enforce branch-scope on manager actions (fail-closed on mismatch).
+def _assert_branch_scope(target_branch: str | None, write: bool = False) -> None:
+	"""Enforce branch-scope on manager actions.
 
-	R24: the previous version was too strict — a manager with no branch
-	assigned could not view ANY borrower. The fixed policy:
+	R24: too strict on no-branch (broke onboarding).
+	R25: split read vs write. Reads with no caller branch are allowed
+	(admin-lite) with a soft log. Writes with no caller branch throw
+	(branchless write = cross-branch write = unsafe).
 
+	Policy:
 	  - Admins (System Manager / Administrator) bypass entirely.
-	  - If the manager has a branch AND the target has a branch AND they
-	    differ → throw (branch isolation held).
-	  - If the manager has no branch assigned → allow (admin-lite fallback;
-	    this is the case for new operators onboarding).
-	  - If the target has no branch assigned → allow (legacy data with
-	    pre-onboarding rows; the manager can still review and assign).
+	  - If manager has a branch AND target has a branch AND they differ
+	    → throw (branch isolation held).
+	  - If manager has no branch:
+	    - write=True → throw ("contact HR to assign a branch before
+	      performing write actions")
+	    - write=False → allow with a soft log (admin-lite read fallback)
+	  - If target has no branch → allow with a soft log (legacy data).
 	"""
 	if _is_admin():
 		return
 	branch = _manager_branch()
 	if not branch:
-		# Manager without a branch assignment — admin-lite fallback.
-		# New operators and platform owners land here.
+		# R25-F5: branchless callers can still read (UX) but cannot
+		# write. A branchless write would be a cross-branch write by
+		# definition (no branch = every branch).
+		if write:
+			frappe.throw(
+				_(
+					"Your account is not assigned to a branch. Contact your HR / "
+					"system manager before performing write actions."
+				),
+				frappe.PermissionError,
+			)
+		frappe.log_error(
+			title="LMS branch-scope: caller has no branch (read fallback)",
+			message=(
+				f"manager={frappe.session.user} action=read target_branch={target_branch or '<empty>'} "
+				"admin-lite read fallback active"
+			),
+		)
 		return
 	if not target_branch:
-		# Target has no branch set (legacy / pre-onboarding data).
-		# Allow with a soft log so the regulator can see the gap.
 		frappe.log_error(
 			title="LMS branch-scope: target has no branch",
 			message=(
@@ -235,8 +253,9 @@ def approve_application(application_name: str):
 	app = frappe.get_doc("Loan Application", application_name)
 
 	# Branch scoping: a manager may only act on applications in their own branch.
-	# Fail-closed: uses _assert_branch_scope (unassigned staff / blank branch -> rejected).
-	_assert_branch_scope(app.get("custom_lms_branch"))
+	# R25-F5: write=True — a branchless manager cannot approve (cross-branch
+	# origination is unsafe).
+	_assert_branch_scope(app.get("custom_lms_branch"), write=True)
 
 	if app.docstatus != 0:
 		frappe.throw(_("Only draft applications can be approved (current status: {0}).").format(app.docstatus))
@@ -369,8 +388,8 @@ def reject_application(application_name: str, reason: str = ""):
 
 	app = frappe.get_doc("Loan Application", application_name)
 
-	# Branch scoping (fail-closed via _assert_branch_scope).
-	_assert_branch_scope(app.get("custom_lms_branch"))
+	# R25-F5: write=True — branchless manager cannot reject.
+	_assert_branch_scope(app.get("custom_lms_branch"), write=True)
 
 	# A rejection reason is required for the audit trail.
 	if not (reason or "").strip():
@@ -981,7 +1000,7 @@ def disburse_loan(loan_name: str, disbursed_amount: float | None = None):
 	if not frappe.db.exists("Loan", loan_name):
 		frappe.throw(_("Loan {0} not found.").format(loan_name))
 
-	_assert_branch_scope(frappe.db.get_value("Loan", loan_name, "custom_lms_branch"))
+	_assert_branch_scope(frappe.db.get_value("Loan", loan_name, "custom_lms_branch"), write=True)
 
 	loan = frappe.get_doc("Loan", loan_name)
 	if loan.docstatus != 1:
@@ -1022,7 +1041,7 @@ def write_off_loan(loan_name: str, write_off_amount: float | None = None, reason
 	if not frappe.db.exists("Loan", loan_name):
 		frappe.throw(_("Loan {0} not found.").format(loan_name))
 
-	_assert_branch_scope(frappe.db.get_value("Loan", loan_name, "custom_lms_branch"))
+	_assert_branch_scope(frappe.db.get_value("Loan", loan_name, "custom_lms_branch"), write=True)
 
 	loan = frappe.get_doc("Loan", loan_name)
 	if loan.docstatus != 1:
@@ -1077,9 +1096,8 @@ def record_repayment(loan_name: str, amount: float, payment_mode: str = "Cash", 
 		frappe.throw(_("Loan {0} not found.").format(loan_name))
 
 	loan = frappe.get_doc("Loan", loan_name)
-	# Branch scoping (fail-closed via _assert_branch_scope) — a manager may only
-	# record repayments for loans in their own branch.
-	_assert_branch_scope(loan.get("custom_lms_branch"))
+	# R25-F5: write=True — branchless manager cannot record repayments.
+	_assert_branch_scope(loan.get("custom_lms_branch"), write=True)
 
 	# Edge: closed / written-off / cancelled loans cannot accept new repayments.
 	if loan.status in ("Closed", "Written Off", "Cancelled"):
@@ -1457,12 +1475,12 @@ def get_branch_staff():
 
 	filters = {"status": "Active"}
 	if branch:
-		# Try branch field or cost_center
-		emp_meta = frappe.get_meta("Employee")
-		for bf in ("branch", "cost_center", "custom_lms_branch"):
-			if emp_meta.has_field(bf):
-				filters[bf] = branch
-				break
+		# R25-F11: always use custom_lms_branch (the canonical LMS branch
+		# field). The previous loop tried `branch` first, which on many
+		# installs (including this one) is a different field or absent,
+		# silently returning zero employees. Hard-code the canonical
+		# field to avoid the silent-miscount.
+		filters["custom_lms_branch"] = branch
 
 	employees = frappe.get_all(
 		"Employee",
@@ -1586,8 +1604,16 @@ def get_collateral_register(loan_status: str | None = None):
 	_require_manager()
 	branch = _manager_branch()
 
+	# R25-F13: scope the top-level LMS Collateral read by branch. The
+	# previous version iterated all collateral and then filtered by
+	# linked-loan branch, which let orphan collateral (no linked loan)
+	# survive even when not in the manager's branch.
+	collateral_filters = {}
+	if branch:
+		collateral_filters["branch"] = branch
 	collateral = frappe.get_all(
 		"LMS Collateral",
+		filters=collateral_filters,
 		fields=[
 			"name", "collateral_title", "collateral_type", "market_value",
 			"net_realizable_value", "status", "owner_customer",
@@ -1622,7 +1648,7 @@ def get_collateral_register(loan_status: str | None = None):
 					"status": loan.status,
 					"allocated_value": flt(link.allocated_value),
 				})
-		if linked_loans or not branch:
+		if linked_loans:
 			result.append({**c, "linked_loans": linked_loans})
 
 	return {"collateral": result}

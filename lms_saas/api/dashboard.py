@@ -36,16 +36,32 @@ def get_desk_dashboard(company=None):
       - truncated   : bool — True when the loan set was capped at PORTFOLIO_LIMIT
       - limit       : int  — the cap (50 000)
       - cache_age_seconds : int — age of the cached metrics payload (0 if fresh)
+
+    R25-F17: for non-admin callers, scope metrics to the caller's
+    branch. Without this, a Branch Manager calling the desk endpoint
+    sees the entire company's loan book (PII + portfolio data).
     """
     _guard()
+    # Resolve caller's branch for non-admin scope.
+    caller_roles = set(frappe.get_roles())
+    is_desk_admin = bool(caller_roles & {"System Manager", "Administrator"})
+    caller_branch = None
+    if not is_desk_admin:
+        from lms_saas.api.staff import get_current_user_branch
+        caller_branch = get_current_user_branch()
+        if not caller_branch:
+            frappe.throw(
+                "Your account is not assigned to a branch. Contact HR / your system manager.",
+                frappe.PermissionError,
+            )
     cache_key = f"lms_dashboard:{company or 'all'}:all:{frappe.session.user}"
     cache_start = now_datetime()
-    metrics = _portfolio_metrics(company)
+    metrics = _portfolio_metrics(company, branch=caller_branch)
     cache_age = (now_datetime() - cache_start).total_seconds()
     return {
         "kpis": metrics["kpis"],
         "risk_buckets": metrics["risk_buckets"],
-        "collections_trend": _collections_trend(company=company),
+        "collections_trend": _collections_trend(company=company, branch=caller_branch),
         "branch_outstanding": _sorted_bars(metrics["branch_outstanding"], limit=6),
         "truncated": bool(metrics.get("truncated", False)),
         "limit": int(metrics.get("limit", PORTFOLIO_LIMIT)),
@@ -218,16 +234,23 @@ def invalidate_dashboard_cache():
     frappe.cache().delete_keys("lms_dashboard:*")
 
 
-def _collections_trend(company=None, months=6):
+def _collections_trend(company=None, months=6, branch=None):
     month_totals = {}
     today_date = getdate(today())
     for offset in range(months - 1, -1, -1):
         dt = add_to_date(today_date, months=-offset)
         month_totals[dt.strftime("%Y-%m")] = 0
 
-    repayment_filters = {"docstatus": 1}
+    # R25-F17: scope by branch when supplied.
+    loan_filters = {}
     if company:
-        loan_names = frappe.get_all("Loan", filters={"company": company}, pluck="name")
+        loan_filters["company"] = company
+    if branch:
+        loan_filters["custom_lms_branch"] = branch
+    loan_names = frappe.get_all("Loan", filters=loan_filters, pluck="name") if (company or branch) else None
+
+    repayment_filters = {"docstatus": 1}
+    if loan_names is not None:
         if not loan_names:
             return [{"label": formatdate(f"{month}-01", "MMM yyyy"), "value": 0} for month in month_totals]
         repayment_filters["against_loan"] = ("in", loan_names)
@@ -518,6 +541,10 @@ def get_kyc_queue(limit: int = 20):
     Returns ``pending_count`` (count of all Pending + Submitted), ``by_status``
     (dict of status → count), and ``oldest`` (the N oldest pending rows for
     the timeline UI). Each oldest row has name, customer, kyc_status, creation.
+
+    R25-F18: scope by branch when the caller is not a desk admin. KYC
+    rows carry PII (national ID numbers, addresses) and a Branch Manager
+    must not see another branch's KYC pipeline.
     """
     _guard()
     try:
@@ -526,7 +553,33 @@ def get_kyc_queue(limit: int = 20):
         limit = 20
     limit = max(1, min(limit, 100))
 
+    caller_roles = set(frappe.get_roles())
+    is_desk_admin = bool(caller_roles & {"System Manager", "Administrator"})
+
+    # Resolve caller's branch for non-admin scope.
+    caller_branch = None
+    if not is_desk_admin:
+        from lms_saas.api.staff import get_current_user_branch
+        caller_branch = get_current_user_branch()
+
     pending_filters = {"kyc_status": ("in", ["Pending", "Submitted"])}
+    if caller_branch:
+        # Compliance doctype has no custom_lms_branch — scope via
+        # the linked Customer. Restrict the count to customers in
+        # the caller's branch.
+        branch_customers = frappe.get_all(
+            "Customer",
+            filters={"custom_lms_branch": caller_branch},
+            fields=["name"],
+            limit_page_length=0,
+        )
+        customer_names = [c.name for c in branch_customers]
+        if customer_names:
+            pending_filters["customer"] = ("in", customer_names)
+        else:
+            # Caller has a branch but no customers in it; return empty.
+            return {"pending_count": 0, "by_status": {}, "oldest": []}
+
     pending_count = frappe.db.count("LMS Borrower Compliance", pending_filters)
 
     by_status_rows = frappe.db.sql(
@@ -582,7 +635,7 @@ def get_recent_activity(limit: int = 20):
 
     events = frappe.get_all(
         "LMS Audit Event",
-        fields=["event_type", "event_user", "event_time", "reference_doctype", "reference_name"],
+        fields=["event_type", "event_user", "event_time", "reference_doctype", "reference_name", "details"],
         order_by="event_time desc",
         limit_page_length=limit,
     )
@@ -593,6 +646,16 @@ def get_recent_activity(limit: int = 20):
             e["route"] = desk_url(rel)
         else:
             e["route"] = None
+        # R25-F19: redact PII-bearing fields for non-admin callers. The
+        # audit event `details` long-text can contain operator legal
+        # name, licence number, regulator name; `event_user` exposes
+        # which user did what. Both are now redacted to None for
+        # portal staff, who only need to know that "something happened
+        # at this time" — not the operator identity.
+        if not is_desk_admin:
+            e["event_user"] = None
+            if e.get("details"):
+                e["details"] = e["details"][:80] + ("…" if len(e["details"]) > 80 else "")
     return {"events": events}
 
 
