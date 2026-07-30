@@ -26,6 +26,64 @@ from __future__ import annotations
 
 import frappe
 
+# The lending app (v15+) requires a Loan Demand Offset Order linked to
+# both the Company and the Loan Product. Without it, the lending
+# controller's validate_demand_offset_sequences() throws on insert.
+# This is the standard offset order: Penalty → Interest → Principal.
+OFFSET_ORDER_TITLE = "Standard Loan Demand Offset Order"
+OFFSET_COMPONENTS = [
+    {"demand_type": "Penalty"},
+    {"demand_type": "Interest"},
+    {"demand_type": "Principal"},
+]
+
+
+def _ensure_offset_order() -> str:
+    """Create the Loan Demand Offset Order if it doesn't exist. Returns name."""
+    existing = frappe.db.exists("Loan Demand Offset Order", {"title": OFFSET_ORDER_TITLE})
+    if existing:
+        return existing
+    doc = frappe.get_doc({
+        "doctype": "Loan Demand Offset Order",
+        "title": OFFSET_ORDER_TITLE,
+        "components": OFFSET_COMPONENTS,
+    })
+    doc.insert(ignore_permissions=True)
+    return doc.name
+
+
+def _ensure_company_offset_sequences(company: str, order_name: str) -> None:
+    """Set the offset sequence fields on the Company via direct DB write.
+
+    Uses frappe.db.set_value to bypass the Company controller's link
+    validation (which would re-validate the entire Company doc and may
+    fail on unrelated missing fields).
+    """
+    fields = [
+        "collection_offset_sequence_for_standard_asset",
+        "collection_offset_sequence_for_sub_standard_asset",
+        "collection_offset_sequence_for_written_off_asset",
+        "collection_offset_sequence_for_settlement_collection",
+    ]
+    for field in fields:
+        current = frappe.db.get_value("Company", company, field)
+        if not current:
+            frappe.db.set_value("Company", company, field, order_name)
+
+
+def _ensure_product_offset_sequences(product_name: str, order_name: str) -> None:
+    """Set the offset sequence fields on the Loan Product via direct DB write."""
+    fields = [
+        "collection_offset_sequence_for_standard_asset",
+        "collection_offset_sequence_for_sub_standard_asset",
+        "collection_offset_sequence_for_written_off_asset",
+        "collection_offset_sequence_for_settlement_collection",
+    ]
+    for field in fields:
+        current = frappe.db.get_value("Loan Product", product_name, field)
+        if not current:
+            frappe.db.set_value("Loan Product", product_name, field, order_name)
+
 
 def run(*, dry_run: bool = False) -> dict:
     """Ensure the LMS-STD Loan Product exists for the default company.
@@ -39,6 +97,10 @@ def run(*, dry_run: bool = False) -> dict:
         "accounts_resolved": {},
         "accounts_missing": [],
         "after_install_ran": False,
+        "offset_order_created": False,
+        "offset_order_name": None,
+        "company_offset_set": False,
+        "product_offset_set": False,
         "dry_run": dry_run,
     }
 
@@ -50,21 +112,34 @@ def run(*, dry_run: bool = False) -> dict:
         frappe.throw(summary["error"])
     summary["company"] = company
 
-    # 1. Check if the product already exists — idempotent.
+    # 1. Ensure the Loan Demand Offset Order exists (lending v15+ requirement).
+    if not dry_run:
+        order_name = _ensure_offset_order()
+        summary["offset_order_name"] = order_name
+        summary["offset_order_created"] = True
+        _ensure_company_offset_sequences(company, order_name)
+        summary["company_offset_set"] = True
+        frappe.db.commit()
+
+    # 2. Check if the product already exists — idempotent.
     existing = frappe.db.exists("Loan Product", {"company": company, "product_code": "LMS-STD"})
     if existing:
         summary["product_exists"] = True
         summary["product_name"] = existing
-        frappe.msgprint(f"LMS-STD already exists for {company}: {existing}. Nothing to do.")
+        # Even if the product exists, ensure offset sequences are set
+        # (the product may have been created before the offset fix).
+        if not dry_run:
+            _ensure_product_offset_sequences(existing, order_name)
+            summary["product_offset_set"] = True
+            frappe.db.commit()
+        frappe.msgprint(f"LMS-STD already exists for {company}: {existing}. Offset sequences ensured.")
         return summary
 
-    # 2. Resolve the GL accounts the Loan Product needs.
+    # 3. Resolve the GL accounts the Loan Product needs.
     from lms_saas.install import _loan_product_accounts, _seed_loan_product, _sync_loan_product_accounts
 
     accounts = _loan_product_accounts(company)
     if not accounts:
-        # Accounts are missing. Run after_install() which will create the
-        # Chart of Accounts structure and then seed the product.
         summary["accounts_missing"] = [
             "disbursement_account",
             "loan_account",
@@ -105,7 +180,7 @@ def run(*, dry_run: bool = False) -> dict:
         )
         return summary
 
-    # 3. Create the product.
+    # 4. Create the product.
     _seed_loan_product()
     _sync_loan_product_accounts()
     frappe.db.commit()
@@ -116,14 +191,20 @@ def run(*, dry_run: bool = False) -> dict:
     summary["product_created"] = bool(created)
     summary["product_name"] = created
 
-    if created:
-        frappe.msgprint(
-            f"✓ Created LMS-STD Loan Product for {company}: {created}. "
-            "The manager and officer portals can now submit loan applications."
-        )
-    else:
+    if not created:
         summary["error"] = "Product creation did not throw but the product was not found after commit."
         frappe.throw(summary["error"])
+
+    # 5. Set the offset sequences on the Loan Product (bypasses link validation).
+    _ensure_product_offset_sequences(created, order_name)
+    summary["product_offset_set"] = True
+    frappe.db.commit()
+
+    frappe.msgprint(
+        f"✓ Created LMS-STD Loan Product for {company}: {created}. "
+        f"Offset order: {order_name}. "
+        "The manager and officer portals can now submit loan applications."
+    )
 
     return summary
 
