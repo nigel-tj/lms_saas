@@ -232,6 +232,7 @@ lms_manager._renderApprovalsTable = function (content, queueData, showHeader) {
 			html += "<td>" + lms_portal.escape(app.custom_lms_branch || "—") + "</td>";
 			html += "<td>" + lms_portal.escape((app.creation || "").slice(0, 10)) + "</td>";
 			html += '<td><div class="lms-data-table__actions">';
+			html += '<button type="button" class="lms-btn lms-btn--ghost lms-btn--sm lms-review-btn" data-app="' + lms_portal.escape(app.name) + '">Review</button>';
 			html += '<button type="button" class="lms-btn lms-btn--success lms-btn--sm lms-approve-btn" data-app="' + lms_portal.escape(app.name) + '">Approve</button>';
 			html += '<button type="button" class="lms-btn lms-btn--ghost lms-btn--sm lms-reject-btn" data-app="' + lms_portal.escape(app.name) + '">Reject</button>';
 			html += "</div></td></tr>";
@@ -241,6 +242,11 @@ lms_manager._renderApprovalsTable = function (content, queueData, showHeader) {
 	html += "</div>";
 	content.insertAdjacentHTML("beforeend", html);
 
+	content.querySelectorAll(".lms-review-btn").forEach(function (btn) {
+		btn.addEventListener("click", function () {
+			lms_manager._reviewApplication(btn.getAttribute("data-app"));
+		});
+	});
 	content.querySelectorAll(".lms-approve-btn").forEach(function (btn) {
 		btn.addEventListener("click", function () {
 			lms_manager._approve(btn.getAttribute("data-app"));
@@ -303,6 +309,7 @@ lms_manager._renderAll = function (root, dash, queue) {
 			html += "<td>" + format_currency(app.loan_amount || 0) + "</td>";
 			html += "<td>" + lms_portal.escape(app.officer_name || "—") + "</td>";
 			html += '<td><div class="lms-data-table__actions">';
+			html += '<button type="button" class="lms-btn lms-btn--ghost lms-btn--sm lms-review-btn" data-app="' + lms_portal.escape(app.name) + '">Review</button>';
 			html += '<button type="button" class="lms-btn lms-btn--success lms-btn--sm lms-approve-btn" data-app="' + lms_portal.escape(app.name) + '">Approve</button>';
 			html += '<button type="button" class="lms-btn lms-btn--ghost lms-btn--sm lms-reject-btn" data-app="' + lms_portal.escape(app.name) + '">Reject</button>';
 			html += "</div></td></tr>";
@@ -330,7 +337,12 @@ lms_manager._renderAll = function (root, dash, queue) {
 	});
 	lms_manager._charts.team = lms_charts.bars("lms-team-chart", teamData);
 
-	/* ---- Bind approve/reject buttons ---- */
+	/* ---- Bind review / approve / reject buttons ---- */
+	root.querySelectorAll(".lms-review-btn").forEach(function (btn) {
+		btn.addEventListener("click", function () {
+			lms_manager._reviewApplication(btn.getAttribute("data-app"));
+		});
+	});
 	root.querySelectorAll(".lms-approve-btn").forEach(function (btn) {
 		btn.addEventListener("click", function () {
 			lms_manager._approve(btn.getAttribute("data-app"));
@@ -383,6 +395,177 @@ lms_manager._icon = function (name) {
 		users: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
 	};
 	return icons[name] || icons.file;
+};
+
+lms_manager._reviewApplication = function (appName) {
+	// R25: full review modal for the manager approval queue. Loads the
+	// application via the portal API and renders it with full detail
+	// (KYC, schedule, collateral, audit) + Approve / Reject buttons.
+	if (!appName) return;
+	lms_portal.safeCall({
+		method: "lms_saas.api.manager.get_manager_application_detail",
+		args: { application_name: appName },
+		callback: function (r) {
+			var data = (r && r.message) || {};
+			if (data._lms_error) {
+				lms_portal.toast("Could not load application details.", "danger");
+				return;
+			}
+			lms_manager._showReviewModal(data);
+		},
+		error: function (err) {
+			var msg = (err && (err.message || err._server_message)) || "Could not load application details.";
+			lms_portal.toast(msg, "danger");
+		},
+	});
+};
+
+lms_manager._showReviewModal = function (data) {
+	var a = data.application || {};
+	var p = data.product || {};
+	var kyc = data.kyc || {};
+	var schedule = data.schedule || [];
+	var collateral = data.collateral || [];
+	var audit = data.audit || [];
+	var existingLoans = data.existing_loans || [];
+
+	var html = '<div class="lms-form">';
+
+	// Summary cards
+	html += '<div class="lms-summary" style="margin-bottom:1rem;">';
+	html += '<div class="lms-summary-card lms-summary-card--primary"><div class="lms-summary-label">Borrower</div><div class="lms-summary-value">' + lms_portal.escape(a.applicant_name || "—") + "</div></div>";
+	html += '<div class="lms-summary-card"><div class="lms-summary-label">Mobile</div><div class="lms-summary-value">' + lms_portal.escape(a.applicant_mobile || "—") + "</div></div>";
+	html += '<div class="lms-summary-card"><div class="lms-summary-label">Email</div><div class="lms-summary-value">' + lms_portal.escape(a.applicant_email || "—") + "</div></div>";
+	html += '<div class="lms-summary-card lms-summary-card--primary"><div class="lms-summary-label">Amount</div><div class="lms-summary-value">' + format_currency(a.loan_amount || 0) + "</div></div>";
+	html += '<div class="lms-summary-card"><div class="lms-summary-label">Product</div><div class="lms-summary-value">' + lms_portal.escape(p.product_name || a.loan_product || "—") + "</div></div>";
+	html += '<div class="lms-summary-card"><div class="lms-summary-label">Rate / Periods</div><div class="lms-summary-value">' + (a.rate_of_interest || 0) + "% / " + (a.repayment_periods || 0) + " mo</div></div>";
+	html += '<div class="lms-summary-card"><div class="lms-summary-label">Officer</div><div class="lms-summary-value">' + lms_portal.escape(a.officer_name || "—") + "</div></div>";
+	html += '<div class="lms-summary-card"><div class="lms-summary-label">Branch</div><div class="lms-summary-value">' + lms_portal.escape(a.custom_lms_branch || "—") + "</div></div>";
+	html += '<div class="lms-summary-card"><div class="lms-summary-label">Status</div><div class="lms-summary-value">' + lms_portal.escape(a.status || "—") + "</div></div>";
+	html += "</div>";
+
+	if (a.loan_purpose) {
+		html += '<p><strong>Purpose:</strong> ' + lms_portal.escape(a.loan_purpose) + "</p>";
+	}
+
+	// KYC + AML block
+	if (kyc && kyc.name) {
+		html += "<h4>KYC & AML</h4>";
+		html += '<div class="lms-data-table__wrap"><table class="lms-data-table"><tbody>';
+		html += "<tr><td>KYC status</td><td>" + lms_portal.escape(kyc.kyc_status || "—") + "</td></tr>";
+		html += "<tr><td>AML status</td><td>" + (kyc.aml_status === "Clear" ? "✓ " : "⚠ ") + lms_portal.escape(kyc.aml_status || "—") + "</td></tr>";
+		html += "<tr><td>AML screened</td><td>" + lms_portal.escape(kyc.aml_screened_at || "—") + "</td></tr>";
+		html += "<tr><td>National ID</td><td>" + lms_portal.escape(kyc.national_id_number || "—") + "</td></tr>";
+		html += "<tr><td>Consent</td><td>" + (kyc.consent_captured ? "✓ captured" : "—") + (kyc.consent_date ? " on " + lms_portal.escape(kyc.consent_date) : "") + "</td></tr>";
+		if (kyc.credit_score) {
+			html += "<tr><td>Credit score</td><td>" + lms_portal.escape(String(kyc.credit_score)) + "</td></tr>";
+		}
+		if (kyc.debt_to_income_ratio) {
+			html += "<tr><td>Debt-to-income</td><td>" + lms_portal.escape(String(kyc.debt_to_income_ratio)) + "</td></tr>";
+		}
+		html += "</tbody></table></div>";
+	}
+
+	// Existing loans (manager decision input)
+	if (existingLoans.length) {
+		html += "<h4>Existing loans (" + existingLoans.length + ")</h4>";
+		html += '<div class="lms-data-table__wrap"><table class="lms-data-table"><thead><tr><th>Loan</th><th>Amount</th><th>Status</th></tr></thead><tbody>';
+		existingLoans.forEach(function (l) {
+			html += "<tr>";
+			html += "<td><strong>" + lms_portal.escape(l.name) + "</strong></td>";
+			html += "<td>" + format_currency(l.loan_amount) + "</td>";
+			html += "<td>" + lms_portal.escape(l.status || "") + "</td>";
+			html += "</tr>";
+		});
+		html += "</tbody></table></div>";
+	}
+
+	// Repayment schedule
+	if (schedule.length) {
+		html += "<h4>Repayment Schedule</h4>";
+		html += '<div class="lms-data-table__wrap"><table class="lms-data-table"><thead><tr><th>Date</th><th>Principal</th><th>Interest</th><th>Total</th><th>Balance</th></tr></thead><tbody>';
+		schedule.forEach(function (s) {
+			html += "<tr>";
+			html += "<td>" + lms_portal.escape(s.date || "") + "</td>";
+			html += "<td>" + format_currency(s.principal) + "</td>";
+			html += "<td>" + format_currency(s.interest) + "</td>";
+			html += "<td>" + format_currency(s.total) + "</td>";
+			html += "<td>" + format_currency(s.balance) + "</td>";
+			html += "</tr>";
+		});
+		html += "</tbody></table></div>";
+	}
+
+	// Collateral
+	if (collateral.length) {
+		html += "<h4>Collateral</h4>";
+		html += '<div class="lms-data-table__wrap"><table class="lms-data-table"><thead><tr><th>Type</th><th>Title</th><th>Market value</th><th>Status</th></tr></thead><tbody>';
+		collateral.forEach(function (c) {
+			html += "<tr>";
+			html += "<td>" + lms_portal.escape(c.collateral_type || "") + "</td>";
+			html += "<td>" + lms_portal.escape(c.collateral_title || c.name || "") + "</td>";
+			html += "<td>" + format_currency(c.market_value) + "</td>";
+			html += "<td>" + lms_portal.escape(c.status || "") + "</td>";
+			html += "</tr>";
+		});
+		html += "</tbody></table></div>";
+	}
+
+	// Audit trail
+	if (audit.length) {
+		html += "<h4>Audit trail</h4>";
+		html += '<div class="lms-data-table__wrap"><table class="lms-data-table"><thead><tr><th>When</th><th>Who</th><th>Event</th><th>Details</th></tr></thead><tbody>';
+		audit.forEach(function (e) {
+			html += "<tr>";
+			html += "<td>" + lms_portal.escape(e.creation || "") + "</td>";
+			html += "<td>" + lms_portal.escape(e.actor || "") + "</td>";
+			html += "<td>" + lms_portal.escape(e.event_type || "") + "</td>";
+			html += "<td>" + lms_portal.escape(e.details || "") + "</td>";
+			html += "</tr>";
+		});
+		html += "</tbody></table></div>";
+	}
+
+	html += "</div>";
+
+	// Approve / Reject actions (only for submitted applications)
+	var canDecide = a.docstatus === 1;
+	var modalOpts = {
+		title: "Review — " + (a.applicant_name || a.name || ""),
+		size: "xl",
+		body: html,
+		confirmText: canDecide ? "Approve" : "Close",
+		confirmVariant: canDecide ? "success" : "primary",
+		showReject: canDecide,
+		rejectText: "Reject",
+	};
+	if (canDecide) {
+		modalOpts.onConfirm = function () {
+			lms_portal.safeCall({
+				method: "lms_saas.api.manager.approve_application",
+				args: { application_name: a.name },
+				callback: function (r) {
+					var res = (r && r.message) || {};
+					if (res.status === "approved" && res.loan) {
+						lms_portal.toast("Approved — Loan " + res.loan + " created.", "success");
+					} else {
+						lms_portal.toast((res && res.message) || "Approval did not complete.", "danger");
+					}
+					lms_manager._refreshDashboardData();
+				},
+				error: function (err) {
+					var msg = (err && (err.message || err._server_message)) || "Approval failed.";
+					lms_portal.toast(msg, "danger");
+				},
+			});
+		};
+		modalOpts.onReject = function (overlay) {
+			// Open the reject reason modal (reuse _reject flow)
+			lms_manager._reject(a.name);
+		};
+	}
+
+	lms_portal.modal(modalOpts);
 };
 
 lms_manager._approve = function (appName) {
