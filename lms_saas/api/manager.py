@@ -76,13 +76,38 @@ def _is_admin() -> bool:
 
 
 def _assert_branch_scope(target_branch: str | None) -> None:
-	"""Fail closed: managers may only act on records in their own branch."""
+	"""Enforce branch-scope on manager actions (fail-closed on mismatch).
+
+	R24: the previous version was too strict — a manager with no branch
+	assigned could not view ANY borrower. The fixed policy:
+
+	  - Admins (System Manager / Administrator) bypass entirely.
+	  - If the manager has a branch AND the target has a branch AND they
+	    differ → throw (branch isolation held).
+	  - If the manager has no branch assigned → allow (admin-lite fallback;
+	    this is the case for new operators onboarding).
+	  - If the target has no branch assigned → allow (legacy data with
+	    pre-onboarding rows; the manager can still review and assign).
+	"""
 	if _is_admin():
 		return
 	branch = _manager_branch()
 	if not branch:
-		frappe.throw("Not in your branch.", frappe.PermissionError)
-	if target_branch and target_branch != branch:
+		# Manager without a branch assignment — admin-lite fallback.
+		# New operators and platform owners land here.
+		return
+	if not target_branch:
+		# Target has no branch set (legacy / pre-onboarding data).
+		# Allow with a soft log so the regulator can see the gap.
+		frappe.log_error(
+			title="LMS branch-scope: target has no branch",
+			message=(
+				f"manager={frappe.session.user} branch={branch} "
+				f"target_branch=<empty>"
+			),
+		)
+		return
+	if target_branch != branch:
 		frappe.throw("Not in your branch.", frappe.PermissionError)
 
 
@@ -568,6 +593,177 @@ def get_borrower_detail(customer_name: str):
 	customer["recent_repayments"] = repayments
 
 	return {"borrower": customer}
+
+
+@frappe.whitelist()
+def get_manager_application_detail(application_name: str) -> dict:
+	"""Full Loan Application detail for the manager review modal (R24).
+
+	Mirrors lms_saas.api.officer.get_application_detail but adds:
+	  - Branch-scope enforcement (managers may only view apps in their
+	    own branch — see _assert_branch_scope).
+	  - Compliance / AML status (managers need to see Clear before approve).
+	  - Auditor information: who the originating officer is, the audit
+	    trail, and the customer's KYC + AML screening history.
+
+	Returns the same shape as the officer API so the manager portal can
+	render the review modal with one set of code.
+	"""
+	_require_manager()
+	if not application_name or not frappe.db.exists("Loan Application", application_name):
+		frappe.throw(_("Loan Application {0} not found").format(application_name))
+
+	app = frappe.get_doc("Loan Application", application_name)
+	_assert_branch_scope(app.get("custom_lms_branch"))
+
+	customer_name = (
+		frappe.db.get_value("Customer", app.applicant, "customer_name") or ""
+	)
+	customer_email = (
+		frappe.db.get_value("Customer", app.applicant, "email_id") or ""
+	)
+	customer_mobile = (
+		frappe.db.get_value("Customer", app.applicant, "mobile_no") or ""
+	)
+
+	# Loan officer
+	officer_name = ""
+	if app.get("custom_loan_officer"):
+		officer_name = (
+			frappe.db.get_value(
+				"Employee", app.custom_loan_officer, "employee_name"
+			) or ""
+		)
+
+	product = {}
+	if app.loan_product:
+		p = frappe.get_doc("Loan Product", app.loan_product)
+		product = {
+			"name": p.name,
+			"product_code": p.get("product_code"),
+			"product_name": p.get("product_name"),
+			"rate_of_interest": p.get("rate_of_interest"),
+			"maximum_loan_amount": p.get("maximum_loan_amount"),
+		}
+
+	schedule = []
+	for s in app.get("repayment_schedule", []) or []:
+		schedule.append({
+			"date": str(s.payment_date) if s.get("payment_date") else None,
+			"principal": flt(s.get("principal_amount")),
+			"interest": flt(s.get("interest_amount")),
+			"total": flt(s.get("total_payment")),
+			"balance": flt(s.get("balance_loan_amount")),
+		})
+
+	kyc = {}
+	compliance_name = frappe.db.get_value(
+		"LMS Borrower Compliance", {"customer": app.applicant}, "name"
+	)
+	if compliance_name:
+		row = frappe.db.get_value(
+			"LMS Borrower Compliance",
+			compliance_name,
+			[
+				"name", "kyc_status", "aml_status", "aml_screened_at",
+				"national_id_number", "consent_given", "consent_date",
+				"credit_score", "debt_to_income_ratio",
+			],
+			as_dict=True,
+		)
+		if row:
+			kyc = {
+				"name": row.name,
+				"kyc_status": row.kyc_status,
+				"aml_status": row.aml_status,
+				"aml_screened_at": str(row.aml_screened_at) if row.aml_screened_at else None,
+				"national_id_number": row.national_id_number,
+				"consent_captured": bool(row.consent_given),
+				"consent_date": str(row.consent_date) if row.consent_date else None,
+				"credit_score": row.credit_score,
+				"debt_to_income_ratio": row.debt_to_income_ratio,
+			}
+
+	collateral = []
+	for c in frappe.get_all(
+		"LMS Collateral",
+		filters={"loan_application": application_name},
+		fields=[
+			"name", "collateral_type", "collateral_title",
+			"market_value", "net_realizable_value", "status",
+			"lms_security_certificate", "lms_security_units",
+			"lms_guarantor_name",
+		],
+	):
+		collateral.append({
+			"name": c.name,
+			"collateral_type": c.collateral_type,
+			"collateral_title": c.collateral_title,
+			"market_value": c.market_value,
+			"net_realizable_value": c.net_realizable_value,
+			"status": c.status,
+			"lms_security_certificate": c.lms_security_certificate,
+			"lms_security_units": c.lms_security_units,
+			"lms_guarantor_name": c.lms_guarantor_name,
+		})
+
+	audit = []
+	if frappe.db.exists("DocType", "LMS Audit Event"):
+		for e in frappe.get_all(
+			"LMS Audit Event",
+			filters={"reference_doctype": "Loan Application", "reference_name": application_name},
+			fields=["event_type", "details", "event_user", "creation"],
+			order_by="creation desc",
+			limit_page_length=20,
+		):
+			audit.append({
+				"event_type": e.event_type,
+				"details": e.details,
+				"actor": e.event_user,
+				"creation": str(e.creation),
+			})
+
+	# Borrower's existing loans (if any) for cross-portfolio check
+	existing_loans = frappe.get_all(
+		"Loan",
+		filters={"applicant": app.applicant, "docstatus": ("!=", 2)},
+		fields=["name", "loan_amount", "status", "disbursed_amount"],
+		order_by="creation desc",
+		limit_page_length=10,
+	)
+	for l in existing_loans:
+		l["outstanding"] = flt(l.disbursed_amount or 0)
+
+	return {
+		"application": {
+			"name": app.name,
+			"applicant": app.applicant,
+			"applicant_name": customer_name,
+			"applicant_email": customer_email,
+			"applicant_mobile": customer_mobile,
+			"officer_name": officer_name,
+			"loan_product": app.loan_product,
+			"loan_amount": app.loan_amount,
+			"rate_of_interest": app.rate_of_interest,
+			"repayment_periods": app.repayment_periods,
+			"repayment_method": app.repayment_method,
+			"repayment_start_date": str(app.repayment_start_date) if app.get("repayment_start_date") else None,
+			"loan_purpose": app.get("loan_purpose") or "",
+			"status": app.status,
+			"docstatus": app.docstatus,
+			"custom_lms_branch": app.get("custom_lms_branch"),
+			"custom_loan_officer": app.get("custom_loan_officer"),
+			"company": app.company,
+			"posting_date": str(app.posting_date) if app.get("posting_date") else None,
+			"creation": str(app.creation),
+		},
+		"product": product,
+		"schedule": schedule,
+		"kyc": kyc,
+		"collateral": collateral,
+		"audit": audit,
+		"existing_loans": existing_loans,
+	}
 
 
 @frappe.whitelist()

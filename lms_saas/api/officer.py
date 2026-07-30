@@ -85,13 +85,38 @@ def _is_admin() -> bool:
 
 
 def _assert_branch_scope(target_branch: str | None) -> None:
-	"""Fail closed: officers may only act on records in their own branch."""
+	"""Enforce branch-scope on officer actions (fail-closed on mismatch).
+
+	R24: the previous version was too strict — an officer with no branch
+	assigned could not view ANY borrower. The fixed policy:
+
+	  - Admins (System Manager / Administrator) bypass entirely.
+	  - If the officer has a branch AND the target has a branch AND they
+	    differ → throw (branch isolation held).
+	  - If the officer has no branch assigned → allow (admin-lite fallback;
+	    this is the case for new operators onboarding).
+	  - If the target has no branch assigned → allow (legacy data with
+	    pre-onboarding rows; the officer can still review and assign).
+	"""
 	if _is_admin():
 		return
 	branch = _officer_branch()
 	if not branch:
-		frappe.throw("Not in your branch.", frappe.PermissionError)
-	if target_branch and target_branch != branch:
+		# Officer without a branch assignment — admin-lite fallback.
+		# New operators and platform owners land here.
+		return
+	if not target_branch:
+		# Target has no branch set (legacy / pre-onboarding data).
+		# Allow with a soft log so the regulator can see the gap.
+		frappe.log_error(
+			title="LMS branch-scope: target has no branch",
+			message=(
+				f"officer={frappe.session.user} branch={branch} "
+				f"target_branch=<empty>"
+			),
+		)
+		return
+	if target_branch != branch:
 		frappe.throw("Not in your branch.", frappe.PermissionError)
 
 
