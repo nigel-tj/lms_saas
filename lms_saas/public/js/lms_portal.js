@@ -1178,42 +1178,88 @@ lms_portal.initApplyPage = function () {
                         // users without a Customer record. Render the
                         // structured empty state instead of starting the
                         // wizard with empty products.
-                        if (ctx.customer === null || ctx.blocked_reason) {
-                                root.innerHTML = lms_portal.renderNoAccess({
-                                        title: "Apply on the borrower portal",
-                                        message: ctx.blocked_message ||
-                                                "Your account is not linked to a borrower record.",
-                                        home: "/",
-                                });
-                                return;
-                        }
-                        // Populate wizard state from the server context.
-                        wizardState.products = ctx.products || [];
-                        wizardState.compliance = ctx.compliance || {};
-                        wizardState.selectedProduct = wizardState.products.length
-                                ? wizardState.products[0].name
-                                : null;
-                        lms_portal._renderApplyWizard(root, wizardState);
-                },
-                error: function (err) {
-                        root.innerHTML = lms_portal.renderError({
-                                title: "Could not load application",
-                                message: (err && err.message) || "Please try again later.",
-                                home: "/lms",
-                        });
-                },
-        });
+				if (ctx.blocked_reason === "no_compliance_yet") {
+					// R29-F7: borrower has a Customer but no
+					// Compliance profile. Surface an onboarding card
+					// instead of the wizard. Confirming calls
+					// submit_consent then re-fetches the context.
+					root.innerHTML = lms_portal._renderConsentCapture(ctx);
+					lms_portal._bindConsentCapture(root, function () {
+						// After consent is captured, refetch.
+						lms_portal._loadApplyWizard(root);
+					});
+					return;
+				}
+				if (ctx.customer === null || ctx.blocked_reason) {
+					root.innerHTML = lms_portal.renderNoAccess({
+						title: "Apply on the borrower portal",
+						message: ctx.blocked_message ||
+							"Your account is not linked to a borrower record.",
+						home: "/",
+					});
+					return;
+				}
+				// Populate wizard state from the server context.
+				wizardState.products = ctx.products || [];
+				wizardState.compliance = ctx.compliance || {};
+				wizardState.selectedProduct = wizardState.products.length
+					? wizardState.products[0].name
+					: null;
+				lms_portal._renderApplyWizard(root, wizardState);
+			},
+			error: function (err) {
+				root.innerHTML = lms_portal.renderError({
+					title: "Could not load application",
+					message: (err && err.message) || "Please try again later.",
+					home: "/lms",
+				});
+			},
+		});
 };
 
-lms_portal._renderApplyWizard = function (root, state) {
-	root.innerHTML = lms_portal._applyWizardHtml(state);
-	lms_portal._bindWizardEvents(root, state);
+lms_portal._renderConsentCapture = function (ctx) {
+	return [
+		'<div class="lms-panel lms-consent">',
+		'<h3 class="lms-wizard__title">Before we can take your application</h3>',
+		'<p class="lms-muted">' + lms_portal.escape(ctx.blocked_message || "") + "</p>",
+		'<label class="lms-field"><input type="checkbox" id="lms-consent-check" /> ' +
+		"I confirm I am the borrower, the information I'll provide is true, and I consent to LMS processing this application for credit assessment.</label>",
+		'<button type="button" class="lms-btn lms-btn--primary" id="lms-consent-submit" disabled>Start KYC</button>',
+		"</div>",
+	].join("");
 };
 
-lms_portal._applyWizardHtml = function (state) {
-	var steps = [
-		'<div class="lms-wizard" id="lms-apply-wizard">',
-		'<div class="lms-wizard__steps">',
+lms_portal._bindConsentCapture = function (root, on_complete) {
+	var check = root.querySelector("#lms-consent-check");
+	var btn = root.querySelector("#lms-consent-submit");
+	if (check && btn) {
+		check.addEventListener("change", function () { btn.disabled = !check.checked; });
+	}
+	if (btn) {
+		btn.addEventListener("click", function () {
+			if (!check || !check.checked) return;
+			lms_portal.safeCall({
+				method: "lms_saas.api.portal.submit_consent",
+				args: { consent_text: "Default borrower consent for LMS portal services." },
+				callback: function (r) {
+					var data = (r && r.message) || {};
+					if (data.consent_given) {
+						lms_portal.toast("Consent captured — you can apply now.", "success");
+						if (on_complete) on_complete();
+					} else {
+						lms_portal.toast("Could not save consent. Please try again.", "danger");
+					}
+				},
+				error: function (err) {
+					lms_portal.toast(
+						(err && (err.message || err._server_message)) ||
+						"Could not save consent — contact your loan officer.",
+						"danger"
+					);
+				},
+			});
+		});
+	}
 		'<div class="lms-wizard__step' + (state.step >= 1 ? " is-active" : "") + '"><span class="lms-wizard__num">1</span><span class="lms-wizard__label">Product</span></div>',
 		'<div class="lms-wizard__step' + (state.step >= 2 ? " is-active" : "") + '"><span class="lms-wizard__num">2</span><span class="lms-wizard__label">Amount</span></div>',
 		'<div class="lms-wizard__step' + (state.step >= 3 ? " is-active" : "") + '"><span class="lms-wizard__num">3</span><span class="lms-wizard__label">Documents</span></div>',

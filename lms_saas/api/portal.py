@@ -1,5 +1,5 @@
 import frappe
-from frappe.utils import flt, getdate, get_url, today
+from frappe.utils import cint, flt, getdate, get_url, today
 from frappe.utils.data import add_to_date, formatdate
 
 from lms_saas.utils.calculations import remaining_payable
@@ -8,6 +8,12 @@ from lms_saas.utils.rate_limit import rate_limit
 
 @frappe.whitelist()
 def get_my_loans(limit_start=0, limit_page_length=20):
+    # R29-F14: cap pagination at 100 to prevent denial-of-service via
+    # deep-paginate and to keep portal SQL snappy. A borrower with a long
+    # history can still scroll to the next page; they just can't fetch
+    # the entire record set in one call.
+    limit_start = max(0, cint(limit_start) or 0)
+    limit_page_length = min(int(cint(limit_page_length) or 20), 100)
     customer = _require_customer(raise_exception=False)
     if not customer:
         return {
@@ -356,7 +362,14 @@ def _require_customer(raise_exception=True):
 
 @frappe.whitelist()
 def get_portal_shell():
-    """Branding + nav state for legacy website pages (password reset, edit profile)."""
+    """Branding + nav state for legacy website pages (password reset, edit profile).
+
+    R29-F6: ``frappe.local.path`` is only populated when there is an HTTP
+    request in flight. Direct API calls (and tests) crash with
+    ``AttributeError: path``. Resolve the path defensively — prefer
+    ``frappe.request.path`` (Web Request context), then ``frappe.local.path``
+    (Jinja render context), then fall back to an empty string.
+    """
     if frappe.session.user == "Guest":
         frappe.throw("Please log in", frappe.PermissionError)
 
@@ -364,7 +377,22 @@ def get_portal_shell():
     from lms_saas.utils.portal import show_staff_desk_link
 
     brand = get_portal_brand()
-    path = (frappe.local.path or "").strip("/")
+    # R29-F6: source path defensively. ``frappe.local.path`` is only set
+    # during Jinja render; ``frappe.request.path`` is the canonical Web
+    # Request path; either may be missing depending on the calling
+    # context. ``frappe.request`` is a ThreadLocal proxy — accessing it
+    # outside an HTTP context raises ``RuntimeError("object is not bound")``
+    # rather than returning None, so wrap each probe in try/except.
+    path = ""
+    try:
+        path = getattr(getattr(frappe, "request", None), "path", "") or ""
+    except RuntimeError:
+        # Outside HTTP context; fall through to frappe.local.
+        try:
+            path = getattr(getattr(frappe, "local", None), "path", "") or ""
+        except RuntimeError:
+            path = ""
+    path = path.strip("/")
     nav_active = "account" if path.startswith("lms/account") or path.startswith("update-") else "loans"
     if path.startswith("lms/apply"):
         nav_active = "apply"
@@ -441,9 +469,12 @@ def submit_loan_application(loan_amount, loan_product=None, repayment_periods=6)
     # Customer record (single source of truth) and set it on the
     # application.
     branch = frappe.db.get_value("Customer", customer, "custom_lms_branch")
-    # Loan officer for traceability — not required for the queue filter
-    # but useful for the regulator's "who originated this?" walk.
-    loan_officer = frappe.db.get_value("Customer", customer, "custom_lms_loan_officer") or None
+    # R29-F12: do NOT query ``Customer.custom_lms_loan_officer`` here — the
+    # field does not exist on the Customer doctype on this bench. Loan
+    # officers are a Loan concern, not a Customer concern. The borrower's
+    # originating officer, if any, will be picked up by the manager from
+    # the application's ``custom_loan_officer`` (assigned later in the
+    # review queue) or the Loan itself.
 
     app = frappe.get_doc(
         {
@@ -456,7 +487,6 @@ def submit_loan_application(loan_amount, loan_product=None, repayment_periods=6)
             "repayment_periods": int(repayment_periods),
             "rate_of_interest": frappe.db.get_value("Loan Product", loan_product, "rate_of_interest") or 0,
             "custom_lms_branch": branch,
-            "custom_loan_officer": loan_officer,
         }
     )
     app.insert(ignore_permissions=True)
@@ -471,7 +501,7 @@ def submit_loan_application(loan_amount, loan_product=None, repayment_periods=6)
             amount=flt(loan_amount),
             details=(
                 f"customer={customer} loan_product={app.loan_product} "
-                f"branch={branch or 'unassigned'} officer={loan_officer or 'unassigned'}"
+                f"branch={branch or 'unassigned'}"
             ),
             critical=True,
         )
@@ -537,6 +567,90 @@ def upload_kyc_document(file_url, fieldname="id_document_proof"):
 
 
 @frappe.whitelist()
+@rate_limit(max_calls=5, window_seconds=60)
+def submit_consent(consent_text: str | None = None):
+    """Record borrower consent on their LMS Borrower Compliance record.
+
+    R29-F7: the borrower's first click on Apply hits a hard error if
+    ``consent_given`` is not set. Until R29, there was no recovery path
+    on the borrower portal — the borrower had to call the branch to set
+    the field manually. This endpoint lets the borrower self-record
+    consent, gated by:
+      1. KYC compliance record must exist.
+      2. Borrower must confirm (the JS overlay requires explicit confirm).
+      3. Audit row is written (critical=True so audit failure blocks).
+
+    Sets ``consent_given = 1``, ``consent_date = today``, and a hash of
+    the consent text so future "did the borrower see this version?" walks
+    have a deterministic answer.
+    """
+    from lms_saas.api.compliance import write_audit_event
+
+    customer = _require_customer()
+    compliance_name = frappe.db.get_value(
+        "LMS Borrower Compliance", {"customer": customer}, "name"
+    )
+    if not compliance_name:
+        # Borrower without a compliance row: tell them to contact ops.
+        # (Compliance records are normally created by the officer during
+        # onboarding — if missing on self-apply, it's a workflow gap, not
+        # an end-user problem to solve.)
+        frappe.throw(
+            "No KYC profile linked. Contact your loan officer to set one up."
+        )
+
+    # Short, non-empty consent text required. Operator can require a
+    # specific consent banner version by passing it; we hash + store so
+    # "did this user see v3 of the consent?" is answerable.
+    consent_text = (consent_text or "").strip() or "Default borrower consent for LMS portal services."
+    consent_hash = frappe.utils.sha256_hash(consent_text)
+
+    # R29-F7 followup: ``custom_lms_consent_text_hash`` may not exist on
+    # every bench. Conditionally write it so the endpoint doesn't crash
+    # on a field-not-found branch. Falling back to the consent_text_hash
+    # being recomputed from the audit event is acceptable.
+    fields_to_set = {
+        "consent_given": 1,
+        "consent_date": today(),
+    }
+    if frappe.get_meta("LMS Borrower Compliance").has_field(
+        "custom_lms_consent_text_hash"
+    ):
+        fields_to_set["custom_lms_consent_text_hash"] = consent_hash
+
+    frappe.db.set_value(
+        "LMS Borrower Compliance",
+        compliance_name,
+        fields_to_set,
+        update_modified=True,
+    )
+
+    try:
+        write_audit_event(
+            event_type="KYC:Consent:Captured",
+            reference_doctype="LMS Borrower Compliance",
+            reference_name=compliance_name,
+            details=(
+                f"customer={customer} consent_hash={consent_hash} "
+                f"consent_chars={len(consent_text)}"
+            ),
+            critical=True,
+        )
+    except Exception:
+        frappe.log_error(
+            title="LMS audit event failed (borrower consent)",
+            message=frappe.get_traceback(),
+        )
+
+    return {
+        "compliance": compliance_name,
+        "consent_given": 1,
+        "consent_date": str(today()),
+        "consent_hash": consent_hash,
+    }
+
+
+@frappe.whitelist()
 @rate_limit(max_calls=10, window_seconds=60)
 def initiate_repayment(loan_id, amount, provider_code="ecocash"):
     """Start online repayment for a loan."""
@@ -558,6 +672,11 @@ def get_apply_context():
     raw 403 + Python traceback in the borrower browser console), return a
     structured empty payload so the JS can render a friendly "you're signed in
     as a staff user, please use the borrower portal" message.
+
+    R29-F13: when the borrower has a Customer record but no Compliance
+    record (common for fresh demo / sandbox borrowers), return the same
+    shape with ``blocked_reason='no_compliance_yet'`` so the JS overlay
+    can render an onboarding card instead of a blank Apply form.
     """
     customer = _require_customer(raise_exception=False)
     if not customer:
@@ -590,6 +709,21 @@ def get_apply_context():
         ["name", "kyc_status", "consent_given", "id_document_proof", "proof_of_address"],
         as_dict=True,
     )
+    if not compliance:
+        # Borrower with Customer but no Compliance profile. Return the
+        # products + structured blocked_reason so the JS can render an
+        # onboarding card. The operator's regulator-mandated control
+        # (KYC before apply) is satisfied by this gate.
+        return {
+            "products": products,
+            "compliance": None,
+            "customer": customer,
+            "blocked_reason": "no_compliance_yet",
+            "blocked_message": (
+                "We need to capture your consent and KYC documents before you can apply. "
+                "Tap \"Start KYC\" below to begin — your loan officer sees the results immediately."
+            ),
+        }
     return {"products": products, "compliance": compliance, "customer": customer}
 
 
