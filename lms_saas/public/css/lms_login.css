@@ -51,6 +51,34 @@ body.lms-login-page .page_content_wrapper {
 	padding: 0 !important;
 }
 
+/* R32-fix: Frappe's website template wraps the page in
+   `.page-content-wrapper` (margin: 2rem 0) and `#page-login` — without
+   resetting those, the .lms-login-shell is pushed down ~2rem and the
+   body's `--bg-light-gray` (light grey) bleeds through at the top,
+   producing a visible "grey strip above the white form" that breaks
+   the immersive split-screen look. We also kill the Frappe min-height
+   (calc(100vh - 220px)) that is intended for the centered login card
+   but conflicts with the full-bleed shell. */
+body.lms-login-page #page-login,
+body.lms-login-page .page-content-wrapper {
+	margin: 0 !important;
+	padding: 0 !important;
+	min-height: 0 !important;
+	width: 100% !important;
+	max-width: none !important;
+	background: transparent !important;
+}
+
+body.lms-login-page .page-header-wrapper,
+body.lms-login-page .page-header,
+body.lms-login-page .page-breadcrumbs {
+	display: none !important;
+	margin: 0 !important;
+	padding: 0 !important;
+	height: 0 !important;
+	min-height: 0 !important;
+}
+
 .lms-login-shell {
 	display: grid;
 	grid-template-columns: minmax(280px, 42%) minmax(0, 1fr);

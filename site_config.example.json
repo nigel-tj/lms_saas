@@ -21,9 +21,13 @@
   "lms_weekly_kpi_enabled": true,
   "lms_compliance_report_recipients": "ops@example.com",
   "lms_risk_disclosure": "Loans involve credit risk. Terms and fees apply.",
+  "_comment_brand_section": "BRAND (the operator's name, tagline, footer, colour). The login page, portal navbar, desk chrome, and email subjects all read from these. Set them with: bench --site <site> execute lms_saas.utils.brand.set_brand --kwargs '{\"portal_title\": \"Your Brand\"}'. See docs/BRAND_QUICKSTART.md for the full recipe.",
   "lms_brand_portal_title": "Kesari",
   "lms_brand_footer_text": "Powered by Kesari",
   "_comment_footer": "Set lms_brand_footer_text to \"\" to hide the portal footer. Omit it to default to Powered by {lms_brand_portal_title}.",
+  "_comment_brand_assets": "Optional brand assets. If unset, the bundled mark + favicon are used.",
+  "lms_brand_logo_path": "/files/kesari-logo.svg",
+  "lms_brand_favicon_path": "/files/kesari-favicon.svg",
   "lms_portal_idle_minutes": 30,
   "_comment_idle": "Portal idle auto-logout (minutes). Warning appears ~2 minutes before. Set 0 to disable."
 }

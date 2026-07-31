@@ -291,6 +291,172 @@ def get_portal_brand():
 	return enrich_brand()
 
 
+# R33: One-call brand setter. Operators (and the rebrand script) use this
+# to set the visible brand name + tagline + footer in a single transaction
+# so the three values can never drift apart. Without this, the brand name
+# can fall through to the vendor-neutral "LMS" fallback in one place
+# while a custom footer sticks around in another, and the operator ends
+# up debugging drift tickets between the login page heading and the
+# portal footer.
+#
+# Use:
+#   bench --site <site> execute lms_saas.utils.brand.set_brand \
+#     --kwargs '{"portal_title": "Acme Capital", "tagline": "Loans for good", "footer_text": "Powered by Acme"}'
+#
+# This writes to:
+#   1. site_config.json → lms_brand_portal_title / lms_brand_tagline /
+#      lms_brand_footer_text (the canonical source of truth — picked up
+#      by every subsequent request without a restart).
+#   2. Website Settings → app_name, brand_html (so the desk chrome
+#      matches the login page).
+#   3. System Settings → app_name (the title-bar / browser tab string).
+#
+# All three writes are idempotent. The function returns a structured
+# report so the operator can audit what changed:
+#   {"applied": [...], "skipped": [...], "failed": [...]}
+def set_brand(
+	portal_title: str | None = None,
+	tagline: str | None = None,
+	footer_text: str | None = None,
+	primary_color: str | None = None,
+	support_email: str | None = None,
+	logo_path: str | None = None,
+	favicon_path: str | None = None,
+	dry_run: bool = False,
+) -> dict:
+	"""Set the operator's brand in site_config + Website Settings + System Settings.
+
+	Args:
+	    portal_title: the operator's product brand name (e.g. a specific
+	        operator's product line — vendor-neutral in the source).
+	        This is the value the login page, navbar, email subjects, and
+	        desk chrome will display.
+	    tagline: one-line under-brand text. Shows on the login page brand
+	        panel.
+	    footer_text: portal footer copy. Pass "" to hide the footer.
+	    primary_color: hex colour for the portal accent.
+	    support_email: operator support address.
+	    logo_path: operator-supplied logo asset path. Defaults to the
+	        bundled mark if not set.
+	    favicon_path: operator-supplied favicon path. Defaults to the
+	        bundled favicon if not set.
+	    dry_run: when True, return the plan without writing anything.
+
+	Returns:
+	    dict with keys ``applied``, ``skipped``, ``failed`` — each a list
+	    of human-readable strings describing what happened.
+	"""
+	import json
+	from pathlib import Path
+
+	import frappe
+
+	# 1. Normalise + validate inputs.
+	payload: dict[str, str | None] = {
+		"portal_title": (portal_title or "").strip() or None,
+		"tagline": (tagline or "").strip() or None,
+		"footer_text": None if footer_text is None else footer_text.strip(),
+		"primary_color": (primary_color or "").strip() or None,
+		"support_email": (support_email or "").strip() or None,
+		"logo_path": (logo_path or "").strip() or None,
+		"favicon_path": (favicon_path or "").strip() or None,
+	}
+	# Discard empty strings so the caller can opt out of a key by passing "".
+	payload = {k: v for k, v in payload.items() if v}
+
+	if not payload:
+		return {"applied": [], "skipped": [], "failed": ["nothing to set — all values empty"], "plan": ["DRY RUN — nothing to set"]}
+
+	result = {"applied": [], "skipped": [], "failed": []}
+
+	# 2. Plan (always shown for clarity, even on apply).
+	plan = [
+		"lms_brand_portal_title = " + repr(payload.get("portal_title", "<unchanged>")),
+		"lms_brand_tagline = " + repr(payload.get("tagline", "<unchanged>")),
+		"lms_brand_footer_text = " + repr(payload.get("footer_text", "<unchanged>")),
+		"lms_brand_primary_color = " + repr(payload.get("primary_color", "<unchanged>")),
+		"lms_support_email = " + repr(payload.get("support_email", "<unchanged>")),
+		"lms_brand_logo_path = " + repr(payload.get("logo_path", "<unchanged>")),
+		"lms_brand_favicon_path = " + repr(payload.get("favicon_path", "<unchanged>")),
+		"Website Settings.app_name = " + repr(payload.get("portal_title", "<unchanged>")),
+		"System Settings.app_name = " + repr(payload.get("portal_title", "<unchanged>")),
+	]
+	if dry_run:
+		result["plan"] = ["DRY RUN — no writes performed"] + plan
+		return result
+
+	# 3. Write site_config.json (the canonical source of truth).
+	site_config_key_map = {
+		"portal_title": "lms_brand_portal_title",
+		"tagline": "lms_brand_tagline",
+		"footer_text": "lms_brand_footer_text",
+		"primary_color": "lms_brand_primary_color",
+		"support_email": "lms_support_email",
+		"logo_path": "lms_brand_logo_path",
+		"favicon_path": "lms_brand_favicon_path",
+	}
+	try:
+		site_path = Path(frappe.utils.get_site_path("site_config.json"))
+		if not site_path.exists():
+			raise FileNotFoundError(f"site_config.json not found at {site_path}")
+		raw = json.loads(site_path.read_text() or "{}")
+		for src, dst in site_config_key_map.items():
+			if src in payload:
+				raw[dst] = payload[src]
+				# In-memory mirror so the current process picks up the
+				# change without a restart.
+				frappe.conf[dst] = payload[src]
+		site_path.write_text(json.dumps(raw, indent=2, sort_keys=True))
+		result["applied"].append(
+			f"site_config.json: wrote {len([k for k in payload if k in site_config_key_map])} key(s)"
+		)
+	except Exception as exc:  # noqa: BLE001
+		result["failed"].append(f"site_config write failed: {exc}")
+		return result
+
+	# 4. Write Website Settings (the desk chrome).
+	if "portal_title" in payload:
+		try:
+			if frappe.db.exists("DocType", "Website Settings"):
+				website = frappe.get_single("Website Settings")
+				website.app_name = payload["portal_title"]
+				website.brand_html = f'<span style="font-weight:600">{payload["portal_title"]}</span>'
+				if "logo_path" in payload:
+					website.app_logo = payload["logo_path"]
+				if "favicon_path" in payload:
+					website.favicon = payload["favicon_path"]
+					if frappe.get_meta("Website Settings").has_field("splash_image"):
+						website.splash_image = payload["favicon_path"]
+				website.flags.ignore_permissions = True
+				website.save(ignore_permissions=True)
+				result["applied"].append(
+					"website_settings: app_name, brand_html"
+					+ (", app_logo" if "logo_path" in payload else "")
+					+ (", favicon, splash_image" if "favicon_path" in payload else "")
+					+ " updated"
+				)
+		except Exception as exc:  # noqa: BLE001
+			result["failed"].append(f"website_settings write failed: {exc}")
+
+	# 5. Write System Settings (the title-bar / browser-tab string).
+	if "portal_title" in payload:
+		try:
+			if frappe.db.exists("DocType", "System Settings"):
+				frappe.db.set_single_value("System Settings", "app_name", payload["portal_title"])
+				result["applied"].append("system_settings: app_name updated")
+		except Exception as exc:  # noqa: BLE001
+			result["failed"].append(f"system_settings write failed: {exc}")
+
+	# 6. Clear caches so the next request sees the new brand without a restart.
+	try:
+		frappe.clear_cache()
+		result["applied"].append("frappe cache cleared")
+	except Exception as exc:  # noqa: BLE001
+		result["skipped"].append(f"cache clear skipped: {exc}")
+
+	return result
+
+
 def apply_favicon_context(context) -> None:
 	context.brand_favicon_url = get_brand_favicon_url()
 	context.favicon_url = context.brand_favicon_url
