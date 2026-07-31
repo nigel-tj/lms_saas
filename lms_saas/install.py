@@ -1466,7 +1466,15 @@ def _setup_navbar_branding():
 
     logo = BRAND_LOGO_PATH
     favicon = BRAND_FAVICON_PATH
-    brand_name = frappe.conf.get("lms_brand_portal_title") or DEFAULT_BRAND["portal_title"]
+    brand_name = (
+        frappe.conf.get("lms_brand_portal_title")
+        or _autodetect_operator_brand()
+        or DEFAULT_BRAND["portal_title"]
+    )
+    # Persist the autodetected operator brand into site_config so subsequent
+    # boots (where this hook doesn't run) still resolve to the same name.
+    if not frappe.conf.get("lms_brand_portal_title") and brand_name:
+        _persist_brand_to_site_config(brand_name)
 
     if frappe.db.exists("DocType", "Navbar Settings"):
         navbar = frappe.get_single("Navbar Settings")
@@ -1495,6 +1503,60 @@ def _setup_navbar_branding():
         frappe.db.set_single_value("System Settings", "app_name", brand_name)
     except Exception:
         pass
+
+
+# Operator-brand autodetect (R27). When the operator hasn't set
+# `lms_brand_portal_title` yet we infer it from the configured SMTP domain
+# (`lms_live_email_id`, e.g. `app@kesari.africa` → "Kesari"). This gives
+# freshly-installed sites a sensible wordmark on the login page + desk
+# without requiring the operator to edit site_config.
+_OPERATOR_DOMAIN_OVERRIDES = {
+    "kesari.africa": "Kesari",
+}
+
+
+def _autodetect_operator_brand() -> str | None:
+    """Return the operator brand string derived from the configured email domain.
+
+    R27: Login + desk brand should always reflect the operator's deployed
+    identity. When `lms_brand_portal_title` is unset we infer it from
+    `lms_live_email_id` (the most reliable operator-specific signal we have
+    in site_config). Returns ``None`` when no domain can be matched.
+    """
+    email = (frappe.conf.get("lms_live_email_id") or "").strip().lower()
+    if "@" not in email:
+        return None
+    domain = email.rsplit("@", 1)[-1]
+    return _OPERATOR_DOMAIN_OVERRIDES.get(domain)
+
+
+def _persist_brand_to_site_config(brand_name: str) -> None:
+    """Write ``lms_brand_portal_title`` into the site's common_site_config.json.
+
+    This is one-time: the install hook only runs on migrations, so subsequent
+    boots read the value from disk without needing to re-detect. We only set
+    a key if it isn't already configured by the operator.
+    """
+    import json as _json
+    from frappe import conf as _frappe_conf
+
+    config_path = _frappe_conf.config_path if hasattr(_frappe_conf, "config_path") else None
+    if not config_path or not isinstance(brand_name, str) or not brand_name.strip():
+        return
+    # Confine writes to the local config-path (per-site) when available.
+    try:
+        if hasattr(_frappe_conf, "get_config_path"):
+            config_path = _frappe_conf.get_config_path() or config_path
+        with open(config_path, "r", encoding="utf-8") as fh:
+            data = _json.load(fh)
+        if data.get("lms_brand_portal_title"):
+            return
+        data["lms_brand_portal_title"] = brand_name.strip()
+        with open(config_path, "w", encoding="utf-8") as fh:
+            _json.dump(data, fh, indent=2)
+            fh.write("\n")
+    except OSError:
+        return
 
 
 # Navbar dropdown items LMS staff do not need (framework chrome).

@@ -1,11 +1,34 @@
 /* LMS branded login page — uses shared theme tokens */
 
+html,
+body.lms-login-page {
+	height: 100%;
+}
+
 body.lms-login-page {
 	font-family: var(--lms-font);
 	background: var(--lms-canvas);
 	color: var(--lms-text);
 	min-height: 100vh;
+	min-height: 100dvh;
 	-webkit-font-smoothing: antialiased;
+	/* R27-fix: Don't lock body to overflow:hidden. On phones the form is
+	   taller than the viewport, so we need the page itself to scroll.
+	   Locking body to overflow:hidden then makes .lms-login-panel
+	   internally scrollable — the "double scrollbar" the user reported.
+	   The shell + brand + panel internal-scroll lock only applies at
+	   >=561px where the form fits in 100vh on common laptop viewports. */
+}
+
+@media (min-width: 561px) {
+	html,
+	body.lms-login-page {
+		height: 100%;
+	}
+
+	body.lms-login-page {
+		overflow: hidden;
+	}
 }
 
 body.lms-login-page .navbar,
@@ -30,16 +53,30 @@ body.lms-login-page .page_content_wrapper {
 
 .lms-login-shell {
 	display: grid;
-	grid-template-columns: minmax(280px, 42%) 1fr;
-	min-height: 100vh;
+	grid-template-columns: minmax(280px, 42%) minmax(0, 1fr);
+	grid-template-rows: 1fr;
+	grid-template-areas: "brand panel";
+	width: 100vw;
+	height: 100vh;
+	height: 100dvh;
+	max-width: 100vw;
+	max-height: 100vh;
+	max-height: 100dvh;
+	overflow: hidden;
+	position: relative;
 }
 
 .lms-login-brand {
 	position: relative;
-	padding: clamp(1.5rem, 4vw, 3rem);
+	grid-area: brand;
+	padding: clamp(1rem, 3vw, 2.25rem);
 	background: var(--lms-hero-bg);
 	border-right: 1px solid var(--lms-hero-border);
-	overflow: hidden;
+	overflow-x: hidden;
+	overflow-y: auto;
+	min-height: 0;
+	min-width: 0;
+	max-height: 100%;
 }
 
 .lms-login-brand__inner {
@@ -180,18 +217,25 @@ body.lms-login-page .page_content_wrapper {
 }
 
 .lms-login-panel {
+	grid-area: panel;
 	display: flex;
 	flex-direction: column;
 	align-items: center;
 	justify-content: center;
-	padding: clamp(1.25rem, 4vw, 2.5rem);
-	min-height: 100vh;
+	padding: clamp(1rem, 3vw, 2rem);
+	min-height: 0;
+	min-width: 0;
+	max-height: 100%;
+	max-width: 100%;
+	overflow-x: hidden;
+	overflow-y: auto;
+	width: 100%;
 }
 
 .lms-login-alert {
 	max-width: 26rem;
 	width: 100%;
-	margin: 0 auto 1.25rem;
+	margin: 0 auto 1rem;
 	padding: 0.85rem 1rem;
 	border-radius: var(--lms-radius-md, 10px);
 	border: 1px solid transparent;
@@ -222,6 +266,8 @@ body.lms-login-page .page_content_wrapper {
 
 .lms-login-forms {
 	width: min(100%, 26rem);
+	max-width: 100%;
+	min-width: 0;
 }
 
 .lms-login-forms > section {
@@ -425,13 +471,19 @@ body.lms-login-page .page_content_wrapper {
 
 @media (max-width: 960px) {
 	.lms-login-shell {
-		grid-template-columns: 1fr;
+		grid-template-columns: minmax(0, 1fr);
+		/* Tablet: brand on top (compact header), panel below (form fills the rest).
+		   Phone (≤560px): reverse so the SIGN-IN form appears first above the brand. */
+		grid-template-rows: auto minmax(0, 1fr);
+		grid-template-areas: "brand" "panel";
 	}
 
 	.lms-login-brand {
 		border-right: none;
 		border-bottom: 1px solid var(--lms-hero-border);
-		padding: 1.25rem 1.25rem 1rem;
+		padding: 0.85rem 1rem 0.75rem;
+		flex: 0 0 auto;
+		max-height: 38vh;
 	}
 
 	.lms-login-brand__inner {
@@ -443,23 +495,159 @@ body.lms-login-page .page_content_wrapper {
 	}
 
 	.lms-login-brand__disclosure {
-		margin-top: 0.75rem;
+		margin-top: 0.5rem;
 		font-size: 0.68rem;
 	}
 
 	.lms-login-brand__routes {
 		grid-template-columns: 1fr 1fr;
+		gap: 0.4rem;
+	}
+
+	.lms-login-brand__routes .lms-login-route-card {
+		padding: 0.55rem 0.75rem;
 	}
 
 	.lms-login-panel {
-		min-height: auto;
-		padding: 1.25rem 1rem 2rem;
+		min-height: 0;
+		padding: 1.25rem 1rem 1.5rem;
+		flex: 1 1 auto;
 	}
 }
 
 @media (max-width: 560px) {
-	.lms-login-brand__routes {
-		grid-template-columns: 1fr;
+	/* PHONE: flip stacking so SIGN-IN form appears FIRST and brand
+	   strip is below. Brand is a tiny 56px wordmark strip — no route
+	   cards, no features, no disclosure, no internal scrollbar. Panel
+	   no longer internally scrolls either; the form is the page's main
+	   content so if it's taller than the remaining viewport, the page
+	   scrolls as a single surface (one scrollbar, never two). */
+	.lms-login-shell {
+		grid-template-rows: minmax(0, 1fr) auto;
+		grid-template-areas: "panel" "brand";
+		/* On phones, drop the 100vh/100dvh lock so the shell is as tall
+		   as its content. Otherwise the form's height gets squeezed and
+		   the user has to scroll inside the panel. The shell is the
+		   single scrollable surface on small viewports. */
+		height: auto;
+		max-height: none;
+		min-height: 100vh;
+		min-height: 100dvh;
+	}
+
+	.lms-login-brand {
+		padding: 0.5rem 1rem;
+		min-height: 56px;
+		max-height: 56px;
+		overflow: hidden !important;
+	}
+
+	.lms-login-brand__inner {
+		max-width: none;
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+
+	.lms-login-brand__lockup {
+		margin-bottom: 0;
+	}
+
+	.lms-login-brand__tagline,
+	.lms-login-brand__features,
+	.lms-login-brand__routes,
+	.lms-login-brand__disclosure {
+		display: none !important;
+	}
+
+	.lms-login-lockup__mark {
+		height: 1.85rem;
+		width: 1.85rem;
+	}
+
+	.lms-login-lockup__wordmark {
+		font-size: 1.2rem;
+	}
+
+	.lms-login-panel {
+		min-height: 0;
+		padding: 1.25rem 1rem 1rem;
+		overflow-y: visible;
+	}
+
+	.lms-login-card-head {
+		padding: 0.85rem 1.1rem 0.25rem !important;
+	}
+
+	.lms-login-card-head .lms-login-lockup__mark {
+		height: 2.5rem;
+		width: 2.5rem;
+		margin-bottom: 0.5rem;
+	}
+
+	.lms-login-card-title {
+		font-size: 1.1rem;
+	}
+
+	.lms-login-card .page-card-body {
+		padding: 0.45rem 1.1rem 0.15rem !important;
+	}
+
+	.lms-login-card .page-card-actions {
+		padding: 0.4rem 1.1rem 1rem !important;
+	}
+
+	.lms-login-card .social-logins {
+		padding: 0 1.1rem 1rem;
+	}
+
+	.lms-login-card .form-control {
+		min-height: 2.35rem;
+		font-size: 0.9375rem;
+	}
+
+	.lms-login-card .btn-primary,
+	.lms-login-card button.btn-login {
+		min-height: 2.35rem;
+	}
+}
+
+@media (max-width: 380px) {
+	/* TINY PHONES (≤380px) — strip the form of every non-essential
+	   surface so the sign-in card fits in ~500px and the whole page
+	   fits without page-level scroll. */
+	.lms-login-card-head {
+		padding: 0.6rem 1rem 0.15rem !important;
+	}
+
+	.lms-login-card-head .lms-login-lockup__mark {
+		height: 2rem;
+		width: 2rem;
+		margin-bottom: 0.35rem;
+	}
+
+	.lms-login-card .page-card-body {
+		padding: 0.3rem 1rem 0.1rem !important;
+	}
+
+	.lms-login-card .page-card-actions {
+		padding: 0.3rem 1rem 0.85rem !important;
+	}
+
+	.lms-login-card .login-divider,
+	.lms-login-card .social-logins,
+	.lms-login-card .forgot-password-message {
+		display: none !important;
+	}
+
+	.lms-login-card .btn-primary,
+	.lms-login-card button.btn-login {
+		min-height: 2.2rem;
+		font-size: 0.9rem;
+	}
+
+	.lms-login-signup-link {
+		margin-top: 0.5rem;
 	}
 }
 
