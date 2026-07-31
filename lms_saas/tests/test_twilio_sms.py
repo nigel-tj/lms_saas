@@ -448,6 +448,26 @@ class TestTwilioSettingsValidation(FrappeTestCase):
 		except ImportError:
 			raise self.skipTest("LMS Twilio Settings DocType not yet migrated")
 
+	def test_account_sid_regex_accepts_ac_and_sk_prefixes(self):
+		"""Both Account SID (AC...) and API Key SID (SK...) are accepted."""
+		from lms_saas.lms_saas.doctype.lms_twilio_settings.lms_twilio_settings import (
+			_ACCOUNT_SID_RE,
+		)
+
+		# 32 lowercase hex chars body for both prefixes.
+		hex_body = "a" * 32  # 'a' is a hex digit
+		self.assertTrue(_ACCOUNT_SID_RE.match("AC" + hex_body))
+		self.assertTrue(_ACCOUNT_SID_RE.match("SK" + hex_body))
+		# Digits also OK.
+		self.assertTrue(_ACCOUNT_SID_RE.match("AC" + "0" * 32))
+		# Mixed hex.
+		self.assertTrue(_ACCOUNT_SID_RE.match("ACa1b2c3d4e5f6a7b8c9d0e1f2a3b4c5"))  # 32 hex
+		# Wrong prefix rejected.
+		self.assertFalse(_ACCOUNT_SID_RE.match("VA" + hex_body))
+		# Wrong length rejected.
+		self.assertFalse(_ACCOUNT_SID_RE.match("AC" + hex_body + "x"))
+		self.assertFalse(_ACCOUNT_SID_RE.match("AC" + hex_body[:-1]))
+
 	def test_validate_sid_requires_ac_prefix(self):
 		cls = self._settings_class()
 		src = inspect.getsource(cls)

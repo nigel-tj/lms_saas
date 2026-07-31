@@ -28,11 +28,12 @@ def is_enabled() -> bool:
 	"""Return True iff Twilio is the active SMS provider on this site.
 
 	Order of precedence:
-	  1. ``LMS Twilio Settings`` singleton row ``enabled=1``.
+	  1. ``LMS Twilio Settings`` singleton row ``enabled=1`` (single DocType —
+	     values live in ``tabSingles``, NOT a real table).
 	  2. ``frappe.conf.lms_twilio_enabled = true`` (operator-level override).
 	"""
 	try:
-		if frappe.db.table_exists("LMS Twilio Settings"):
+		if frappe.db.exists("DocType", "LMS Twilio Settings"):
 			val = frappe.db.get_single_value("LMS Twilio Settings", "enabled")
 			if val:
 				return True
@@ -45,14 +46,20 @@ def is_enabled() -> bool:
 
 
 def _read_singleton_doc() -> dict | None:
-	"""Return the singleton row as a dict, or None if absent / disabled."""
-	if not frappe.db.table_exists("LMS Twilio Settings"):
-		return None
+	"""Return the singleton row as a dict, or None if absent / disabled.
+
+	Single DocTypes store their values in ``tabSingles`` rather than a
+	dedicated table — so ``frappe.db.table_exists(...)`` is the WRONG
+	probe and always returns False for a Single. We check
+	``frappe.db.exists("DocType", ...)`` instead.
+	"""
 	if not frappe.db.exists("DocType", "LMS Twilio Settings"):
 		return None
 	try:
 		doc = frappe.get_single("LMS Twilio Settings")
 	except Exception:  # noqa: BLE001
+		return None
+	if doc is None:
 		return None
 	return {
 		"enabled": bool(doc.enabled),
