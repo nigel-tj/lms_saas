@@ -80,7 +80,15 @@ def get_collection_run_sheet(days_ahead=7, company=None, reveal=False):
 	if not _is_admin() and not _is_branch_manager():
 		scope_branch = _collector_branch()
 		if not scope_branch:
-			frappe.throw("No branch assigned — cannot view run sheet.", frappe.PermissionError)
+			# R32: return an empty sheet instead of throwing a 403.
+			# The collector sees a friendly "no dues" message rather
+			# than a permission-error dialog.
+			return {
+				"columns": columns,
+				"rows": [],
+				"pii_revealed": False,
+				"_no_branch": True,
+			}
 		data = [row for row in data if row.get("branch") == scope_branch]
 
 	return {

@@ -384,7 +384,7 @@ def get_assigned_loans():
 			"Loan",
 			filters=_scoped({"custom_loan_officer": employee, "docstatus": 0}),
 			fields=draft_fields,
-			order_by="creation asc",
+			order_by="creation desc",
 			limit_page_length=100,
 		)
 	)
@@ -399,7 +399,7 @@ def get_assigned_loans():
 				}
 			),
 			fields=_fields(),
-			order_by="creation asc",
+			order_by="creation desc",
 			limit_page_length=100,
 		)
 	)

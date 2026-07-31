@@ -1117,13 +1117,26 @@ lms_portal.renderPortalHeader = function (shell) {
 };
 
 lms_portal.mountLegacyChrome = function () {
-	if (document.querySelector(".lms-portal-wrap")) {
+	// R32-F1: idempotent. The frappe.ready callback can fire twice (Frappe
+	// web bundle pre-ready hook + the post-frappe boot.ready event), so we
+	// guard on BOTH the legacy header AND the legacy footer before scheduling
+	// the AJAX call. Otherwise two callbacks would append two duplicate
+	// Powered-by footers stacked at the bottom of the page.
+	if (document.querySelector(".lms-portal-wrap, .lms-portal-footer")) {
 		return;
 	}
+	// In-flight guard: a second caller that arrives while the AJAX is in
+	// flight would otherwise pass the DOM check above and duplicate the
+	// footer when the callback fires.
+	if (lms_portal._mountLegacyChromeInFlight) {
+		return;
+	}
+	lms_portal._mountLegacyChromeInFlight = true;
 
 	frappe.call({
 		method: "lms_saas.api.portal.get_portal_shell",
 		callback: function (r) {
+			lms_portal._mountLegacyChromeInFlight = false;
 			const shell = r.message || {};
 			const wrap = document.createElement("div");
 			wrap.innerHTML = lms_portal.renderPortalHeader(shell);
@@ -1135,15 +1148,25 @@ lms_portal.mountLegacyChrome = function () {
 				main.classList.add("lms-portal-board", "lms-portal-board--legacy");
 			}
 
-			const footer = document.createElement("footer");
-			footer.className = "lms-portal-footer";
-			var ft = shell.brand && shell.brand.footer_text;
-			if (ft === "") {
-				footer.style.display = "none";
-			} else {
-				footer.textContent = ft || ("Powered by " + ((shell.brand && shell.brand.portal_title) || "LMS"));
+			// R32-F1: only inject a legacy footer if the server template
+			// did NOT already render one. The new templates
+			// (lms_portal/base.html) include a <footer class="lms-footer">
+			// inside .lms-main; we must not duplicate it. The help page
+			// uses <footer class="lms-help-footer">; the login page uses
+			// <footer class="lms-login-footer">. Legacy web-form pages
+			// that pre-date the new template render no footer at all, so
+			// we still add one for them.
+			if (!document.querySelector(".lms-footer, .lms-help-footer, .lms-login-footer")) {
+				const footer = document.createElement("footer");
+				footer.className = "lms-portal-footer";
+				var ft = shell.brand && shell.brand.footer_text;
+				if (ft === "") {
+					footer.style.display = "none";
+				} else {
+					footer.textContent = ft || ("Powered by " + ((shell.brand && shell.brand.portal_title) || "LMS"));
+				}
+				document.body.appendChild(footer);
 			}
-			document.body.appendChild(footer);
 		},
 	});
 };

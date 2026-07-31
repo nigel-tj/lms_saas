@@ -169,4 +169,9 @@ class TestDeskDashboard(FrappeTestCase):
 			# route is set when both reference_doctype + reference_name are present
 			if e.get("reference_doctype") and e.get("reference_name"):
 				self.assertIn("route", e)
-				self.assertTrue(e["route"].startswith("/app/"))
+				# R30-F3: desk_url returns /app/... on Frappe v15 and
+				# /desk/... on v16+. The test must accept either.
+				self.assertTrue(
+					e["route"].startswith("/app/")
+					or e["route"].startswith("/desk/")
+				)

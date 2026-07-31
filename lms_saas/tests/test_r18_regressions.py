@@ -42,6 +42,14 @@ def _make_demo_loan_application(customer_name):
 		c = frappe.new_doc("Customer")
 		c.customer_name = customer_name
 		c.customer_type = "Individual"
+		# R30-F1: ERPNext's validate_customer_group rejects a Group type.
+		# Pick the first non-group Customer Group so the dedicated-test
+		# environment can host the demo customer.
+		c.customer_group = frappe.db.get_value(
+			"Customer Group",
+			{"is_group": 0},
+			"name",
+		) or "All Customer Groups"
 		c.insert(ignore_permissions=True)
 	# Find the LMS Standard Loan product (created by seed).
 	products = frappe.get_all("Loan Product", limit_page_length=1)
