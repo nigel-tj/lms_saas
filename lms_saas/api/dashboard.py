@@ -443,6 +443,12 @@ def get_system_health():
         "aml": bool(frappe.conf.get("lms_aml_enabled", False)),
         "credit_bureau": bool(frappe.conf.get("lms_credit_bureau_enabled", False)),
         "sms": bool(frappe.db.get_single_value("SMS Settings", "sms_gateway_url")),
+        "sms_twilio": bool(frappe.db.get_single_value("LMS Twilio Settings", "enabled"))
+        if frappe.db.table_exists("LMS Twilio Settings")
+        else False,
+        "sms_otp": bool(
+            frappe.db.table_exists("LMS OTP Challenge")
+        ),
         "payments": bool(frappe.conf.get("lms_payments_enabled", False)),
     }
 

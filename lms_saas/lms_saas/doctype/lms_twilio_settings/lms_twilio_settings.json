@@ -1,0 +1,102 @@
+{
+ "doctype": "DocType",
+ "name": "LMS Twilio Settings",
+ "module": "Lms Saas",
+ "custom": 0,
+ "issingle": 1,
+ "track_changes": 1,
+ "fields": [
+  {
+   "fieldname": "intro_section",
+   "fieldtype": "Section Break",
+   "label": "Twilio SMS Provider"
+  },
+  {
+   "fieldname": "intro_html",
+   "fieldtype": "HTML",
+   "options": "<p class=\"text-muted small\">Configure your Twilio account for outbound SMS + Verify (OTP) flows. Auth token is stored encrypted via <code>frappe.utils.password</code> and is never returned by API.</p>"
+  },
+  {
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "label": "Enable Twilio SMS",
+   "default": "0"
+  },
+  {
+   "fieldname": "account_sid",
+   "fieldtype": "Data",
+   "label": "Account SID",
+   "description": "Twilio Account SID begins with 'AC' followed by 32 hex characters. Obtain it from the Twilio console dashboard."
+  },
+  {
+   "fieldname": "auth_token",
+   "fieldtype": "Password",
+   "label": "Auth Token",
+   "description": "Twilio Auth Token. Stored encrypted. Never exposed via API."
+  },
+  {
+   "fieldname": "default_from_number",
+   "fieldtype": "Data",
+   "label": "Default Sender (E.164)",
+   "description": "Default Twilio phone number in E.164 format (e.g. +15555550100)."
+  },
+  {
+   "fieldname": "status_callback_url",
+   "fieldtype": "Small Text",
+   "label": "Status Callback URL",
+   "description": "Public URL Twilio calls with delivery receipts. Auto-populated from request host on save."
+  },
+  {
+   "fieldname": "inbound_webhook_url",
+   "fieldtype": "Small Text",
+   "label": "Inbound Webhook URL",
+   "description": "Public URL Twilio calls for SMS received on a Twilio number (two-way + STOP keywords)."
+  },
+  {
+   "fieldname": "sandbox_fail_open",
+   "fieldtype": "Check",
+   "label": "Sandbox Fail-Open (dev only)",
+   "description": "Skip the actual Twilio HTTP call and log every send as Sandbox. Server logs an audit event for every send. NEVER enable in production."
+  },
+  {
+   "fieldname": "verify_service_sid",
+   "fieldtype": "Data",
+   "label": "Verify Service SID (optional)",
+   "description": "Twilio Verify Service SID (starts with 'VA'). Optional — when set, OTP can use the Verify API instead of self-issued HMAC codes."
+  },
+  {
+   "fieldname": "queue_section",
+   "fieldtype": "Section Break",
+   "label": "Defaults"
+  },
+  {
+   "fieldname": "max_daily_per_phone",
+   "fieldtype": "Int",
+   "label": "Max SMS per phone per day",
+   "default": "10",
+   "description": "Soft rate-limit applied to non-OTP sends per recipient phone number."
+  },
+  {
+   "fieldname": "retry_attempts",
+   "fieldtype": "Int",
+   "label": "Retry Attempts on 5xx",
+   "default": "2"
+  }
+ ],
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 0,
+   "report": 1,
+   "export": 0
+  },
+  {
+   "role": "LMS Admin",
+   "read": 1,
+   "write": 1
+  }
+ ]
+}

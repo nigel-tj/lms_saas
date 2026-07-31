@@ -1,5 +1,5 @@
 """Stable integration API surface."""
 
-from lms_saas.api.integrations import aml, bureau, payments, sms
+from lms_saas.api.integrations import aml, bureau, payments, sms, twilio_api
 
-__all__ = ["bureau", "sms", "payments", "aml"]
+__all__ = ["aml", "bureau", "payments", "sms", "twilio_api"]

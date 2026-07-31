@@ -1,0 +1,106 @@
+{
+ "doctype": "DocType",
+ "name": "LMS OTP Challenge",
+ "module": "Lms Saas",
+ "custom": 0,
+ "autoname": "hash",
+ "track_changes": 1,
+ "title_field": "phone",
+ "fields": [
+  {
+   "fieldname": "phone",
+   "fieldtype": "Data",
+   "label": "Phone (E.164)",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "purpose",
+   "fieldtype": "Select",
+   "label": "Purpose",
+   "options": "Login\nDisbursement Approval\nPassword Reset\nCustom",
+   "default": "Login",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "reference_doctype",
+   "fieldtype": "Link",
+   "label": "Reference DocType",
+   "options": "DocType"
+  },
+  {
+   "fieldname": "reference_name",
+   "fieldtype": "Data",
+   "label": "Reference Name"
+  },
+  {
+   "fieldname": "code_hash",
+   "fieldtype": "Data",
+   "label": "Code Hash",
+   "reqd": 1,
+   "description": "SHA256(salt + plain code). The plain code is never stored."
+  },
+  {
+   "fieldname": "salt",
+   "fieldtype": "Data",
+   "label": "Salt (hex)",
+   "reqd": 1,
+   "description": "Random 16-byte hex per challenge."
+  },
+  {
+   "fieldname": "attempts",
+   "fieldtype": "Int",
+   "label": "Attempts",
+   "default": "0",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "expires_at",
+   "fieldtype": "Datetime",
+   "label": "Expires At",
+   "reqd": 1
+  },
+  {
+   "fieldname": "consumed_at",
+   "fieldtype": "Datetime",
+   "label": "Consumed At"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Open\nMatched\nExpired\nLocked\nCancelled",
+   "in_list_view": 1,
+   "default": "Open"
+  },
+  {
+   "fieldname": "delivered_send_log",
+   "fieldtype": "Link",
+   "label": "Send Log",
+   "options": "LMS SMS Send Log",
+   "description": "The LMS SMS Send Log row that delivered this challenge code."
+  },
+  {
+   "fieldname": "initiator",
+   "fieldtype": "Link",
+   "label": "Initiator",
+   "options": "User"
+  }
+ ],
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 0,
+   "create": 1,
+   "delete": 0,
+   "report": 1
+  },
+  {
+   "role": "LMS Admin",
+   "read": 1,
+   "export": 0
+  }
+ ]
+}

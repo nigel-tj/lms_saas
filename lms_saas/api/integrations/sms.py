@@ -10,5 +10,10 @@ def send_sms(to_num: str, message: str):
 	validate_api_key()
 	from lms_saas.api.notifications import dispatch_sms_gateway
 
-	ok = dispatch_sms_gateway(to_num, message)
+	ok = dispatch_sms_gateway(
+		to_num,
+		message,
+		require_consent=False,
+		purpose="Custom",
+	)
 	return {"sent": ok}

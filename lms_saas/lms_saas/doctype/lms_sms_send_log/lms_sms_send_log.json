@@ -1,0 +1,149 @@
+{
+ "doctype": "DocType",
+ "name": "LMS SMS Send Log",
+ "module": "Lms Saas",
+ "custom": 0,
+ "autoname": "hash",
+ "track_changes": 0,
+ "title_field": "to_number",
+ "fields": [
+  {
+   "fieldname": "to_number",
+   "fieldtype": "Data",
+   "label": "To (E.164)",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "from_number",
+   "fieldtype": "Data",
+   "label": "From (E.164)",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "twilio_sid",
+   "fieldtype": "Data",
+   "label": "Twilio SID",
+   "in_list_view": 1,
+   "description": "Twilio Message SID; assigned on send (null in Sandbox). Updated to its delivery status by the status callback."
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Queued\nSent\nDelivered\nFailed\nUndelivered\nOpted-out\nSandbox\nBlocked-NoConsent",
+   "in_list_view": 1,
+   "default": "Queued",
+   "reqd": 1
+  },
+  {
+   "fieldname": "branch",
+   "fieldtype": "Link",
+   "label": "Branch",
+   "options": "LMS Center",
+   "description": "Operator-side branch/copied from the Loan or Customer for officer scoping and reporting."
+  },
+  {
+   "fieldname": "body_sha256",
+   "fieldtype": "Data",
+   "label": "Body SHA256",
+   "description": "Hex SHA256 of the rendered body, used with to_number for dedupe."
+  },
+  {
+   "fieldname": "body_preview",
+   "fieldtype": "Small Text",
+   "label": "Body Preview",
+   "description": "First 200 characters of the rendered body. NOT encrypted; do not store PII beyond preview."
+  },
+  {
+   "fieldname": "template",
+   "fieldtype": "Link",
+   "label": "Template",
+   "options": "LMS SMS Template"
+  },
+  {
+   "fieldname": "purpose",
+   "fieldtype": "Select",
+   "label": "Purpose",
+   "options": "Reminder\nOTP\nMarketing\nCustom\nWebhook\nInbound",
+   "default": "Custom",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "reference_doctype",
+   "fieldtype": "Link",
+   "label": "Reference DocType",
+   "options": "DocType"
+  },
+  {
+   "fieldname": "reference_name",
+   "fieldtype": "Data",
+   "label": "Reference Name"
+  },
+  {
+   "fieldname": "consent_given",
+   "fieldtype": "Check",
+   "label": "Consent Recorded",
+   "default": "0",
+   "description": "Snapshot of the borrower consent flag at send time. Used by regulator reporting."
+  },
+  {
+   "fieldname": "segment_count",
+   "fieldtype": "Int",
+   "label": "Segments"
+  },
+  {
+   "fieldname": "cost",
+   "fieldtype": "Currency",
+   "label": "Cost"
+  },
+  {
+   "fieldname": "error_code",
+   "fieldtype": "Data",
+   "label": "Twilio Error Code"
+  },
+  {
+   "fieldname": "initiator",
+   "fieldtype": "Link",
+   "label": "Initiator",
+   "options": "User"
+  },
+  {
+   "fieldname": "provider_response",
+   "fieldtype": "JSON",
+   "label": "Provider Response",
+   "description": "Excerpt of the Twilio JSON response. PII-stripped (only SID + status fields kept)."
+  },
+  {
+   "fieldname": "sent_at",
+   "fieldtype": "Datetime",
+   "label": "Sent At"
+  },
+  {
+   "fieldname": "delivered_at",
+   "fieldtype": "Datetime",
+   "label": "Delivered At"
+  },
+  {
+   "fieldname": "failed_at",
+   "fieldtype": "Datetime",
+   "label": "Failed At"
+  }
+ ],
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 0,
+   "create": 1,
+   "delete": 0,
+   "export": 1,
+   "report": 1
+  },
+  {
+   "role": "LMS Admin",
+   "read": 1,
+   "export": 1
+  }
+ ]
+}
