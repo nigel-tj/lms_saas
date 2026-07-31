@@ -14,31 +14,15 @@ def _versioned_asset(public_path: str, assets_path: str) -> str:
 
 
 app_name = "lms_saas"
-# R23 decision: app_title is the VENDOR-NEUTRAL product family name shown in
-# the desk's Apps screen, the navbar Help dropdown, and the System Settings
-# `app_name` field. The operator's visible brand (e.g. "Kesari") is set
-# per-site via `lms_brand_portal_title` in site_config and written to Website
-# Settings + System Settings by the after_install hook (see install.py).
-#
-# This split lets the same `lms_saas` package be installed on any site — the
-# package itself is "LMS" (a vendor-neutral family), and the operator's
-# brand comes from the config. Sites that want the desk to show their own
-# brand can set `lms_app_title` in site_config and the boot hook will mirror
-# it into frappe.conf["app_name"] at request time.
-app_title = "LMS"
+app_title = "Kesari"
 app_publisher = "Nigel Tsungai Jena"
-app_description = "Loan management with stewardship and accountability — vendor-neutral LMS package, rebrand per operator"
+app_description = "Kesari — loan management with stewardship and accountability"
 app_email = "admin@3dprintingvillage.co.za"
 app_license = "mit"
 
 # Server-side SVG icon helper for Jinja templates (mirror of lms_icons in JS).
 jinja = {
-    "methods": [
-        "lms_saas.utils.brand.lms_icon_svg",
-        # R27: cache-bust helper for templates that load LMS assets via
-        # <link>/<script> (e.g. /login which doesn't pull web_include_css).
-        "lms_saas.utils.brand._lms_asset_mtime",
-    ],
+    "methods": ["lms_saas.utils.brand.lms_icon_svg"],
 }
 
 after_install = "lms_saas.install.after_install"
