@@ -33,6 +33,25 @@ def _branch_cost_center():
     return branch  # In this project, branch == Cost Center
 
 
+def _gl_account_balance(filters):
+    """R30-B4: ``frappe.db.get_value`` rejects SQL-fn strings as fieldname.
+    Compute the GL net (debit - credit) for the given filters via a real
+    SQL aggregate. Returns a float."""
+    # Use dict-aggregate form so that filter tuples (``["between", [a, b]]``)
+    # are honoured by Frappe's query builder.
+    rows = frappe.get_all(
+        "GL Entry",
+        filters=filters,
+        fields=[
+            {"SUM": "debit", "as": "d"},
+            {"SUM": "credit", "as": "c"},
+        ],
+    )
+    if not rows:
+        return 0.0
+    return flt((rows[0].get("d") or 0) - (rows[0].get("c") or 0))
+
+
 # ---------------------------------------------------------------------------
 # Budgets
 # ---------------------------------------------------------------------------
@@ -123,11 +142,7 @@ def get_budget_vs_actual(budget_name=None, fiscal_year=None):
         if cost_center:
             gl_filters["cost_center"] = cost_center
 
-        actual = flt(frappe.db.get_value(
-            "GL Entry",
-            filters=gl_filters,
-            fieldname="sum(debit) - sum(credit)",
-        ) or 0)
+        actual = _gl_account_balance(gl_filters)
 
         variance = ba["budget_amount"] - actual
         result.append({
@@ -167,11 +182,14 @@ def get_forecast(months=12):
         month_end = get_last_day(add_months(today(), -i))
         filters = dict(loan_filters)
         filters["disbursement_date"] = ("between", [month_start, month_end])
-        total = flt(frappe.db.get_value(
+        # R30-B4: use dict-aggregate form so filter tuples (between) are
+        # honoured by the query builder.
+        month_rows = frappe.get_all(
             "Loan",
             filters=filters,
-            fieldname="sum(disbursed_amount)",
-        ) or 0)
+            fields=[{"SUM": "disbursed_amount", "as": "total"}],
+        )
+        total = flt((month_rows[0].get("total") if month_rows else None) or 0)
         historical.append({
             "month": month_start.strftime("%Y-%m"),
             "amount": total,
@@ -191,8 +209,11 @@ def get_forecast(months=12):
     forecast = []
     for i in range(1, months + 1):
         projected = last_amount * ((1 + avg_growth) ** i)
+        # R30-B9: `add_months` returns a string for positive deltas — wrap
+        # in getdate() so strftime works.
+        m = getdate(add_months(today(), i))
         forecast.append({
-            "month": add_months(today(), i).strftime("%Y-%m"),
+            "month": m.strftime("%Y-%m"),
             "projected": round(projected, 2),
         })
 
@@ -239,11 +260,7 @@ def get_variance_analysis(threshold=10):
             if budget.cost_center:
                 gl_filters["cost_center"] = budget.cost_center
 
-            actual = flt(frappe.db.get_value(
-                "GL Entry",
-                filters=gl_filters,
-                fieldname="sum(debit) - sum(credit)",
-            ) or 0)
+            actual = _gl_account_balance(gl_filters)
 
             budgeted = row.budget_amount or 0
             if not budgeted:
@@ -292,15 +309,11 @@ def get_budgeting_stats():
         if not fy_doc:
             continue
         for row in (doc.accounts or []):
-            actual = flt(frappe.db.get_value(
-                "GL Entry",
-                filters={
-                    "account": row.account,
-                    "posting_date": ("between", [fy_doc["year_start_date"], fy_doc["year_end_date"]]),
-                    "is_cancelled": 0,
-                },
-                fieldname="sum(debit) - sum(credit)",
-            ) or 0)
+            actual = _gl_account_balance({
+                "account": row.account,
+                "posting_date": ("between", [fy_doc["year_start_date"], fy_doc["year_end_date"]]),
+                "is_cancelled": 0,
+            })
             if actual > flt(row.budget_amount or 0):
                 over_budget += 1
 
