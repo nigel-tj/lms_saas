@@ -250,10 +250,20 @@ class TestLMSUserSetupR26(FrappeTestCase):
 			self._cleanup.append((name, doctype))
 
 	def _make(self, persona, email, **extra):
-		mobile = extra.pop(
-			"mobile_no",
-			"0772" + str(abs(hash(email)) % 10000000).zfill(7),
-		)
+		# R26 batch-pollution defence: each test run gets a deterministic but
+		# unique mobile_no derived from the test method name + email so a
+		# concurrent tester (or repeated invocation in the same batch) cannot
+		# collide on the User.mobile_no unique index. The Phone validator
+		# only accepts numeric strings (E.164-ish), so we encode the hash
+		# digest into digits instead of hex letters.
+		import hashlib
+
+		salt = self._testMethodName.encode() + email.encode()
+		digest_hex = hashlib.sha1(salt).hexdigest()
+		# Convert each hex char to a digit via ord difference (0–9).
+		digits = "".join(str((ord(c) - ord("a")) % 10) for c in digest_hex[:9])
+		unique_mobile = "07" + digits  # 11 digits, EA mobile shape
+		mobile = extra.pop("mobile_no", unique_mobile)
 		doc = frappe.get_doc(
 			{
 				"doctype": "LMS User Setup",
