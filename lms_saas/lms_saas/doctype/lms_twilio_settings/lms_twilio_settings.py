@@ -33,9 +33,15 @@ from frappe.utils.password import set_encrypted_password
 
 PASSWORD_KEY = "lms_twilio_auth_token"
 
-# Twilio SID format: literal 'AC' prefix + 32 lowercase alphanumerics.
-_ACCOUNT_SID_RE = re.compile(r"^AC[a-z0-9]{32}$")
-# Twilio Verify SID format: literal 'VA' prefix + 32 alphanumerics.
+# Twilio SID formats:
+#   - Account SID:    literal 'AC' prefix + 32 lowercase hex/alnum (34 chars total).
+#   - API Key SID:    literal 'SK' prefix + 32 lowercase hex/alnum (34 chars total).
+# Both are accepted here so operators can paste either. We only verify the
+# canonical Twilio shape; we do not check digit characters against any
+# internal Twilio allow-list because the canonical examples include mixed
+# alpha+digits in the body.
+_ACCOUNT_SID_RE = re.compile(r"^(?:AC|SK)[a-f0-9]{32}$")
+# Twilio Verify SID format: literal 'VA' prefix + 32 hex chars.
 _VERIFY_SID_RE = re.compile(r"^VA[a-f0-9]{32}$")
 # E.164: leading + then 7-15 digits.
 _E164_RE = re.compile(r"^\+[1-9]\d{6,14}$")
@@ -79,8 +85,10 @@ class LMSTwilioSettings(Document):
 			frappe.throw(_("Account SID is required when Twilio is enabled."))
 		if not _ACCOUNT_SID_RE.match(sid):
 			frappe.throw(
-				_("Account SID must start with 'AC' and be 34 characters total (got '%s').")
-				% sid[:4] + "…"
+				_(
+					"Account SID must start with 'AC' (Account SID) or 'SK' (API Key SID) "
+					"and be 34 characters of lowercase hex. Got prefix '{0}'."
+				).format(sid[:4] or "(empty)")
 			)
 
 	def _validate_sender(self):
