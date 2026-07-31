@@ -30,9 +30,9 @@
   },
   {
    "fieldname": "auth_token",
-   "fieldtype": "Password",
+   "fieldtype": "Data",
    "label": "Auth Token",
-   "description": "Twilio Auth Token. Stored encrypted. Never exposed via API."
+   "description": "Twilio Auth Token. Stored encrypted via frappe.utils.password under the key 'lms_twilio_auth_token'. Never exposed via API."
   },
   {
    "fieldname": "default_from_number",
