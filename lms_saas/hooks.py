@@ -33,7 +33,12 @@ app_license = "mit"
 
 # Server-side SVG icon helper for Jinja templates (mirror of lms_icons in JS).
 jinja = {
-    "methods": ["lms_saas.utils.brand.lms_icon_svg"],
+    "methods": [
+        "lms_saas.utils.brand.lms_icon_svg",
+        # R27: cache-bust helper for templates that load LMS assets via
+        # <link>/<script> (e.g. /login which doesn't pull web_include_css).
+        "lms_saas.utils.brand._lms_asset_mtime",
+    ],
 }
 
 after_install = "lms_saas.install.after_install"

@@ -552,8 +552,12 @@ def apply_login_context(context):
 	)
 	# R23-C1 fix: vendor-neutral fallback. The operator's brand from
 	# `lms_brand_portal_title` shows on the login page when configured;
-	# when not, fall through to the vendor-neutral product family name
-	# so a fresh install never leaks a competitor's brand.
+	# when not, fall through to the vendor-neutral product family name.
+	# R27: install.py auto-detects the operator from the configured SMTP
+	# domain and persists `lms_brand_portal_title` into site_config (so
+	# `brand["portal_title"]` is populated before this resolution runs
+	# in subsequent boots). Sites that haven't run an install hook yet
+	# still get a sensible vendor-neutral name from DEFAULT_BRAND.
 	product = brand.get("portal_title") or "LMS"
 	context.lms_login = {
 		"headline": frappe._("Sign in to {0}").format(product),
@@ -661,6 +665,28 @@ _LMS_ICON_PATHS = {
 	"appraisals": '<path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7.4-6.3-4.8L5.7 21.4 8 14 2 9.4h7.6z"/>',
 	"loans-officer": "officer",
 }
+
+
+def _lms_asset_mtime(public_relpath: str) -> int:
+	"""Return the file mtime (int seconds) of an asset under public/, used as a cache-bust
+	query string by templates that load CSS/JS via ``<link>`` / ``<script>``.
+
+	R27 (login scroll fix) — ``/login`` is a Frappe www route that does not pull
+	``web_include_css``, so the login template loads its design tokens / themes /
+	login styles directly. We version each URL by file mtime so deploys bust
+	caches without a hard reload.
+
+	The ``public_relpath`` is the path relative to ``apps/lms_saas/public/``
+	(e.g. ``css/lms_login.css``). Returns the current epoch second when the file
+	is missing so the URL still changes per deploy.
+	"""
+	import os
+
+	full = os.path.join(os.path.dirname(__file__), "..", "public", public_relpath)
+	try:
+		return int(os.path.getmtime(os.path.normpath(full)))
+	except OSError:
+		return int(__import__("time").time())
 
 
 def lms_icon_svg(name, size=18):
