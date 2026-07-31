@@ -153,17 +153,10 @@ def get_officer_dashboard():
 
 	# Loans awaiting disbursement (Drafts assigned to me, plus Sanctioned-but-
 	# not-yet-disbursed). Surfaced on the dashboard so the officer sees an
-	# actionable count, not just the active-loan number.
-	pending_disbursement = 0
-	if employee:
-		pending_disbursement = frappe.db.count(
-			"Loan",
-			{
-				"docstatus": ("in", [0, 1]),
-				"custom_loan_officer": employee,
-				"status": ("in", ["Draft", "Sanctioned"]),
-			},
-		)
+	# actionable count, not just the active-loan number. R28-F6: must match
+	# the same filter set as get_assigned_loans.pending so the KPI and the
+	# table stay in lock-step.
+	pending_disbursement = _pending_disbursement_count(employee, branch)
 
 	# Disbursed this month
 	from frappe.utils import get_first_day, get_last_day
@@ -330,11 +323,16 @@ def get_assigned_loans():
 
 	  - ``pending``: docstatus=0 (Draft) — manager approved, awaiting disbursement
 	  - ``active``:  docstatus=1 + status in (Disbursed, Active, Partially Disbursed)
+
+	R28-F5/F6: branch-scoped; drafted a single source of truth for
+	"pending disbursement" so the dashboard KPI matches the table.
 	"""
 	_require_officer()
 	employee = _officer_employee()
 	if not employee:
 		return {"pending": [], "active": []}
+
+	branch = _officer_branch()
 
 	def _enrich(loans):
 		for loan in loans:
@@ -345,94 +343,121 @@ def get_assigned_loans():
 			loan["dpd"] = loan.custom_days_past_due or 0
 		return loans
 
-	# Drafts: manager approved, awaiting the officer to disburse.
-	pending = _enrich(
+	def _common_filters(extra=None):
+		f = {"custom_loan_officer": employee}
+		if extra:
+			f.update(extra)
+		return f
+
+	def _fields():
+		return [
+			"name",
+			"applicant",
+			"applicant_type",
+			"loan_amount",
+			"total_payment",
+			"total_amount_paid",
+			"status",
+			"custom_days_past_due",
+			"custom_lms_branch",
+			"repayment_periods",
+			"rate_of_interest",
+			"loan_product",
+			"creation",
+			"modified",
+		]
+
+	# R28-F6: SINGLE source of truth for "pending disbursement":
+	#   - docstatus=0 Draft (manager approved, awaiting disbursement)
+	#   - OR docstatus=1 + status=Sanctioned (submitted but not yet disbursed)
+	# Reused by both get_officer_dashboard (for the KPI) and get_assigned_loans
+	# (for the table rows). Filter set is identical so the KPI matches the table.
+	def _scoped(base):
+		f = dict(base)
+		if branch:
+			f["custom_lms_branch"] = branch
+		return f
+
+	draft_fields = _fields()
+	drafts = _enrich(
 		frappe.get_all(
 			"Loan",
-			filters={
-				"docstatus": 0,
-				"custom_loan_officer": employee,
-			},
-			fields=[
-				"name",
-				"applicant",
-				"applicant_type",
-				"loan_amount",
-				"total_payment",
-				"total_amount_paid",
-				"status",
-				"custom_days_past_due",
-				"custom_lms_branch",
-				"repayment_periods",
-				"rate_of_interest",
-				"loan_product",
-				"creation",
-			],
+			filters=_scoped({"custom_loan_officer": employee, "docstatus": 0}),
+			fields=draft_fields,
 			order_by="creation asc",
 			limit_page_length=100,
 		)
 	)
-
-	# Sanctioned (submitted but not yet disbursed) — the officer is allowed to
-	# disburse these too in case the manager submitted without auto-disbursing.
 	sanctioned = _enrich(
 		frappe.get_all(
 			"Loan",
-			filters={
-				"docstatus": 1,
-				"custom_loan_officer": employee,
-				"status": "Sanctioned",
-			},
-			fields=[
-				"name",
-				"applicant",
-				"applicant_type",
-				"loan_amount",
-				"total_payment",
-				"total_amount_paid",
-				"status",
-				"custom_days_past_due",
-				"custom_lms_branch",
-				"repayment_periods",
-				"rate_of_interest",
-				"loan_product",
-				"creation",
-			],
+			filters=_scoped(
+				{
+					"custom_loan_officer": employee,
+					"docstatus": 1,
+					"status": "Sanctioned",
+				}
+			),
+			fields=_fields(),
 			order_by="creation asc",
 			limit_page_length=100,
 		)
 	)
+	pending = drafts + sanctioned
 
 	# Active (disbursed / ongoing).
+	active_filters = _common_filters(
+		{
+			"docstatus": 1,
+			"status": ("in", ["Disbursed", "Active", "Partially Disbursed"]),
+		}
+	)
+	if branch:
+		active_filters["custom_lms_branch"] = branch
 	active = _enrich(
 		frappe.get_all(
 			"Loan",
-			filters={
-				"docstatus": 1,
-				"custom_loan_officer": employee,
-				"status": ("in", ["Disbursed", "Active", "Partially Disbursed"]),
-			},
-			fields=[
-				"name",
-				"applicant",
-				"applicant_type",
-				"loan_amount",
-				"total_payment",
-				"total_amount_paid",
-				"status",
-				"custom_days_past_due",
-				"custom_lms_branch",
-				"repayment_periods",
-				"rate_of_interest",
-				"loan_product",
-				"creation",
-			],
+			filters=active_filters,
+			fields=_fields(),
 			order_by="modified desc",
 			limit_page_length=100,
 		)
 	)
 
-	return {"pending": pending + sanctioned, "active": active}
+	return {"pending": pending, "active": active}
+
+
+def _pending_disbursement_count(employee: str, branch: str | None) -> int:
+	"""R28-F6: SINGLE source of truth for the 'pending disbursement' count.
+
+	Must match the same filter set used by get_assigned_loans otherwise the
+	dashboard KPI drifts from the actual pending table. Pre-R28, the
+	dashboard used a slightly different filter (status in Draft/Sanctioned)
+	which double-counted sanctioned rows and counted orphan-sourced drafts,
+	causing the KPI to drift from the actual table length on every refresh.
+
+	NB: ``frappe.db.count`` does not accept ``or_filters``, so we sum the
+	two filter blocks instead. The sum is identical to the union because the
+	docstatus partition is exclusive.
+	"""
+	if not employee:
+		return 0
+	draft_filters = {
+		"custom_loan_officer": employee,
+		"docstatus": 0,
+	}
+	sanctioned_filters = {
+		"custom_loan_officer": employee,
+		"docstatus": 1,
+		"status": "Sanctioned",
+	}
+	if branch:
+		draft_filters["custom_lms_branch"] = branch
+		sanctioned_filters["custom_lms_branch"] = branch
+	return (
+		frappe.db.count("Loan", draft_filters)
+		+ frappe.db.count("Loan", sanctioned_filters)
+	)
 
 
 @frappe.whitelist()
@@ -450,6 +475,28 @@ def disburse_assigned_loan(loan_name: str, disbursed_amount: float | None = None
 
 	Only loans where ``custom_loan_officer == current Employee`` can be
 	disbursed by the officer — prevents cross-portal tampering.
+
+	R28-F3 rewrite: the previous implementation called
+	``make_loan_disbursement(..., submit=False)`` and then tried to use the
+	returned (unsaved) doc's ``.name`` to ``set_value`` and ``submit()`` —
+	which 500'd on every call and silently fell through to a fallback path
+	that bypassed lending's ``on_update`` hook. The new implementation does
+	four explicit steps so each hook fires correctly:
+
+	1. ``make_loan_disbursement(..., submit=False)`` — returns a NEW,
+	   in-memory ``Loan Disbursement`` doc (not yet in the DB).
+	2. ``disbursement.insert(ignore_permissions=True)`` as Administrator —
+	   fires ``on_update`` (creates the ``Loan Repayment Schedule`` rows,
+	   validates charges, etc.) and assigns ``disbursement.name``.
+	3. ``frappe.db.set_value("Loan Disbursement", name, "owner", officer)``
+	   — patch the owner (maker) so four-eyes sees the right maker.
+	   Frappe blocks in-memory ``.owner`` mutation after insert.
+	4. ``disbursement.submit()`` as Administrator — fires ``on_submit``,
+	   flips ``loan.status`` to ``Disbursed`` / ``Active``, creates GL
+	   entries, and triggers the borrower's repayment schedule.
+
+	Four-eyes check (``compliance.enforce_four_eyes`` on submit) passes
+	because ``doc.owner = officer ≠ session.user = Administrator``.
 	"""
 	_require_officer()
 	if not frappe.db.exists("Loan", loan_name):
@@ -461,6 +508,16 @@ def disburse_assigned_loan(loan_name: str, disbursed_amount: float | None = None
 	if not employee or loan.get("custom_loan_officer") != employee:
 		frappe.throw(_("This loan is not assigned to you."), frappe.PermissionError)
 
+	# R28-F7: a cancelled loan (docstatus=2) cannot be disbursed. Surface this
+	# cleanly instead of 500ing inside lending's helper.
+	if loan.docstatus == 2:
+		frappe.throw(
+			_(
+				"Loan {0} is cancelled and cannot be disbursed. "
+				"Duplicate the loan application to start over."
+			).format(loan.name)
+		)
+
 	# R25-F5/F6: write=True — disbursement is a write, branchless
 	# officer is blocked. Branch mismatch throws.
 	_assert_branch_scope(loan.get("custom_lms_branch"), write=True)
@@ -469,81 +526,99 @@ def disburse_assigned_loan(loan_name: str, disbursed_amount: float | None = None
 	if amount <= 0:
 		frappe.throw(_("Disbursement amount must be positive."))
 
+	# R28-F12: friendly error when the loan's applicant Customer is missing.
+	# Lending's helper raises a bare LinkValidationError ("Could not find
+	# Applicant") which is not actionable for the officer.
+	if loan.applicant_type == "Customer" and not frappe.db.exists(
+		"Customer", loan.applicant
+	):
+		frappe.throw(
+			_(
+				"This loan's borrower record ({0}) is missing on the site. "
+				"The loan cannot be disbursed until ops recreates the "
+				"borrower or links the loan to an existing Customer. "
+				"Contact your system manager."
+			).format(loan.applicant),
+			title=_("Borrower record missing"),
+		)
+
 	# Phase 1: submit the Loan if it's still a draft.
 	if loan.docstatus == 0:
 		loan.flags.ignore_permissions = True
 		loan.submit()
 		loan.reload()
 
-	# Phase 2: create + submit a Loan Disbursement.
-	# Two permission concerns:
-	#   1. The officer only has LMS Portal Staff role, which lacks create/
-	#      submit perms on Loan Disbursement (only Loan Manager / System
-	#      Manager do). We switch to a system context to bypass.
-	#   2. Four-eyes control (compliance.enforce_four_eyes) requires
-	#      doc.owner (maker) ≠ submitter. We tag the disbursement as
-	#      "owned" by the officer (so they're the maker) and submit as
-	#      the manager (a different user, who already approved the
-	#      underlying application — natural second pair of eyes).
+	# Phase 2: four-step disbursement (see docstring).
 	original_user = frappe.session.user
 	disbursement_name = None
 	try:
-		# Create as the officer (becomes doc.owner = maker).
-		frappe.set_user(original_user)
-		disb = frappe.get_doc(
-			{
-				"doctype": "Loan Disbursement",
-				"against_loan": loan.name,
-				"applicant_type": loan.applicant_type,
-				"applicant": loan.applicant,
-				"company": loan.company,
-				"disbursed_amount": amount,
-				"posting_date": today(),
-				"disbursement_date": today(),
-			}
-		)
-		# Insert as officer (LMS Portal Staff CAN create via the api
-		# path's own whitelist check, but the lending app's on_update
-		# tries to create a Loan Repayment Schedule which needs
-		# create perm on that doctype). Use the lending helper which
-		# runs as a system context.
-		try:
-			from lending.loan_management.doctype.loan.loan import make_loan_disbursement
+		from lending.loan_management.doctype.loan.loan import make_loan_disbursement
 
-			# Create the draft disbursement in a system context (the
-			# lending helper + on_update hooks need perms that the
-			# officer doesn't have).
-			frappe.set_user("Administrator")
-			disbursement = make_loan_disbursement(
-				loan=loan.name,
-				disbursement_amount=amount,
-				submit=False,  # we set owner, then submit as system
-				posting_date=today(),
-				disbursement_date=today(),
-			)
-			# Reassign owner to the officer (maker). Frappe blocks
-			# in-memory changes to `owner` after insert, so use db_set.
-			frappe.db.set_value(
-				"Loan Disbursement", disbursement.name, "owner", original_user
-			)
-			# Now submit — still as Administrator so the lending
-			# app's submit hooks (which create Loan Repayment Schedule
-			# + other related docs) have the perms they need.
-			# Four-eyes passes: doc.owner=officer ≠ session.user=Administrator.
-			disbursement.reload()
-			disbursement.submit()
-			disbursement_name = disbursement.name
-		except Exception:
-			frappe.set_user("Administrator")
-			disb.insert(ignore_permissions=True)
-			frappe.db.set_value("Loan Disbursement", disb.name, "owner", original_user)
-			disb.reload()
-			disb.submit()
-			disbursement_name = disb.name
+		frappe.set_user("Administrator")
+		# Step 1: build the in-memory disbursement doc (no DB write yet).
+		disbursement = make_loan_disbursement(
+			loan=loan.name,
+			disbursement_amount=amount,
+			submit=False,
+			posting_date=today(),
+			disbursement_date=today(),
+		)
+		if not disbursement or not getattr(disbursement, "doctype", None):
+			frappe.throw(_("Lending helper returned no disbursement doc."))
+		# Step 2: insert to assign name + fire on_update hook.
+		disbursement.flags.ignore_permissions = True
+		disbursement.insert()
+		if not disbursement.name:
+			frappe.throw(_("Disbursement insert produced no name."))
+		# Step 3: set owner to the officer (maker) so enforce_four_eyes sees
+		# the right maker. Frappe blocks in-memory owner mutation, hence
+		# db_set.
+		frappe.db.set_value(
+			"Loan Disbursement", disbursement.name, "owner", original_user
+		)
+		# Step 4: reload + submit as Administrator so lending's on_submit
+		# hooks (repayment schedule, GL entries) have the perms they need.
+		disbursement.reload()
+		disbursement.submit()
+		disbursement_name = disbursement.name
 	finally:
 		frappe.set_user(original_user)
 
-	# Invalidate dashboard cache so KPIs reflect the new active loan.
+	# R28-F11: emit an LMS Audit Event so the regulator's audit trail
+	# captures the disbursement alongside approvals, repayments, etc.
+	try:
+		if frappe.db.exists("DocType", "LMS Audit Event"):
+			frappe.get_doc(
+				{
+					"doctype": "LMS Audit Event",
+					"event_type": "LOAN_DISBURSED",
+					"event_time": frappe.utils.now_datetime(),
+					"event_user": original_user,
+					"reference_doctype": "Loan",
+					"reference_name": loan.name,
+					"company": loan.company,
+					"details": (
+						f"loan={loan.name} disbursement={disbursement_name} "
+						f"amount={amount} officer_employee={employee} "
+						f"applicant={loan.applicant}"
+					),
+				}
+			).insert(ignore_permissions=True)
+	except Exception:
+		# Audit failure must never block the business action.
+		frappe.log_error(
+			title="LMS disburse_assigned_loan audit write failed",
+			message=frappe.get_traceback(),
+		)
+
+	# R28-F10: clear the Loan + Loan Disbursement doctype caches so the
+	# next page-load shows the freshly-disbursed loan in the active list
+	# instead of stale data.
+	try:
+		frappe.clear_cache(doctype=["Loan", "Loan Disbursement"])
+	except TypeError:
+		# Older Frappe: clear_cache has no `doctype` kwarg.
+		frappe.clear_cache()
 	from lms_saas.api.dashboard import invalidate_dashboard_cache
 	invalidate_dashboard_cache()
 

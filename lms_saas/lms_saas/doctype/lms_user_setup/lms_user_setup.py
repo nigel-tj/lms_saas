@@ -84,11 +84,30 @@ class LMSUserSetup(Document):
 				employee = self._create_employee(user)
 				self.created_employee = employee
 				if self.branch:
+					# R28-F1: write BOTH the HRMS branch field AND
+					# `custom_lms_branch`. The two names live in different
+					# namespaces (Branch DocType vs custom field on
+					# Employee) — `staff.get_current_user_branch()` looks
+					# at `custom_lms_branch` first, the User Permission
+					# layer looks at `Cost Center` permissions. Without
+					# BOTH, a freshly-onboarded officer can resolve zero
+					# branches and is bricked out of every write action.
 					frappe.db.set_value("Employee", employee, "branch", self.branch)
+					if frappe.get_meta("Employee").has_field("custom_lms_branch"):
+						frappe.db.set_value(
+							"Employee", employee, "custom_lms_branch", self.branch
+						)
 				if frappe.get_meta("Employee").has_field("custom_lms_persona"):
 					frappe.db.set_value(
 						"Employee", employee, "custom_lms_persona", self.persona
 					)
+				# R28-F1: create a Cost Center User Permission so the
+				# officer's row-level permission filter limits them to
+				# their own cost center records even when the API layer's
+				# branch-scope guard is bypassed. Idempotent — we look for
+				# an existing permission before insert.
+				if self.branch:
+					self._ensure_cost_center_user_permission(user, self.branch)
 
 			self.db_update()
 
@@ -210,6 +229,56 @@ class LMSUserSetup(Document):
 			frappe.throw(
 				_("Email {0} does not look like a valid address").format(self.email)
 			)
+
+	def _ensure_cost_center_user_permission(self, user: str, cost_center: str) -> None:
+		"""Create a User Permission allowing the new user on one Cost Center.
+
+		R28-F1: this is the third leg of branch-isolation onboarding
+		(alongside `Employee.branch` and `Employee.custom_lms_branch`).
+		`staff.get_current_user_branch()` falls back to Cost Center User
+		Permission when neither Employee field is set, so without this
+		permission a freshly onboarded officer resolves to branch=None
+		and is bricked out of every write action.
+
+		Idempotent — re-running with an existing permission is a no-op.
+		"""
+		if not user or not cost_center:
+			return
+		if not frappe.db.exists("Cost Center", cost_center):
+			# Don't throw — the operator may have used an HRMS Branch
+			# string that doesn't exist as a Cost Center. Log so they can
+			# spot the mismatch in the audit trail.
+			frappe.log_error(
+				title="LMS User Setup: branch is not a Cost Center",
+				message=(
+					f"user={user}, branch={cost_center!r} — "
+					"User Permission not created. Officer portal writes will "
+					"fail until a Cost Center of this name exists."
+				),
+			)
+			return
+		existing = frappe.db.get_value(
+			"User Permission",
+			{
+				"user": user,
+				"allow": "Cost Center",
+				"for_value": cost_center,
+			},
+			"name",
+		)
+		if existing:
+			return
+		perm = frappe.get_doc(
+			{
+				"doctype": "User Permission",
+				"user": user,
+				"allow": "Cost Center",
+				"for_value": cost_center,
+				"apply_to_all_doctypes": 1,
+			}
+		)
+		perm.flags.ignore_permissions = True
+		perm.insert()
 
 	def _validate_email_unique(self):
 		existing_user = frappe.db.get_value("User", self.email, "name")
@@ -334,11 +403,22 @@ class LMSUserSetup(Document):
 			"gender": self.gender or None,
 			"date_of_birth": self.date_of_birth or None,
 		}
+		# R28-F1: when the operator amends branch on a submitted setup, mirror
+		# the change into `custom_lms_branch` and refresh the User Permission so
+		# the officer's branch-scope resolves correctly after the amend.
+		if self.branch and frappe.get_meta("Employee").has_field("custom_lms_branch"):
+			updates["custom_lms_branch"] = self.branch
 		if frappe.get_meta("Employee").has_field("custom_lms_persona"):
 			updates["custom_lms_persona"] = self.persona
 		frappe.db.set_value(
 			"Employee", self.created_employee, updates, update_modified=True
 		)
+
+		# R28-F1: if the branch was changed, recreate the User Permission to
+		# point at the new Cost Center. The helper is idempotent — passing the
+		# same value twice is a no-op.
+		if self.branch and self.created_user:
+			self._ensure_cost_center_user_permission(self.created_user, self.branch)
 
 		# Mirror identity fields back to the User row so an admin amending
 		# email/first-name/etc. does not leave a stale portal account.

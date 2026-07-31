@@ -36,9 +36,15 @@ def get_current_user_branch():
     # the Cost Center that custom_lms_branch / cost_center use. Try
     # them in order, but tag which one was used so the operator can
     # see why their branch isn't being recognised.
+    #
+    # R28-F2: ADD `branch` (HRMS) to the chain as the *last* Employee
+    # fallback before User Permission. Without this, legacy benches that
+    # only write the HRMS `branch` field (which LMS User Setup historically
+    # does) leave officers bricked out of every write — the field that
+    # LMS User Setup DOES set never makes it into the resolver.
     employee_branch = None
     resolved_from = None
-    for branch_field in ("custom_lms_branch", "cost_center"):
+    for branch_field in ("custom_lms_branch", "cost_center", "branch"):
         if not employee_meta.has_field(branch_field):
             continue
         val = frappe.db.get_value("Employee", employee_filters, branch_field)
@@ -48,6 +54,18 @@ def get_current_user_branch():
             break
 
     if employee_branch:
+        # R28-F2: if we resolved via the HRMS `branch` field, log the
+        # mismatch so the operator can see why the resolver picked it
+        # (i.e. the LMS-side fields were missing).
+        if resolved_from == "branch":
+            frappe.log_error(
+                title="LMS branch resolver fell back to HRMS branch",
+                message=(
+                    f"user={user} hr_branch={employee_branch!r} — "
+                    "operator should set Employee.custom_lms_branch for "
+                    "canonical LMS branch resolution."
+                ),
+            )
         return employee_branch
 
     # 2. User Permission on Cost Center (branch isolation set up by the admin).
