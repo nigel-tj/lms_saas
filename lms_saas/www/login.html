@@ -1,17 +1,25 @@
 {% extends "templates/web.html" %}
 
-{# R27: unified brand resolver — the login page is the operator's first
+{# R33: unified brand resolver. The login page is the operator's first
    impression, so the wordmark + card title must always resolve to a
    meaningful brand string. Resolution order:
-     1. brand.portal_title (operator-set via lms_brand_portal_title /
-        Website Settings)
-     2. app_name (the system app_name)
-     3. "Kesari" (the operator's production brand on app.kesari.africa —
-        a vendor-neutral sibling site that hasn't rebranded will still
-        show a sensible name here.)
-   We expose `_lms_brand_name` once at the top so every block below
-   shares the same value. #}
-{% set _lms_brand_name = (brand.portal_title if brand and brand.portal_title else (app_name or _("Kesari"))) %}
+     1. brand.portal_title (operator-set via lms_brand_portal_title in
+        site_config — preferred: it's the canonical place to set the
+        operator's brand and it's the only one honoured on the live
+        site).
+     2. brand.footer_text's "Powered by ..." prefix is left to the
+        rebrand script (setup/rebrand.py) to keep the two values in
+        sync.
+     3. app_name (the system app_name from Frappe's Website/System
+        Settings) — used as a last-resort fallback so the page never
+        shows an empty heading.
+   IMPORTANT: do NOT hard-code a corporate / operator brand literal
+   here. The brand chain (utils.brand.enrich_brand) is the only source
+   of truth — it defaults to the vendor-neutral "LMS" product family
+   name and is overridable per-site via site_config. Hard-coding a
+   corporate name would re-leak the original operator's brand onto a
+   fresh install (regression of the R23-Q1-C1 fix). #}
+{% set _lms_brand_name = (brand.portal_title if brand and brand.portal_title else (app_name or "")) %}
 
 {% macro email_login_fields() -%}
 {% if not disable_user_pass_login or (ldap_settings and ldap_settings.enabled) %}

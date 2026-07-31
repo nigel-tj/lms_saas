@@ -1,0 +1,111 @@
+{
+ "doctype": "DocType",
+ "name": "LMS Brand Settings",
+ "module": "Lms Saas",
+ "custom": 0,
+ "issingle": 1,
+ "track_changes": 1,
+ "description": "Desk-side configuration for the operator's brand. The values here are mirrored to site_config.json and to Website Settings / System Settings on every save, so the login page, portal navbar, desk chrome, and email footers can never drift. See docs/BRAND_QUICKSTART.md for the full reference.",
+ "fields": [
+  {
+   "fieldname": "intro_section",
+   "fieldtype": "Section Break",
+   "label": "Operator Brand"
+  },
+  {
+   "fieldname": "intro_html",
+   "fieldtype": "HTML",
+   "options": "<p class=\"text-muted\">Set the operator's product brand. Values are written to <code>site_config.json</code> and to <code>Website Settings</code> / <code>System Settings</code> on every save. Use the same setter via the CLI: <code>bench --site &lt;site&gt; execute lms_saas.utils.brand.set_brand --kwargs '{\"portal_title\": \"Your Brand\"}'</code>.</p>"
+  },
+  {
+   "fieldname": "portal_title",
+   "fieldtype": "Data",
+   "label": "Portal Title (operator's brand name)",
+   "reqd": 1,
+   "description": "The operator's product brand name (e.g. 'Acme Capital'). Shows on the login page, portal navbar, desk title bar, and email subjects. Default: 'LMS' (vendor-neutral).",
+   "default": "LMS"
+  },
+  {
+   "fieldname": "tagline",
+   "fieldtype": "Data",
+   "label": "Tagline",
+   "description": "One-line under-brand text. Shows on the login page brand panel.",
+   "default": "Stewardship in every repayment"
+  },
+  {
+   "fieldname": "product_subtitle",
+   "fieldtype": "Data",
+   "label": "Product Subtitle",
+   "description": "Subtitle shown on the login card and portal boot.",
+   "default": "Loan management with accountability"
+  },
+  {
+   "fieldname": "footer_text",
+   "fieldtype": "Data",
+   "label": "Footer Text",
+   "description": "Portal footer copy. Pass empty to hide the footer."
+  },
+  {
+   "fieldname": "primary_color",
+   "fieldtype": "Color",
+   "label": "Primary Color",
+   "description": "Hex colour for the portal accent (e.g. #2f4f46)."
+  },
+  {
+   "fieldname": "support_email",
+   "fieldtype": "Data",
+   "label": "Support Email",
+   "description": "Operator support address (shown in the portal footer)."
+  },
+  {
+   "fieldname": "theme_id",
+   "fieldtype": "Select",
+   "label": "UI Theme",
+   "options": "default\nmidnight\ndark",
+   "default": "default",
+   "description": "Active UI theme. Switches the portal CSS theme (default / midnight / dark)."
+  },
+  {
+   "fieldname": "assets_section",
+   "fieldtype": "Section Break",
+   "label": "Brand Assets"
+  },
+  {
+   "fieldname": "assets_html",
+   "fieldtype": "HTML",
+   "options": "<p class=\"text-muted\">Optional brand assets. If unset, the bundled mark + favicon are used.</p>"
+  },
+  {
+   "fieldname": "logo_path",
+   "fieldtype": "Data",
+   "label": "Logo Path",
+   "description": "Operator-supplied logo asset path (e.g. /files/kesari-logo.svg). Leave empty to use the bundled mark."
+  },
+  {
+   "fieldname": "favicon_path",
+   "fieldtype": "Data",
+   "label": "Favicon Path",
+   "description": "Operator-supplied favicon path (e.g. /files/kesari-favicon.svg). Leave empty to use the bundled favicon."
+  }
+ ],
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1
+  },
+  {
+   "role": "Administrator",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1
+  }
+ ]
+}

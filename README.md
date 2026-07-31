@@ -61,10 +61,22 @@ FC_SITE=<site> COMPANY=Kesari DRY_RUN=1 bash apps/lms_saas/scripts/onboard-compa
 FC_SITE=<site> COMPANY=Kesari APPLY=1 COMPANY_NAME=Kesari DOMAIN=kesari.africa bash apps/lms_saas/scripts/onboard-company.sh
 ```
 
+## Brand configuration (operator's name, tagline, footer)
+
+The package is vendor-neutral — the login page, portal, desk, and emails all read the operator's brand from `lms_brand_portal_title` in `site_config.json`. The default is the product-family name `"LMS"`. To set (or change) the operator's brand:
+
+```bash
+bench --site <site> execute lms_saas.utils.brand.set_brand \
+  --kwargs '{"portal_title": "Your Brand", "tagline": "Your tagline", "footer_text": "Powered by Your Brand"}'
+```
+
+`set_brand` writes to `site_config.json` + Website Settings + System Settings in a single transaction and clears the cache, so the next request picks up the new value (no restart). See [docs/BRAND_QUICKSTART.md](docs/BRAND_QUICKSTART.md) for the full recipe, dry-run mode, and a CI guard list of tests that pin the brand contract.
+
 ## Documentation
 
 | Doc | Audience |
 |-----|----------|
+| [docs/BRAND_QUICKSTART.md](docs/BRAND_QUICKSTART.md) | Brand wiring (operator's name, tagline, footer) |
 | [docs/FRAPPE_CLOUD.md](docs/FRAPPE_CLOUD.md) | Frappe Cloud deploy |
 | [docs/SYSADMIN_GUIDE.md](docs/SYSADMIN_GUIDE.md) | Operators |
 | [docs/STAFF_GUIDE.md](docs/STAFF_GUIDE.md) | Desk staff |
