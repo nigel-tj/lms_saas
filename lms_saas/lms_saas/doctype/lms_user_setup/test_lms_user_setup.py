@@ -13,6 +13,7 @@ class TestLMSUserSetup(FrappeTestCase):
 	def setUp(self):
 		frappe.set_user("Administrator")
 		self._cleanup = []
+		self._purge_test_state()
 
 	def tearDown(self):
 		frappe.set_user("Administrator")
@@ -26,6 +27,27 @@ class TestLMSUserSetup(FrappeTestCase):
 	def _track(self, name, doctype):
 		if name:
 			self._cleanup.append((name, doctype))
+
+	def _purge_test_state(self):
+		"""R30-F2: previous test runs left Users / Customers /
+		LMS User Setups alive when assertions failed mid-test.
+		Wipe them out so the test is rerunnable in any order."""
+		for doctype in ("LMS User Setup", "Contact", "Employee", "Customer", "User"):
+			test_users = frappe.get_all(
+				doctype,
+				filters=[
+					[doctype, "name", "like", "test.%@example.com"],
+					[doctype, "name", "like", "r26.%.@example.com"],
+					[doctype, "name", "like", "test.r26.%.@example.com"],
+				],
+				pluck="name",
+			)
+			for name in test_users:
+				try:
+					frappe.delete_doc(doctype, name, force=1, ignore_permissions=True)
+				except Exception:
+					pass
+		frappe.db.commit()
 
 	def _make_setup(self, persona, email, **extra):
 		# User.mobile_no is unique — derive a distinct number per email so parallel
@@ -234,6 +256,7 @@ class TestLMSUserSetupR26(FrappeTestCase):
 	def setUp(self):
 		frappe.set_user("Administrator")
 		self._cleanup = []
+		self._purge_test_state()
 
 	def tearDown(self):
 		frappe.set_user("Administrator")
@@ -248,6 +271,25 @@ class TestLMSUserSetupR26(FrappeTestCase):
 	def _track(self, name, doctype):
 		if name:
 			self._cleanup.append((name, doctype))
+
+	def _purge_test_state(self):
+		"""R30-F2: see TestLMSUserSetup._purge_test_state."""
+		for doctype in ("LMS User Setup", "Contact", "Employee", "Customer", "User"):
+			test_users = frappe.get_all(
+				doctype,
+				filters=[
+					[doctype, "name", "like", "test.%@example.com"],
+					[doctype, "name", "like", "r26.%.@example.com"],
+					[doctype, "name", "like", "test.r26.%.@example.com"],
+				],
+				pluck="name",
+			)
+			for name in test_users:
+				try:
+					frappe.delete_doc(doctype, name, force=1, ignore_permissions=True)
+				except Exception:
+					pass
+		frappe.db.commit()
 
 	def _make(self, persona, email, **extra):
 		# R26 batch-pollution defence: each test run gets a deterministic but
