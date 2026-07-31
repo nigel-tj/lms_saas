@@ -353,6 +353,8 @@ lms_portal.pageHeader = function (opts) {
 /* tone is optional: "warning" | "danger" | "success" | "info".          */
 /* id is optional: if set, the value cell gets id="<id>" so callers can  */
 /* update it in place after async loads.                                */
+/* cssClass is optional: if set, the value cell gets class="<cssClass>"  */
+/* so callers can bulk-target a KPI by class (e.g. optimistic decrements).*/
 lms_portal.kpiStrip = function (cards) {
 	if (!cards || !cards.length) return "";
 	var html = '<section class="lms-summary" aria-label="KPIs">';
@@ -365,7 +367,8 @@ lms_portal.kpiStrip = function (cards) {
 		html += '<div class="lms-summary-label">' + lms_portal.escape(c.label || "") + '</div>';
 		var val = (c.value === undefined || c.value === null) ? "—" : c.value;
 		var idAttr = c.id ? ' id="' + lms_portal.escape(c.id) + '"' : "";
-		html += '<div class="lms-summary-value"' + idAttr + '>' + val + '</div>';
+		var classAttr = c.cssClass ? ' ' + lms_portal.escape(c.cssClass) : "";
+		html += '<div class="lms-summary-value' + classAttr + '"' + idAttr + '>' + val + '</div>';
 		html += '</div>';
 	});
 	html += '</section>';
