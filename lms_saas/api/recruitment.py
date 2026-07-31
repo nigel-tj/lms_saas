@@ -195,14 +195,20 @@ def get_staffing_plan():
     # Active staffing plans
     filters = {"docstatus": 1}
     meta = frappe.get_meta("Staffing Plan")
-    if branch and meta.has_field("branch"):
+    has_branch = meta.has_field("branch")
+    if branch and has_branch:
         filters["branch"] = branch
+
+    plan_fields = ["name", "from_date", "to_date", "company"]
+    if has_branch:
+        plan_fields.append("branch")
+    if meta.has_field("total_estimated_budget"):
+        plan_fields.append("total_estimated_budget")
 
     plans = frappe.get_all(
         "Staffing Plan",
         filters=filters,
-        fields=["name", "from_date", "to_date", "company", "branch",
-                "total_estimated_budget"],
+        fields=plan_fields,
         order_by="from_date desc",
         limit=5,
     )

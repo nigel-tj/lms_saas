@@ -92,19 +92,28 @@ def get_announcements(limit=50):
 
 @frappe.whitelist()
 def acknowledge_announcement(announcement_name):
-    """Mark an announcement as acknowledged by the current user."""
+    """Mark an announcement as acknowledged by the current user.
+
+    R30-B5: ack rows are stored in the `LMS Announcement Acknowledgement`
+    child table on `LMS Announcement`. The DocType is now migrated into the
+    live DB (it was missing prior to R30).
+    """
     _require_announcements()
+
+    if not frappe.db.exists("LMS Announcement", announcement_name):
+        frappe.throw(_("Announcement not found."), frappe.DoesNotExistError)
 
     doc = frappe.get_doc("LMS Announcement", announcement_name)
     if doc.status != "Published":
         frappe.throw(_("Cannot acknowledge an unpublished announcement."))
 
     user = frappe.session.user
-    # Check if already acknowledged
-    for row in (doc.acknowledged_by or []):
-        if row.user == user:
-            return {"ok": True, "already_acknowledged": True}
 
+    # Already acknowledged?
+    if _is_acknowledged(announcement_name):
+        return {"ok": True, "already_acknowledged": True}
+
+    # Append to the child table on the parent.
     doc.append("acknowledged_by", {
         "user": user,
         "acknowledged_on": now_datetime(),
@@ -160,8 +169,15 @@ def get_announcement_stats():
     draft = frappe.db.count("LMS Announcement", {"status": "Draft"})
     archived = frappe.db.count("LMS Announcement", {"status": "Archived"})
 
-    # Acknowledgement rate
-    ack_count = frappe.db.count("LMS Announcement Acknowledgement")
+    # R30-B5: count acks via the `LMS Announcement Acknowledgement` child
+    # table (the parent doc's `acknowledged_by` table field). The schema
+    # existed in the JSON but the DocType was never registered in the live
+    # DB. After R30's migration it is now a real, queryable table.
+    ack_count = 0
+    if frappe.db.exists("DocType", "LMS Announcement Acknowledgement"):
+        ack_count = int(frappe.db.sql(
+            "SELECT COUNT(*) FROM `tabLMS Announcement Acknowledgement`"
+        )[0][0])
 
     return {
         "total": total,
@@ -173,7 +189,11 @@ def get_announcement_stats():
 
 
 def _is_acknowledged(announcement_name):
+    """R30-B5: ack rows are queried against the `LMS Announcement
+    Acknowledgement` child table."""
     user = frappe.session.user
+    if not frappe.db.exists("DocType", "LMS Announcement Acknowledgement"):
+        return False
     return bool(frappe.db.exists(
         "LMS Announcement Acknowledgement",
         {"parent": announcement_name, "parenttype": "LMS Announcement", "user": user},

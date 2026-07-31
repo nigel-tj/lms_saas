@@ -1260,6 +1260,12 @@ lms_portal._bindConsentCapture = function (root, on_complete) {
 			});
 		});
 	}
+};
+
+lms_portal._renderApplyWizard = function (root, state) {
+	var steps = [
+		'<div class="lms-wizard">',
+		'<div class="lms-wizard__steps">',
 		'<div class="lms-wizard__step' + (state.step >= 1 ? " is-active" : "") + '"><span class="lms-wizard__num">1</span><span class="lms-wizard__label">Product</span></div>',
 		'<div class="lms-wizard__step' + (state.step >= 2 ? " is-active" : "") + '"><span class="lms-wizard__num">2</span><span class="lms-wizard__label">Amount</span></div>',
 		'<div class="lms-wizard__step' + (state.step >= 3 ? " is-active" : "") + '"><span class="lms-wizard__num">3</span><span class="lms-wizard__label">Documents</span></div>',
@@ -1276,6 +1282,8 @@ lms_portal._bindConsentCapture = function (root, on_complete) {
 		"</div>",
 		"</div>",
 	].join("");
+	root.innerHTML = steps;
+	lms_portal._bindWizardEvents(root, state);
 	return steps;
 };
 

@@ -100,6 +100,18 @@ def _missing_doctype_response(doctype: str) -> dict:
 # Purchase Requests (Material Requests)
 # ---------------------------------------------------------------------------
 
+def _po_sum(filters):
+    """R30-B8: ``frappe.db.sum`` does not exist. Use the dict-aggregate form
+    of ``frappe.get_all`` which honours Frappe's filter tuple syntax
+    (including ``["between", [start, end]]``)."""
+    rows = frappe.get_all(
+        "Purchase Order",
+        filters=filters,
+        fields=[{"SUM": "grand_total", "as": "total"}],
+    )
+    return float(rows[0]["total"] or 0) if rows else 0.0
+
+
 @frappe.whitelist()
 def get_purchase_requests(limit=100):
     """List Material Requests for the branch."""
@@ -270,7 +282,7 @@ def get_procurement_stats():
     month_filters = dict(filters)
     month_filters["transaction_date"] = ["between", [month_start, month_end]]
 
-    total_spend = frappe.db.sum("Purchase Order", month_filters, "grand_total") or 0
+    total_spend = _po_sum(month_filters)
     total_orders = frappe.db.count("Purchase Order", month_filters)
 
     # Pending material requests
@@ -289,17 +301,18 @@ def get_procurement_stats():
         m_end = get_last_day(frappe.utils.add_months(ref_date, -i))
         m_filters = dict(filters)
         m_filters["transaction_date"] = ["between", [m_start, m_end]]
-        spend = frappe.db.sum("Purchase Order", m_filters, "grand_total") or 0
+        spend = _po_sum(m_filters)
         monthly_spend.append({
             "label": m_start.strftime("%b %Y"),
             "value": spend,
         })
 
-    # Spend by supplier (top 5 this month)
+    # Spend by supplier (top 5 this month) — R30-B1: use dict SUM() syntax
+    # (raw SQL function strings are rejected since Frappe v13).
     top_suppliers = frappe.get_all(
         "Purchase Order",
         filters=month_filters,
-        fields=["supplier_name", "sum(grand_total) as total"],
+        fields=["supplier_name", {"SUM": "grand_total", "as": "total"}],
         group_by="supplier_name",
         order_by="total desc",
         limit=5,
