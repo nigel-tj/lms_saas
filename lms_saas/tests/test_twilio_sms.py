@@ -279,8 +279,11 @@ class TestOTPLifecycle(FrappeTestCase):
 		self.addCleanup(patcher.stop)
 
 		# Patch the gateway call to a no-op so the OTP is "sent" without HTTP.
+		# IMPORTANT: send_otp imports send_sms_via_twilio at module load,
+		# so we must patch the name in the caller module (_verify), not
+		# the source module (_send).
 		patcher2 = mock.patch(
-			"lms_saas.api.integrations.twilio._send.send_sms_via_twilio",
+			"lms_saas.api.integrations.twilio._verify.send_sms_via_twilio",
 			return_value={"ok": True, "sid": None, "status": "Sandbox", "send_log": None},
 		)
 		patcher2.start()

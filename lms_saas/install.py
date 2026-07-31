@@ -1688,15 +1688,30 @@ def _setup_twilio_defaults():
             ],
         },
         update=True,
-        ignore_permissions=True,
     )
 
+    # Ensure the singleton row exists so the desk Settings page renders
+    # a non-empty form. The DocType is created on migrate; we are called
+    # *after* migrate in after_install, so it's safe to access the row.
+    # Guard with both table_exists and DocType-exists checks for cold /
+    # partial-install safety (silently skip rather than break install).
     if not frappe.db.table_exists("LMS Twilio Settings"):
-        return  # DocType not installed yet; will be created on first migrate
-
-    doc = frappe.get_single("LMS Twilio Settings")
-    if doc.is_new():
-        # The setting itself is disabled by default; operators opt in.
-        doc.flags.ignore_permissions = True
-        doc.save()
-        frappe.db.commit()
+        return
+    if not frappe.db.exists("DocType", "LMS Twilio Settings"):
+        return
+    if frappe.db.exists("DocType", "LMS Twilio Settings") and not frappe.db.get_single_value(
+        "LMS Twilio Settings", "name"
+    ):
+        try:
+            doc = frappe.get_single("LMS Twilio Settings")
+            doc.flags.ignore_permissions = True
+            doc.save()
+            frappe.db.commit()
+        except Exception as e:  # noqa: BLE001
+            # Don't break the install if the singleton write fails — the
+            # DocType is in place and operators can complete the form by
+            # opening the Settings page.
+            frappe.log_error(
+                title="LMS Twilio Settings singleton init failed",
+                message=f"{e}\n{frappe.get_traceback()}",
+            )
