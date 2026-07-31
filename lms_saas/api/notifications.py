@@ -2,13 +2,50 @@ import frappe
 import requests
 
 
-def dispatch_sms_gateway(to_num, text):
+def dispatch_sms_gateway(to_num, text, *,
+                        require_consent: bool | None = None,
+                        reference_doctype: str | None = None,
+                        reference_name: str | None = None,
+                        purpose: str = "Reminder",
+                        branch: str | None = None):
 	"""Send an SMS via the configured gateway.
+
+	Routing precedence:
+	  1. If Twilio is enabled and properly configured, dispatch via
+	     ``lms_saas.api.integrations.twilio_api.send_sms`` (with consent
+	     enforcement and a per-send audit trail).
+	  2. Else fall back to Frappe's native ``SMS Settings`` URL gateway.
 
 	Designed to run in a background job: failures are logged, never raised, so
 	one undeliverable message cannot fail the worker or block the batch.
 	Returns True on success, False otherwise.
 	"""
+	# --- Twilio routing (preferred) ---
+	try:
+		from lms_saas.api.integrations.twilio import is_enabled as _twilio_enabled
+
+		if _twilio_enabled():
+			from lms_saas.api.integrations.twilio_api import send_sms as _send
+
+			result = _send(
+				to_num,
+				text,
+				template=None,
+				reference_doctype=reference_doctype,
+				reference_name=reference_name,
+				purpose=purpose,
+				require_consent=1 if require_consent else 0,
+				max_length=1600,  # Twilio's max single-message length
+			)
+			return bool(result and result.get("ok"))
+	except Exception as e:  # noqa: BLE001
+		frappe.log_error(
+			title="LMS Twilio dispatch routing failed (fallback to SMS Settings)",
+			message=f"{e}\ntraceback:\n{frappe.get_traceback()}",
+		)
+		# Fall through to the legacy gateway path.
+
+	# --- Native SMS Settings fallback ---
 	gateway_url = frappe.db.get_single_value("SMS Settings", "sms_gateway_url")
 
 	if not gateway_url:

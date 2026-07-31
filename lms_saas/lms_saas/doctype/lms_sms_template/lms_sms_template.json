@@ -1,0 +1,86 @@
+{
+ "doctype": "DocType",
+ "name": "LMS SMS Template",
+ "module": "Lms Saas",
+ "custom": 0,
+ "autoname": "format:SMS-TPL-{#####}",
+ "track_changes": 1,
+ "title_field": "template_name",
+ "fields": [
+  {
+   "fieldname": "template_name",
+   "fieldtype": "Data",
+   "label": "Template Name",
+   "reqd": 1,
+   "in_list_view": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "category",
+   "fieldtype": "Select",
+   "label": "Category",
+   "options": "Payment Reminder\nDisbursement Notice\nOTP\nCollection\nMarketing\nWelcome\nSupport\nCustom",
+   "reqd": 1,
+   "in_list_view": 1,
+   "default": "Custom"
+  },
+  {
+   "fieldname": "language",
+   "fieldtype": "Data",
+   "label": "Language Code",
+   "default": "en",
+   "description": "BCP-47 language code. Twilio maps to the operator's approved Messaging Service locale."
+  },
+  {
+   "fieldname": "body",
+   "fieldtype": "Text",
+   "label": "Body",
+   "reqd": 1,
+   "in_list_view": 1,
+   "description": "Use {{var}} placeholders for substitution. e.g. 'Hi {{customer_name}}, your installment of {{amount}} is due {{due_date}}.'"
+  },
+  {
+   "fieldname": "variables_table",
+   "fieldtype": "Table",
+   "label": "Variables",
+   "options": "LMS SMS Template Variable"
+  },
+  {
+   "fieldname": "is_approved",
+   "fieldtype": "Check",
+   "label": "Approved",
+   "default": "0",
+   "in_list_view": 1,
+   "description": "Only approved templates can be sent outside the dev/sandbox mode. Unapproved templates are sandboxed and logged."
+  },
+  {
+   "fieldname": "max_segment_count",
+   "fieldtype": "Int",
+   "label": "Max Segments",
+   "default": "1",
+   "description": "GSM-7 = 160 chars single segment; longer messages split. Most LMS reminders fit in 1."
+  }
+ ],
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "export": 1,
+   "report": 1
+  },
+  {
+   "role": "LMS Admin",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1
+  },
+  {
+   "role": "LMS Portal Staff",
+   "read": 1
+  }
+ ]
+}

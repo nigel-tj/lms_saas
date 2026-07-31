@@ -250,6 +250,7 @@ def after_install():
     _set_admin_home_page()
     _set_portal_role_home_pages()
     _seed_addon_settings()
+    _setup_twilio_defaults()
 
 
 def _seed_payment_providers():
@@ -1648,3 +1649,54 @@ def _seed_addon_settings():
     doc.flags.ignore_permissions = True
     doc.save()
     frappe.db.commit()
+
+
+# ---------------------------------------------------------------------------
+# Twilio SMS defaults — install custom fields, create the singleton row,
+# and stamp sane defaults from site_config. Safe to re-run.
+# ---------------------------------------------------------------------------
+def _setup_twilio_defaults():
+    """Idempotent Twilio integration bootstrap.
+
+    Creates Custom Fields on LMS Borrower Compliance (``opted_out_sms``,
+    ``opted_out_at``) so the inbound webhook has somewhere to write, and
+    materialises the ``LMS Twilio Settings`` row with disabled defaults
+    so the desk Settings page shows a non-empty form.
+    """
+    from frappe.custom.doctype.custom_field.custom_field import create_custom_fields
+
+    create_custom_fields(
+        {
+            "LMS Borrower Compliance": [
+                {
+                    "fieldname": "opted_out_sms",
+                    "label": "Opted Out of SMS",
+                    "fieldtype": "Check",
+                    "insert_after": "consent_given",
+                    "description": "Set to 1 by the inbound webhook when the borrower replies STOP/CANCEL/END.",
+                    "default": "0",
+                    "depends_on": "",
+                },
+                {
+                    "fieldname": "opted_out_at",
+                    "label": "Opted Out At",
+                    "fieldtype": "Datetime",
+                    "insert_after": "opted_out_sms",
+                    "depends_on": "eval:doc.opted_out_sms==1",
+                    "read_only": 1,
+                },
+            ],
+        },
+        update=True,
+        ignore_permissions=True,
+    )
+
+    if not frappe.db.table_exists("LMS Twilio Settings"):
+        return  # DocType not installed yet; will be created on first migrate
+
+    doc = frappe.get_single("LMS Twilio Settings")
+    if doc.is_new():
+        # The setting itself is disabled by default; operators opt in.
+        doc.flags.ignore_permissions = True
+        doc.save()
+        frappe.db.commit()

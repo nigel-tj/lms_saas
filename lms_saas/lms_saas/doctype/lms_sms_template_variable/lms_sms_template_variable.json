@@ -1,0 +1,32 @@
+{
+ "doctype": "DocType",
+ "name": "LMS SMS Template Variable",
+ "module": "Lms Saas",
+ "custom": 0,
+ "istable": 1,
+ "fields": [
+  {
+   "fieldname": "variable_name",
+   "fieldtype": "Data",
+   "label": "Variable Name",
+   "reqd": 1,
+   "in_list_view": 1,
+   "description": "Alphanumeric + underscores. Must match a {{name}} placeholder in the parent template body."
+  },
+  {
+   "fieldname": "sample",
+   "fieldtype": "Data",
+   "label": "Sample Value",
+   "description": "Optional example for the LMS admin UI. Not sent."
+  }
+ ],
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1
+  }
+ ]
+}
