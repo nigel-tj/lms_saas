@@ -10,9 +10,14 @@
 #  NOT do for us. Concretely:
 #
 #    1. bench migrate         — apply pending schema migrations (patches.txt)
-#    2. bench build           — re-bundle lms_saas JS so the browser stops
-#                                loading stale `?v=...` cache-bust query
-#                                strings on lms_portal.js, lms_desk.js, etc.
+#    2. (skipped)             — `bench build` is intentionally NOT run by
+#                                this script. Re-running it races the CDN
+#                                cache invalidation and breaks the live
+#                                site (every /assets/ file returns 404).
+#                                Asset rebuilds are the Frappe Cloud
+#                                `Deploy` hook's job, or run manually
+#                                with `bench build --app lms_saas --force`
+#                                when debugging a broken CDN.
 #    3. clear-cache           — drop document + Redis + browser cache
 #    4. enable-scheduler      — ensure background jobs (SMS queue, audit
 #                                pipeline, KYC re-checks) are running
@@ -39,20 +44,23 @@
 #
 #  WHY EACH LmsSaAs STEP IS NEEDED
 #  -----------------------------
-#  Steps 1–4 are the standard Frappe bench post-deploy — but they run for
+#  Steps 1, 3, 4 are the standard Frappe bench post-deploy — they run for
 #  EVERY app, so a misbehaving site config can't tell which app needs what.
-#  NB: the `bench build` step (2) is auto-skipped on Frappe Cloud because
-#  the `Deploy` hook already built the bundle, and re-running it races the
-#  CDN cache invalidation — the documented Frappe Cloud symptom is a
-#  whole-site 404 storm on every /assets/ file until the next Deploy.
-#  Steps 5–7 are lms_saas-only self-heal: the install/after_install hook
+#  Step 2 (`bench build`) is intentionally NOT run by this script. The
+#  Frappe Cloud `Deploy` hook already builds the assets, and re-running
+#  the build races the CDN cache invalidation — the documented Frappe
+#  Cloud symptom is a whole-site 404 storm on every /assets/ file until
+#  the next Deploy. If the build is genuinely out of date, run it
+#  MANUALLY with `bench build --app lms_saas --force` — not from this
+#  script.
+#  Steps 5–8 are lms_saas-only self-heal: the install/after_install hook
 #  writes a lot of workspace, home-page, and dashboard-card state at
 #  install time. If a deploy lands while the desk is open, those refs can
 #  be stale by the time the next user logs in. Each `_reconcile_*` /
 #  `_set_*` function is idempotent — safe to re-run on every deploy, even
 #  when nothing changed.
 #
-#  Step 8 is the smoke detector: it diff-asserts the live site's shape
+#  Step 9 is the smoke detector: it diff-asserts the live site's shape
 #  against the lms_saas expected shape. A red ✗ line means a deploy broke
 #  something the framework's standard migrate would NOT catch.
 #
@@ -72,15 +80,16 @@
 #    --dry-run     print what WOULD run, do not execute any bench command
 #    --check-only  skip bench migrate / build / cache; just run the
 #                  lms_saas reconcile + verify_spec steps (cheap, ~10s)
-#    --skip-build  skip `bench build --app lms_saas` (use when the bench
-#                  already auto-rebuilt via deploy hooks). This is the
-#                  DEFAULT on Frappe Cloud — the Deploy hook has already
-#                  built the bundle and re-running it from this script
-#                  races the CDN cache invalidation and commonly leaves
-#                  the whole site returning 404s on every asset.
-#    --build       force the build on Frappe Cloud despite the auto-skip.
-#                  Off the default everywhere; only set this if you know
-#                  the CDN has invalidated and you cannot re-deploy.
+#    --skip-build  ALREADY THE DEFAULT. The script never runs `bench
+#                  build` — re-running it races the CDN cache
+#                  invalidation and leaves the live site returning 404s
+#                  on every /assets/ file. Kept as a flag for symmetry
+#                  with Frappe's `bench build` CLI, but passing it has
+#                  no effect (the build is skipped either way).
+#    --build       opt-in rebuild. Use ONLY when an asset is genuinely
+#                  out of date and you cannot wait for the next Frappe
+#                  Cloud Deploy. Forces `bench build --app lms_saas
+#                  --force` so the cache is bypassed.
 #    --help        show usage and exit
 #
 #  ENVIRONMENT
@@ -92,9 +101,6 @@
 #    LMS_SKIP_REBRAND     1 to skip the navbar-branding re-apply step (use
 #                          when you intentionally want the desk to keep a
 #                          different brand than the portal for a window)
-#    FRAPPE_CLOUD=1       Force the FC auto-detect (set automatically by
-#                          Frappe Cloud hosts; the script also detects
-#                          the sentinel env var `FC_FONTATIONS`).
 #
 #  EXIT CODES
 #  ----------
@@ -115,13 +121,20 @@ set -euo pipefail
 # ── Args ──
 DRY_RUN=0
 CHECK_ONLY=0
-SKIP_BUILD=0
+# R32: SKIP_BUILD defaults to 1 — the script never runs `bench build`
+# automatically. Asset rebuilds are the Frappe Cloud `Deploy` hook's job
+# (or a manual `bench build --app lms_saas --force` if the operator is
+# debugging a broken CDN). Re-running the build from this script races
+# the CDN cache invalidation and leaves the live site returning 404s on
+# every /assets/ file until the next Deploy. Local dev benches can opt
+# back in with `--build` (the FC host auto-detect is irrelevant there).
+SKIP_BUILD=1
 while [[ $# -gt 0 ]]; do
 	case "$1" in
 		--dry-run)    DRY_RUN=1; shift ;;
 		--check-only) CHECK_ONLY=1; shift ;;
 		--skip-build) SKIP_BUILD=1; shift ;;
-		--build)      SKIP_BUILD=0; shift ;;  # force the build on demand
+		--build)      SKIP_BUILD=0; shift ;;  # opt-in re-build
 		--help|-h)
 			grep '^#' "$0" | sed 's/^# \?//'
 			exit 0
@@ -129,24 +142,6 @@ while [[ $# -gt 0 ]]; do
 		*) echo "unknown flag: $1" >&2; exit 2 ;;
 	esac
 done
-
-# R32: on Frappe Cloud the dashboard's `Deploy` step ALREADY runs
-# `bench build --app lms_saas` via the bench deploy hook. Re-running it
-# from this script races the CDN cache invalidation and frequently
-# leaves the live site's `/assets/` directory returning 404s for every
-# JS / CSS / image file until the next Deploy. Auto-skip the build step
-# on Frappe Cloud so the operator doesn't have to remember `--skip-build`.
-#
-# Detection: the bench host sets `FC_FONTATIONS` (the Sentry tracker
-# sentinel) or `FRAPPE_CLOUD=1` on Frappe Cloud. Local benches never set
-# either, so the default stays "run the build" for the dev workflow.
-if [[ "${SKIP_BUILD:-0}" == "0" ]]; then
-	if [[ -n "${FC_FONTATIONS:-}" || "${FRAPPE_CLOUD:-}" == "1" ]]; then
-		echo "  ↳ detected Frappe Cloud — skipping bench build (the Deploy hook already ran it)"
-		echo "    (override with --build if you really want to rebuild)"
-		SKIP_BUILD=1
-	fi
-fi
 
 # ── bench cd ──
 if ! command -v bench >/dev/null 2>&1; then
@@ -215,10 +210,10 @@ if [[ "$CHECK_ONLY" -eq 0 ]]; then
 	run bench --site "$FC_SITE" migrate
 	if [[ "$SKIP_BUILD" -eq 0 ]]; then
 		# --force bypasses the bench asset cache (whose CDN mapping can
-		# drift) and regenerates every asset from source. On Frappe Cloud
-		# the default is to skip the build entirely (the `Deploy` hook
-		# already ran it); --force is only used when the operator
-		# explicitly opts in via `--build`.
+		# drift) and regenerates every asset from source. This is the
+		# explicit opt-in path; the script never runs `bench build`
+		# automatically because re-running it from `Deploy` hook context
+		# races the CDN cache invalidation and breaks the live site.
 		run bench build --app lms_saas --force
 	fi
 	run bench --site "$FC_SITE" clear-cache
