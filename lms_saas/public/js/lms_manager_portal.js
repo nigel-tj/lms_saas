@@ -428,6 +428,17 @@ lms_manager._showReviewModal = function (data) {
 	var collateral = data.collateral || [];
 	var audit = data.audit || [];
 	var existingLoans = data.existing_loans || [];
+	// R32: server tells the portal whether the current user can override
+	// the borrower's AML flag. Hide the control entirely for users who
+	// cannot override (Loan Officer, Collector) — server still hard-throws
+	// on a direct call, this is just UX.
+	var canOverrideAml = data.can_override_aml === true;
+	// Hold the rendered modal handle so the AML override callback can
+	// re-open the review modal in-place after a successful override.
+	var modalHandle = null;
+	// Stash the data on the closure so the override callback can
+	// re-render the review modal contents after the AML status flips.
+	var lastData = data;
 
 	var html = '<div class="lms-form">';
 
@@ -464,6 +475,18 @@ lms_manager._showReviewModal = function (data) {
 			html += "<tr><td>Debt-to-income</td><td>" + lms_portal.escape(String(kyc.debt_to_income_ratio)) + "</td></tr>";
 		}
 		html += "</tbody></table></div>";
+		// R32: when the current user can override the AML flag AND the
+		// status is not Clear, surface a button. Click is delegated
+		// below when the modal mounts. We stash the compliance name in
+		// a data attribute so the handler can read it without a closure
+		// round-trip.
+		if (canOverrideAml && kyc.aml_status !== "Clear") {
+			html += '<div style="margin-top:0.5rem;display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">';
+			html += '<button type="button" class="lms-btn lms-btn--warning lms-btn--sm" id="lms-override-aml-btn" data-compliance="' + lms_portal.escape(kyc.name) + '" data-current-status="' + lms_portal.escape(kyc.aml_status || "Pending") + '">';
+			html += "Override AML…</button>";
+			html += '<span class="lms-muted" style="font-size:0.8rem;">Forces AML to Clear / Flagged / Rejected and logs a critical audit event. Use only after manual review.</span>';
+			html += "</div>";
+		}
 	}
 
 	// Existing loans (manager decision input)
@@ -564,8 +587,31 @@ lms_manager._showReviewModal = function (data) {
 			lms_manager._reject(a.name);
 		};
 	}
+	// R32: wire the AML override button after the modal mounts. We can't
+	// just put a click handler in the body string because lms_portal.modal
+	// sanitises and re-renders the body. After mount we look for the
+	// button by id and attach a handler that opens the override modal.
+	modalOpts.onShown = function (overlay) {
+		var btn = overlay.querySelector("#lms-override-aml-btn");
+		if (btn) {
+			btn.addEventListener("click", function () {
+				lms_manager._overrideAml(kyc, function (res) {
+					// On success, refresh the in-memory kyc so the Approve
+					// button becomes usable, then re-open the review modal
+					// so the manager sees the new AML status without
+					// having to close + reopen manually.
+					lastData.kyc = lastData.kyc || {};
+					lastData.kyc.aml_status = res.new_status;
+					lastData.kyc.aml_screened_at = new Date().toISOString();
+					if (modalHandle) modalHandle.close();
+					// Defer so the close animation has time to start.
+					setTimeout(function () { lms_manager._showReviewModal(lastData); }, 50);
+				});
+			});
+		}
+	};
 
-	lms_portal.modal(modalOpts);
+	modalHandle = lms_portal.modal(modalOpts);
 };
 
 lms_manager._approve = function (appName) {
@@ -637,6 +683,74 @@ lms_manager._reject = function (appName) {
 			});
 		},
 	});
+};
+
+// R32: AML override flow. The manager portal can call this when the
+// borrower's AML flag is Pending / Flagged / Rejected but the manager
+// has a documented reason to clear the flag (sandbox site, provider
+// outage, false-positive after manual review). Server-side
+// `override_aml_flag` enforces the role gate (Branch Manager / System
+// Manager only) — the UI just collects the reason.
+lms_manager._overrideAml = function (kyc, onSuccess) {
+	if (!kyc || !kyc.name) {
+		lms_portal.toast("No compliance record to override.", "warning");
+		return;
+	}
+	var current = kyc.aml_status || "Pending";
+	var modalRef = lms_portal.modal({
+		title: "Override AML screening",
+		body:
+			'<div class="lms-form">' +
+			'<p class="lms-muted" style="margin-top:0;">Current AML status: <strong>' +
+			lms_portal.escape(current) + '</strong>. This action is recorded as a critical audit event.</p>' +
+			'<div class="lms-field"><label>New status</label>' +
+			'<select id="lms-aml-override-status" class="lms-input">' +
+			'<option value="Clear"' + (current === "Clear" ? " selected" : "") + '>Clear (false-positive)</option>' +
+			'<option value="Flagged"' + (current === "Flagged" ? " selected" : "") + '>Flagged (confirmed)</option>' +
+			'<option value="Rejected"' + (current === "Rejected" ? " selected" : "") + '>Rejected (confirmed)</option>' +
+			'</select></div>' +
+			'<div class="lms-field"><label>Reason <span class="lms-muted">(required, recorded in audit trail)</span></label>' +
+			'<textarea id="lms-aml-override-reason" class="lms-input" rows="3" placeholder="e.g. sandbox demo — AML provider disabled; manual IDV confirms borrower is not on any sanctions list"></textarea>' +
+			'<div class="lms-field__hint">Required when setting to "Clear". Always recorded in LMS Audit Event with your user, timestamp, and old/new status.</div></div>' +
+			'</div>',
+		confirmText: "Override",
+		confirmVariant: "warning",
+		onConfirm: function (overlay) {
+			var statusEl = overlay.querySelector("#lms-aml-override-status");
+			var reasonEl = overlay.querySelector("#lms-aml-override-reason");
+			var newStatus = statusEl ? statusEl.value : "";
+			var reason = reasonEl ? reasonEl.value : "";
+			if (newStatus === "Clear" && !reason.trim()) {
+				lms_portal.toast("A written reason is required to clear the AML flag.", "warning");
+				if (reasonEl) reasonEl.focus();
+				return false; // keep modal open
+			}
+			lms_portal.safeCall({
+				method: "lms_saas.api.aml.override_aml_flag",
+				args: {
+					compliance_name: kyc.name,
+					new_status: newStatus,
+					reason: reason,
+				},
+				callback: function (r) {
+					var res = (r && r.message) || {};
+					if (res && res.new_status) {
+						lms_portal.toast("AML flag updated to " + res.new_status + ".", "success");
+						if (typeof onSuccess === "function") {
+							try { onSuccess(res); } catch (e) { /* ignore */ }
+						}
+					} else {
+						lms_portal.toast("Override did not complete.", "danger");
+					}
+				},
+				error: function (err) {
+					var msg = (err && (err.message || err._server_message)) || "Override failed.";
+					lms_portal.toast(msg, "danger");
+				},
+			});
+		},
+	});
+	return modalRef;
 };
 
 // Partial refresh — re-fetches dashboard KPIs + approval queue, re-renders

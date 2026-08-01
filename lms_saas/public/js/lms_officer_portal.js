@@ -244,10 +244,7 @@ lms_officer._renderAll = function (root, dash, apps, loans, branch, collections,
 	// 2) Compact KPI strip (max 4) — below the queue
 	html += lms_portal.kpiStrip([
 		{ label: "Pending applications", value: k.pending_applications || 0, tone: (k.pending_applications || 0) ? "warning" : "" },
-		// R28-F13: tag this KPI with id="lms-of-pending-kpi" so the
-		// optimistic-update path in _doDisburse can decrement it
-		// in-place without a full re-render flicker.
-		{ label: "Awaiting disbursement", id: "lms-of-pending-kpi", value: k.pending_disbursement || 0, tone: (k.pending_disbursement || 0) ? "warning" : "", cssClass: "lms-of-pending-kpi" },
+		{ label: "Awaiting disbursement", value: k.pending_disbursement || 0, tone: (k.pending_disbursement || 0) ? "warning" : "" },
 		{ label: "My active loans", value: k.my_active_loans || 0 },
 		{ label: "PAR count", value: k.par_count || 0, tone: (k.par_count || 0) ? "danger" : "" },
 	]);
@@ -1623,20 +1620,6 @@ lms_officer._doDisburse = function (loanName, amount) {
 				return;
 			}
 			lms_portal.toast("Disbursed \u2014 " + (data.disbursement || loanName), "success");
-			// R28-F13: optimistic UI — remove the just-disbursed row from
-			// the Pending table immediately so the officer sees the state
-			// change without waiting for the full refresh. Then re-render
-			// the tab so the Active table picks up the new loan. We also
-			// decrement the pending-disbursement KPI counter rendered in
-			// the dashboard so it doesn't drift.
-			var row = document.querySelector(
-				'button.lms-of-disburse-btn[data-loan="' + loanName + '"]'
-			);
-			if (row) {
-				var tr = row.closest("tr");
-				if (tr && tr.parentNode) tr.parentNode.removeChild(tr);
-			}
-			lms_officer._decrementPendingKpi();
 			// Re-render the Loans tab so the loan moves from Pending to Active.
 			// We use _currentTab + _showTab so charts on other tabs aren't
 			// rebuilt and we stay on the same tab the user was on.
@@ -1652,19 +1635,6 @@ lms_officer._doDisburse = function (loanName, amount) {
 			lms_portal.toast(msg, "danger");
 		},
 	});
-};
-
-lms_officer._decrementPendingKpi = function () {
-	// Decrement every ".lms-of-pending-kpi" element on the page by 1 (clamped
-	// at 0). Used by R28-F13 optimistic removal — the next full refresh
-	// will reconcile to the server-side truth. If no element exists the
-	// officer's tab isn't visible — no-op.
-	var els = document.querySelectorAll(".lms-of-pending-kpi");
-	for (var i = 0; i < els.length; i++) {
-		var n = parseInt(els[i].textContent || "0", 10);
-		if (isNaN(n)) n = 0;
-		els[i].textContent = Math.max(0, n - 1);
-	}
 };
 
 lms_officer._viewLoan = function (loanName) {
