@@ -147,6 +147,72 @@ LMS_SKIP_SITE_CONFIG=1 bash apps/lms_saas/scripts/frappe-cloud-update.sh
 
 Or use the full post-install script for first-time setup only.
 
+### What `frappe-cloud-update.sh` does (and why)
+
+The Frappe Cloud dashboard's generic `Benches → Deploy` + `Sites → Update`
+covers the framework side: it runs `bench migrate`, rebuilds the JS bundles,
+clears the cache, and restarts the scheduler. That is identical for every
+Frappe app. It does NOT know about lms_saas-specific state, which is what
+this script reconciles after every deploy:
+
+1. **`bench migrate`** — schema migrations (patches.txt)
+2. **`bench build --app lms_saas`** — re-bundle JS so the browser stops
+   loading stale `?v=…` cache-bust hashes on `lms_portal.js`,
+   `lms_desk.js`, `lms_officer_portal.js`, etc.
+3. **`bench clear-cache`** — drop document + Redis + browser cache
+4. **`enable-scheduler`** — restart SMS queue + audit pipeline workers
+5. **`lms_saas.install._reconcile_loan_dashboard`** — re-link LMS Number
+   Cards / Charts to the Loan Dashboard workspace (idempotent)
+6. **`lms_saas.install._set_portal_role_home_pages`** — re-point LMS
+   Portal Staff / Loan Officer / Collector / Branch Manager to their
+   landing workspace
+7. **`lms_saas.install._set_admin_home_page`** — re-point Admin / System
+   Manager to the admin landing page
+8. **`lms_saas.setup.verify_spec.run_all_checks`** — the operator's
+   verification suite. Catches workspace drift, role-home desync, audit
+   pipeline gaps, and brand-chain leaks. A red ✗ line in its output
+   means a deploy broke something the framework's `migrate` would NOT
+   catch. Run `--dry-run` next to see what it would have flagged.
+
+#### Auto-detection
+
+If `FC_SITE` is not set, the script auto-detects:
+
+- the only site on the bench (most common case)
+- otherwise the site whose name starts with `lms` (case-insensitive)
+- otherwise prompts with the list of available sites and an explicit
+  `FC_SITE=<site>` override example
+
+So for a bench with one site, **no env var is required**:
+
+```bash
+bash apps/lms_saas/scripts/frappe-cloud-update.sh
+```
+
+#### Flags
+
+| Flag | Behaviour |
+|---|---|
+| `--dry-run` | Print every `bench` command, do not execute it. Safe to run on any bench to preview. |
+| `--check-only` | Skip `migrate` / `build` / `clear-cache` / `enable-scheduler`. Run only steps 5–8. Cheap, ~10 seconds. |
+| `--skip-build` | Skip `bench build --app lms_saas` only (use when deploy hooks already rebuilt). |
+| `--help` | Print the comment header and exit. |
+
+#### Exit codes
+
+| Code | Meaning |
+|---|---|
+| `0` | Success, no drift |
+| `2` | A `bench` command failed (migrate / build / cache). Run again or inspect. |
+| `3` | `verify_spec` reported drift (a red ✗ line). The script prints the offending check. |
+
+#### Idempotency
+
+Every step above is documented to be idempotent. Running the script
+twice produces the same end-state as running it once. Running it after
+a no-op pull (no new commits) is a no-op. Total runtime ~1 minute on
+a typical bench.
+
 ## Bench app manifest (reference)
 
 ```text
