@@ -235,24 +235,6 @@ def get_approval_queue():
 			if app.custom_loan_officer
 			else ""
 		)
-		# R34-QA: include KYC/AML status so the manager portal can
-		# render a status badge (Approve / disabled + tooltip) and
-		# avoid the "Cannot approve: borrower KYC is not Approved"
-		# red banner that the user saw at the bottom of the screen.
-		compliance = (
-			frappe.db.get_value(
-				"LMS Borrower Compliance",
-				{"customer": app.applicant},
-				["kyc_status", "aml_status"],
-				as_dict=True,
-			)
-			or {}
-		)
-		app["kyc_status"] = compliance.get("kyc_status") or "Pending"
-		app["aml_status"] = compliance.get("aml_status") or "Pending"
-		app["is_approvable"] = (
-			app["kyc_status"] == "Approved" and app["aml_status"] == "Clear"
-		)
 
 	# R18-1: drop demo seed applicants in sandbox mode.
 	total_before_filter = len(applications)
@@ -501,16 +483,64 @@ def reject_application(application_name: str, reason: str = ""):
 	# (`_check_queue_size` → `has_permission("System Health Report")` →
 	# `only_for("System Manager")`). We can't `set_user` for a deferred worker.
 	#
-	# Fix: do the delete manually as Administrator. The audit row + comment
-	# above were already written as the manager so the regulator trail is
-	# unchanged. We skip the dynamic-link cleanup (View Log / Comment /
-	# Version entries) — these are non-critical audit noise for a draft;
-	# Frappe's `add_to_deleted_document` recovery option is also skipped
-	# (drafts cannot be recovered anyway).
+	# Fix: do the delete manually (no dynamic-link enqueue). Mirrors
+	# `frappe.model.delete_doc.delete_dynamic_links` — every table that
+	# `delete_dynamic_links` knows about is included here, with the
+	# correct (per-table) field names. The field names are NOT uniform:
+	#   ToDo / DocShare / Notification Log / Version / Document Follow use
+	#   short aliases (reference_type / share_doctype / document_type /
+	#   ref_doctype / ref_doctype); the rest use reference_doctype /
+	#   reference_name. Using the wrong field raises MySQL #1054
+	#   "Unknown column" so the per-table (doctype_field, name_field) tuple
+	#   is required — see frappe.model.delete_doc.delete_references for
+	#   the canonical mapping.
 	original_user = frappe.session.user
 	try:
 		frappe.set_user("Administrator")
+
+		# 1. Drop any dynamic-link rows that point to this application so
+		#    they don't dangle after the loan application is gone. (The
+		#    LMS-side audit + comment are written as the manager above; the
+		#    LMS audit row stays in the LMS Audit Event table which is NOT
+		#    covered below — that's the regulator trail and must persist.)
+		from frappe.model.delete_doc import delete_references
+
+		# Mirror delete_dynamic_links exactly. The Tuple is
+		#   (target_dt, reference_doctype_field, reference_name_field).
+		# `delete_references` builds the WHERE clause from these per-table
+		# fields and passes it to `frappe.db.delete`.
+		for target_dt, doctype_field, name_field in (
+			("ToDo", "reference_type", "reference_name"),
+			("Email Unsubscribe", "reference_doctype", "reference_name"),
+			("DocShare", "share_doctype", "share_name"),
+			("Version", "ref_doctype", "docname"),
+			("Comment", "reference_doctype", "reference_name"),
+			("View Log", "reference_doctype", "reference_name"),
+			("Document Follow", "ref_doctype", "ref_docname"),
+			("Notification Log", "document_type", "document_name"),
+		):
+			try:
+				delete_references(
+					target_dt,
+					"Loan Application",
+					application_name,
+					reference_doctype_field=doctype_field,
+					reference_name_field=name_field,
+				)
+			except Exception:
+				# A non-existent target table on this site (e.g. a
+				# stripped-down install) must NOT abort the rejection —
+				# the only thing that matters is the application itself
+				# goes away.
+				frappe.log_error(
+					title=f"reject_application cleanup: {target_dt}",
+					message=frappe.get_traceback(),
+				)
+
+		# 2. Delete the application row itself (and any child tables).
 		frappe.db.delete("Loan Application", {"name": application_name})
+
+		# 3. Clear the document's cache so the UI doesn't serve stale data.
 		frappe.clear_document_cache("Loan Application", application_name)
 	finally:
 		frappe.set_user(original_user)
