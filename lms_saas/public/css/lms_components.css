@@ -1355,6 +1355,60 @@ dialog.lms-modal::backdrop {
 }
 
 /* ------------------------------------------------------------------ */
+/* Inline alerts (validation messaging inside forms / modals)        */
+/*                                                                    */
+/* Used by the KYC review modal to show a live list of missing        */
+/* requirements before the user clicks "Save changes" — prevents the  */
+/* server-side 417 from being triggered repeatedly.                   */
+/* ------------------------------------------------------------------ */
+.lms-form-alert {
+	display: none;
+	margin: 0.75rem 0 1rem;
+	padding: 0.85rem 1rem;
+	border-radius: var(--lms-radius-md, 8px);
+	border: 1px solid #f0c674;
+	background: #fef9e7;
+	color: #6b5300;
+	font-size: 0.875rem;
+	line-height: 1.5;
+}
+
+.lms-form-alert--show {
+	display: block;
+}
+
+.lms-form-alert--error {
+	border-color: #e57373;
+	background: #fdecea;
+	color: #8a1f1f;
+}
+
+.lms-form-alert__title {
+	font-weight: 700;
+	margin: 0 0 0.4rem;
+	font-size: 0.85rem;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+}
+
+.lms-form-alert__list {
+	margin: 0;
+	padding-left: 1.25rem;
+}
+
+.lms-form-alert__list li {
+	margin: 0.15rem 0;
+}
+
+/* When the form alert is showing, dim the primary confirm action so
+ * the officer sees the gate before clicking. */
+.lms-action-disabled {
+	opacity: 0.45;
+	cursor: not-allowed;
+	pointer-events: none;
+}
+
+/* ------------------------------------------------------------------ */
 /* Grid helpers                                                        */
 /* ------------------------------------------------------------------ */
 .lms-grid-2 {
