@@ -129,13 +129,46 @@ def _create_customer_from_lead(lead) -> str:
 	return customer_name
 
 
+def _safe_customer_group() -> str:
+	"""Pick a Customer Group that is NOT a Group-type (Customer requires a leaf).
+
+	ERPNext's Customer doctype rejects any `is_group=1` Customer Group via a
+	document validation hook ("Cannot select a Group type Customer Group").
+	Selling Settings on this site ships with "All Customer Groups" (a Group),
+	so blindly trusting that value breaks every lead-conversion path. Fall
+	back in priority order: Selling Settings group (only if leaf), any leaf
+	Customer Group by name, then the hardcoded "Individual" leaf.
+
+	R34-QA: this helper is the canonical source for both Lead→Customer and
+	Officer-onboard-borrower code paths.
+	"""
+	preferred = (
+		frappe.db.get_single_value("Selling Settings", "customer_group") or ""
+	)
+	if preferred:
+		is_group = frappe.db.get_value(
+			"Customer Group", preferred, "is_group"
+		)
+		if not is_group:
+			return preferred
+
+	# `is_group=0` here — pick deterministically by name so re-entrant runs
+	# always produce the same default.
+	leaf = frappe.db.get_value(
+		"Customer Group", {"is_group": 0}, "name", order_by="name asc"
+	)
+	if leaf:
+		return leaf
+	return "Individual"
+
+
 def _manual_customer_from_lead(lead) -> str:
 	customer = frappe.get_doc(
 		{
 			"doctype": "Customer",
 			"customer_name": lead.lead_name or lead.company_name or lead.name,
 			"customer_type": "Individual",
-			"customer_group": frappe.db.get_single_value("Selling Settings", "customer_group") or "Individual",
+			"customer_group": _safe_customer_group(),
 			"territory": lead.territory or frappe.db.get_single_value("Selling Settings", "territory"),
 			"email_id": lead.email_id,
 			"mobile_no": lead.mobile_no,
