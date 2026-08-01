@@ -2185,6 +2185,16 @@ lms_officer._showKycReviewModal = function (data, content) {
 
 	var body =
 		'<form id="lms-kyc-review-form" class="lms-form" autocomplete="off">' +
+		// --- Live validation alert (R33) ---
+		// Shown only when the user selects "Approved" but is missing one
+		// or more required fields. Re-evaluated on every change to the
+		// form (status / NID / consent / docs). The server-side 417
+		// gates are still authoritative — this is purely a UX guard to
+		// stop the officer clicking Save with the gate already failing.
+		'<div id="lms-kyc-requirements" class="lms-form-alert lms-form-alert--error" role="alert" aria-live="polite">' +
+		'<p class="lms-form-alert__title">Cannot save yet — missing requirements</p>' +
+		'<ul class="lms-form-alert__list" id="lms-kyc-requirements-list"></ul>' +
+		'</div>' +
 		// --- Borrower summary ---
 		'<div class="lms-section-header"><h4>Borrower</h4></div>' +
 		'<div class="lms-grid-2">' +
@@ -2267,6 +2277,75 @@ lms_officer._showKycReviewModal = function (data, content) {
 	if (!dlgRoot) return;
 
 	var kycName = kyc.name;
+
+	// R33: live validation hook. Re-runs on every form change. When the
+	// officer has selected "Approved" without satisfying the server-side
+	// gate (NID + consent + ID document), we (a) show an inline alert at
+	// the top of the form listing the missing items, (b) disable the
+	// modal's primary "Save changes" button. This prevents the 417 flood
+	// the operator saw when clicking through the modal without first
+	// recording consent + ID document + NID. The server gate at
+	// `officer.update_kyc` remains authoritative — we don't loosen it.
+	function lmsKycEvalRequirements() {
+		var statusEl = dlgRoot.querySelector("#lms-kyc-status");
+		var nidEl = dlgRoot.querySelector("#lms-kyc-nid");
+		var consentEl = dlgRoot.querySelector("#lms-kyc-consent");
+		var iddocEl = dlgRoot.querySelector("#lms-kyc-iddoc-url");
+		var alertEl = dlgRoot.querySelector("#lms-kyc-requirements");
+		var listEl = dlgRoot.querySelector("#lms-kyc-requirements-list");
+		if (!statusEl || !alertEl || !listEl) return;
+
+		var targetStatus = statusEl.value || "Pending";
+		var missing = [];
+		if (targetStatus === "Approved") {
+			if (!((nidEl && nidEl.value && nidEl.value.trim()) || kyc.national_id_number)) {
+				missing.push("National ID number is required for an Approved KYC.");
+			}
+			if (!(consentEl && consentEl.checked) && !kyc.consent_given) {
+				missing.push("Borrower consent must be recorded before approval.");
+			}
+			if (!((iddocEl && iddocEl.value) || kyc.id_document_proof)) {
+				missing.push("ID document proof must be uploaded before approval.");
+			}
+		}
+
+		if (missing.length) {
+			listEl.innerHTML = missing
+				.map(function (m) { return "<li>" + lms_portal.escape(m) + "</li>"; })
+				.join("");
+			alertEl.classList.add("lms-form-alert--show");
+		} else {
+			alertEl.classList.remove("lms-form-alert--show");
+			listEl.innerHTML = "";
+		}
+
+		// Toggle the Save button. We find the modal's primary action via
+		// the data attribute LMSModal stamps on its confirm button. The
+		// button is re-rendered each time the dialog is mounted, so we
+		// resolve it lazily (the alert toggle races with re-render).
+		var saveBtn = dlgRoot.querySelector('[data-lms-modal-action="true"]');
+		if (saveBtn) {
+			if (missing.length) {
+				saveBtn.classList.add("lms-action-disabled");
+				saveBtn.setAttribute("aria-disabled", "true");
+				saveBtn.setAttribute("title", "Resolve the missing requirements above before saving.");
+			} else {
+				saveBtn.classList.remove("lms-action-disabled");
+				saveBtn.removeAttribute("aria-disabled");
+				saveBtn.removeAttribute("title");
+			}
+		}
+	}
+
+	// Initial pass + wire up change listeners
+	lmsKycEvalRequirements();
+	["#lms-kyc-status", "#lms-kyc-nid", "#lms-kyc-consent"].forEach(function (sel) {
+		var node = dlgRoot.querySelector(sel);
+		if (node) node.addEventListener("change", lmsKycEvalRequirements);
+	});
+	// NID is a free-text input — listen on input too, not just change.
+	var nidLive = dlgRoot.querySelector("#lms-kyc-nid");
+	if (nidLive) nidLive.addEventListener("input", lmsKycEvalRequirements);
 
 	// Load audit trail asynchronously
 	lms_portal.safeCall({
@@ -2364,6 +2443,38 @@ lms_officer._showKycReviewModal = function (data, content) {
 				proof_of_address: (dlgRoot.querySelector("#lms-kyc-poa-url") || {}).value || "",
 				notes: (dlgRoot.querySelector("#lms-kyc-note") || {}).value || "",
 			};
+
+			// R33: client-side mirror of the server gate. Stops the
+			// 417 flood that happens when the officer hits Save with
+			// an ineligible "Approved" form. The server gate at
+			// `officer.update_kyc` is still authoritative — we just
+			// refuse to post and surface the list inline so the
+			// console stays clean.
+			if (args.kyc_status === "Approved") {
+				var missing = [];
+				if (!(args.national_id || kyc.national_id_number)) {
+					missing.push("National ID number");
+				}
+				if (!(args.consent_given || kyc.consent_given)) {
+					missing.push("Borrower consent");
+				}
+				if (!(args.id_document_proof || kyc.id_document_proof)) {
+					missing.push("ID document proof");
+				}
+				if (missing.length) {
+					lms_portal.toast(
+						"Cannot approve KYC — missing: " + missing.join(", ") + ".",
+						"danger"
+					);
+					var reqEl = dlgRoot.querySelector("#lms-kyc-requirements");
+					if (reqEl) {
+						reqEl.classList.add("lms-form-alert--show");
+						reqEl.scrollIntoView({ behavior: "smooth", block: "start" });
+					}
+					return;
+				}
+			}
+
 			lms_portal.safeCall({
 				method: "lms_saas.api.officer.update_kyc",
 				args: args,
