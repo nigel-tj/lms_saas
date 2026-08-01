@@ -1,6 +1,6 @@
 import frappe
 
-from lms_saas.utils.brand import enrich_brand, get_brand_favicon_url, get_brand_splash_url, get_lms_theme
+from lms_saas.utils.brand import enrich_brand, get_brand_favicon_url, get_brand_splash_url, get_lms_theme, resolve_operator_app_name
 from lms_saas.install import LOAN_DASHBOARD_NAME, PORTAL_STAFF_ROLE
 from lms_saas.utils.desk_nav import get_lms_desk_nav
 from lms_saas.utils.frappe_version import LENDING_HOME_SLUG, desk_prefix, get_major_version
@@ -16,8 +16,49 @@ def _is_desk_admin(roles):
     return bool(roles.intersection({"System Manager", "Administrator"}))
 
 
+def _apply_operator_app_name(bootinfo):
+    """R32: override the desk navbar / login title to the operator's brand.
+
+    Frappe's desk chrome reads ``bootinfo.app_name`` (mirrored from
+    ``frappe.conf["app_name"]`` / ``hooks.app_title``) for the navbar wordmark
+    and the login page. ``hooks.app_title`` is a build-time constant and
+    can't be runtime-overridden per site, so WITHOUT this hook every install
+    of ``lms_saas`` shows the build-time default brand in the desk chrome
+    — even if the operator configured ``lms_brand_portal_title`` to a
+    different brand.
+
+    We follow the R23 board's recommended pattern (R23 §fix-list Q1-H1 /
+    Q2-H1): the operator's brand is resolved per-request from
+    ``lms_app_title`` (preferred; explicit override) or
+    ``lms_brand_portal_title`` (the unified brand key), then stamped onto
+    ``bootinfo.app_name``, ``frappe.conf["app_name"]``, and
+    ``frappe.local.app_name``. The fallback chain is:
+      1. ``lms_app_title`` site_config — explicit per-site override
+      2. ``lms_brand_portal_title`` site_config — the unified brand key
+      3. None — leave the build-time value (don't override)
+    """
+    app_name = resolve_operator_app_name()
+    if not app_name:
+        return
+    bootinfo.app_name = app_name
+    # Mirror onto the request-local + conf so any module that reads these
+    # BEFORE Frappe serialises the bootinfo (e.g. navbar templates that
+    # check site config during the same boot pass) sees the override.
+    frappe.conf["app_name"] = app_name
+    # frappe.local is a SiteLocal that may or may not carry an app_name
+    # attribute depending on the request path. Set it unconditionally so
+    # later code (e.g. navbar templates that read frappe.local.app_name
+    # during the same boot pass) sees the override.
+    if hasattr(frappe, "local"):
+        frappe.local.app_name = app_name
+
+
 def apply_default_route(bootinfo):
     """Route desk admins to the Loan Management workspace; borrowers to the portal."""
+    # R32: must run BEFORE any code that reads app_name / bootinfo.app_name
+    # so the navbar wordmark is correct on the first render.
+    _apply_operator_app_name(bootinfo)
+
     from lms_saas.utils.portal import install_desk_gate
     install_desk_gate()
 
