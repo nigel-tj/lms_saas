@@ -151,7 +151,8 @@
 		var overlay = document.createElement("div");
 		overlay.className = "lms-modal-overlay";
 		var dlg = document.createElement("div");
-		var sizeClass = opts.size === "xl" ? " lms-modal--xl"
+		var sizeClass = opts.size === "xxl" ? " lms-modal--xxl"
+			: opts.size === "xl" ? " lms-modal--xl"
 			: opts.size === "lg" ? " lms-modal--lg"
 			: opts.size === "sm" ? " lms-modal--sm"
 			: "";
