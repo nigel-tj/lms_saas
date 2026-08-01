@@ -26,9 +26,22 @@ def run():
     if frappe.db.exists("Loan", {"applicant": customer, "docstatus": 1}):
         return {"skipped": "loan already exists for customer", "customer": customer}
 
+    # R35: create the Loan Application BEFORE the collateral so the
+    # collateral record can carry the loan_application link at insert
+    # time — the manager review endpoint filters on that link.
     compliance = _ensure_compliance(customer)
-    collateral = _ensure_demo_collateral(customer, company)
-    application = _create_loan_application(customer, company, product, compliance, collateral)
+    application = _create_loan_application(customer, company, product, compliance, None)
+    collateral = _ensure_demo_collateral(customer, company, application_name=application)
+    # Defensive: backfill the link on the application doc too in case
+    # `_create_loan_application` couldn't carry it through.
+    try:
+        if frappe.db.has_column("LMS Loan Application", "custom_lms_collateral"):
+            frappe.db.set_value(
+                "Loan Application", application, "custom_lms_collateral", collateral,
+                update_modified=False,
+            )
+    except Exception:
+        pass
     loan = _create_loan_from_application(application)
     _disburse_loan(loan)
 
@@ -41,9 +54,24 @@ def run():
     }
 
 
-def _ensure_demo_collateral(customer, company):
+def _ensure_demo_collateral(customer, company, application_name=""):
     existing = frappe.db.get_value("LMS Collateral", {"owner_customer": customer, "docstatus": 1}, "name")
     if existing:
+        # R35: backfill the loan_application link on collateral created by
+        # earlier seeder runs (the link was empty until R35, so the manager
+        # review endpoint filtered it out). Updates only the row, not the
+        # submission state.
+        if application_name and frappe.db.has_column("LMS Collateral", "loan_application"):
+            try:
+                frappe.db.set_value(
+                    "LMS Collateral",
+                    existing,
+                    "loan_application",
+                    application_name,
+                    update_modified=False,
+                )
+            except Exception:
+                pass
         return existing
 
     branch = frappe.db.get_value("Cost Center", {"company": company, "is_group": 0}, "name")
@@ -53,6 +81,11 @@ def _ensure_demo_collateral(customer, company):
             "collateral_title": "Toyota Hilux 2019 (DEMO-COL)",
             "collateral_type": "Vehicle",
             "owner_customer": customer,
+            # R35: link the seeder's collateral to the application created
+            # right after, so the manager review surfaces it directly.
+            # `application_name` may be empty on the cold-create path; in
+            # that case we backfill in `_create_loan_application` below.
+            "loan_application": application_name or "",
             "company": company,
             "branch": branch,
             "status": "Pledged",
@@ -397,3 +430,55 @@ def _create_repayment(loan_name, company):
     except Exception:  # noqa: BLE001
         frappe.log_error(title="LMS seed_bulk repayment", message=frappe.get_traceback())
         return False
+
+# R35: one-shot backfill for collaterals created before the loan_application
+# link was wired. Idempotent: if a record already has the link, leave it.
+# Strategy:
+#   1. Find every LMS Collateral with `loan_application` blank AND docstatus=1.
+#   2. For each, look up the most recent Loan Application for `owner_customer`.
+#   3. If that application exists and its `applicant` matches, set the link.
+#
+# Re-runnable and harmless: only writes when the link is empty.
+def backfill_collateral_loan_application_links():
+    """Link orphan LMS Collateral docs to their owner's latest Loan
+    Application. Re-runnable; touches only rows with empty loan_application."""
+    if not frappe.db.has_column("LMS Collateral", "loan_application"):
+        return {"updated": 0, "skipped": "column missing"}
+    orphans = frappe.get_all(
+        "LMS Collateral",
+        filters={"loan_application": ["in", ["", None]], "docstatus": 1},
+        fields=["name", "owner_customer", "creation"],
+        order_by="creation desc",
+        limit_page_length=500,
+    )
+    updated = 0
+    seen_app = set()
+    for row in orphans:
+        owner = row.owner_customer
+        if not owner or owner in seen_app:
+            continue
+        app = frappe.db.get_value(
+            "Loan Application",
+            {"applicant": owner},
+            "name",
+            order_by="creation desc",
+        )
+        if app:
+            try:
+                frappe.db.set_value(
+                    "LMS Collateral",
+                    row.name,
+                    "loan_application",
+                    app,
+                    update_modified=False,
+                )
+                updated += 1
+                seen_app.add(owner)
+            except Exception:  # noqa: BLE001
+                frappe.log_error(
+                    title="LMS collateral backfill",
+                    message=frappe.get_traceback(),
+                )
+    if updated:
+        frappe.db.commit()
+    return {"updated": updated, "scanned": len(orphans)}
