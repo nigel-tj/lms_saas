@@ -561,33 +561,43 @@ lms_officer._openApplicationModal = function (customers, products, root) {
 			lms_portal.escape(p.product_name) + "</option>";
 	}).join("");
 
-	// Phase 2.2/2.3 — native <dialog> via LMSModal; native <select>s get the
-	// pop-out combobox upgrade so customer + product pickers are searchable
-	// (data-searchable on the customer select, since the list can be long).
+	// R34 — layout: the form has more than 20 inputs plus a repeatable
+	// collateral section. At the default 560px modal everything collapses
+	// to a single column and "Submit" lands well below the fold. We give
+	// the inline borrower picker its own bordered card so it reads as a
+	// sub-form, and tag the loan-detail grids with `data-grid="2"` so the
+	// xxl CSS keeps them at 2 columns (Identity / Contact sections stay
+	// 3-up by default).
 	var body =
 		'<div class="lms-form">' +
-		'<label>Customer' +
+		'<div class="lms-section-header"><h4>Customer</h4></div>' +
+		'<div class="lms-grid-2" data-grid="2">' +
+		'<label class="lms-grid-2__full">Customer' +
 		'<select id="lms-app-customer" class="lms-input lms-fallback-select lms-pop-select" data-searchable>' +
 		'<option value="">— Select customer —</option>' +
 		'<option value="__new__">+ New borrower…</option>' +
 		customerOpts +
 		"</select></label>" +
+		'<label class="lms-grid-2__full">Loan product' +
+		'<select id="lms-app-product" class="lms-input lms-fallback-select lms-pop-select">' +
+		productOpts +
+		"</select></label>" +
+		"</div>" +
 		// R34: the inline "+ New borrower…" picker now shares the full
 		// onboarding form with the topbar "Add Borrower" modal (Identity,
 		// Contact, Household / Spouse, KYC + consent, ID doc + proof-of-
 		// address upload). The previous picker only captured first/last
 		// name, email, mobile and national ID — silently dropping DOB,
 		// gender, address / city, KYC status, consent and uploads.
-		'<div id="lms-new-borrower-fields" hidden>' +
+		'<div id="lms-new-borrower-fields" class="lms-new-borrower-card" hidden>' +
 		'<div class="lms-section-header"><h4>New borrower — capture in the same step</h4></div>' +
 		'<p class="lms-muted" style="margin:0 0 0.5rem;font-size:0.8rem;">Same fields as the standalone Add Borrower form. Required only if this customer does not exist yet.</p>' +
 		lms_officer._borrowerFormHtml("lms-new-") +
 		"</div>" +
-		'<label>Loan product' +
-		'<select id="lms-app-product" class="lms-input lms-fallback-select lms-pop-select">' +
-		productOpts +
-		"</select></label>" +
-		'<div class="lms-grid-2">' +
+
+		// --- Loan terms ---
+		'<div class="lms-section-header"><h4>Loan terms</h4></div>' +
+		'<div class="lms-grid-2" data-grid="2">' +
 		'<label>Loan amount<input type="number" id="lms-app-amount" class="lms-input" min="1" step="0.01" placeholder="10000"></label>' +
 		'<label>Rate of interest (% / yr)<input type="number" id="lms-app-rate" class="lms-input" min="0" max="100" step="0.01" placeholder="24"></label>' +
 		'<label>Repayment periods (months)<input type="number" id="lms-app-periods" class="lms-input" min="1" value="6"></label>' +
@@ -596,39 +606,46 @@ lms_officer._openApplicationModal = function (customers, products, root) {
 		'<option value="Repay Fixed Amount per Period">Repay Fixed Amount per Period</option>' +
 		'</select></label>' +
 		'<label>Repayment start date<input type="date" id="lms-app-start" class="lms-input"></label>' +
-				'<label>Posting date<input type="date" id="lms-app-posting" class="lms-input"></label>' +
-				'</div>' +
-				'<div class="lms-grid-2">' +
-				'<label>Loan type<select id="lms-app-loantype" class="lms-input lms-fallback-select">' +
-				'<option value="">—</option><option value="Term Loan">Term Loan</option><option value="Revolving / Overdraft">Revolving / Overdraft</option><option value="Hire Purchase">Hire Purchase</option><option value="Asset Finance">Asset Finance</option><option value="Emergency / Top-up">Emergency / Top-up</option><option value="Working Capital">Working Capital</option>' +
-				'</select></label>' +
-				'<label>Purpose of finance<input type="text" id="lms-app-purpose" class="lms-input" placeholder="e.g. working capital, school fees"></label>' +
-				'<label>Application date<input type="date" id="lms-app-appdate" class="lms-input"></label>' +
-				'<label>Loan start date<input type="date" id="lms-app-startdate" class="lms-input"></label>' +
-				'<label>Expiry date<input type="date" id="lms-app-expiry" class="lms-input"></label>' +
-				'<label>Maximum enforceable amount<input type="number" id="lms-app-maxenforce" class="lms-input" min="0" step="0.01" placeholder="Statutory cap"></label>' +
-				'<label class="lms-grid-2__full">Nature / type of security interest<textarea id="lms-app-security" class="lms-input" rows="2" placeholder="e.g. notarial bond over vehicle COL-00012"></textarea></label>' +
-				'</div>' +
+		'<label>Posting date<input type="date" id="lms-app-posting" class="lms-input"></label>' +
+		"</div>" +
 
-				// --- Household / Spouse section (pre-fills from selected borrower) ---
-				'<div class="lms-section-header"><h4>Household &amp; Spouse</h4></div>' +
-				'<p class="lms-muted" style="margin:0 0 0.5rem;font-size:0.8rem;">Pre-filled from the borrower record; edit here if anything has changed.</p>' +
-				'<div class="lms-grid-2">' +
-				'<label><input type="checkbox" id="lms-app-marital"> Married (Marital status)</label>' +
-				'<label>Spouse contact details<input type="text" id="lms-app-spouse-contact" class="lms-input" placeholder="Phone / email"></label>' +
-				'<label>Name of spouse (first &amp; last)<input type="text" id="lms-app-spouse-name" class="lms-input" placeholder="Jane Doe"></label>' +
-				'<label>Spouse date of birth<input type="date" id="lms-app-spouse-dob" class="lms-input"></label>' +
-				'<label class="lms-grid-2__full">Applicant\'s physical address<textarea id="lms-app-physical" class="lms-input" rows="2" placeholder="House / plot, street, suburb, city"></textarea></label>' +
-				'</div>' +
+		// --- Loan classification + dates ---
+		'<div class="lms-section-header"><h4>Classification &amp; dates</h4></div>' +
+		'<div class="lms-grid-2" data-grid="2">' +
+		'<label>Loan type<select id="lms-app-loantype" class="lms-input lms-fallback-select">' +
+		'<option value="">—</option><option value="Term Loan">Term Loan</option><option value="Revolving / Overdraft">Revolving / Overdraft</option><option value="Hire Purchase">Hire Purchase</option><option value="Asset Finance">Asset Finance</option><option value="Emergency / Top-up">Emergency / Top-up</option><option value="Working Capital">Working Capital</option>' +
+		'</select></label>' +
+		'<label>Purpose of finance<input type="text" id="lms-app-purpose" class="lms-input" placeholder="e.g. working capital, school fees"></label>' +
+		'<label>Application date<input type="date" id="lms-app-appdate" class="lms-input"></label>' +
+		'<label>Loan start date<input type="date" id="lms-app-startdate" class="lms-input"></label>' +
+		'<label>Expiry date<input type="date" id="lms-app-expiry" class="lms-input"></label>' +
+		'<label>Maximum enforceable amount<input type="number" id="lms-app-maxenforce" class="lms-input" min="0" step="0.01" placeholder="Statutory cap"></label>' +
+		'<label class="lms-grid-2__full">Nature / type of security interest<textarea id="lms-app-security" class="lms-input" rows="2" placeholder="e.g. notarial bond over vehicle COL-00012"></textarea></label>' +
+		"</div>" +
 
-				'<div class="lms-section-header"><h4>Collateral</h4></div>' +
-				'<div id="lms-app-collateral-rows"></div>' +
-				'<button type="button" id="lms-app-add-collateral" class="lms-btn lms-btn--ghost">+ Add collateral item</button>' +
-				"</div>";
+		// --- Household / Spouse (pre-fills from selected borrower) ---
+		'<div class="lms-section-header"><h4>Household &amp; Spouse</h4></div>' +
+		'<p class="lms-muted" style="margin:0 0 0.5rem;font-size:0.8rem;">Pre-filled from the borrower record; edit here if anything has changed.</p>' +
+		'<div class="lms-grid-2">' +
+		'<label><input type="checkbox" id="lms-app-marital"> Married (Marital status)</label>' +
+		'<label>Spouse contact details<input type="text" id="lms-app-spouse-contact" class="lms-input" placeholder="Phone / email"></label>' +
+		'<label>Name of spouse (first &amp; last)<input type="text" id="lms-app-spouse-name" class="lms-input" placeholder="Jane Doe"></label>' +
+		'<label>Spouse date of birth<input type="date" id="lms-app-spouse-dob" class="lms-input"></label>' +
+		'<label class="lms-grid-2__full">Applicant\'s physical address<textarea id="lms-app-physical" class="lms-input" rows="2" placeholder="House / plot, street, suburb, city"></textarea></label>' +
+		'</div>' +
+
+		'<div class="lms-section-header"><h4>Collateral</h4></div>' +
+		'<div id="lms-app-collateral-rows"></div>' +
+		'<button type="button" id="lms-app-add-collateral" class="lms-btn lms-btn--ghost">+ Add collateral item</button>' +
+		"</div>";
 
 	var dlg = LMSModal.open({
 		title: "New loan application",
 		body: body,
+		// R34: 20+ fields, KYC file uploads and a repeatable collateral
+		// section — the default 560px tier crams three-column grids into
+		// a single column and pushes "Submit" far below the fold.
+		size: "xxl",
 		actions: [
 			{ label: "Cancel", value: false },
 			{ label: "Submit", value: true, primary: true }

@@ -974,6 +974,118 @@ dialog.lms-modal::backdrop {
 	font-size: 1rem;
 }
 
+/* R34 — extra-wide form modal (used by the Loan Officer's New Application
+   dialog, which carries 20+ fields, file uploads and a repeatable
+   collateral block). At 960px the three-field pairs feel cramped; at
+   1200px the form breathes and the inline "+ New borrower…" section
+   can host the full onboarding form without truncation. */
+.lms-modal--xxl {
+	max-width: 1200px;
+}
+
+.lms-modal--xxl .lms-modal-body {
+	padding: 1.5rem 2rem;
+}
+
+.lms-modal--xxl .lms-form label {
+	font-size: 0.9rem;
+}
+
+.lms-modal--xxl .lms-grid-2 {
+	gap: 1rem 1.25rem;
+}
+
+/* At xxl width, sections that group ≥6 short fields (Identity, Contact,
+   Household) gain a 3rd column so the inline borrower form does not
+   dominate the modal. The form-level lms-grid-2 default is preserved for
+   narrower tiers via the inner override below. */
+.lms-modal--xxl .lms-grid-2 {
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+/* The Household / Spouse block and the inline borrower's section deserve
+   the full 3-column treatment too — these are the longest field sections. */
+.lms-modal--xxl .lms-form .lms-grid-2 {
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+/* Lender-specific 2-column groups (loan amount + rate, periods + method,
+   start + posting, etc.) collapse back to 2-up so the visual rhythm of
+   "related fields together" is preserved. Use an explicit attribute the
+   renderer tags onto these grids. */
+.lms-modal--xxl .lms-form .lms-grid-2[data-grid="2"] {
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.lms-modal--xxl .lms-section-header {
+	margin: 1.5rem 0 0.75rem;
+	padding-bottom: 0.5rem;
+	border-bottom: 1px solid var(--lms-border);
+}
+
+.lms-modal--xxl .lms-section-header:first-child {
+	margin-top: 0.25rem;
+}
+
+.lms-modal--xxl .lms-section-header h4 {
+	margin: 0;
+	font-size: 0.85rem;
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+	color: var(--lms-text-muted);
+}
+
+/* The repeatable collateral row inside the New Application modal was
+   emitting 8+ fields; at default 560/720 modals the row overflows or
+   stacks awkwardly. In xxl we let it spread across a 3-column grid. */
+.lms-modal--xxl .lms-collateral-row {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 0.75rem 1rem;
+	padding: 1rem;
+	margin-top: 1rem;
+	border: 1px solid var(--lms-border);
+	border-radius: var(--lms-radius);
+	background: var(--lms-surface-alt);
+}
+
+.lms-modal--xxl .lms-collateral-row label {
+	min-width: 0;
+}
+
+.lms-modal--xxl .lms-col-type-fields {
+	display: contents;
+}
+
+/* Inline "+ New borrower…" picker. Wrap it in a visually-distinct
+   container so the officer never confuses borrower fields with loan
+   fields. Cards work nicely inside the xxl modal. */
+.lms-modal--xxl .lms-new-borrower-card {
+	padding: 1.25rem 1.5rem;
+	margin: 0.5rem 0 1.5rem;
+	border: 1px solid var(--lms-accent, var(--lms-primary));
+	border-left: 3px solid var(--lms-primary);
+	border-radius: var(--lms-radius);
+	background: var(--lms-surface-alt);
+}
+
+.lms-modal--xxl .lms-new-borrower-card > .lms-section-header {
+	margin-top: 1rem;
+}
+
+.lms-modal--xxl .lms-new-borrower-card > .lms-section-header:first-child {
+	margin-top: 0;
+}
+
+@media (max-width: 900px) {
+	.lms-modal--xxl .lms-collateral-row {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+	.lms-modal--xxl .lms-form .lms-grid-2 {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+}
+
 /* Primary financial metrics (Amount, Outstanding) read visually heavier. */
 .lms-modal--xl .lms-summary-card--primary .lms-summary-value {
 	font-size: 1.5rem;
