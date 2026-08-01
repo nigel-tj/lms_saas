@@ -340,19 +340,16 @@ def get_sandbox_report(days=7):
 		pluck="applicant",
 	)
 
-	# R30-B2/B3: use dict aggregate syntax (raw SQL fn strings are rejected
-	# by Frappe's query builder).
 	disbursements = frappe.get_all(
 		"Loan Disbursement",
 		filters={"docstatus": 1, "posting_date": (">=", since)},
-		fields=[{"COUNT": "name", "as": "count"}, {"SUM": "disbursed_amount", "as": "value"}],
+		fields=["count(name) as count", "sum(disbursed_amount) as value"],
 	)[0]
 	repayments = frappe.get_all(
 		"Loan Repayment",
 		filters={"docstatus": 1, "posting_date": (">=", since)},
-		fields=[{"COUNT": "name", "as": "count"}, {"SUM": "amount_paid", "as": "value"}],
+		fields=["count(name) as count", "sum(amount_paid) as value"],
 	)[0]
-
 
 	incidents = frappe.get_all(
 		"LMS Incident Log",

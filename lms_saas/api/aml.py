@@ -136,6 +136,7 @@ def _normalize_aml_status(raw: str) -> str:
 	return "Pending"
 
 
+@frappe.whitelist(allow_guest=False)
 def override_aml_flag(compliance_name: str, new_status: str, reason: str) -> dict:
 	"""Branch Manager override of an AML flag (false-positive review).
 
@@ -150,6 +151,10 @@ def override_aml_flag(compliance_name: str, new_status: str, reason: str) -> dic
 	The new_status must be one of "Clear" (false-positive) or "Flagged"
 	/ "Rejected" (confirmed after review). Setting to "Clear" without
 	a reason is forbidden.
+
+	Whitelisted (R32) so the Branch Manager portal can call this from
+	the review modal. The role-gate check below is still the source of
+	truth — Loan Officers calling this get a PermissionError.
 	"""
 	# Permission check via the role-gate module — keeps the AML/CFT
 	# segregation-of-duties rule in one place.
