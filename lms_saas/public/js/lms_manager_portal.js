@@ -240,25 +240,54 @@ lms_manager._renderApprovalsTable = function (content, queueData, showHeader) {
 		html += "</tbody></table></div>";
 	}
 	html += "</div>";
-	content.insertAdjacentHTML("beforeend", html);
-
-	content.querySelectorAll(".lms-review-btn").forEach(function (btn) {
+	// R36: wipe any prior loader / stale "Loading…" before injecting the
+	// approval table. The previous behaviour appended the panel via
+	// `insertAdjacentHTML("beforeend", ...)` which left the Loading
+	// spinner behind forever (mixed with the rendered table — see
+	// "Loading…" stuck on the live site). Replace the panel only on the
+	// first render; on subsequent refreshes (e.g. after approve/reject)
+	// the dashboard keeps a `_approvalPanelRoot` reference and updates
+	// just that subtree.
+	var existingRoot = lms_manager._approvalPanelRoot;
+	if (!existingRoot) {
+		// Cold paint — clear the loader and inject the fresh panel.
+		content.innerHTML = "";
+		content.insertAdjacentHTML("beforeend", html);
+		// Remember the panel root so we can update it in place later.
+		lms_manager._approvalPanelRoot = content.querySelector(".lms-portal-board");
+	} else {
+		// Hot refresh — swap the panel's contents in place. Preserves any
+		// event listeners bound during the initial render.
+		var wrapper = document.createElement("div");
+		wrapper.innerHTML = html;
+		var freshPanel = wrapper.querySelector(".lms-portal-board");
+		if (freshPanel) {
+			existingRoot.replaceWith(freshPanel);
+			lms_manager._approvalPanelRoot = freshPanel;
+		} else {
+			// Defensive — if the mark-up regressed, fall back to replace-all.
+			content.innerHTML = html;
+			lms_manager._approvalPanelRoot = content.querySelector(".lms-portal-board");
+		}
+	}
+	// Re-wire handlers on whichever panel is now mounted.
+	var mount = lms_manager._approvalPanelRoot || content;
+	mount.querySelectorAll(".lms-review-btn").forEach(function (btn) {
 		btn.addEventListener("click", function () {
 			lms_manager._reviewApplication(btn.getAttribute("data-app"));
 		});
 	});
-	content.querySelectorAll(".lms-approve-btn").forEach(function (btn) {
+	mount.querySelectorAll(".lms-approve-btn").forEach(function (btn) {
 		btn.addEventListener("click", function () {
 			lms_manager._approve(btn.getAttribute("data-app"));
 		});
 	});
-	content.querySelectorAll(".lms-reject-btn").forEach(function (btn) {
+	mount.querySelectorAll(".lms-reject-btn").forEach(function (btn) {
 		btn.addEventListener("click", function () {
 			lms_manager._reject(btn.getAttribute("data-app"));
 		});
 	});
 };
-
 lms_manager._renderAll = function (root, dash, queue) {
 	var html = "";
 

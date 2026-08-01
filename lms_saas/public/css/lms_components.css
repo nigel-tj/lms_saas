@@ -1157,15 +1157,28 @@ dialog.lms-modal::backdrop {
 /* Toast notifications                                                 */
 /* ------------------------------------------------------------------ */
 .lms-toast-stack {
+	/* R36: centre-stage — fixed at the top centre so users can't miss a
+	 * save success / 417 in a screen-full of dashboard tiles. Was previously
+	 * bottom-right (clashed with the VS Code chat sidebar at this
+	 * viewport). `pointer-events: none` on the stack and `auto` on each
+	 * toast keeps the dismiss button clickable while the area is otherwise
+	 * transparent to clicks. `max-width` + `inset-inline: 0` keeps the
+	 * stack horizontally centred on every screen width. */
 	position: fixed;
-	bottom: 1.5rem;
-	right: 1.5rem;
+	top: 1.25rem;
+	inset-inline: 0;
+	margin: 0 auto;
+	max-width: min(560px, calc(100vw - 2rem));
 	z-index: 1100;
 	display: flex;
 	flex-direction: column;
 	gap: 0.5rem;
 	pointer-events: none;
+	align-items: center;
 }
+
+.lms-toast {
+	pointer-events: auto; /* re-enable for the actual toast so the close (×) button works */
 
 .lms-toast {
 	background: var(--lms-surface);
