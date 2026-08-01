@@ -25,7 +25,14 @@
 #                                          workspace
 #    7. _set_admin_home_page             — re-point Admin / System Manager
 #                                          to the admin landing workspace
-#    8. verify_spec.run_all_checks       — the operator's verification
+#    8. _setup_navbar_branding           — re-apply the operator's brand
+#                                          (Website Settings.app_name +
+#                                          System Settings.app_name +
+#                                          Navbar Settings.app_logo) so
+#                                          the desk chrome reflects the
+#                                          current lms_brand_portal_title
+#                                          in site_config. Idempotent.
+#    9. verify_spec.run_all_checks       — the operator's verification
 #                                          suite. Catches workspace drift,
 #                                          role-home desync, audit pipeline
 #                                          gaps, and brand-chain leaks.
@@ -71,6 +78,9 @@
 #    LMS_SKIP_SITE_CONFIG 1 to skip re-applying site_config keys (set
 #                          when the operator doesn't want FC_SITE host_name
 #                          overrides during a rebrand)
+#    LMS_SKIP_REBRAND     1 to skip the navbar-branding re-apply step (use
+#                          when you intentionally want the desk to keep a
+#                          different brand than the portal for a window)
 #
 #  EXIT CODES
 #  ----------
@@ -179,10 +189,19 @@ else
 	echo "  --check-only: skipping migrate / build / clear-cache / enable-scheduler"
 fi
 
-# ── steps 5–8: lms_saas reconcile + verify ──
+# ── steps 5–9: lms_saas reconcile + verify ──
 run bench --site "$FC_SITE" execute lms_saas.install._reconcile_loan_dashboard
 run bench --site "$FC_SITE" execute lms_saas.install._set_portal_role_home_pages
 run bench --site "$FC_SITE" execute lms_saas.install._set_admin_home_page
+# R32: re-apply the operator's brand to Website Settings + System Settings
+# + Navbar Settings. The after_install hook writes these at install time,
+# but a deploy does NOT re-run after_install — so the DB values can drift
+# from the lms_brand_portal_title in site_config. Idempotent.
+if [[ "${LMS_SKIP_REBRAND:-0}" != "1" ]]; then
+	run bench --site "$FC_SITE" execute lms_saas.install._setup_navbar_branding
+else
+	echo "  LMS_SKIP_REBRAND=1 — skipping _setup_navbar_branding"
+fi
 
 # verify_spec is the smoke detector — capture its output separately so we can
 # set the right exit code (3 = drift) without poisoning the dry-run path.

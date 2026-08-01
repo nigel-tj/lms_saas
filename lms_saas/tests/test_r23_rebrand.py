@@ -9,7 +9,12 @@ R23 fix list (post-review rebrand strategy):
 - Q1-C1: hard-coded "Kesari" fallbacks removed from user-facing strings.
   Brand fallbacks are now vendor-neutral ("LMS") so a fresh install never
   leaks a competitor's brand.
-- Q1-H1: app_title="LMS" (vendor-neutral product family name) in hooks.py.
+- Q1-H1: app_title strategy was originally "LMS" (vendor-neutral product
+  family name) in hooks.py. The R30 board re-reviewed this and decided to
+  KEEP the operator's brand ("Kesari") in hooks.app_title so a fresh
+  install shows the brand accurately without any site_config editing.
+  The runtime override (R32) reaches the desk chrome via a per-request
+  boot hook so the operator can rebrand without a code change.
 - Q1-H2: brand asset fallbacks are config-overridable via
   lms_brand_logo_path / lms_brand_favicon_path.
 - Q2-C1: NEW setup/rebrand.py runner — single bench execute for the
@@ -22,6 +27,15 @@ R23 fix list (post-review rebrand strategy):
 - Q3-H1: enrich_brand validates the configured brand value and surfaces
   warnings for empty / oversized / RTL-override values.
 - Q5-M1: get_lms_company() helper with lms_company config override.
+
+R32 fix list (operator app_name reflects in desk chrome):
+- R32-1: hooks.app_title is the operator's brand (R30 decision).
+- R32-2: lms_app_title / lms_brand_portal_title resolve to a per-request
+  override that boot._apply_operator_app_name stamps onto bootinfo +
+  frappe.conf + frappe.local so the desk navbar / login page show the
+  right wordmark even if Website Settings / System Settings are stale.
+- R32-3: frappe-cloud-update.sh re-applies _setup_navbar_branding on
+  every deploy so the DB app_name fields stay in sync with site_config.
 
 Run via:
     cd frappe-bench && python run_all_lms_tests.py
@@ -98,14 +112,31 @@ class TestR23BrandFallbacksAreVendorNeutral(FrappeTestCase):
 
 
 # ---------------------------------------------------------------------------
-# Q1-H1: app_title="LMS" (vendor-neutral product family name).
+# Q1-H1: app_title is the operator's brand (R30 board decision).
 # ---------------------------------------------------------------------------
 class TestR23AppTitleIsVendorNeutral(FrappeTestCase):
-    """R23-H1: app_title is the vendor-neutral product family name."""
+    """R23-H1 / R30 decision: app_title is the operator's brand.
 
-    def test_app_title_is_lms_not_kesari(self):
+	The R23 board originally proposed making ``hooks.app_title = "LMS"``
+	(vendor-neutral product family name) and overriding the desk chrome
+	via a runtime ``lms_app_title`` config. The R30 board re-reviewed the
+	proposal and decided to keep the operator's brand baked into
+	``hooks.app_title`` so a fresh install shows the brand accurately
+	without any site_config editing. The vendor-neutral rename is
+	tracked as a separate task.
+
+	The runtime override chain is still required so a rebrand (operator
+	changes ``lms_brand_portal_title`` in site_config) reaches the desk
+	navbar / login page without a code change. See ``TestR32AppNameOverride``
+	for the runtime-side checks.
+	"""
+
+    def test_app_title_is_kesari_per_r30_decision(self):
         from lms_saas import hooks
-        self.assertEqual(hooks.app_title, "LMS")
+        # R30 board kept the operator's brand in hooks.app_title. Pin that
+        # here so a future engineer who flips it to "LMS" without running
+        # the migration through the board process gets a clear test failure.
+        self.assertEqual(hooks.app_title, "Kesari")
 
     def test_app_name_still_vendor_neutral_package(self):
         """The Python package name stays lms_saas (vendor-neutral)."""
@@ -347,3 +378,119 @@ class TestR23LmsCompanyHelper(FrappeTestCase):
         finally:
             if original is not None:
                 frappe.conf["lms_company"] = original
+
+
+# ---------------------------------------------------------------------------
+# R32: runtime app_name override (lms_app_title / lms_brand_portal_title).
+# ---------------------------------------------------------------------------
+class TestR32AppNameOverride(FrappeTestCase):
+    """R32: the desk navbar login wordmark must reflect the operator's brand
+    even when ``hooks.app_title`` is a different literal.
+
+    History: the live site was running with ``lms_brand_portal_title=Kesari``
+    in site_config but ``Website Settings.app_name=LMS`` in the DB (the
+    after_install hook either never ran or its writes were rolled back).
+    The desk navbar reads ``bootinfo.app_name`` (mirrored from
+    ``frappe.conf["app_name"]`` / ``hooks.app_title``), so the operator
+    was seeing "LMS" in the navbar instead of "Kesari". The
+    ``resolve_operator_app_name`` helper + ``boot._apply_operator_app_name``
+    hook fix this by re-stamping the operator's brand onto the boot
+    payload on every request, so the desk chrome matches the portal
+    without a code change.
+    """
+
+    def test_resolve_returns_lms_app_title_override(self):
+        """R32-1: lms_app_title wins over lms_brand_portal_title."""
+        from lms_saas.utils.brand import resolve_operator_app_name
+        with mock.patch.dict(
+            frappe.conf,
+            {
+                "lms_app_title": "Kopo Capital",
+                "lms_brand_portal_title": "Kesari",
+            },
+        ):
+            self.assertEqual(resolve_operator_app_name(), "Kopo Capital")
+
+    def test_resolve_falls_back_to_brand_portal_title(self):
+        """R32-2: lms_brand_portal_title is used when lms_app_title is unset."""
+        from lms_saas.utils.brand import resolve_operator_app_name
+        with mock.patch.dict(
+            frappe.conf,
+            {"lms_brand_portal_title": "Kesari"},
+            clear=False,
+        ):
+            frappe.conf.pop("lms_app_title", None)
+            self.assertEqual(resolve_operator_app_name(), "Kesari")
+
+    def test_resolve_returns_none_when_neither_set(self):
+        """R32-3: no override → None so the build-time value stays put."""
+        from lms_saas.utils.brand import resolve_operator_app_name
+        with mock.patch.dict(frappe.conf, {}, clear=False):
+            frappe.conf.pop("lms_app_title", None)
+            frappe.conf.pop("lms_brand_portal_title", None)
+            self.assertIsNone(resolve_operator_app_name())
+
+    def test_resolve_strips_whitespace(self):
+        """R32-4: a misconfigured value with stray whitespace is treated as empty."""
+        from lms_saas.utils.brand import resolve_operator_app_name
+        with mock.patch.dict(
+            frappe.conf,
+            {"lms_app_title": "   ", "lms_brand_portal_title": "Kesari"},
+            clear=False,
+        ):
+            # Pure whitespace is treated as empty so the brand chain
+            # falls through to the next valid entry.
+            self.assertEqual(resolve_operator_app_name(), "Kesari")
+
+    def test_boot_apply_stamps_app_name_on_bootinfo(self):
+        """R32-5: boot._apply_operator_app_name sets bootinfo.app_name
+        from the operator's brand (so the desk navbar reads the right
+        wordmark without a code change).
+        """
+        from lms_saas import boot as boot_mod
+        from types import SimpleNamespace
+
+        fake_bootinfo = SimpleNamespace()
+        original_conf = frappe.conf.get("lms_app_title")
+        original_brand = frappe.conf.get("lms_brand_portal_title")
+        original_app = frappe.conf.get("app_name")
+        original_local_app = getattr(frappe.local, "app_name", None)
+        try:
+            frappe.conf["lms_app_title"] = "Kesari"
+            boot_mod._apply_operator_app_name(fake_bootinfo)
+            self.assertEqual(fake_bootinfo.app_name, "Kesari")
+            self.assertEqual(frappe.conf["app_name"], "Kesari")
+            # frappe.local.app_name was set on the request-local scope.
+            self.assertEqual(getattr(frappe.local, "app_name", None), "Kesari")
+        finally:
+            # Restore to avoid leaking the override into later tests.
+            if original_conf is None:
+                frappe.conf.pop("lms_app_title", None)
+            else:
+                frappe.conf["lms_app_title"] = original_conf
+            if original_brand is None:
+                frappe.conf.pop("lms_brand_portal_title", None)
+            else:
+                frappe.conf["lms_brand_portal_title"] = original_brand
+            if original_app is None:
+                frappe.conf.pop("app_name", None)
+            else:
+                frappe.conf["app_name"] = original_app
+            if original_local_app is None:
+                if hasattr(frappe.local, "app_name"):
+                    delattr(frappe.local, "app_name")
+            else:
+                frappe.local.app_name = original_local_app
+
+    def test_boot_apply_is_noop_when_no_override(self):
+        """R32-6: with no override, the build-time app_name is preserved."""
+        from lms_saas import boot as boot_mod
+        from types import SimpleNamespace
+
+        fake_bootinfo = SimpleNamespace(app_name="Kesari")
+        with mock.patch.dict(frappe.conf, {}, clear=False):
+            frappe.conf.pop("lms_app_title", None)
+            frappe.conf.pop("lms_brand_portal_title", None)
+            boot_mod._apply_operator_app_name(fake_bootinfo)
+            # The build-time value is unchanged.
+            self.assertEqual(fake_bootinfo.app_name, "Kesari")

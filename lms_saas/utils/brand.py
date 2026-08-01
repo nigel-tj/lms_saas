@@ -151,6 +151,43 @@ def get_lms_theme():
 	return theme if theme in VALID_LMS_THEMES else "default"
 
 
+def resolve_operator_app_name() -> str | None:
+	"""R32: return the operator's desk wordmark, or None to leave the
+	build-time default in place.
+
+	The desk chrome (navbar title, login page wordmark, app launcher) reads
+	``bootinfo.app_name`` which mirrors ``frappe.conf["app_name"]`` /
+	``hooks.app_title``. ``hooks.app_title`` is a build-time constant and
+	can't be runtime-overridden per site, so this helper resolves the
+	operator's brand from site_config so the operator can rebrand the desk
+	without a code change.
+
+	Resolution chain:
+	  1. ``lms_app_title`` site_config — explicit per-site override. Use
+	     this when the operator wants the desk chrome to say something
+	     different from the portal title (e.g. portal wordmark set to
+	     the group name, desk wordmark set to the loan-product line).
+	  2. ``lms_brand_portal_title`` site_config — the unified brand key
+	     every other LMS UI surface reads from.
+	  3. None — leave the build-time value alone. The R30 board decided
+	     to keep ``hooks.app_title`` set to the operator's brand so a
+	     fresh install shows the brand accurately without any site_config
+	     editing. The runtime override here is the safety net for
+	     rebrand operations.
+
+	Returns the stripped, non-empty string, or None if neither key is set.
+	"""
+	import frappe
+
+	override = (frappe.conf.get("lms_app_title") or "").strip()
+	if override:
+		return override
+	main = (frappe.conf.get("lms_brand_portal_title") or "").strip()
+	if main:
+		return main
+	return None
+
+
 def get_brand_logo_url() -> str:
 	"""Desk/portal logo — operator-supplied, then Website Settings, then bundled mark.
 

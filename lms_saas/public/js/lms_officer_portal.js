@@ -572,12 +572,16 @@ lms_officer._openApplicationModal = function (customers, products, root) {
 		'<option value="__new__">+ New borrower…</option>' +
 		customerOpts +
 		"</select></label>" +
+		// R34: the inline "+ New borrower…" picker now shares the full
+		// onboarding form with the topbar "Add Borrower" modal (Identity,
+		// Contact, Household / Spouse, KYC + consent, ID doc + proof-of-
+		// address upload). The previous picker only captured first/last
+		// name, email, mobile and national ID — silently dropping DOB,
+		// gender, address / city, KYC status, consent and uploads.
 		'<div id="lms-new-borrower-fields" hidden>' +
-		'<label>First name<input type="text" id="lms-new-first" class="lms-input" placeholder="John"></label>' +
-		'<label>Last name<input type="text" id="lms-new-last" class="lms-input" placeholder="Doe"></label>' +
-		'<label>Email (optional)<input type="email" id="lms-new-email" class="lms-input" placeholder="john@example.com"></label>' +
-		'<label>Mobile (optional)<input type="tel" id="lms-new-mobile" class="lms-input" placeholder="0772..."></label>' +
-		'<label>National ID (optional)<input type="text" id="lms-new-national" class="lms-input" placeholder="99-000000-A99"></label>' +
+		'<div class="lms-section-header"><h4>New borrower — capture in the same step</h4></div>' +
+		'<p class="lms-muted" style="margin:0 0 0.5rem;font-size:0.8rem;">Same fields as the standalone Add Borrower form. Required only if this customer does not exist yet.</p>' +
+		lms_officer._borrowerFormHtml("lms-new-") +
 		"</div>" +
 		'<label>Loan product' +
 		'<select id="lms-app-product" class="lms-input lms-fallback-select lms-pop-select">' +
@@ -656,10 +660,32 @@ lms_officer._openApplicationModal = function (customers, products, root) {
 		setVal("lms-app-spouse-contact", d.spouse_contact);
 		setVal("lms-app-physical", d.physical_address);
 	};
+	// R34: wire the inline borrower's file-upload widgets ONCE the picker
+	// is unhidden. The picker is hidden on initial render (DOM hidden=true)
+	// so we delay binding until the change handler actually flips it open.
+	// `newBorrowerUploadsBound` keeps us from double-binding if the user
+	// toggles between "+ New borrower…" and an existing customer.
+	var newBorrowerUploadsBound = false;
+	var bindNewBorrowerWidgets = function () {
+		if (newBorrowerUploadsBound) return;
+		newBorrowerUploadsBound = true;
+		var inlineBlock = dlg.dialog.querySelector("#lms-new-borrower-fields");
+		if (!inlineBlock) return;
+		lms_portal._bindUploadWidgets(inlineBlock, {
+			"lms-new-iddoc": null,
+			"lms-new-poa": null,
+		});
+		if (window.LMSForms && typeof LMSForms.bindAll === "function") {
+			LMSForms.bindAll(inlineBlock);
+		}
+	};
 	if (customerSelect && newBorrowerFields) {
 		customerSelect.addEventListener("change", function () {
 			var v = customerSelect.value;
 			newBorrowerFields.hidden = v !== "__new__";
+			if (v === "__new__") {
+				bindNewBorrowerWidgets();
+			}
 			if (v && v !== "__new__") {
 				// Fetch the existing borrower's household / physical fields.
 				lms_portal.safeCall({
@@ -876,35 +902,31 @@ lms_officer._openApplicationModal = function (customers, products, root) {
 			});
 		});
 
-		// Collect all the new-borrower sub-fields too in case the user picked
-		// "+ New borrower…" in the dropdown.
-		var newBorrower = {};
+		// R34: collect the inline borrower's fields via the shared helper.
+		// `_collectNewBorrower` validates first-name + conditional KYC file
+		// uploads and returns `null` (with a toast) on failure. On success
+		// it returns a fields object keyed to match `create_borrower`'s
+		// whitelisted argument names.
+		var newBorrowerFields = null;
 		if (customerVal === "__new__") {
-			["lms-new-first","lms-new-last","lms-new-email","lms-new-mobile","lms-new-national"].forEach(function (id) {
-				var el = dlg.dialog.querySelector("#" + id);
-				if (el) newBorrower[id.replace("lms-new-", "")] = el.value || "";
-			});
+			newBorrowerFields = lms_officer._collectNewBorrower(dlg.dialog, "lms-new-");
+			if (!newBorrowerFields) return; // toast already shown
+			// When onboarding inline, the inline borrower's household /
+			// spouse fields are the AUTHORITATIVE source — override the
+			// application-modal copies (which default to blank) so the loan
+			// application carries the right marital_status / spouse / address
+			// through to the server.
+			marital = newBorrowerFields.marital_status || "";
+			spouseName = newBorrowerFields.spouse_name || "";
+			spouseDob = newBorrowerFields.spouse_dob || "";
+			spouseContact = newBorrowerFields.spouse_contact || "";
+			physical = newBorrowerFields.physical_address || "";
 		}
 
 		if (customerVal === "__new__") {
-			if (!newBorrower.first || !newBorrower.first.trim()) {
-				lms_portal.toast("First name is required.", "danger");
-				return;
-			}
 			lms_portal.safeCall({
 				method: "lms_saas.api.officer.create_borrower",
-				args: {
-					first_name: newBorrower.first,
-					last_name: newBorrower.last,
-					email: newBorrower.email,
-					mobile_no: newBorrower.mobile,
-					national_id: newBorrower.national,
-					marital_status: marital,
-					spouse_name: spouseName,
-					spouse_dob: spouseDob,
-					spouse_contact: spouseContact,
-					physical_address: physical,
-				},
+				args: newBorrowerFields,
 				callback: function (r) {
 					var res = (r && r.message) || {};
 					if (!res.customer) {
@@ -964,59 +986,70 @@ lms_officer._submitApp = function (customer, product, amount, periods, rate, met
 	});
 };
 
-lms_officer._openBorrowerModal = function () {
-	// Full onboarding form. Captures: identity (name, DOB, gender, national ID,
-	// ID document upload, proof-of-address upload), contact (email, mobile,
-	// address), KYC (status, consent), so the borrower is fully onboarded in
-	// one step and the manager can approve a loan application immediately.
-	var body =
-		'<div class="lms-form">' +
+// ---------------------------------------------------------------------------
+// R34 — Borrower onboarding form (DRY).
+//
+// `lms_officer._borrowerFormHtml(prefix)` is the SINGLE source of truth for
+// the borrower onboarding fields. It is reused by:
+//   - `_openBorrowerModal()`         — topbar "Add Borrower" button (prefix="lms-of-b-")
+//   - `_openApplicationModal(...)`    — inline "+ New borrower…" picker inside the
+//                                      New Application modal (prefix="lms-new-")
+//
+// Both call sites previously inlined their own form bodies, drifting out of
+// sync (the inline picker was dropping DOB, gender, address, KYC status,
+// consent, and ID/proof-of-address uploads). They now render the SAME HTML
+// and the SAME validation via the same `_openBorrowerModal`-style submit
+// handler, with the caller deciding where to land after a successful create
+// (Borrowers tab vs. continue with the in-flight loan application).
+// ---------------------------------------------------------------------------
+lms_officer._borrowerFormHtml = function (P) {
+	return (
 		// --- Section: Identity ---
 		'<div class="lms-section-header"><h4>Identity</h4></div>' +
 		'<div class="lms-grid-2">' +
-		'<label>First name *<input type="text" id="lms-of-b-first" class="lms-input" placeholder="John" required></label>' +
-		'<label>Last name<input type="text" id="lms-of-b-last" class="lms-input" placeholder="Doe"></label>' +
-		'<label>Date of birth<input type="date" id="lms-of-b-dob" class="lms-input"></label>' +
-		'<label>Gender<select id="lms-of-b-gender" class="lms-input lms-fallback-select">' +
+		'<label>First name *<input type="text" id="' + P + 'first" class="lms-input" placeholder="John" required></label>' +
+		'<label>Last name<input type="text" id="' + P + 'last" class="lms-input" placeholder="Doe"></label>' +
+		'<label>Date of birth<input type="date" id="' + P + 'dob" class="lms-input"></label>' +
+		'<label>Gender<select id="' + P + 'gender" class="lms-input lms-fallback-select">' +
 		'<option value="">—</option><option value="Male">Male</option><option value="Female">Female</option><option value="Other">Other</option>' +
 		'</select></label>' +
-		'<label class="lms-grid-2__full">National ID *<input type="text" id="lms-of-b-national" class="lms-input" placeholder="63-000000-A99" required></label>' +
+		'<label class="lms-grid-2__full">National ID *<input type="text" id="' + P + 'national" class="lms-input" placeholder="63-000000-A99" required></label>' +
 		'</div>' +
 
 		// --- Section: Contact ---
 		'<div class="lms-section-header"><h4>Contact</h4></div>' +
 		'<div class="lms-grid-2">' +
-		'<label>Email<input type="email" id="lms-of-b-email" class="lms-input" placeholder="john@example.com"></label>' +
-		'<label>Mobile<input type="tel" id="lms-of-b-mobile" class="lms-input" placeholder="0772..."></label>' +
-		'<label class="lms-grid-2__full">Address line 1<input type="text" id="lms-of-b-addr1" class="lms-input" placeholder="House / plot number, street"></label>' +
-		'<label>City<input type="text" id="lms-of-b-city" class="lms-input" placeholder="Harare"></label>' +
-				'<label>Customer group<select id="lms-of-b-cgroup" class="lms-input lms-fallback-select"><option value="">— Default —</option></select></label>' +
-				'</div>' +
+		'<label>Email<input type="email" id="' + P + 'email" class="lms-input" placeholder="john@example.com"></label>' +
+		'<label>Mobile<input type="tel" id="' + P + 'mobile" class="lms-input" placeholder="0772..."></label>' +
+		'<label class="lms-grid-2__full">Address line 1<input type="text" id="' + P + 'addr1" class="lms-input" placeholder="House / plot number, street"></label>' +
+		'<label>City<input type="text" id="' + P + 'city" class="lms-input" placeholder="Harare"></label>' +
+		'<label>Customer group<select id="' + P + 'cgroup" class="lms-input lms-fallback-select"><option value="">— Default —</option></select></label>' +
+		'</div>' +
 
-				// --- Section: Household / Spouse ---
-				'<div class="lms-section-header"><h4>Household &amp; Spouse</h4></div>' +
-				'<div class="lms-grid-2">' +
-				'<label><input type="checkbox" id="lms-of-b-marital"> Married (Marital status)</label>' +
-				'<label>Spouse contact details<input type="text" id="lms-of-b-spouse-contact" class="lms-input" placeholder="Phone / email"></label>' +
-				'<label>Name of spouse (first &amp; last)<input type="text" id="lms-of-b-spouse-name" class="lms-input" placeholder="Jane Doe"></label>' +
-				'<label>Spouse date of birth<input type="date" id="lms-of-b-spouse-dob" class="lms-input"></label>' +
-				'<label class="lms-grid-2__full">Applicant\'s physical address<textarea id="lms-of-b-physical" class="lms-input" rows="2" placeholder="House / plot, street, suburb, city"></textarea></label>' +
-				'</div>' +
-
-				// --- Section: KYC ---
-				'<div class="lms-section-header"><h4>KYC &amp; consent</h4></div>' +
+		// --- Section: Household / Spouse ---
+		'<div class="lms-section-header"><h4>Household &amp; Spouse</h4></div>' +
 		'<div class="lms-grid-2">' +
-		'<label>KYC status<select id="lms-of-b-kyc" class="lms-input lms-fallback-select">' +
+		'<label><input type="checkbox" id="' + P + 'marital"> Married (Marital status)</label>' +
+		'<label>Spouse contact details<input type="text" id="' + P + 'spouse-contact" class="lms-input" placeholder="Phone / email"></label>' +
+		'<label>Name of spouse (first &amp; last)<input type="text" id="' + P + 'spouse-name" class="lms-input" placeholder="Jane Doe"></label>' +
+		'<label>Spouse date of birth<input type="date" id="' + P + 'spouse-dob" class="lms-input"></label>' +
+		'<label class="lms-grid-2__full">Applicant\'s physical address<textarea id="' + P + 'physical" class="lms-input" rows="2" placeholder="House / plot, street, suburb, city"></textarea></label>' +
+		'</div>' +
+
+		// --- Section: KYC ---
+		'<div class="lms-section-header"><h4>KYC &amp; consent</h4></div>' +
+		'<div class="lms-grid-2">' +
+		'<label>KYC status<select id="' + P + 'kyc" class="lms-input lms-fallback-select">' +
 		'<option value="Pending" selected>Pending — collect later</option>' +
 		'<option value="Approved">Approved — documents verified</option>' +
 		'<option value="Rejected">Rejected</option>' +
 		'</select></label>' +
-		'<label class="lms-grid-2__full"><input type="checkbox" id="lms-of-b-consent"> Customer consents to data processing</label>' +
+		'<label class="lms-grid-2__full"><input type="checkbox" id="' + P + 'consent"> Customer consents to data processing</label>' +
 		'</div>' +
 		'<p class="lms-muted" style="margin:0.5rem 0 0;font-size:0.8rem;">Click <strong>Upload</strong> to attach a file from your device. Required only if KYC status is <strong>Approved</strong>.</p>' +
 		'<div class="lms-grid-2" style="margin-top:0.5rem;">' +
 		lms_portal._fileUploadField({
-			id: "lms-of-b-iddoc",
+			id: P + "iddoc",
 			label: "ID document",
 			fieldname: null,
 			required: false,
@@ -1024,15 +1057,79 @@ lms_officer._openBorrowerModal = function () {
 			buttonLabel: "Upload ID document",
 		}) +
 		lms_portal._fileUploadField({
-			id: "lms-of-b-poa",
+			id: P + "poa",
 			label: "Proof of address",
 			fieldname: null,
 			required: false,
 			accept: "image/*,application/pdf",
 			buttonLabel: "Upload proof of address",
 		}) +
-		'</div>' +
-		'</div>';
+		'</div>'
+	);
+};
+
+// Shared "collect + validate + submit borrower fields" helper. Returns the
+// extracted field map so the caller can decide what to do next (e.g.
+// `_openBorrowerModal` lands on the Borrowers tab, the inline picker in
+// `_openApplicationModal` continues with the loan application submission).
+// Returns `null` if validation failed (and surfaces a toast).
+lms_officer._collectNewBorrower = function (root, P) {
+	P = P || "lms-of-b-";
+	root = root || document.body;
+	var $ = function (id) { return (root.querySelector ? root.querySelector("#" + id) : null); };
+	var val = function (id) { return ($(P + id) || {}).value || ""; };
+	var checked = function (id) { var el = $(P + id); return !!(el && el.checked); };
+
+	var fields = {
+		first_name: val("first"),
+		last_name: val("last"),
+		date_of_birth: val("dob"),
+		gender: val("gender"),
+		national_id: val("national"),
+		email: val("email"),
+		mobile_no: val("mobile"),
+		address_line1: val("addr1"),
+		city: val("city"),
+		customer_group: val("cgroup"),
+		marital_status: checked("marital") ? "Married" : "Single",
+		spouse_name: val("spouse-name"),
+		spouse_dob: val("spouse-dob"),
+		spouse_contact: val("spouse-contact"),
+		physical_address: val("physical"),
+		kyc_status: val("kyc") || "Pending",
+		consent_given: checked("consent") ? 1 : 0,
+		id_document_proof: val("iddoc"),
+		proof_of_address: val("poa"),
+	};
+
+	if (!fields.first_name || !fields.first_name.trim()) {
+		lms_portal.toast("First name is required.", "danger");
+		return null;
+	}
+	// Only require the file uploads if the officer is approving KYC at the
+	// counter. For "Pending — collect later" the server is happy with empty
+	// file fields; matching the server keeps the officer's workflow
+	// friction-free.
+	if (fields.kyc_status === "Approved" && !fields.id_document_proof) {
+		lms_portal.toast("Please upload the ID document or set KYC to Pending.", "danger");
+		return null;
+	}
+	if (fields.kyc_status === "Approved" && !fields.proof_of_address) {
+		lms_portal.toast("Please upload the proof of address or set KYC to Pending.", "danger");
+		return null;
+	}
+	return fields;
+};
+
+lms_officer._openBorrowerModal = function () {
+	// Topbar "Add Borrower" button — opens the borrower onboarding modal in
+	// standalone mode. The form is delegated to `lms_officer._borrowerFormHtml`
+	// and the submit collects fields via `_collectNewBorrower`. After a
+	// successful create we land on the Borrowers tab (the inline picker in
+	// `_openApplicationModal` reuses the same helpers and instead continues
+	// with the in-flight loan application — see R34 comments above).
+	var P = "lms-of-b-";
+	var body = '<div class="lms-form">' + lms_officer._borrowerFormHtml(P) + '</div>';
 
 	// Prefer LMSModal (consistent with New Application) — fallback to
 	// lms_portal.modal only if LMSModal isn't loaded for some reason.
@@ -1072,108 +1169,73 @@ lms_officer._openBorrowerModal = function () {
 	// returns nothing. Use the captured dlg/dialog reference instead.
 	var dlgRoot = (dlg && dlg.dialog) || (dlg && dlg.el) || null;
 	// Wire up the file-upload widgets (ID document + proof of address).
-	// Do this AFTER we have a reference to the dialog element so the
-	// handlers can read the file_url back into the matching hidden input.
 	// Pass null as the fieldname so the upload skips the borrower-side
-	// upload_kyc_document registration — the officer will save the
-	// file_url directly on the new LMS Borrower Compliance record when
-	// the borrower is created.
+	// upload_kyc_document registration — the server saves the file_url
+	// directly on the new LMS Borrower Compliance record.
 	lms_portal._bindUploadWidgets(dlgRoot, {
-		"lms-of-b-iddoc": null,
-		"lms-of-b-poa": null,
+		[P + "iddoc"]: null,
+		[P + "poa"]: null,
 	});
-	var onSubmit = function (submit) {
-		if (!submit) return;
-		var root = dlgRoot || document.body;
-		var $ = function (id) { return (root.querySelector ? root.querySelector("#" + id) : null); };
-		var first = ($("lms-of-b-first") || {}).value || "";
-		var last = ($("lms-of-b-last") || {}).value || "";
-		var dob = ($("lms-of-b-dob") || {}).value || "";
-		var gender = ($("lms-of-b-gender") || {}).value || "";
-		var national = ($("lms-of-b-national") || {}).value || "";
-		var email = ($("lms-of-b-email") || {}).value || "";
-		var mobile = ($("lms-of-b-mobile") || {}).value || "";
-		var addr1 = ($("lms-of-b-addr1") || {}).value || "";
-		var city = ($("lms-of-b-city") || {}).value || "";
-				var cgroup = ($("lms-of-b-cgroup") || {}).value || "";
-				var maritalEl = $("lms-of-b-marital");
-				var marital = (maritalEl && maritalEl.checked) ? "Married" : "Single";
-				var spouseName = ($("lms-of-b-spouse-name") || {}).value || "";
-				var spouseDob = ($("lms-of-b-spouse-dob") || {}).value || "";
-				var spouseContact = ($("lms-of-b-spouse-contact") || {}).value || "";
-				var physical = ($("lms-of-b-physical") || {}).value || "";
-				var kyc = ($("lms-of-b-kyc") || {}).value || "Pending";
-		var consent = ($("lms-of-b-consent") || {}).checked ? 1 : 0;
-		var iddoc = ($("lms-of-b-iddoc") || {}).value || "";
-		var poa = ($("lms-of-b-poa") || {}).value || "";
 
-		if (!first.trim()) {
-			lms_portal.toast("First name is required.", "danger");
-			return;
-		}
-		// Only require the file uploads if the officer is approving KYC
-		// at the counter. For "Pending — collect later" the server is
-		// happy with empty file fields; matching the server keeps the
-		// officer's workflow friction-free.
-		if (kyc === "Approved" && !iddoc) {
-			lms_portal.toast("Please upload the ID document or set KYC to Pending.", "danger");
-			return;
-		}
-		if (kyc === "Approved" && !poa) {
-			lms_portal.toast("Please upload the proof of address or set KYC to Pending.", "danger");
-			return;
-		}
-		lms_portal.safeCall({
-			method: "lms_saas.api.officer.create_borrower",
-			args: {
-				first_name: first,
-				last_name: last,
-				email: email,
-				mobile_no: mobile,
-				national_id: national,
-				date_of_birth: dob,
-				gender: gender,
-				address_line1: addr1,
-				city: city,
-				id_document_proof: iddoc,
-				proof_of_address: poa,
-							consent_given: consent,
-							kyc_status: kyc,
-							customer_group: cgroup,
-							marital_status: marital,
-							spouse_name: spouseName,
-							spouse_dob: spouseDob,
-							spouse_contact: spouseContact,
-							physical_address: physical,
-						},
-			callback: function (r) {
-				var res = (r && r.message) || {};
-				if (!res.customer) {
-					lms_portal.toast("Could not create borrower.", "danger");
-					return;
-				}
-				lms_portal.toast(
-					"Borrower created: " + (res.customer_name || res.customer) +
-					(res.kyc ? " (KYC " + res.kyc_status + ")" : ""),
-					"success"
-				);
-				lms_officer._showTab("borrowers");
-			},
-			error: function (err) {
-				var msg = (err && (err.message || err._server_message)) || "Could not create borrower.";
-				lms_portal.toast(msg, "danger");
-			},
-		});
+	// Standalone "Add Borrower" post-create landing: jump to the Borrowers
+	// tab. The inline caller in `_openApplicationModal` overrides this with
+	// a different `onAfterCreate` that continues into loan-application submit.
+	var onAfterCreate = function (res) {
+		lms_portal.toast(
+			"Borrower created: " + (res.customer_name || res.customer) +
+			(res.kyc ? " (KYC " + res.kyc_status + ")" : ""),
+			"success"
+		);
+		lms_officer._showTab("borrowers");
 	};
 
 	if (dlg && typeof dlg.then === "function") {
 		// LMSModal: returns a Promise-like { then }
-		dlg.then(onSubmit);
+		dlg.then(function (submit) {
+			if (!submit) return;
+			var fields = lms_officer._collectNewBorrower(dlgRoot, P);
+			if (!fields) return;
+			lms_portal.safeCall({
+				method: "lms_saas.api.officer.create_borrower",
+				args: fields,
+				callback: function (r) {
+					var res = (r && r.message) || {};
+					if (!res.customer) {
+						lms_portal.toast("Could not create borrower.", "danger");
+						return;
+					}
+					onAfterCreate(res);
+				},
+				error: function (err) {
+					var msg = (err && (err.message || err._server_message)) || "Could not create borrower.";
+					lms_portal.toast(msg, "danger");
+				},
+			});
+		});
 	} else if (dlg && dlg.el) {
 		// lms_portal.modal: bind to the confirm button manually
 		var confirmBtn = dlg.el.querySelector("[data-lms-modal-confirm]");
 		if (confirmBtn) {
-			confirmBtn.addEventListener("click", function () { onSubmit(true); });
+			confirmBtn.addEventListener("click", function () {
+				var fields = lms_officer._collectNewBorrower(dlgRoot, P);
+				if (!fields) return;
+				lms_portal.safeCall({
+					method: "lms_saas.api.officer.create_borrower",
+					args: fields,
+					callback: function (r) {
+						var res = (r && r.message) || {};
+						if (!res.customer) {
+							lms_portal.toast("Could not create borrower.", "danger");
+							return;
+						}
+						onAfterCreate(res);
+					},
+					error: function (err) {
+						var msg = (err && (err.message || err._server_message)) || "Could not create borrower.";
+						lms_portal.toast(msg, "danger");
+					},
+				});
+			});
 		}
 	}
 };

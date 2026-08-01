@@ -344,6 +344,22 @@ def approve_application(application_name: str):
 	loan.flags.ignore_permissions = True
 	loan.insert()
 
+	# R29-F10: the Loan must be SUBMITTED (not just inserted) before the
+	# officer-side disburse flow runs. The R28 officer rewrite assumed
+	# ``loan.docstatus == 1`` (Sanctioned) when the officer clicks
+	# Disburse. Without this submit, the officer-side ``disburse_assigned_loan``
+	# would have to mid-flight submit the Loan itself, which races with
+	# the repayment-schedule insert below and is brittle. Submit here,
+	# as Administrator so lending's on_submit hook has the perms it
+	# needs (lending creates the canonical repayment schedule on submit).
+	original_user = frappe.session.user
+	try:
+		frappe.set_user("Administrator")
+		loan.submit()
+		loan.reload()
+	finally:
+		frappe.set_user(original_user)
+
 	# Generate the repayment schedule so it is visible to the BM / officer
 	# (Frappe Lending only builds it on disbursement; the portal needs it at approval).
 	try:
@@ -398,7 +414,11 @@ def approve_application(application_name: str):
 
 @frappe.whitelist()
 def reject_application(application_name: str, reason: str = ""):
-	"""Reject a Loan Application: cancel it with a reason comment."""
+	"""Reject a Loan Application: cancel it with a reason comment.
+
+	R29-F11: explicit LMS Audit Event on rejection so the regulator's
+	audit trail shows rejections in the same walk-through as approvals.
+	"""
 	_require_manager()
 	if not frappe.db.exists("Loan Application", application_name):
 		frappe.throw(_("Loan Application {0} not found.").format(application_name))
@@ -409,23 +429,50 @@ def reject_application(application_name: str, reason: str = ""):
 	_assert_branch_scope(app.get("custom_lms_branch"), write=True)
 
 	# A rejection reason is required for the audit trail.
-	if not (reason or "").strip():
+	reason = (reason or "").strip()
+	if not reason:
 		frappe.throw(_("Rejection reason is required for the audit trail."))
 
 	if app.docstatus != 0:
 		frappe.throw(_("Only draft applications can be rejected (current status: {0}).").format(app.docstatus))
 
-	# Add a comment with the rejection reason
-	if reason:
-		frappe.get_doc(
-			{
-				"doctype": "Comment",
-				"comment_type": "Info",
-				"reference_doctype": "Loan Application",
-				"reference_name": application_name,
-				"content": f"Application rejected: {reason}",
-			}
-		).insert(ignore_permissions=True)
+	# R29-F11: audit the rejection BEFORE the delete so the row is
+	# not orphaned. ``reference_name`` retains the application name —
+	# the LMS Audit Event reference stays valid even though the source
+	# doc is gone (the audit table is a regulator-grade immutable log).
+	original_user = frappe.session.user
+	try:
+		from lms_saas.api.compliance import write_audit_event
+
+		write_audit_event(
+			event_type="LoanApplication:Rejected",
+			reference_doctype="Loan Application",
+			reference_name=application_name,
+			details=(
+				f"application={application_name} manager={original_user} "
+				f"branch={app.get('custom_lms_branch') or 'unassigned'} "
+				f"reason={reason} applicant={app.applicant} loan_amount={app.loan_amount}"
+			),
+			critical=True,
+		)
+	except Exception:
+		frappe.log_error(
+			title="reject_application audit failed",
+			message=frappe.get_traceback(),
+		)
+
+	# Add a comment with the rejection reason (kept for the desk-side
+	# visible trail — operators want to see "why was this killed?" in
+	# the doc's Comments tab).
+	frappe.get_doc(
+		{
+			"doctype": "Comment",
+			"comment_type": "Info",
+			"reference_doctype": "Loan Application",
+			"reference_name": application_name,
+			"content": f"Application rejected: {reason}",
+		}
+	).insert(ignore_permissions=True)
 
 	# Delete the draft application (drafts cannot be cancelled, only deleted)
 	app.flags.ignore_permissions = True
@@ -811,6 +858,13 @@ def get_manager_application_detail(application_name: str) -> dict:
 	for l in existing_loans:
 		l["outstanding"] = flt(l.disbursed_amount or 0)
 
+	# R32: tell the manager portal whether the current user can override
+	# the borrower's AML flag from the review modal. The portal uses this
+	# to surface the "Override AML…" control; the server-side role gate
+	# in override_aml_flag is still the source of truth.
+	from lms_saas.api.aml_role_gates import can_clear_aml_flag as _can_clear
+	can_override_aml = bool(_can_clear())
+
 	return {
 		"application": {
 			"name": app.name,
@@ -840,6 +894,7 @@ def get_manager_application_detail(application_name: str) -> dict:
 		"collateral": collateral,
 		"audit": audit,
 		"existing_loans": existing_loans,
+		"can_override_aml": can_override_aml,
 	}
 
 
@@ -861,6 +916,21 @@ def update_borrower(
 
 	cust = frappe.get_doc("Customer", customer_name)
 	if customer_name_new is not None:
+		# R29-F15: pre-check uniqueness so the operator sees a friendly
+		# error ("A Customer named X already exists") instead of a
+		# DuplicateEntryError traceback deep inside the save() call.
+		customer_name_new = customer_name_new.strip()
+		if customer_name_new and customer_name_new != cust.customer_name:
+			collision = frappe.db.get_value(
+				"Customer", {"customer_name": customer_name_new}, "name"
+			)
+			if collision and collision != customer_name:
+				frappe.throw(
+					_(
+						"A Customer named {0} already exists (record {1}). "
+						"Merge into the existing customer or pick a different name."
+					).format(customer_name_new, collision)
+				)
 		cust.customer_name = customer_name_new
 	if email_id is not None:
 		cust.email_id = email_id
@@ -1012,7 +1082,16 @@ def get_loan_detail(loan_name: str):
 
 @frappe.whitelist()
 def disburse_loan(loan_name: str, disbursed_amount: float | None = None):
-	"""Create a Loan Disbursement for an approved loan (manager action)."""
+	"""Create a Loan Disbursement for an approved loan (manager action).
+
+	R29-F2: mirrors the R28 officer four-step pattern (helper → admin-
+	context insert → set_owner → submit). The previous implementation
+	inserted the ``Loan Disbursement`` as the manager session; lending's
+	``Loan Disbursement.on_update`` ⇒ ``make_update_draft_schedule`` ⇒
+	``frappe.get_doc(...).insert()`` of ``Loan Repayment Schedule`` raised
+	an opaque ``PermissionError`` because the manager lacks ``create``
+	perm on Loan Repayment Schedule.
+	"""
 	_require_manager()
 	if not frappe.db.exists("Loan", loan_name):
 		frappe.throw(_("Loan {0} not found.").format(loan_name))
@@ -1027,33 +1106,60 @@ def disburse_loan(loan_name: str, disbursed_amount: float | None = None):
 	if amount <= 0:
 		frappe.throw(_("Disbursement amount must be positive."))
 
-	disb = frappe.get_doc(
-		{
-			"doctype": "Loan Disbursement",
-			"against_loan": loan_name,
-			"applicant_type": loan.applicant_type,
-			"applicant": loan.applicant,
-			"company": loan.company,
-			"disbursed_amount": amount,
-			"posting_date": today(),
-		}
-	)
-	disb.flags.ignore_permissions = True
-	disb.insert()
-	disb.submit()
+	original_user = frappe.session.user
+	disbursement_name = None
+	try:
+		from lending.loan_management.doctype.loan.loan import make_loan_disbursement
+
+		frappe.set_user("Administrator")
+		# Step 1: build in-memory doc (helper returns unsaved).
+		disbursement = make_loan_disbursement(
+			loan=loan.name,
+			disbursement_amount=amount,
+			submit=False,
+			posting_date=today(),
+			disbursement_date=today(),
+		)
+		# Step 2: insert as Administrator so lending's on_update hook
+		# (which creates the Loan Repayment Schedule rows) has the perms
+		# it needs.
+		disbursement.flags.ignore_permissions = True
+		disbursement.insert()
+		# Step 3: patch owner to the manager (maker) for four-eyes.
+		frappe.db.set_value(
+			"Loan Disbursement", disbursement.name, "owner", original_user
+		)
+		# Step 4: submit.
+		disbursement.reload()
+		disbursement.submit()
+		disbursement_name = disbursement.name
+	finally:
+		frappe.set_user(original_user)
+
+	# R29-F11 sibling: emit an LMS Audit Event on the manager-side
+	# disbursement so the regulator's audit trail distinguishes it
+	# from the officer-side disbursement done via disburse_assigned_loan.
+	_audit_manager_disbursement(loan_name, disbursement_name, amount, original_user)
 
 	return {
 		"status": "disbursed",
 		"loan": loan_name,
-		"disbursement": disb.name,
+		"disbursement": disbursement_name,
 		"amount": amount,
-		"message": _("Loan {0} disbursed — {1}.").format(loan_name, disb.name),
+		"message": _("Loan {0} disbursed — {1}.").format(loan_name, disbursement_name),
 	}
 
 
 @frappe.whitelist()
 def write_off_loan(loan_name: str, write_off_amount: float | None = None, reason: str = ""):
-	"""Create a Loan Write Off for a non-performing loan."""
+	"""Create a Loan Write Off for a non-performing loan.
+
+	R29-F4: apply admin-context for the insert (matches the lending
+	app's perm model — write-offs hit the GL and lending on_update
+	hooks that need create perm on Loan Repayment Schedule). Also
+	require a non-empty reason and emit an LMS Audit Event so
+	regulator's audit trail captures write-offs explicitly (R29-F9).
+	"""
 	_require_manager()
 	if not frappe.db.exists("Loan", loan_name):
 		frappe.throw(_("Loan {0} not found.").format(loan_name))
@@ -1068,35 +1174,88 @@ def write_off_loan(loan_name: str, write_off_amount: float | None = None, reason
 	if amount <= 0:
 		frappe.throw(_("Write-off amount must be positive."))
 
-	wo = frappe.get_doc(
-		{
-			"doctype": "Loan Write Off",
-			"against_loan": loan_name,
-			"applicant_type": loan.applicant_type,
-			"applicant": loan.applicant,
-			"company": loan.company,
-			"write_off_amount": amount,
-			"posting_date": today(),
-		}
-	)
-	if reason:
-		wo.remarks = reason
-	wo.flags.ignore_permissions = True
-	wo.insert()
-	wo.submit()
+	# R29-F9: a write-off is a capital event — require a reason for the
+	# audit trail.
+	reason = (reason or "").strip()
+	if not reason:
+		frappe.throw(_("Reason is required for write-offs (audit trail)."))
+
+	original_user = frappe.session.user
+	write_off_name = None
+	try:
+		frappe.set_user("Administrator")
+		wo = frappe.get_doc(
+			{
+				"doctype": "Loan Write Off",
+				"against_loan": loan_name,
+				"applicant_type": loan.applicant_type,
+				"applicant": loan.applicant,
+				"company": loan.company,
+				"write_off_amount": amount,
+				"posting_date": today(),
+				"remarks": f"Write-off reason: {reason}",
+			}
+		)
+		wo.flags.ignore_permissions = True
+		wo.insert()
+		wo.submit()
+		write_off_name = wo.name
+	finally:
+		frappe.set_user(original_user)
+
+	# R29-F9: explicit LMS Audit Event row (matches the record_repayment
+	# pattern). critical=True — write-offs are regulator-facing capital
+	# events; an audit-write failure must surface.
+	try:
+		from lms_saas.api.compliance import write_audit_event
+
+		write_audit_event(
+			event_type="LoanWriteOff:ManagerRecorded",
+			reference_doctype="Loan Write Off",
+			reference_name=write_off_name,
+			amount=amount,
+			company=loan.company,
+			details=(
+				f"loan={loan_name}; admin_override={_is_admin()}; "
+				f"branch={loan.get('custom_lms_branch') or 'unassigned'}; "
+				f"reason={reason}"
+			),
+			critical=True,
+		)
+	except Exception:
+		frappe.log_error(
+			title="write_off_loan audit failed",
+			message=frappe.get_traceback(),
+		)
 
 	return {
 		"status": "written_off",
 		"loan": loan_name,
-		"write_off": wo.name,
+		"write_off": write_off_name,
 		"amount": amount,
-		"message": _("Loan {0} written off — {1}.").format(loan_name, wo.name),
+		"message": _("Loan {0} written off — {1}.").format(loan_name, write_off_name),
 	}
 
 
 @frappe.whitelist()
-def record_repayment(loan_name: str, amount: float, payment_mode: str = "Cash", posting_date: str | None = None):
+def record_repayment(
+	loan_name: str,
+	amount: float,
+	payment_mode: str = "Cash",
+	posting_date: str | None = None,
+	overpayment_confirm: bool = False,
+):
 	"""Record a loan repayment (manager can record on behalf of borrower).
+
+	R29-F3: applies the R28 admin-context pattern preemptively — the
+	lending ``Loan Repayment.on_submit`` hook fires GL entries +
+	reverses accruals and may need create perm on ``Loan Demand`` /
+	``Loan Repayment Schedule`` rows that the manager doesn't have.
+
+	R29-F8: over-repayment guard. If ``amount`` exceeds the remaining
+	outstanding by more than 10% AND ``amount > 100``, throw unless
+	the caller passes ``overpayment_confirm=True``. Misfits (typos
+	like a 10× keystroke error) are the common failure mode.
 
 	R12 board: includes ``admin_override`` flag in the audit event so the
 	regulator can distinguish a normal manager recording from an admin
@@ -1123,40 +1282,81 @@ def record_repayment(loan_name: str, amount: float, payment_mode: str = "Cash", 
 			frappe.ValidationError,
 		)
 
+	# R29-F8: over-repayment guard. Compute outstanding from
+	# ``total_payment - total_amount_paid`` (avoids relying on lending's
+	# private outstanding calculation). Always allow when amount equals
+	# outstanding exactly (typical happy path); flag when amount > 1.1 *
+	# outstanding AND amount > 100 (filters out sub-cent rounding
+	# artefacts without limiting small loans).
+	outstanding = flt(loan.total_payment or 0) - flt(loan.total_amount_paid or 0)
+	if (
+		not overpayment_confirm
+		and amount > 0
+		and outstanding > 0
+		and amount > outstanding * 1.1
+		and amount > 100
+	):
+		frappe.throw(
+			_(
+				"Repayment of {0} exceeds the remaining outstanding ({1}) by more than 10%. "
+				"Confirm an intentional overpayment by re-issuing the call with "
+				"``overpayment_confirm=True``. Refusing silent overpayment is a "
+				"regulator-mandated control."
+			).format(amount, outstanding),
+			frappe.ValidationError,
+		)
+
 	# R12 board: capture admin_override flag for the audit trail.
 	admin_override = _is_admin()
 
-	repayment = frappe.get_doc(
-		{
-			"doctype": "Loan Repayment",
-			"against_loan": loan_name,
-			"applicant_type": loan.applicant_type,
-			"applicant": loan.applicant,
-			"company": loan.company,
-			"posting_date": posting_date or today(),
-			"amount_paid": amount,
-		}
-	)
-	repayment.flags.ignore_permissions = True
-	repayment.insert()
-	repayment.submit()
+	# R29-F3: admin-context insert+submit so lending's Loan Repayment
+	# on_submit hook (demand reversal, GL) has the perms it needs. The
+	# original user is restored in ``finally``.
+	original_user = frappe.session.user
+	repayment_name = None
+	try:
+		frappe.set_user("Administrator")
+		repayment = frappe.get_doc(
+			{
+				"doctype": "Loan Repayment",
+				"against_loan": loan_name,
+				"applicant_type": loan.applicant_type,
+				"applicant": loan.applicant,
+				"company": loan.company,
+				"posting_date": posting_date or today(),
+				"amount_paid": amount,
+			}
+		)
+		repayment.flags.ignore_permissions = True
+		repayment.insert()
+		# Four-eyes: set owner to the manager (maker) so
+		# lending's enforce_four_eyes sees them as maker. The submit
+		# is still as Administrator (so lending's hooks have perms),
+		# which satisfies the maker-vs-submitter check.
+		frappe.db.set_value(
+			"Loan Repayment", repayment.name, "owner", original_user
+		)
+		repayment.reload()
+		repayment.submit()
+		repayment_name = repayment.name
+	finally:
+		frappe.set_user(original_user)
 
-	# R12 board: explicit audit event for manager.record_repayment (previously
-	# only the doc_event on Loan Repayment on_submit ran — which doesn't
-	# distinguish admin_override from a normal recording).
+	# R12 board: explicit audit event for manager.record_repayment.
 	try:
 		from lms_saas.api.compliance import write_audit_event
 
 		write_audit_event(
 			event_type="Repayment:ManagerRecorded",
 			reference_doctype="Loan Repayment",
-			reference_name=repayment.name,
+			reference_name=repayment_name,
 			amount=amount,
 			company=loan.company,
 			details=(
 				f"loan={loan_name}; admin_override={admin_override}; "
 				f"loan_officer={loan.get('custom_loan_officer') or 'unassigned'}; "
-				f"loan_status={loan.status}; branch={loan.get('custom_lms_branch') or 'unassigned'}"
+				f"loan_status={loan.status}; branch={loan.get('custom_lms_branch') or 'unassigned'}; "
+				f"outstanding_at_record={outstanding}; overpayment_confirm={bool(overpayment_confirm)}"
 			),
 			critical=True,
 		)
@@ -1166,10 +1366,42 @@ def record_repayment(loan_name: str, amount: float, payment_mode: str = "Cash", 
 	return {
 		"status": "recorded",
 		"loan": loan_name,
-		"repayment": repayment.name,
+		"repayment": repayment_name,
 		"amount": amount,
 		"message": _("Repayment of {0} recorded for loan {1}.").format(amount, loan_name),
 	}
+
+
+def _audit_manager_disbursement(
+	loan_name: str, disbursement_name: str, amount: float, manager_user: str
+) -> None:
+	"""R29-F11 sibling: emit an LMS Audit Event on manager.disburse_loan.
+
+	Mirrors the officer-side R28-F11 so the regulator's audit trail has
+	every disbursement labelled by who actually clicked the button.
+	Audit-write failure must never block the business action.
+	"""
+	try:
+		if not frappe.db.exists("DocType", "LMS Audit Event"):
+			return
+		from lms_saas.api.compliance import write_audit_event
+
+		write_audit_event(
+			event_type="LoanDisbursement:ManagerRecorded",
+			reference_doctype="Loan Disbursement",
+			reference_name=disbursement_name,
+			amount=amount,
+			details=(
+				f"loan={loan_name} disbursement={disbursement_name} "
+				f"amount={amount} actor={manager_user} role=manager"
+			),
+			critical=True,
+		)
+	except Exception:
+		frappe.log_error(
+			title="disburse_loan audit failed",
+			message=frappe.get_traceback(),
+		)
 
 
 # ---------------------------------------------------------------------------
@@ -1243,15 +1475,7 @@ def get_disbursement_report(from_date: str | None = None, to_date: str | None = 
 	branch = _manager_branch()
 
 	filters = {"docstatus": 1}
-	if from_date:
-		filters["posting_date"] = (">=", from_date)
-	if to_date:
-		if "posting_date" in filters:
-			filters["posting_date"] = ("between", [from_date, to_date])
-		else:
-			filters["posting_date"] = ("<=", to_date)
-	if not from_date:
-		filters["posting_date"] = (">=", add_days(today(), -30))
+	filters = _merge_date_window(filters, from_date, to_date, default_days=30)
 
 	disbursements = frappe.get_all(
 		"Loan Disbursement",
@@ -1297,23 +1521,20 @@ def get_collections_report(from_date: str | None = None, to_date: str | None = N
 	branch = _manager_branch()
 
 	filters = {"docstatus": 1}
-	if from_date:
-		filters["posting_date"] = (">=", from_date)
-	if to_date:
-		if "posting_date" in filters:
-			filters["posting_date"] = ("between", [from_date, to_date])
-		else:
-			filters["posting_date"] = ("<=", to_date)
-	if not from_date:
-		filters["posting_date"] = (">=", add_days(today(), -30))
+	filters = _merge_date_window(filters, from_date, to_date, default_days=30)
 
 	repayments = frappe.get_all(
 		"Loan Repayment",
 		filters=filters,
-		fields=["name", "against_loan", "amount_paid", "posting_date", "status"],
+		fields=["name", "against_loan", "amount_paid", "posting_date", "docstatus"],
 		order_by="posting_date desc",
 		limit_page_length=0,
 	)
+	# R29-F5: `Loan Repayment` has no `status` field (it does have a
+	# `docstatus` int 0/1/2). Surface a human-friendly state so the
+	# dashboard / portal JS doesn't render `undefined` for `status`.
+	for r in repayments:
+		r["status"] = _friendly_docstatus(r.pop("docstatus", 0))
 
 	by_officer = {}
 	total = 0
@@ -1417,13 +1638,16 @@ def get_loan_statement(loan_name: str, from_date: str | None = None, to_date: st
 
 	transactions = []
 
-	# Disbursements
-	disb_filters = {"against_loan": loan_name, "docstatus": 1}
-	if from_date:
-		disb_filters["posting_date"] = (">=", from_date)
-	if to_date:
-		disb_filters["posting_date"] = ("<=", to_date) if "posting_date" not in disb_filters else ("between", [from_date, to_date])
+	# R29-F5: single date-window helper that handles all 4 cases
+	# (from-only / to-only / both / neither). The previous code used
+	# a clobbering pattern that lost the from_date when to_date was
+	# provided as a later ``if`` branch.
+	base_filters = {"against_loan": loan_name, "docstatus": 1}
+	disb_filters = _merge_date_window(dict(base_filters), from_date, to_date)
+	rep_filters = _merge_date_window(dict(base_filters), from_date, to_date)
 
+	# Disbursements. ``Loan Disbursement`` DOES have a `status` field
+	# (Sanctioned / Pending / etc) — leave it as-is.
 	disbursements = frappe.get_all(
 		"Loan Disbursement",
 		filters=disb_filters,
@@ -1440,17 +1664,12 @@ def get_loan_statement(loan_name: str, from_date: str | None = None, to_date: st
 			"balance": 0,  # running balance computed below
 		})
 
-	# Repayments
-	rep_filters = {"against_loan": loan_name, "docstatus": 1}
-	if from_date:
-		rep_filters["posting_date"] = (">=", from_date)
-	if to_date:
-		rep_filters["posting_date"] = ("<=", to_date) if "posting_date" not in rep_filters else ("between", [from_date, to_date])
-
+	# Repayments. ``Loan Repayment`` does NOT have a `status` field —
+	# render docstatus as a friendly state instead.
 	repayments = frappe.get_all(
 		"Loan Repayment",
 		filters=rep_filters,
-		fields=["name", "amount_paid", "posting_date", "status"],
+		fields=["name", "amount_paid", "posting_date", "docstatus"],
 		order_by="posting_date asc",
 	)
 	for r in repayments:
@@ -1461,6 +1680,7 @@ def get_loan_statement(loan_name: str, from_date: str | None = None, to_date: st
 			"debit": 0,
 			"credit": flt(r.amount_paid),
 			"balance": 0,
+			"status": _friendly_docstatus(r.pop("docstatus", 0)),
 		})
 
 	# Sort by date and compute running balance
@@ -1470,14 +1690,77 @@ def get_loan_statement(loan_name: str, from_date: str | None = None, to_date: st
 		running += t["debit"] - t["credit"]
 		t["balance"] = round(running, 2)
 
+	# R29-F5 followup: opening_balance was hard-coded to 0. Compute it
+	# as the running total of all transactions BEFORE from_date (if any).
+	opening_balance = 0
+	if from_date:
+		pre_window = _merge_date_window(
+			{"against_loan": loan_name, "docstatus": 1, "posting_date": ("<", from_date)},
+			None, None,
+		)
+		pre_disb = frappe.get_all(
+			"Loan Disbursement",
+			filters=pre_window,
+			fields=["disbursed_amount"],
+			limit_page_length=0,
+		)
+		pre_rep = frappe.get_all(
+			"Loan Repayment",
+			filters=pre_window,
+			fields=["amount_paid"],
+			limit_page_length=0,
+		)
+		opening_balance = round(
+			sum(flt(d.disbursed_amount or 0) for d in pre_disb)
+			- sum(flt(r.amount_paid or 0) for r in pre_rep),
+			2,
+		)
+
 	return {
 		"loan": loan_name,
 		"borrower": frappe.db.get_value("Customer", loan.applicant, "customer_name") if loan.applicant else "",
 		"loan_amount": loan.loan_amount,
 		"transactions": transactions,
-		"opening_balance": 0,
-		"closing_balance": round(running, 2),
+		"opening_balance": opening_balance,
+		"closing_balance": round(opening_balance + running, 2),
 	}
+
+
+def _merge_date_window(
+	filters: dict,
+	from_date: str | None,
+	to_date: str | None,
+	default_days: int | None = None,
+) -> dict:
+	"""R29-F5: single date-window filter helper.
+
+	Handles all four cases (from-only / to-only / both / neither) and
+	avoids the clobber-on-second-conditional bug the old inline code
+	had. If neither is provided and ``default_days`` is set, the
+	function falls back to a ``from_date = today() - default_days``.
+	When ``from_date`` is provided AND ``to_date`` is also provided,
+	uses ``between`` — Frappe requires ``(>=, <=)`` be combined as
+	``between`` for a strict inclusive range.
+	"""
+	f = dict(filters)
+	if from_date and to_date:
+		f["posting_date"] = ("between", [from_date, to_date])
+	elif from_date:
+		f["posting_date"] = (">=", from_date)
+	elif to_date:
+		f["posting_date"] = ("<=", to_date)
+	elif default_days and "posting_date" not in f:
+		f["posting_date"] = (">=", add_days(today(), -default_days))
+	return f
+
+
+def _friendly_docstatus(docstatus: int) -> str:
+	"""R29-F5: render a 0/1/2 docstatus as a human-friendly state."""
+	if docstatus == 1:
+		return "Submitted"
+	if docstatus == 2:
+		return "Cancelled"
+	return "Draft"
 
 
 # ---------------------------------------------------------------------------
@@ -1586,10 +1869,14 @@ def get_branch_overview():
 	portfolio = get_portfolio_summary()
 
 	# Today's collections
+	# R29-F1: use dict-style aggregate (Frappe bans raw SQL fn strings
+	# like ``sum(amount_paid)``). SUM aggregate via aggregate dict — see
+	# the agg_dict below for the safe pattern.
 	today_collections = frappe.get_all(
 		"Loan Repayment",
 		filters={"docstatus": 1, "posting_date": today()},
-		fields=["sum(amount_paid) as total"],
+		fields=[{"SUM": "amount_paid", "as": "total"}],
+		limit_page_length=1,
 	)
 	today_total = flt(today_collections[0].total) if today_collections else 0
 

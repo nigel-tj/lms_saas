@@ -21,6 +21,10 @@ AML role gates: Loan Officer cannot clear AML flags; only Branch
 Manager (or higher) can override; the override writes a critical
 LMS Audit Event.
 
+R32: AML override UI plumbing. The manager portal must be able to
+invoke the override (whitelisted endpoint + role-gate flag exposed
+in the review payload + button in the review modal).
+
 Run via:
     cd frappe-bench && python run_all_lms_tests.py
 """
@@ -326,3 +330,84 @@ class TestR22AMLAmlRoleGates(FrappeTestCase):
 			# test context; the reason check fires before the DB hit.
 			with self.assertRaises(frappe.ValidationError):
 				override_aml_flag("NON-EXISTENT", "Clear", reason="")
+
+
+# ---------------------------------------------------------------------------
+# R32: AML override UI plumbing — Branch Manager portal can actually call it.
+# ---------------------------------------------------------------------------
+class TestR32AmlOverridePortalPlumbing(FrappeTestCase):
+	"""R32 regression: the Branch Manager portal's "Override AML" control
+	references a flow that must work end-to-end.
+
+	History: the manager approval flow threw "override via the AML override
+	flow (Branch Manager only)" but the override endpoint was NOT whitelisted
+	and the manager portal had no UI to invoke it. Branch Managers were
+	deadlocked on approvals whenever a borrower's AML screening was Pending.
+
+	This class covers the three things that had to be true for the flow
+	to actually work:
+
+	  1. ``lms_saas.api.aml.override_aml_flag`` is whitelisted (the manager
+	     portal's frappe.call can hit it).
+	  2. ``lms_saas.api.manager.get_manager_application_detail`` exposes
+	     ``can_override_aml`` so the portal knows whether to render the
+	     button.
+	  3. The manager portal JS bundles the override modal + handler so the
+	     control exists in the rendered DOM when the user can use it.
+	"""
+
+	def test_override_aml_flag_is_whitelisted(self):
+		"""R32-1: the override endpoint must be callable from the portal."""
+		import inspect
+
+		from lms_saas.api import aml as aml_mod
+
+		src = inspect.getsource(aml_mod.override_aml_flag)
+		# Whitelist decorator must be the line directly above the def
+		# (whitespace tolerated).  This guards against a future drive-by
+		# edit that removes the decorator — without it, the portal's
+		# frappe.call returns 403.
+		self.assertRegex(
+			src,
+			r"@frappe\.whitelist\([^)]*\)\s*\ndef\s+override_aml_flag",
+			"override_aml_flag must carry @frappe.whitelist() so the "
+			"Branch Manager portal can invoke it.",
+		)
+
+	def test_get_manager_application_detail_exposes_can_override_aml(self):
+		"""R32-2: the manager portal must learn whether the current user
+		can override AML, so it can render (or hide) the button."""
+		import inspect
+
+		from lms_saas.api import manager as mgr_mod
+
+		src = inspect.getsource(mgr_mod.get_manager_application_detail)
+		self.assertIn("can_override_aml", src)
+		# Must be derived from the role-gate (single source of truth)
+		# rather than a hard-coded true/false.
+		self.assertIn("can_clear_aml_flag", src)
+
+	def test_manager_portal_has_override_handler(self):
+		"""R32-3: the manager portal must have the override modal + a
+		handler that wires the button in the review modal."""
+		# APP_ROOT = apps/lms_saas/lms_saas, so public/js lives one
+		# level below (not two).
+		js_path = APP_ROOT / "public" / "js" / "lms_manager_portal.js"
+		src = js_path.read_text()
+		self.assertIn("lms_manager._overrideAml", src)
+		self.assertIn("override_aml_flag", src)
+		self.assertIn('id="lms-override-aml-btn"', src)
+		# The handler must be wired in onShown so the click is attached
+		# after the modal mounts.
+		self.assertIn("onShown", src)
+
+	def test_override_aml_flag_rejects_invalid_status(self):
+		"""R32-4: invalid new_status must throw even with a reason."""
+		from lms_saas.api.aml import override_aml_flag
+		with mock.patch.object(frappe, "get_roles", return_value={"LMS Portal Staff"}), \
+		     mock.patch(
+		         "lms_saas.utils.portal.resolve_portal_persona",
+		         return_value="Branch Manager",
+		     ):
+			with self.assertRaises(frappe.ValidationError):
+				override_aml_flag("NON-EXISTENT", "Bogus", reason="because")
