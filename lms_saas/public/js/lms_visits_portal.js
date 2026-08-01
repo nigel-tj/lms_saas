@@ -220,6 +220,7 @@ lms_visits._showCreateModal = function () {
 	lms_portal.modal({
 		title: "Schedule Field Visit",
 		body: html,
+		size: "lg",
 		confirmText: "Schedule",
 		confirmVariant: "primary",
 		onConfirm: function (overlay) {
@@ -351,6 +352,7 @@ lms_visits._showCompleteModal = function (visitName) {
 	var overlay = lms_portal.modal({
 		title: "Complete Visit",
 		body: html,
+		size: "lg",
 		confirmText: "Complete",
 		confirmVariant: "success",
 	});

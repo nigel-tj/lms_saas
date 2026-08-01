@@ -125,6 +125,7 @@ lms_helpdesk._showCreateModal = function () {
 	lms_portal.modal({
 		title: "New Support Ticket",
 		body: html,
+		size: "lg",
 		confirmText: "Submit",
 		confirmVariant: "primary",
 		onConfirm: function (overlay) {
@@ -198,6 +199,7 @@ lms_helpdesk._renderTicketDetail = function (data) {
 	lms_portal.modal({
 		title: "Ticket " + (t.name || ""),
 		body: html,
+		size: "lg",
 		confirmText: "Close",
 		confirmVariant: "primary",
 		onConfirm: function () {},

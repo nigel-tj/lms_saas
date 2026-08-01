@@ -289,6 +289,7 @@ lms_savings._showDepositModal = function () {
 			var m = lms_portal.modal({
 				title: "Make a Deposit",
 				body: html,
+				size: "lg",
 				confirmText: "Deposit",
 				confirmVariant: "success",
 				onConfirm: function (overlay) {
@@ -352,6 +353,7 @@ lms_savings._showWithdrawModal = function () {
 			lms_portal.modal({
 				title: "Request Withdrawal",
 				body: html,
+				size: "lg",
 				confirmText: "Submit Request",
 				confirmVariant: "warning",
 				onConfirm: function (overlay) {

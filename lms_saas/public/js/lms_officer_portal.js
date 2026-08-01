@@ -1878,6 +1878,7 @@ lms_officer._openLeadModal = function (content) {
 	var dlg = LMSModal.open({
 		title: "New Lead",
 		body: body,
+		size: "lg",
 		actions: [
 			{ label: "Cancel", value: false },
 			{ label: "Create", value: true, primary: true }
@@ -1915,6 +1916,7 @@ lms_officer._convertLead = function (leadName) {
 	lms_portal.modal({
 		title: "Convert Lead",
 		body: '<p class="lms-muted">Convert <strong>' + lms_portal.escape(leadName) + '</strong> to a Customer? This requires consent to be recorded.</p>',
+		size: "sm",
 		confirmText: "Convert",
 		confirmVariant: "success",
 		onConfirm: function () {

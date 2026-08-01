@@ -313,6 +313,7 @@ lms_collect._openCollectModal = function (loan, fullAmount, root) {
 	var dlg = LMSModal.open({
 		title: "Collect payment",
 		body: body,
+		size: "lg",
 		actions: [
 			{ label: "Cancel", value: false },
 			{ label: "Collect", value: true, primary: true }
@@ -369,6 +370,7 @@ lms_collect._openPromiseModal = function (loan, root) {
 	var dlg = LMSModal.open({
 		title: "Promise to pay",
 		body: body,
+		size: "lg",
 		actions: [
 			{ label: "Cancel", value: false },
 			{ label: "Save promise", value: true, primary: true }
@@ -509,6 +511,7 @@ lms_collect._showReceiptPrompt = function (repaymentName) {
 	// Phase 2.3 — native <dialog>
 	var dlg = LMSModal.open({
 		title: "Collection successful",
+		size: "sm",
 		body: "<p>Repayment <strong>" + lms_portal.escape(repaymentName) + "</strong> recorded.</p>",
 		actions: [
 			{ label: "Close", value: false },
@@ -601,6 +604,7 @@ lms_collect._showSyncErrors = function (failed) {
 	LMSModal.open({
 		title: "Sync conflicts",
 		body: body,
+		size: "md",
 		actions: [{ label: "Close", value: true, primary: true }]
 	});
 };

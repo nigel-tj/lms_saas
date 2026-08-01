@@ -195,6 +195,7 @@ lms_payroll._renderSlipDetail = function (data) {
 	lms_portal.modal({
 		title: "Payslip " + (s.name || ""),
 		body: html,
+		size: "lg",
 		confirmText: "Close",
 		confirmVariant: "primary",
 		onConfirm: function () {},

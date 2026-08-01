@@ -618,6 +618,7 @@ lms_manager._approve = function (appName) {
 	lms_portal.modal({
 		title: "Approve Application",
 		body: '<p class="lms-muted">Confirm approval of <strong>' + lms_portal.escape(appName) + "</strong>. A loan will be created and disbursed.</p>",
+		size: "sm",
 		confirmText: "Approve",
 		confirmVariant: "success",
 		onConfirm: function () {
@@ -654,6 +655,7 @@ lms_manager._reject = function (appName) {
 			'<input type="text" id="lms-reject-reason" class="lms-input" placeholder="e.g. insufficient collateral" autocomplete="off">' +
 			'<div class="lms-field__hint">This reason will be logged on the application for the audit trail.</div></div>' +
 			'</div>',
+		size: "md",
 		confirmText: "Reject",
 		confirmVariant: "danger",
 		onConfirm: function (overlay) {
@@ -699,6 +701,7 @@ lms_manager._overrideAml = function (kyc, onSuccess) {
 	var current = kyc.aml_status || "Pending";
 	var modalRef = lms_portal.modal({
 		title: "Override AML screening",
+		size: "lg",
 		body:
 			'<div class="lms-form">' +
 			'<p class="lms-muted" style="margin-top:0;">Current AML status: <strong>' +
@@ -919,6 +922,7 @@ lms_manager._showBorrowerModal = function (b) {
 	lms_portal.modal({
 		title: "Borrower Profile — " + (b.customer_name || ""),
 		body: html,
+		size: "xl",
 		confirmText: "Close",
 		confirmVariant: "primary",
 		onConfirm: function () {},

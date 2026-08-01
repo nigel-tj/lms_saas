@@ -141,6 +141,7 @@ lms_tasks._showCreateModal = function () {
 	lms_portal.modal({
 		title: "New Task",
 		body: html,
+		size: "lg",
 		confirmText: "Create",
 		confirmVariant: "primary",
 		onConfirm: function (overlay) {
@@ -236,6 +237,7 @@ lms_tasks._renderTaskDetail = function (data) {
 	lms_portal.modal({
 		title: "Task Detail",
 		body: html,
+		size: "lg",
 		confirmText: "Close",
 		confirmVariant: "primary",
 		onConfirm: function () {},

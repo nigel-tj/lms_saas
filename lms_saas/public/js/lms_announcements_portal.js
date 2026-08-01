@@ -127,6 +127,7 @@ lms_announcements._showCreateModal = function () {
 	lms_portal.modal({
 		title: "New Announcement",
 		body: html,
+		size: "lg",
 		confirmText: "Publish",
 		confirmVariant: "primary",
 		onConfirm: function (overlay) {
