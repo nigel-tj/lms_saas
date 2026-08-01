@@ -214,7 +214,12 @@ run() {
 if [[ "$CHECK_ONLY" -eq 0 ]]; then
 	run bench --site "$FC_SITE" migrate
 	if [[ "$SKIP_BUILD" -eq 0 ]]; then
-		run bench build --app lms_saas
+		# --force bypasses the bench asset cache (whose CDN mapping can
+		# drift) and regenerates every asset from source. On Frappe Cloud
+		# the default is to skip the build entirely (the `Deploy` hook
+		# already ran it); --force is only used when the operator
+		# explicitly opts in via `--build`.
+		run bench build --app lms_saas --force
 	fi
 	run bench --site "$FC_SITE" clear-cache
 	run bench --site "$FC_SITE" enable-scheduler
