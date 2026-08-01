@@ -16,6 +16,11 @@ lms_officer.init = function () {
 	var root = document.getElementById("lms-officer-root");
 	if (!root) return;
 
+	// R36: restore the last-active tab so a refresh (e.g. after saving an
+	// application) doesn't bounce the officer back to Dashboard. Falls back
+	// to "dashboard" on the very first visit.
+	lms_officer._currentTab = lms_portal.persistedTab("officer", lms_officer._tabs, "dashboard");
+
 	root.innerHTML = lms_officer._pageHeader() + lms_officer._tabNav() + '<div id="lms-officer-tab-content"></div>';
 	lms_officer._bindTabs();
 	lms_officer._bindPrimaryAction();
@@ -75,6 +80,7 @@ lms_officer._bindPrimaryAction = function () {
 	if (viewLoansBtn) {
 		viewLoansBtn.addEventListener("click", function () {
 			lms_officer._currentTab = "loans";
+			lms_portal.saveActiveTab("officer", "loans");
 			root.querySelectorAll(".lms-tab").forEach(function (b) {
 				b.classList.toggle("is-active", b.getAttribute("data-tab") === "loans");
 				b.setAttribute("aria-selected", b.getAttribute("data-tab") === "loans" ? "true" : "false");
@@ -90,6 +96,9 @@ lms_officer._bindTabs = function () {
 		tabs: lms_officer._tabs,
 		onTab: function (tabId) {
 			lms_officer._currentTab = tabId;
+			// R36: persist so a refresh lands the officer back on the same
+			// tab (e.g. when they save an application and the modal closes).
+			lms_portal.saveActiveTab("officer", tabId);
 			lms_officer._showTab(tabId);
 		},
 	});

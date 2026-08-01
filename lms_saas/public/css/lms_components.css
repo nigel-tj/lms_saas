@@ -1178,9 +1178,10 @@ dialog.lms-modal::backdrop {
 }
 
 .lms-toast {
-	pointer-events: auto; /* re-enable for the actual toast so the close (×) button works */
-
-.lms-toast {
+	/* R36: re-enable pointer events for the actual toast so the close (×)
+	 * button works even though the stack container is `pointer-events: none`
+	 * to stay click-transparent. */
+	pointer-events: auto;
 	background: var(--lms-surface);
 	border: 1px solid var(--lms-border);
 	border-left: 4px solid var(--lms-primary);
