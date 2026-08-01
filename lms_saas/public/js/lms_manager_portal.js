@@ -6,6 +6,10 @@ if (typeof frappe !== "undefined" && typeof frappe.provide === "function") {
 }
 
 lms_manager._charts = {};
+// R36: active tab is restored from sessionStorage on init() and persisted
+// on every tab switch. The default ("dashboard") only applies on the
+// very first visit — every subsequent refresh lands the manager back on
+// whichever tab they were last working on (Approvals, Borrowers, etc).
 lms_manager._currentTab = "dashboard";
 // R18-14: keep a per-tab timeout so a stuck safeCall can never leave the
 // content area on a perpetual "Loading…" spinner. After 6 s we render an
@@ -20,18 +24,19 @@ lms_manager.init = function () {
 	var root = document.getElementById("lms-manager-root");
 	if (!root) return;
 
+	// R36: restore the last-active tab from sessionStorage so the manager
+	// stays on their work tab (Approvals, Borrowers) across page refresh.
+	// Fall back to "dashboard" on the very first visit.
+	lms_manager._currentTab = lms_portal.persistedTab("manager", lms_manager._tabs(), "dashboard");
+
 	// Render tab navigation first
 	root.innerHTML = lms_manager._tabNav() + '<div id="lms-manager-tab-content"></div>';
 	lms_manager._bindTabs();
 	lms_manager._showTab(lms_manager._currentTab);
 };
 
-lms_manager._tabNav = function () {
-	// R18-15: add the Approvals tab between Loans and Reports. Four-eyes
-	// approvals are the single most important action on this page for a
-	// branch manager; not having a tab for them was the #1 staff-side
-	// complaint from the R18 board.
-	var tabs = [
+lms_manager._tabs = function () {
+	return [
 		{ id: "dashboard", label: "Dashboard", icon: "bar-chart" },
 		{ id: "borrowers", label: "Borrowers", icon: "user" },
 		{ id: "loans", label: "Loans", icon: "wallet" },
@@ -40,6 +45,14 @@ lms_manager._tabNav = function () {
 		{ id: "collateral", label: "Collateral", icon: "home" },
 		{ id: "team", label: "Team", icon: "users" },
 	];
+};
+
+lms_manager._tabNav = function () {
+	// R18-15: add the Approvals tab between Loans and Reports. Four-eyes
+	// approvals are the single most important action on this page for a
+	// branch manager; not having a tab for them was the #1 staff-side
+	// complaint from the R18 board.
+	var tabs = lms_manager._tabs();
 	var html = '<nav class="lms-tab-nav" role="tablist">';
 	tabs.forEach(function (t) {
 		var active = lms_manager._currentTab === t.id ? " is-active" : "";
@@ -55,6 +68,10 @@ lms_manager._bindTabs = function () {
 	root.querySelectorAll(".lms-tab").forEach(function (btn) {
 		btn.addEventListener("click", function () {
 			lms_manager._currentTab = btn.getAttribute("data-tab");
+			// R36: persist so a refresh (e.g. after save) lands the manager
+			// back on the same tab. sessionStorage so it doesn't bleed into
+			// a new browser session.
+			lms_portal.saveActiveTab("manager", lms_manager._currentTab);
 			// Update active styles via class
 			root.querySelectorAll(".lms-tab").forEach(function (b) {
 				b.classList.remove("is-active");
