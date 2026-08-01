@@ -41,6 +41,10 @@
 #  -----------------------------
 #  Steps 1–4 are the standard Frappe bench post-deploy — but they run for
 #  EVERY app, so a misbehaving site config can't tell which app needs what.
+#  NB: the `bench build` step (2) is auto-skipped on Frappe Cloud because
+#  the `Deploy` hook already built the bundle, and re-running it races the
+#  CDN cache invalidation — the documented Frappe Cloud symptom is a
+#  whole-site 404 storm on every /assets/ file until the next Deploy.
 #  Steps 5–7 are lms_saas-only self-heal: the install/after_install hook
 #  writes a lot of workspace, home-page, and dashboard-card state at
 #  install time. If a deploy lands while the desk is open, those refs can
@@ -69,7 +73,14 @@
 #    --check-only  skip bench migrate / build / cache; just run the
 #                  lms_saas reconcile + verify_spec steps (cheap, ~10s)
 #    --skip-build  skip `bench build --app lms_saas` (use when the bench
-#                  already auto-rebuilt via deploy hooks)
+#                  already auto-rebuilt via deploy hooks). This is the
+#                  DEFAULT on Frappe Cloud — the Deploy hook has already
+#                  built the bundle and re-running it from this script
+#                  races the CDN cache invalidation and commonly leaves
+#                  the whole site returning 404s on every asset.
+#    --build       force the build on Frappe Cloud despite the auto-skip.
+#                  Off the default everywhere; only set this if you know
+#                  the CDN has invalidated and you cannot re-deploy.
 #    --help        show usage and exit
 #
 #  ENVIRONMENT
@@ -81,6 +92,9 @@
 #    LMS_SKIP_REBRAND     1 to skip the navbar-branding re-apply step (use
 #                          when you intentionally want the desk to keep a
 #                          different brand than the portal for a window)
+#    FRAPPE_CLOUD=1       Force the FC auto-detect (set automatically by
+#                          Frappe Cloud hosts; the script also detects
+#                          the sentinel env var `FC_FONTATIONS`).
 #
 #  EXIT CODES
 #  ----------
@@ -107,6 +121,7 @@ while [[ $# -gt 0 ]]; do
 		--dry-run)    DRY_RUN=1; shift ;;
 		--check-only) CHECK_ONLY=1; shift ;;
 		--skip-build) SKIP_BUILD=1; shift ;;
+		--build)      SKIP_BUILD=0; shift ;;  # force the build on demand
 		--help|-h)
 			grep '^#' "$0" | sed 's/^# \?//'
 			exit 0
@@ -114,6 +129,24 @@ while [[ $# -gt 0 ]]; do
 		*) echo "unknown flag: $1" >&2; exit 2 ;;
 	esac
 done
+
+# R32: on Frappe Cloud the dashboard's `Deploy` step ALREADY runs
+# `bench build --app lms_saas` via the bench deploy hook. Re-running it
+# from this script races the CDN cache invalidation and frequently
+# leaves the live site's `/assets/` directory returning 404s for every
+# JS / CSS / image file until the next Deploy. Auto-skip the build step
+# on Frappe Cloud so the operator doesn't have to remember `--skip-build`.
+#
+# Detection: the bench host sets `FC_FONTATIONS` (the Sentry tracker
+# sentinel) or `FRAPPE_CLOUD=1` on Frappe Cloud. Local benches never set
+# either, so the default stays "run the build" for the dev workflow.
+if [[ "${SKIP_BUILD:-0}" == "0" ]]; then
+	if [[ -n "${FC_FONTATIONS:-}" || "${FRAPPE_CLOUD:-}" == "1" ]]; then
+		echo "  ↳ detected Frappe Cloud — skipping bench build (the Deploy hook already ran it)"
+		echo "    (override with --build if you really want to rebuild)"
+		SKIP_BUILD=1
+	fi
+fi
 
 # ── bench cd ──
 if ! command -v bench >/dev/null 2>&1; then
