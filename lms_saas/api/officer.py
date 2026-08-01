@@ -1530,25 +1530,30 @@ def create_borrower(
 	if not territory:
 		territory = frappe.db.get_value("Territory", {"is_group": 0}, "name") or ""
 
-	# Create User (optional — email may be blank for walk-in borrowers)
+	# Create User (optional — email may be blank for walk-in borrowers).
+	#
+	# R34-H1: this branch previously inserted the User via the standard
+	# `User.insert()` path. `User.on_update` then enqueues
+	# `frappe.core.doctype.user.user.create_contact`, and
+	# `frappe.utils.background_jobs._check_queue_size()` runs a permission
+	# check against "System Health Report" for the primary_action UI
+	# guard. Loading that controller runs `frappe.only_for("System Manager")`,
+	# which raises PermissionError for the LMS Portal Staff role.
+	# Result: every officer-onboarded borrower (via `_openBorrowerModal` in
+	# the topbar OR inline `+ New borrower…` inside the New Application
+	# modal) blew up with a 403 the moment the User row was saved — even
+	# when only an empty email field was submitted.
+	#
+	# Fix: do NOT create the User here. The borrower is created with an
+	# empty email (or with a contact record carrying the email); the
+	# LMS User Setup doctype — which runs as Administrator via the desk
+	# onboarding flow — owns portal account creation. The Contact row we
+	# create right after still carries the email, so the LMS User Setup
+	# can match the borrower and create the User later.
+	#
+	# `user_name` is kept in the response for callers that branch on it,
+	# but it is always None now.
 	user_name = None
-	if email and not frappe.db.exists("User", email):
-		user = frappe.get_doc(
-			{
-				"doctype": "User",
-				"email": email,
-				"first_name": first_name,
-				"last_name": last_name or "",
-				"mobile_no": mobile_no or "",
-				"send_welcome_email": 0,
-				"enabled": 1,
-			}
-		)
-		if frappe.db.exists("Role", "Customer"):
-			user.append("roles", {"role": "Customer"})
-		user.flags.ignore_permissions = True
-		user.insert()
-		user_name = user.name
 
 	# Create Customer
 	customer = frappe.get_doc(
@@ -1588,6 +1593,16 @@ def create_borrower(
 
 	# Create LMS Borrower Compliance (KYC) record — required for origination.
 	# Skip silently if the doctype isn't installed (fresh / dev sites).
+	#
+	# R34-KYC: the LMS Borrower Compliance doctype has `id_document_proof`,
+	# `proof_of_address` and `national_id_number` marked mandatory at the
+	# schema level. The onboarding form collects these only when the officer
+	# has the documents on hand (KYC status = Approved). For the common
+	# `KYC = Pending — collect later` path, we still need to seed the
+	# compliance row so the customer has a KYC link they can complete later.
+	# Use `flags.ignore_mandatory=True` only when the documents were NOT
+	# supplied (i.e. status != Approved). For Approved, we already validated
+	# on the client that both uploads exist.
 	kyc_name = None
 	if frappe.db.exists("DocType", "LMS Borrower Compliance"):
 		kyc = frappe.get_doc(
@@ -1602,6 +1617,13 @@ def create_borrower(
 			}
 		)
 		kyc.flags.ignore_permissions = True
+		# `ignore_mandatory=True` opts the LMS Borrower Compliance
+		# mandatories out of validation for this single insert. This is the
+		# documented Frappe hook for "I know the values are blank, save the
+		# draft so the user can fill them in later". It does NOT relax any
+		# permission check.
+		if not (id_document_proof and proof_of_address):
+			kyc.flags.ignore_mandatory = True
 		kyc.insert()
 		kyc_name = kyc.name
 
