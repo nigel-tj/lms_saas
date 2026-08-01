@@ -222,7 +222,7 @@ lms_manager._renderApprovalsTable = function (content, queueData, showHeader) {
 			"<h3>All caught up</h3><p>No applications pending approval.</p></div>";
 	} else {
 		html += '<div class="lms-data-table__wrap"><table class="lms-data-table">';
-		html += "<thead><tr><th>Applicant</th><th>Product</th><th>Amount</th><th>Officer</th><th>Branch</th><th>KYC</th><th>AML</th><th>Created</th><th>Actions</th></tr></thead><tbody>";
+		html += "<thead><tr><th>Applicant</th><th>Product</th><th>Amount</th><th>Officer</th><th>Branch</th><th>Created</th><th>Actions</th></tr></thead><tbody>";
 		apps.forEach(function (app) {
 			html += "<tr>";
 			html += "<td><strong>" + lms_portal.escape(app.customer_name || app.applicant || "—") + "</strong></td>";
@@ -230,21 +230,10 @@ lms_manager._renderApprovalsTable = function (content, queueData, showHeader) {
 			html += "<td class=\"is-num\">" + (window.format_currency ? format_currency(app.loan_amount || 0) : (app.loan_amount || 0)) + "</td>";
 			html += "<td>" + lms_portal.escape(app.officer_name || app.custom_loan_officer || "—") + "</td>";
 			html += "<td>" + lms_portal.escape(app.custom_lms_branch || "—") + "</td>";
-			// R34-QA: KYC + AML status badges. Approve is disabled when
-			// KYC != Approved OR AML is not Clear. The Review modal still
-			// opens so the manager can drill in to the AML override flow.
-			html += '<td><span class="lms-badge lms-badge--' + lms_manager._kycBadgeClass(app.kyc_status) + '">' + lms_portal.escape(app.kyc_status || "Pending") + "</span></td>";
-			html += '<td><span class="lms-badge lms-badge--' + lms_manager._amlBadgeClass(app.aml_status) + '">' + lms_portal.escape(app.aml_status || "Pending") + "</span></td>";
 			html += "<td>" + lms_portal.escape((app.creation || "").slice(0, 10)) + "</td>";
-			var canApprove = !!app.is_approvable;
-			var approveTitle = canApprove
-				? "Approve"
-				: "Cannot approve: borrower KYC must be Approved and AML must be Clear. Current: KYC=" +
-					(app.kyc_status || "Pending") + ", AML=" + (app.aml_status || "Pending") + ".";
 			html += '<td><div class="lms-data-table__actions">';
 			html += '<button type="button" class="lms-btn lms-btn--ghost lms-btn--sm lms-review-btn" data-app="' + lms_portal.escape(app.name) + '">Review</button>';
-			html += '<button type="button" class="lms-btn lms-btn--success lms-btn--sm lms-approve-btn" data-app="' + lms_portal.escape(app.name) + '"' +
-				(canApprove ? "" : ' disabled title="' + lms_portal.escape(approveTitle) + '"') + ">" + (canApprove ? "Approve" : "Approve (locked)") + "</button>";
+			html += '<button type="button" class="lms-btn lms-btn--success lms-btn--sm lms-approve-btn" data-app="' + lms_portal.escape(app.name) + '">Approve</button>';
 			html += '<button type="button" class="lms-btn lms-btn--ghost lms-btn--sm lms-reject-btn" data-app="' + lms_portal.escape(app.name) + '">Reject</button>';
 			html += "</div></td></tr>";
 		});
@@ -388,35 +377,6 @@ lms_manager._statCard = function (label, value, icon, tone) {
 		'<span class="lms-sidebar__icon" style="color:var(--lms-text-muted);opacity:0.5;">' + iconSvg + "</span>" +
 		"</div></div>"
 	);
-};
-
-// R34-QA: tone helpers for KYC / AML badges. The approval queue uses
-// these to colour the status pill and to drive the Approve button
-// enabled state (Approve is only enabled when KYC=Approved AND AML=Clear).
-lms_manager._kycBadgeClass = function (status) {
-	switch ((status || "Pending")) {
-		case "Approved":
-			return "success";
-		case "In Review":
-			return "warning";
-		case "Rejected":
-			return "danger";
-		default:
-			return "muted";
-	}
-};
-
-lms_manager._amlBadgeClass = function (status) {
-	switch ((status || "Pending")) {
-		case "Clear":
-			return "success";
-		case "Flagged":
-			return "warning";
-		case "Rejected":
-			return "danger";
-		default:
-			return "muted";
-	}
 };
 
 lms_manager._icon = function (name) {
