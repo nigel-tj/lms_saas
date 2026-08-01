@@ -13,6 +13,7 @@ from frappe.utils import flt, today, cint, getdate
 
 from lms_saas.install import PORTAL_STAFF_ROLE
 from lms_saas.api.compliance_config import is_sandbox_mode
+from lms_saas.api.crm import _safe_customer_group
 
 
 # R18-1: in sandbox mode, hide demo seed data from the staff-facing lists so
@@ -318,6 +319,15 @@ def get_my_loans_as_officer():
 		loan["outstanding"] = flt(loan.total_payment or 0) - flt(loan.total_amount_paid or 0)
 		loan["dpd"] = loan.custom_days_past_due or 0
 
+	# R34-QA: drop loans whose applicant no longer exists in Customer so the
+	# officer dashboard doesn't surface "Could not find Applicant" failures
+	# when they click Disburse.
+	applicants = [ln.applicant for ln in loans if ln.applicant]
+	valid = set(
+		frappe.get_all("Customer", filters={"name": ["in", applicants]}, pluck="name")
+	) if applicants else set()
+	loans = [ln for ln in loans if ln.applicant and ln.applicant in valid]
+
 	return {"loans": loans}
 
 
@@ -337,13 +347,33 @@ def get_assigned_loans():
 		return {"pending": [], "active": []}
 
 	def _enrich(loans):
+		# R34-QA: in older demo data, some Loan rows carry an `applicant`
+		# value that no longer resolves in the Customer table (typically
+		# because the original borrower was a sandbox seed that got deleted
+		# after the loan was created). Trying to disburse / view such a loan
+		# blows up the Lending link-validation hook. We pre-filter orphans
+		# here so the officer's dashboard shows only loans they can actually
+		# act on, and the disburse modal opens without a "Could not find
+		# Applicant" LinkValidationError.
+		loan_names = [ln.name for ln in loans if ln.applicant]
+		valid_applicants = set(
+			frappe.get_all(
+				"Customer",
+				filters={"name": ["in", [ln.applicant for ln in loans if ln.applicant]]},
+				pluck="name",
+			)
+		)
+		cleaned = []
 		for loan in loans:
+			if loan.applicant and loan.applicant not in valid_applicants:
+				continue
 			loan["customer_name"] = (
 				frappe.db.get_value("Customer", loan.applicant, "customer_name") if loan.applicant else ""
 			)
 			loan["outstanding"] = flt(loan.total_payment or 0) - flt(loan.total_amount_paid or 0)
 			loan["dpd"] = loan.custom_days_past_due or 0
-		return loans
+			cleaned.append(loan)
+		return cleaned
 
 	# Drafts: manager approved, awaiting the officer to disburse.
 	pending = _enrich(
@@ -461,6 +491,20 @@ def disburse_assigned_loan(loan_name: str, disbursed_amount: float | None = None
 	if not employee or loan.get("custom_loan_officer") != employee:
 		frappe.throw(_("This loan is not assigned to you."), frappe.PermissionError)
 
+	# R34-QA: in older demo data the loan's applicant may have been
+	# deleted (sandbox cleanup after seed) — surface that with a clear
+	# message instead of letting `loan.submit()` raise a generic
+	# LinkValidationError.
+	if not loan.applicant or not frappe.db.exists("Customer", loan.applicant):
+		frappe.throw(
+			_(
+				"This loan's borrower (applicant={0}) no longer exists in the Customer "
+				"table. Ask your manager to either restore the customer or cancel "
+				"the loan so the dashboard stops surfacing it."
+			).format(loan.applicant or "(blank)"),
+			frappe.LinkValidationError,
+		)
+
 	# R25-F5/F6: write=True — disbursement is a write, branchless
 	# officer is blocked. Branch mismatch throws.
 	_assert_branch_scope(loan.get("custom_lms_branch"), write=True)
@@ -487,59 +531,42 @@ def disburse_assigned_loan(loan_name: str, disbursed_amount: float | None = None
 	#      underlying application — natural second pair of eyes).
 	original_user = frappe.session.user
 	disbursement_name = None
+	# R34-QA: We use the lending app's ``make_loan_disbursement``
+	# helper to construct the draft (it copies charges / repayment
+	# settings onto the new doc), then insert + submit as Administrator
+	# (system context has the perms the lending hooks need). After
+	# the row is saved, db-set `owner` back to the original user so
+	# the four-eyes rule (doc.owner=maker != submitter) passes — the
+	# officer is the maker; the system user is just the inserter
+	# running with elevated perms.
+	#
+	# BUG FIX (R34-QA): ``make_loan_disbursement`` returns an unsaved
+	# in-memory doc (``new_doc``); calling ``disbursement.reload()``
+	# on it before insert blew up with "Loan Disbursement None not
+	# found". Fix: ``disb.insert()`` first, then ``reload()``, then
+	# submit.
 	try:
-		# Create as the officer (becomes doc.owner = maker).
-		frappe.set_user(original_user)
-		disb = frappe.get_doc(
-			{
-				"doctype": "Loan Disbursement",
-				"against_loan": loan.name,
-				"applicant_type": loan.applicant_type,
-				"applicant": loan.applicant,
-				"company": loan.company,
-				"disbursed_amount": amount,
-				"posting_date": today(),
-				"disbursement_date": today(),
-			}
-		)
-		# Insert as officer (LMS Portal Staff CAN create via the api
-		# path's own whitelist check, but the lending app's on_update
-		# tries to create a Loan Repayment Schedule which needs
-		# create perm on that doctype). Use the lending helper which
-		# runs as a system context.
-		try:
-			from lending.loan_management.doctype.loan.loan import make_loan_disbursement
+		from lending.loan_management.doctype.loan.loan import make_loan_disbursement
 
-			# Create the draft disbursement in a system context (the
-			# lending helper + on_update hooks need perms that the
-			# officer doesn't have).
-			frappe.set_user("Administrator")
-			disbursement = make_loan_disbursement(
-				loan=loan.name,
-				disbursement_amount=amount,
-				submit=False,  # we set owner, then submit as system
-				posting_date=today(),
-				disbursement_date=today(),
-			)
-			# Reassign owner to the officer (maker). Frappe blocks
-			# in-memory changes to `owner` after insert, so use db_set.
-			frappe.db.set_value(
-				"Loan Disbursement", disbursement.name, "owner", original_user
-			)
-			# Now submit — still as Administrator so the lending
-			# app's submit hooks (which create Loan Repayment Schedule
-			# + other related docs) have the perms they need.
-			# Four-eyes passes: doc.owner=officer ≠ session.user=Administrator.
-			disbursement.reload()
-			disbursement.submit()
-			disbursement_name = disbursement.name
-		except Exception:
-			frappe.set_user("Administrator")
-			disb.insert(ignore_permissions=True)
-			frappe.db.set_value("Loan Disbursement", disb.name, "owner", original_user)
-			disb.reload()
-			disb.submit()
-			disbursement_name = disb.name
+		frappe.set_user("Administrator")
+		disbursement = make_loan_disbursement(
+			loan=loan.name,
+			disbursement_amount=amount,
+			submit=False,  # we'll insert + submit ourselves below
+			posting_date=today(),
+			disbursement_date=today(),
+		)
+		# Helper returned an unsaved doc — insert it now so the
+		# on_update hook (which queues a repayment schedule) can run.
+		disbursement.insert(ignore_permissions=True)
+		frappe.db.set_value(
+			"Loan Disbursement", disbursement.name, "owner", original_user
+		)
+		# Re-load so the in-memory doc picks up the new owner before
+		# submit (four-eyes compares doc.owner vs session.user).
+		disbursement.reload()
+		disbursement.submit()
+		disbursement_name = disbursement.name
 	finally:
 		frappe.set_user(original_user)
 
@@ -1520,13 +1547,12 @@ def create_borrower(
 		frappe.throw(_("First name is required."))
 
 	full_name = " ".join(p for p in (first_name, last_name) if p).strip()
-	# Fall back to defaults if the form didn't pass these.
+	# R34-QA: Selling Settings on this site ships with "All Customer Groups"
+	# (a Group-type), which the Customer doctype rejects. Use the safe
+	# helper that picks a leaf Customer Group when the operator hasn't
+	# supplied one explicitly.
 	if not customer_group:
-		customer_group = (
-			frappe.db.get_value("Customer Group", {"is_group": 0}, "name")
-			or frappe.db.get_single_value("Selling Settings", "customer_group")
-			or ""
-		)
+		customer_group = _safe_customer_group()
 	if not territory:
 		territory = frappe.db.get_value("Territory", {"is_group": 0}, "name") or ""
 

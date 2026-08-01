@@ -695,6 +695,14 @@ lms_officer._openApplicationModal = function (customers, products, root) {
 		if (window.LMSForms && typeof LMSForms.bindAll === "function") {
 			LMSForms.bindAll(inlineBlock);
 		}
+		// R34-QA: live-validate the inline borrower sub-form so its fields
+		// (DOB, gender, address, etc.) keep their focus-trap / input
+		// upgrade wiring in line with the standalone modal. We do NOT
+		// disable the New-Application primary action here because that
+		// button also owns loan-product / amount validation — disabling it
+		// from the borrower's first-name alone would block a perfectly
+		// valid loan submission. The submit-handler already surfaces a
+		// "First name is required" toast on inline failure.
 	};
 	if (customerSelect && newBorrowerFields) {
 		customerSelect.addEventListener("change", function () {
@@ -1138,6 +1146,58 @@ lms_officer._collectNewBorrower = function (root, P) {
 	return fields;
 };
 
+// R34-QA: live-validate the borrower form so the LMSModal primary action
+// stays DISABLED while the form is invalid. Without this, the operator's
+// click on "Create borrower" closes the dialog (LMSModal closes on any
+// action click) and `_collectNewBorrower` only validates AFTER the modal
+// is already gone — leaving them stranded. With this guard the disabled
+// button never closes the modal, the operator sees an inline helper, and
+// the modal stays open until the form is valid.
+//
+// `opts.dlgRoot` — the LMSModal dialog element.
+// `opts.primaryButton` — the primary "Create borrower" element (lms's
+// action button) — we set its `disabled` attribute and tooltip.
+// `opts.fieldsPredicate` — optional function returning `{ ok, reason }`,
+// called on every input change inside the form. Default: first-name
+// required + KYC=Approved needs both uploads.
+lms_officer._wireBorrowerLiveValidation = function (opts) {
+	opts = opts || {};
+	var root = opts.dlgRoot || document.body;
+	var button = opts.primaryButton;
+	if (!button) return;
+	var predicate = opts.fieldsPredicate || function (root, P) {
+		P = P || "lms-of-b-";
+		var first = (root.querySelector("#" + P + "first") || {}).value || "";
+		var kyc = (root.querySelector("#" + P + "kyc") || {}).value || "Pending";
+		var iddoc = (root.querySelector("#" + P + "iddoc") || {}).value || "";
+		var poa = (root.querySelector("#" + P + "poa") || {}).value || "";
+		if (!first.trim()) return { ok: false, reason: "First name is required" };
+		if (kyc === "Approved" && !iddoc)
+			return { ok: false, reason: "Upload the ID document or set KYC to Pending" };
+		if (kyc === "Approved" && !poa)
+			return { ok: false, reason: "Upload the proof of address or set KYC to Pending" };
+		return { ok: true, reason: "" };
+	};
+	var P = opts.prefix || "lms-of-b-";
+	var update = function () {
+		var r = predicate(root, P);
+		if (r.ok) {
+			button.removeAttribute("disabled");
+			button.style.opacity = "1";
+			button.style.cursor = "";
+			button.title = "";
+		} else {
+			button.setAttribute("disabled", "disabled");
+			button.style.opacity = "0.55";
+			button.style.cursor = "not-allowed";
+			button.title = r.reason;
+		}
+	};
+	root.addEventListener("input", update);
+	root.addEventListener("change", update);
+	update();
+};
+
 lms_officer._openBorrowerModal = function () {
 	// Topbar "Add Borrower" button — opens the borrower onboarding modal in
 	// standalone mode. The form is delegated to `lms_officer._borrowerFormHtml`
@@ -1193,6 +1253,20 @@ lms_officer._openBorrowerModal = function () {
 		[P + "iddoc"]: null,
 		[P + "poa"]: null,
 	});
+
+	// R34-QA: disable the primary button until the form is valid. This
+	// stops LMSModal from auto-closing the dialog on a failed click and
+	// leaves the operator stranded outside the modal with only a toast.
+	if (dlgRoot) {
+		var primary = dlgRoot.querySelector("[data-lms-modal-action='true']");
+		if (primary) {
+			lms_officer._wireBorrowerLiveValidation({
+				dlgRoot: dlgRoot,
+				primaryButton: primary,
+				prefix: P,
+			});
+		}
+	}
 
 	// Standalone "Add Borrower" post-create landing: jump to the Borrowers
 	// tab. The inline caller in `_openApplicationModal` overrides this with

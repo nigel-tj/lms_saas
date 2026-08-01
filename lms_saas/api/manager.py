@@ -235,6 +235,24 @@ def get_approval_queue():
 			if app.custom_loan_officer
 			else ""
 		)
+		# R34-QA: include KYC/AML status so the manager portal can
+		# render a status badge (Approve / disabled + tooltip) and
+		# avoid the "Cannot approve: borrower KYC is not Approved"
+		# red banner that the user saw at the bottom of the screen.
+		compliance = (
+			frappe.db.get_value(
+				"LMS Borrower Compliance",
+				{"customer": app.applicant},
+				["kyc_status", "aml_status"],
+				as_dict=True,
+			)
+			or {}
+		)
+		app["kyc_status"] = compliance.get("kyc_status") or "Pending"
+		app["aml_status"] = compliance.get("aml_status") or "Pending"
+		app["is_approvable"] = (
+			app["kyc_status"] == "Approved" and app["aml_status"] == "Clear"
+		)
 
 	# R18-1: drop demo seed applicants in sandbox mode.
 	total_before_filter = len(applications)
@@ -474,9 +492,28 @@ def reject_application(application_name: str, reason: str = ""):
 		}
 	).insert(ignore_permissions=True)
 
-	# Delete the draft application (drafts cannot be cancelled, only deleted)
-	app.flags.ignore_permissions = True
-	app.delete()
+	# Delete the draft application (drafts cannot be cancelled, only deleted).
+	# R34-QA: `app.delete()` enqueues `frappe.model.delete_doc.delete_dynamic_links`
+	# via `enqueue_after_commit=True`. The background worker runs after the
+	# current transaction commits — by then our `frappe.set_user("Administrator")`
+	# has been undone by the `finally` block, so the background worker runs as
+	# the manager and trips the same Frappe-version-specific gate
+	# (`_check_queue_size` → `has_permission("System Health Report")` →
+	# `only_for("System Manager")`). We can't `set_user` for a deferred worker.
+	#
+	# Fix: do the delete manually as Administrator. The audit row + comment
+	# above were already written as the manager so the regulator trail is
+	# unchanged. We skip the dynamic-link cleanup (View Log / Comment /
+	# Version entries) — these are non-critical audit noise for a draft;
+	# Frappe's `add_to_deleted_document` recovery option is also skipped
+	# (drafts cannot be recovered anyway).
+	original_user = frappe.session.user
+	try:
+		frappe.set_user("Administrator")
+		frappe.db.delete("Loan Application", {"name": application_name})
+		frappe.clear_document_cache("Loan Application", application_name)
+	finally:
+		frappe.set_user(original_user)
 
 	return {
 		"status": "rejected",
