@@ -281,6 +281,7 @@ lms_insurance._showCreatePolicyModal = function () {
 	lms_portal.modal({
 		title: "New Insurance Policy",
 		body: html,
+		size: "xl",
 		confirmText: "Create",
 		confirmVariant: "primary",
 		onConfirm: function (overlay) {
@@ -348,6 +349,7 @@ lms_insurance._showFileClaimModal = function () {
 	lms_portal.modal({
 		title: "File Insurance Claim",
 		body: html,
+		size: "lg",
 		confirmText: "Submit",
 		confirmVariant: "primary",
 		onConfirm: function (overlay) {

@@ -240,6 +240,7 @@ lms_training._renderFeedbackForm = function (eventName) {
 	lms_portal.modal({
 		title: "Training Feedback",
 		body: html,
+		size: "xl",
 		confirmText: "Submit",
 		confirmVariant: "primary",
 		onConfirm: function (overlay) {

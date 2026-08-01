@@ -2016,6 +2016,7 @@ lms_portal._initFourEyesBadge = function () {
 		if (window.LMSModal && typeof LMSModal.open === "function") {
 			LMSModal.open({
 				title: "Four-eyes control",
+					size: "lg",
 				body: body,
 				actions: [{ label: "Got it", primary: true }],
 			});
@@ -2533,13 +2534,20 @@ lms_portal.modal = function (opts) {
 	}
 	var overlay = document.createElement("div");
 	overlay.className = "lms-modal-overlay";
-	// Allow callers to request an explicit size. Default keeps the canonical
-	// width (480px) so existing 1-2 field modals stay compact. "lg" = 720px
-	// for short forms with a couple of fields, "xl" = 960px for detail modals
-	// that hold a summary grid plus data tables.
+	// Allow callers to request an explicit size. R34 — modal size matrix:
+	//   sm  = 420px (toast-like single-field prompts)
+	//   md  = 560px (default; classic 1-2 field modal — left here so the
+	//                pre-R34 callers that omit size don't change shape)
+	//   lg  = 720px (short forms with a handful of fields)
+	//   xl  = 960px (detail modals with a summary grid + data tables)
+	//   xxl = 1200px (heavy forms: 20+ inputs, file uploads, repeatable
+	//                 rows — used by the Loan Officer New Application
+	//                 modal after R34)
 	var sizeClass = "";
-	if (opts.size === "xl") sizeClass = " lms-modal--xl";
+	if (opts.size === "xxl") sizeClass = " lms-modal--xxl";
+	else if (opts.size === "xl") sizeClass = " lms-modal--xl";
 	else if (opts.size === "lg") sizeClass = " lms-modal--lg";
+	else if (opts.size === "sm") sizeClass = " lms-modal--sm";
 	overlay.innerHTML =
 		'<div class="lms-modal' + sizeClass + '">' +
 		'<div class="lms-modal__header"><h3>' + lms_portal.escape(opts.title || "") + "</h3>" +

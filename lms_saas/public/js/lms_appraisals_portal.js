@@ -171,6 +171,7 @@ lms_appraisals._renderAppraisalDetail = function (data) {
 	lms_portal.modal({
 		title: "Appraisal " + (a.name || ""),
 		body: html,
+		size: "xl",
 		confirmText: "Close",
 		confirmVariant: "primary",
 		onConfirm: function () {},
@@ -212,6 +213,7 @@ lms_appraisals._showScoreModal = function (appraisalName, rowName, type) {
 	lms_portal.modal({
 		title: "Score " + (type === "kra" ? "KRA" : "Goal"),
 		body: html,
+		size: "sm",
 		confirmText: "Save Score",
 		confirmVariant: "primary",
 		onConfirm: function (overlay) {
@@ -244,6 +246,7 @@ lms_appraisals._showAddGoalModal = function (appraisalName) {
 	lms_portal.modal({
 		title: "Add Goal",
 		body: html,
+		size: "lg",
 		confirmText: "Add",
 		confirmVariant: "primary",
 		onConfirm: function (overlay) {

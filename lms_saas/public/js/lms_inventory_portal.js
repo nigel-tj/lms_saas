@@ -145,6 +145,7 @@ lms_inventory._renderAssetDetail = function (data) {
 	lms_portal.modal({
 		title: "Asset Detail",
 		body: html,
+		size: "xl",
 		confirmText: "Close",
 		confirmVariant: "primary",
 		onConfirm: function () {},

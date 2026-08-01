@@ -59,6 +59,7 @@ lms_documents._openUploadModal = function () {
 	var dlg = LMSModal.open({
 		title: "Upload document",
 		body: body,
+		size: "lg",
 		actions: [
 			{ label: "Cancel", value: false },
 			{ label: "Upload", value: true, primary: true },
