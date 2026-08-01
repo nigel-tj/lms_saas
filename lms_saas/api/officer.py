@@ -711,6 +711,14 @@ def submit_application_on_behalf(
 					"collateral_type": c.get("collateral_type") or "Other",
 					"collateral_title": c.get("description") or "Collateral",
 					"owner_customer": customer,
+					# R35: link the new LMS Collateral to the Loan Application
+					# just inserted above. Without this, neither the officer
+					# nor the manager review modal could see the collateral
+					# (both endpoints filter on `loan_application`). The
+					# detail endpoints also have an `owner_customer` fallback
+					# so any collateral inserted before this fix is still
+					# visible.
+					"loan_application": app.name,
 					"company": company,
 					"branch": branch or "",
 					"market_value": flt(c.get("collateral_value") or 0),
@@ -828,8 +836,13 @@ def get_application_detail(application_name: str) -> dict:
 				"consent_date": str(kyc_row.consent_date) if kyc_row.consent_date else None,
 			}
 
-	# Collateral
+	# Collateral (R35: dual-path read).
+	# Primary: filter on the loan_application link that
+	# officer.submit_pending_application sets at origination. Fallback:
+	# borrower-linked collateral so records created before R35 (or via
+	# an external import) still surface in the review modal.
 	collateral = []
+	seen = set()
 	for c in frappe.get_all(
 		"LMS Collateral",
 		filters={"loan_application": application_name},
@@ -837,9 +850,12 @@ def get_application_detail(application_name: str) -> dict:
 			"name", "collateral_type", "collateral_title",
 			"market_value", "net_realizable_value", "status",
 			"lms_security_certificate", "lms_security_units",
-			"lms_guarantor_name",
+			"lms_guarantor_name", "creation",
 		],
+		order_by="creation desc",
+		limit_page_length=50,
 	):
+		seen.add(c.name)
 		collateral.append({
 			"name": c.name,
 			"collateral_type": c.collateral_type,
@@ -851,6 +867,37 @@ def get_application_detail(application_name: str) -> dict:
 			"lms_security_units": c.lms_security_units,
 			"lms_guarantor_name": c.lms_guarantor_name,
 		})
+
+	if not collateral:
+		applicant = app.applicant
+		# Don't gate on Customer doc existence (see manager.py).
+		if applicant:
+			for c in frappe.get_all(
+				"LMS Collateral",
+				filters={"owner_customer": applicant},
+				fields=[
+					"name", "collateral_type", "collateral_title",
+					"market_value", "net_realizable_value", "status",
+					"lms_security_certificate", "lms_security_units",
+					"lms_guarantor_name", "creation",
+				],
+				order_by="creation desc",
+				limit_page_length=50,
+			):
+				if c.name in seen:
+					continue
+				seen.add(c.name)
+				collateral.append({
+					"name": c.name,
+					"collateral_type": c.collateral_type,
+					"collateral_title": c.collateral_title,
+					"market_value": c.market_value,
+					"net_realizable_value": c.net_realizable_value,
+					"status": c.status,
+					"lms_security_certificate": c.lms_security_certificate,
+					"lms_security_units": c.lms_security_units,
+					"lms_guarantor_name": c.lms_guarantor_name,
+				})
 
 	# Audit trail (last 20 events)
 	audit = []
@@ -1783,10 +1830,17 @@ def get_borrower_detail(customer_name: str):
 	compliance = frappe.db.get_value(
 		"LMS Borrower Compliance",
 		{"customer": customer_name},
-		["name", "kyc_status", "consent_given", "consent_date", "aml_status", "credit_score"],
+		["name", "kyc_status", "consent_given", "consent_date", "aml_status", "credit_score", "national_id_number"],
 		as_dict=True,
 	)
 	customer["compliance"] = compliance or {}
+	# R35: prefer the Compliance record's NID (canonical source for KYC
+	# approval) over the Customer's, since the read-only summary should
+	# show what KYC approval actually checks. We never overwrite
+	# Customer.custom_national_id_number — it's a soft mirror that the
+	# KYC modal hydrates from on entry.
+	if compliance and compliance.get("national_id_number"):
+		customer["custom_national_id_number"] = compliance.national_id_number
 
 	# Collateral
 	collateral_links = frappe.get_all(

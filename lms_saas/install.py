@@ -251,6 +251,27 @@ def after_install():
     _set_portal_role_home_pages()
     _seed_addon_settings()
     _setup_twilio_defaults()
+    _backfill_collateral_loan_application_links()
+
+
+# R35: link every LMS Collateral doc that exists with an empty
+# `loan_application` to its owner's most recent Loan Application. Runs
+# at the tail of after_install / after_migrate so historical installs
+# self-heal on the next framework update (per-team, no human in the
+# loop). Idempotent — touches only rows where the link is blank.
+def _backfill_collateral_loan_application_links():
+    try:
+        from lms_saas.setup.seed_demo import (
+            backfill_collateral_loan_application_links,
+        )
+
+        backfill_collateral_loan_application_links()
+    except Exception:  # noqa: BLE001
+        # Self-heal is best-effort — never let it block install / migrate.
+        frappe.log_error(
+            title="R35 collateral loan_application backfill",
+            message=frappe.get_traceback(),
+        )
 
 
 def _seed_payment_providers():

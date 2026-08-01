@@ -876,6 +876,13 @@ def get_manager_application_detail(application_name: str) -> dict:
 			}
 
 	collateral = []
+	# R35: primary path — filter on the direct loan_application link that
+	# officer.submit_pending_application sets when it creates the record.
+	# If nothing matches (e.g. collateral created before R35, or via a
+	# legacy import), fall back to the borrower via owner_customer. We
+	# sort by creation desc and cap at 50 so a borrower with many
+	# historical collateral entries doesn't flood the modal.
+	seen = set()
 	for c in frappe.get_all(
 		"LMS Collateral",
 		filters={"loan_application": application_name},
@@ -883,9 +890,12 @@ def get_manager_application_detail(application_name: str) -> dict:
 			"name", "collateral_type", "collateral_title",
 			"market_value", "net_realizable_value", "status",
 			"lms_security_certificate", "lms_security_units",
-			"lms_guarantor_name",
+			"lms_guarantor_name", "creation",
 		],
+		order_by="creation desc",
+		limit_page_length=50,
 	):
+		seen.add(c.name)
 		collateral.append({
 			"name": c.name,
 			"collateral_type": c.collateral_type,
@@ -897,6 +907,45 @@ def get_manager_application_detail(application_name: str) -> dict:
 			"lms_security_units": c.lms_security_units,
 			"lms_guarantor_name": c.lms_guarantor_name,
 		})
+
+	# R35 fallback: borrower-linked collateral. Only fires if the direct
+	# link above returned nothing. Same dedupe key (c.name) so a record
+	# that is already linked to a different application is not double-
+	# listed.
+	if not collateral:
+		applicant = app.applicant
+		# Don't gate on Customer doc existence — the Customer may
+		# have been disabled/deleted while collateral and Loan
+		# Application records remain. The owner_customer Link is
+		# itself the lookup key; if the Customer doc is gone we
+		# still want to surface whatever collateral it once owned.
+		if applicant:
+			for c in frappe.get_all(
+				"LMS Collateral",
+				filters={"owner_customer": applicant},
+				fields=[
+					"name", "collateral_type", "collateral_title",
+					"market_value", "net_realizable_value", "status",
+					"lms_security_certificate", "lms_security_units",
+					"lms_guarantor_name", "creation",
+				],
+				order_by="creation desc",
+				limit_page_length=50,
+			):
+				if c.name in seen:
+					continue
+				seen.add(c.name)
+				collateral.append({
+					"name": c.name,
+					"collateral_type": c.collateral_type,
+					"collateral_title": c.collateral_title,
+					"market_value": c.market_value,
+					"net_realizable_value": c.net_realizable_value,
+					"status": c.status,
+					"lms_security_certificate": c.lms_security_certificate,
+					"lms_security_units": c.lms_security_units,
+					"lms_guarantor_name": c.lms_guarantor_name,
+				})
 
 	audit = []
 	if frappe.db.exists("DocType", "LMS Audit Event"):
