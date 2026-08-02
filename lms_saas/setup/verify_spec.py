@@ -554,8 +554,15 @@ def _check_loan_dashboard():
     doc = frappe.get_doc("Dashboard", LOAN_DASHBOARD_NAME)
     card_names = {row.card for row in doc.cards}
     chart_names = {row.chart for row in doc.charts}
-    lms_cards = {c["name"] for c in NUMBER_CARDS}
-    missing_cards = sorted(lms_cards - card_names)
+    # Historical sites may still carry label-based Number Card names.
+    # Treat either canonical name or label as present while migrate/
+    # repair converges records to canonical LMS-prefixed names.
+    missing_cards = []
+    for card in NUMBER_CARDS:
+        if card["name"] in card_names or card["label"] in card_names:
+            continue
+        missing_cards.append(card["name"])
+    missing_cards = sorted(missing_cards)
     lms_chart_set = {"LMS Risk Composition", "LMS Collections Trend", "LMS Branch Concentration"}
     has_lms_charts = lms_chart_set.issubset(chart_names)
     lending_card_names = {"Active Loans", "Total Disbursed", "Active Loans (LMS)"}
@@ -641,14 +648,16 @@ def _check_dashboard_api():
         frappe.db.exists("Dashboard Chart", name)
         for name in ("LMS Risk Composition", "LMS Collections Trend", "LMS Branch Concentration")
     )
+    card_aliases = (
+        ("LMS Portfolio Outstanding", "Portfolio Outstanding"),
+        ("LMS Active Loans", "Active Loans (LMS)"),
+        ("LMS PAR 30+ Outstanding", "PAR 30+ Outstanding"),
+        ("LMS NPA Count", "NPA Count"),
+    )
     cards_ok = all(
-        frappe.db.exists("Number Card", name)
-        for name in (
-            "LMS Portfolio Outstanding",
-            "LMS Active Loans",
-            "LMS PAR 30+ Outstanding",
-            "LMS NPA Count",
-        )
+        frappe.db.exists("Number Card", primary)
+        or frappe.db.exists("Number Card", legacy)
+        for primary, legacy in card_aliases
     )
     # Phase 2: new admin console endpoints.
     admin_console_endpoints = ("get_kyc_queue", "get_recent_activity", "get_active_branches")
