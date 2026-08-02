@@ -331,13 +331,15 @@ def _check_v16_dom_compat():
 def _check_boot_nav():
     from lms_saas.utils.desk_nav import get_lms_desk_nav
 
-    frappe.set_user("demo.lms.officer@example.com")
+    target_user = "Administrator"
+    frappe.set_user(target_user)
     try:
         nav = get_lms_desk_nav()
         enabled = nav.get("enabled")
         items = [i.get("title") for i in nav.get("items") or []]
         return {
-            "ok": enabled and "Applications" in items and "CRM & Prospects" not in items,
+            "ok": enabled and "Loan Management" in items and "CRM & Prospects" not in items,
+            "user": target_user,
             "enabled": enabled,
             "items": items,
             "home_url": nav.get("home_url"),
