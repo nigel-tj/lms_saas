@@ -857,6 +857,8 @@ def _retire_legacy_roles_and_profile():
         if frappe.db.exists("Role", role):
             # Remove Custom DocPerm rows for this role before deleting the role.
             frappe.db.delete("Custom DocPerm", {"role": role})
+            # Remove standard DocPerm rows that may still reference legacy roles.
+            frappe.db.delete("DocPerm", {"role": role})
             # Strip Has Role child rows on User so the user.roles virtual field
             # no longer reports the legacy name.
             for hr_name in frappe.get_all(
@@ -868,6 +870,10 @@ def _retire_legacy_roles_and_profile():
                 "Has Role", filters={"role": role, "parenttype": "Report"}, pluck="name"
             ):
                 frappe.delete_doc("Has Role", hr_name, ignore_permissions=True, force=True)
+            # Finally remove the legacy role row directly. ``delete_doc``
+            # enqueues dynamic-link cleanup and can fail when Redis queue is
+            # unavailable during local parity checks.
+            frappe.db.delete("Role", {"name": role})
 
 def _set_admin_home_page():
     """Set System Manager / Administrator Role.home_page to the Loan Management workspace.
