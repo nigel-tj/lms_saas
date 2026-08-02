@@ -92,45 +92,12 @@ lms_manager._renderTabError = function (content, tabId, message) {
  * or on a 4 s timeout with an error object. Use this instead of raw
  * safeCall for any tab that has more than one render dependency. */
 lms_manager._guardedCall = function (opts) {
-	return new Promise(function (resolve) {
-		var settled = false;
-		var finish = function (ok, payload) {
-			if (settled) return;
-			settled = true;
-			clearTimeout(timer);
-			resolve({ ok: ok, payload: payload });
-		};
-		var timer = setTimeout(function () {
-			finish(false, { status: 0, message: "Timed out after " + lms_manager._TAB_TIMEOUT_MS + " ms" });
-		}, lms_manager._TAB_TIMEOUT_MS);
-
-		lms_portal.safeCall({
-			method: opts.method,
-			args: opts.args,
-			callback: function (r) {
-				var embedded = "";
-				if (r && r._server_messages) {
-					try {
-						var msgs = JSON.parse(r._server_messages || "[]");
-						if (msgs && msgs.length) {
-							embedded = msgs[0];
-							if (typeof embedded === "string") {
-								try { embedded = JSON.parse(embedded).message || embedded; } catch (e) {}
-							}
-						}
-					} catch (e) {}
-				}
-				if (embedded && /not permitted|permission|not whitelisted|login to access|error|traceback|exception/i.test(String(embedded))) {
-					finish(false, { status: 200, message: String(embedded) });
-					return;
-				}
-				finish(true, r);
-			},
-			error: function (err) {
-				finish(false, err || { status: 0, message: "Unknown error" });
-			},
-		});
-	});
+	// Delegate to the shared helper so the manager portal, officer portal,
+	// and any future portal all classify not-whitelisted / permission
+	// server messages the same way. Timeout stays configurable per call.
+	return lms_portal.guardedCall(
+		Object.assign({}, opts, { timeoutMs: lms_manager._TAB_TIMEOUT_MS })
+	);
 };
 
 lms_manager._showTab = function (tabId) {
@@ -180,7 +147,6 @@ lms_manager._loadDashboard = function (content) {
 
 	var dashP = lms_manager._guardedCall({ method: "lms_saas.api.manager.get_manager_dashboard" });
 	var queueP = lms_manager._guardedCall({ method: "lms_saas.api.manager.get_approval_queue" });
-
 	Promise.all([dashP, queueP]).then(function (results) {
 		var dashRes = results[0];
 		var queueRes = results[1];
@@ -201,6 +167,14 @@ lms_manager._loadDashboard = function (content) {
 			return;
 		}
 		lms_manager._renderAll(content, dashData, queueData);
+	});
+	// Surface the queued call rejection so the operator knows which endpoint failed.
+	Promise.allSettled([dashP, queueP]).then(function (results) {
+		results.forEach(function (r) {
+			if (r.status === "rejected") {
+				console.error("[lms_manager] dashboard call failed", r.reason);
+			}
+		});
 	});
 };
 
