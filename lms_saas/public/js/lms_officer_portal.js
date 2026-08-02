@@ -1613,17 +1613,31 @@ lms_officer._showBorrowerModal = function (b) {
 lms_officer._loadLoans = function (content) {
 	content.innerHTML = lms_portal.loading("Loading loans…");
 
-	lms_portal.safeCall({
+	lms_portal.guardedCall({
 		method: "lms_saas.api.officer.get_assigned_loans",
-		callback: function (r) {
-			var data = (r && r.message) || {};
-			var pending = data.pending || [];
-			var active = data.active || [];
-			lms_officer._renderLoansTab(content, pending, active);
-		},
-		error: function () {
-			content.innerHTML = lms_portal.error("Could not load loans.");
-		},
+	}).then(function (res) {
+		if (!res.ok) {
+			var status = (res.payload && res.payload.status) || 0;
+			var isAuthish = status === 401 || status === 403 ||
+				/login to access|not permitted|not whitelisted|permission/i.test(String((res.payload && res.payload.message) || ""));
+			content.innerHTML =
+				'<div class="lms-panel lms-error" role="alert">' +
+				'<h3 style="margin:0 0 0.5rem;">Loans could not load</h3>' +
+				'<p>' + lms_portal.escape(
+					isAuthish
+						? "You don't have permission to view assigned loans. Please sign in again or contact your manager."
+						: (res.payload && res.payload.message) || "The server did not respond in time."
+				) + '</p>' +
+				'<button type="button" class="lms-btn lms-btn--primary" id="lms-of-loans-retry">Retry</button>' +
+				'</div>';
+			var retry = document.getElementById("lms-of-loans-retry");
+			if (retry) retry.addEventListener("click", function () { lms_officer._loadLoans(content); });
+			return;
+		}
+		var data = (res.payload && res.payload.message) || {};
+		var pending = data.pending || [];
+		var active = data.active || [];
+		lms_officer._renderLoansTab(content, pending, active);
 	});
 };
 
