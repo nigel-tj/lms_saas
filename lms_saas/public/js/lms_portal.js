@@ -28,7 +28,13 @@ lms_portal.safeCall = function (opts) {
 		return;
 	}
 
-	var extractServerMessage = function (payload) {
+	// Build a wrapped error handler that always fires, even for 500s.
+	var userError = opts.error;
+	var userCallback = opts.callback;
+	// Shared helpers used by both the wrapped callback (below) and the public
+	// guardedCall helper. Keep them as module-level so any future portal
+	// wrappers can reuse the classification without re-defining it.
+	lms_portal._extractServerMessage = function (payload) {
 		if (!payload || !payload._server_messages) return "";
 		try {
 			var msgs = JSON.parse(payload._server_messages || "[]");
@@ -42,15 +48,10 @@ lms_portal.safeCall = function (opts) {
 			return "";
 		}
 	};
-
-	var looksLikeServerError = function (msg) {
+	lms_portal._looksLikeServerError = function (msg) {
 		if (!msg) return false;
 		return /error|traceback|exception|frappe\.exceptions|not permitted|permission|not whitelisted|login to access/i.test(String(msg));
 	};
-
-	// Build a wrapped error handler that always fires, even for 500s.
-	var userError = opts.error;
-	var userCallback = opts.callback;
 	var wrappedError = function (err) {
 		console.error("[lms_portal.safeCall] error", err);
 		var status = (err && (err.status || err.httpStatusCode)) || 0;
@@ -88,8 +89,8 @@ lms_portal.safeCall = function (opts) {
 	var wrappedCallback = function (r) {
 		// The server sometimes embeds the error into a 200 response.
 		if (r && r._server_messages) {
-			var serverMsg = extractServerMessage(r);
-			if (looksLikeServerError(serverMsg)) {
+			var serverMsg = lms_portal._extractServerMessage(r);
+			if (lms_portal._looksLikeServerError(serverMsg)) {
 				return wrappedError({ status: 200, message: serverMsg, _server_message: true });
 			}
 		}
@@ -119,6 +120,70 @@ lms_portal.safeCall = function (opts) {
 /* Global safety net: if a fetch (not via frappe.call) returns 500, the   */
 /* developer console sees it, but the portal still needs a user-friendly  */
 /* error boundary. The base template wires a top-level error listener.    */
+// Shared guarded wrapper around safeCall: routes permission / not-whitelisted
+// server messages to the error handler with a clear status, and enforces a
+// timeout so a stuck response never leaves the page on a perpetual spinner.
+// CALLBACK does NOT receive r.message when the response is treated as an error.
+lms_portal.guardedCall = function (opts) {
+	if (typeof opts !== "object" || !opts || !opts.method) {
+		return Promise.resolve({ ok: false, payload: { status: 0, message: "guardedCall: method required" } });
+	}
+	return new Promise(function (resolve) {
+		var settled = false;
+		var timeoutMs = opts.timeoutMs || 6000;
+		var finish = function (ok, payload) {
+			if (settled) return;
+			settled = true;
+			clearTimeout(timer);
+			resolve({ ok: ok, payload: payload });
+		};
+		var timer = setTimeout(function () {
+			finish(false, { status: 0, message: "Timed out after " + timeoutMs + " ms" });
+		}, timeoutMs);
+
+		lms_portal.safeCall({
+			method: opts.method,
+			args: opts.args,
+			callback: function (r) {
+				var embedded = lms_portal._extractServerMessage(r);
+				if (embedded && lms_portal._looksLikeServerError(embedded)) {
+					finish(false, { status: 200, message: embedded, _server_message: true });
+					return;
+				}
+				finish(true, r);
+			},
+			error: function (err) {
+				var message = (err && (err.message || err._server_message)) || "";
+				if (err && (err.status === 403 || err.status === 401)) {
+					finish(false, { status: err.status, message: message || "Not permitted" });
+					return;
+				}
+				finish(false, err || { status: 0, message: "Unknown error" });
+			},
+		});
+	});
+};
+
+lms_portal._extractServerMessage = function (payload) {
+	if (!payload || !payload._server_messages) return "";
+	try {
+		var msgs = JSON.parse(payload._server_messages || "[]");
+		if (!msgs || !msgs.length) return "";
+		var msg = msgs[0];
+		if (typeof msg === "string") {
+			try { msg = JSON.parse(msg).message || msg; } catch (e) {}
+		}
+		return String(msg || "");
+	} catch (e) {
+		return "";
+	}
+};
+
+lms_portal._looksLikeServerError = function (msg) {
+	if (!msg) return false;
+	return /error|traceback|exception|frappe\.exceptions|not permitted|permission|not whitelisted|login to access/i.test(String(msg));
+};
+
 window.addEventListener("unhandledrejection", function (event) {
 	console.error("[lms_portal] unhandledrejection", event.reason);
 });
