@@ -108,6 +108,22 @@ lms_manager._guardedCall = function (opts) {
 			method: opts.method,
 			args: opts.args,
 			callback: function (r) {
+				var embedded = "";
+				if (r && r._server_messages) {
+					try {
+						var msgs = JSON.parse(r._server_messages || "[]");
+						if (msgs && msgs.length) {
+							embedded = msgs[0];
+							if (typeof embedded === "string") {
+								try { embedded = JSON.parse(embedded).message || embedded; } catch (e) {}
+							}
+						}
+					} catch (e) {}
+				}
+				if (embedded && /not permitted|permission|not whitelisted|login to access|error|traceback|exception/i.test(String(embedded))) {
+					finish(false, { status: 200, message: String(embedded) });
+					return;
+				}
 				finish(true, r);
 			},
 			error: function (err) {
