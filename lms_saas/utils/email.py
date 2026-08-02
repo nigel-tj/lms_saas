@@ -59,11 +59,14 @@ def get_email_brand_context() -> dict:
 	if footer is None:
 		footer = _("Powered by {0}").format(brand.get("portal_title") or _brand_alias("operator_brand"))
 	# Explicit empty string = hide footer line in templates that check truthiness.
-	support = brand.get("support_email") or ""
-	try:
-		support = support or frappe.db.get_single_value("Website Settings", "support_email") or ""
-	except Exception:
-		pass
+	support = (brand.get("support_email") or frappe.conf.get("lms_support_email") or "").strip()
+	if not support:
+		try:
+			meta = frappe.get_meta("Website Settings")
+			if meta and meta.has_field("support_email"):
+				support = frappe.db.get_single_value("Website Settings", "support_email") or ""
+		except Exception:
+			pass
 
 	return {
 		"company_name": company,
