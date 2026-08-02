@@ -25,7 +25,14 @@ def notify_disbursed(doc, method=None):
 			message=f"disbursement={doc.name} loan={doc.against_loan} error={exc}\n{frappe.get_traceback()}",
 		)
 
-	send_disbursement_branded_email(doc, method=method)
+	# Email notifications are best-effort and must never block money movement.
+	try:
+		send_disbursement_branded_email(doc, method=method)
+	except Exception as exc:
+		frappe.log_error(
+			title="LMS disbursement email failed",
+			message=f"disbursement={doc.name} loan={doc.against_loan} error={exc}\n{frappe.get_traceback()}",
+		)
 
 
 def send_disbursement_branded_email(doc, method=None):
