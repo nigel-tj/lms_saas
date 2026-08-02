@@ -244,7 +244,7 @@ lms_manager._renderApprovalsTable = function (content, queueData, showHeader) {
 			html += '<td><div class="lms-data-table__actions">';
 			html += '<button type="button" class="lms-btn lms-btn--ghost lms-btn--sm lms-review-btn" data-app="' + lms_portal.escape(app.name) + '">Review</button>';
 			html += '<button type="button" class="lms-btn lms-btn--success lms-btn--sm lms-approve-btn" data-app="' + lms_portal.escape(app.name) + '"' +
-				(canApprove ? "" : ' disabled title="' + lms_portal.escape(approveTitle) + '"') + ">" + (canApprove ? "Approve" : "Approve (locked)") + "</button>";
+				(canApprove ? "" : ' disabled title="' + lms_portal.escape(approveTitle) + '" aria-label="Approval locked"') + ">" + (canApprove ? "Approve" : "&#128274;") + "</button>";
 			html += '<button type="button" class="lms-btn lms-btn--ghost lms-btn--sm lms-reject-btn" data-app="' + lms_portal.escape(app.name) + '">Reject</button>';
 			html += "</div></td></tr>";
 		});
@@ -319,9 +319,16 @@ lms_manager._renderAll = function (root, dash, queue) {
 			html += "<td>" + lms_portal.escape(app.product_name || app.loan_product || "") + "</td>";
 			html += "<td>" + format_currency(app.loan_amount || 0) + "</td>";
 			html += "<td>" + lms_portal.escape(app.officer_name || "—") + "</td>";
+			var canApprove = !!app.is_approvable;
+			var approveTitle = canApprove
+				? "Approve"
+				: "Cannot approve: borrower KYC must be Approved and AML must be Clear. Current: KYC=" +
+					(app.kyc_status || "Pending") + ", AML=" + (app.aml_status || "Pending") + ".";
 			html += '<td><div class="lms-data-table__actions">';
 			html += '<button type="button" class="lms-btn lms-btn--ghost lms-btn--sm lms-review-btn" data-app="' + lms_portal.escape(app.name) + '">Review</button>';
-			html += '<button type="button" class="lms-btn lms-btn--success lms-btn--sm lms-approve-btn" data-app="' + lms_portal.escape(app.name) + '">Approve</button>';
+			html += '<button type="button" class="lms-btn lms-btn--success lms-btn--sm lms-approve-btn" data-app="' + lms_portal.escape(app.name) + '"' +
+				(canApprove ? "" : ' disabled title="' + lms_portal.escape(approveTitle) + '" aria-label="Approval locked"') +
+				">" + (canApprove ? "Approve" : "&#128274;") + "</button>";
 			html += '<button type="button" class="lms-btn lms-btn--ghost lms-btn--sm lms-reject-btn" data-app="' + lms_portal.escape(app.name) + '">Reject</button>';
 			html += "</div></td></tr>";
 		});
@@ -672,6 +679,9 @@ lms_manager._approve = function (appName) {
 						// Partial refresh — preserve the active tab and don't
 						// rebuild charts. Full init() yanks the user back to
 						// the dashboard and causes a visible chart flicker.
+						lms_manager._refreshDashboardData();
+					} else if (res.status === "blocked") {
+						lms_portal.toast((res && res.message) || "Approval is blocked by KYC/AML policy.", "warning");
 						lms_manager._refreshDashboardData();
 					} else {
 						lms_portal.toast((res && res.message) || "Approval did not complete.", "danger");
