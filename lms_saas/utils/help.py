@@ -19,6 +19,13 @@ DOCS_DIR = os.path.join(os.path.dirname(frappe.get_app_path("lms_saas")), "docs"
 # slug → markdown file + roles that may open the page
 HELP_PAGES: tuple[dict, ...] = (
 	{
+		"slug": "staff",
+		"title": _("Staff guide"),
+		"file": "STAFF_GUIDE.md",
+		"roles": (PORTAL_STAFF_ROLE,),
+		"description": _("Daily LMS staff workflows and navigation"),
+	},
+	{
 		"slug": "borrower",
 		"title": _("Borrower help"),
 		"file": "role-borrower.md",
