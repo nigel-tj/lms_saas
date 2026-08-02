@@ -1084,6 +1084,24 @@ def _sync_dashboard_chart_source():
 def _sync_number_cards():
     """Create/refresh native KPI Number Cards (idempotent, code-managed)."""
     for card in NUMBER_CARDS:
+        # Historical installs created Number Card names from `label`
+        # (e.g. "Portfolio Outstanding") before we standardized
+        # LMS-prefixed names. Normalize to the canonical name so
+        # verify_spec and dashboard links converge on one identifier.
+        if card["label"] != card["name"] and frappe.db.exists("Number Card", card["label"]) and not frappe.db.exists("Number Card", card["name"]):
+            try:
+                frappe.rename_doc(
+                    "Number Card",
+                    card["label"],
+                    card["name"],
+                    ignore_permissions=True,
+                    force=True,
+                    show_alert=False,
+                )
+            except Exception:
+                # Best-effort normalize; payload upsert below still runs.
+                pass
+
         payload = {
             "type": "Custom",
             "method": "lms_saas.api.dashboard.get_kpi_card",
@@ -1222,7 +1240,7 @@ def _reconcile_loan_dashboard():
     _sync_dashboard_charts()
 
     for card in NUMBER_CARDS:
-        # Number Card autoname uses label; check both name and label.
+        # Handle both canonical (name) and legacy (label) records.
         for candidate in (card["name"], card["label"]):
             if frappe.db.exists("Number Card", candidate):
                 _append_loan_dashboard_card(candidate)
