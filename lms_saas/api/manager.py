@@ -320,21 +320,33 @@ def approve_application(application_name: str):
 		["kyc_status", "aml_status"],
 		as_dict=True,
 	) or {}
-	if (compliance.get("kyc_status") or "Pending") != "Approved":
-		frappe.throw(
-			_(
+	current_kyc = compliance.get("kyc_status") or "Pending"
+	current_aml = compliance.get("aml_status") or "Pending"
+	if current_kyc != "Approved":
+		return {
+			"status": "blocked",
+			"code": "kyc_not_approved",
+			"application": application_name,
+			"kyc_status": current_kyc,
+			"aml_status": current_aml,
+			"message": _(
 				"Cannot approve: borrower KYC is not Approved (current: {0}). "
 				"Complete KYC review first."
-			).format(compliance.get("kyc_status") or "Pending")
-		)
-	if (compliance.get("aml_status") or "Pending") != "Clear":
-		frappe.throw(
-			_(
+			).format(current_kyc),
+		}
+	if current_aml != "Clear":
+		return {
+			"status": "blocked",
+			"code": "aml_not_clear",
+			"application": application_name,
+			"kyc_status": current_kyc,
+			"aml_status": current_aml,
+			"message": _(
 				"Cannot approve: borrower AML screening is not Clear (current: {0}). "
 				"Wait for AML screening to complete or override via the AML "
 				"override flow (Branch Manager only)."
-			).format(compliance.get("aml_status") or "Pending")
-		)
+			).format(current_aml),
+		}
 
 	# Submit the application (triggers compliance/credit policy hooks)
 	app.flags.ignore_permissions = True
