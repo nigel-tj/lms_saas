@@ -1,6 +1,14 @@
 /* LMS borrower portal — UX-focused UI */
 frappe.provide("lms_portal");
 
+// highlight.js v10.6+ deprecates initHighlighting(); keep compatibility
+// with older callers by routing to highlightAll when available.
+if (window.hljs && typeof window.hljs.highlightAll === "function") {
+	window.hljs.initHighlighting = function () {
+		window.hljs.highlightAll();
+	};
+}
+
 /* ------------------------------------------------------------------ */
 /* lms_portal.safeCall                                                 */
 /* ------------------------------------------------------------------ */
@@ -20,18 +28,40 @@ lms_portal.safeCall = function (opts) {
 		return;
 	}
 
+	var extractServerMessage = function (payload) {
+		if (!payload || !payload._server_messages) return "";
+		try {
+			var msgs = JSON.parse(payload._server_messages || "[]");
+			if (!msgs || !msgs.length) return "";
+			var msg = msgs[0];
+			if (typeof msg === "string") {
+				try { msg = JSON.parse(msg).message || msg; } catch (e) {}
+			}
+			return String(msg || "");
+		} catch (e) {
+			return "";
+		}
+	};
+
+	var looksLikeServerError = function (msg) {
+		if (!msg) return false;
+		return /error|traceback|exception|frappe\.exceptions|not permitted|permission|not whitelisted|login to access/i.test(String(msg));
+	};
+
 	// Build a wrapped error handler that always fires, even for 500s.
 	var userError = opts.error;
 	var userCallback = opts.callback;
 	var wrappedError = function (err) {
 		console.error("[lms_portal.safeCall] error", err);
 		var status = (err && (err.status || err.httpStatusCode)) || 0;
+		var message = String((err && (err.message || err._server_message || "")) || "");
+		var isAuthish = status === 401 || status === 403 || /not permitted|permission|not whitelisted|login to access/i.test(message);
 		// Cheap session / rate-limit messaging so reviewers never see a silent fail.
-		if (status === 401 || status === 403) {
+		if (isAuthish) {
 			try {
 				if (typeof lms_portal.toast === "function") {
 					lms_portal.toast(
-						status === 401
+						status === 401 || /login to access/i.test(message)
 							? "Your session expired. Please sign in again."
 							: "You don’t have permission for that action.",
 						"warning"
@@ -58,18 +88,10 @@ lms_portal.safeCall = function (opts) {
 	var wrappedCallback = function (r) {
 		// The server sometimes embeds the error into a 200 response.
 		if (r && r._server_messages) {
-			try {
-				var msgs = JSON.parse(r._server_messages || "[]");
-				if (msgs && msgs.length) {
-					var msg = msgs[0];
-					if (typeof msg === "string") {
-						try { msg = JSON.parse(msg).message || msg; } catch (e) {}
-					}
-					if (msg && /error|traceback|exception|frappe\.exceptions/i.test(String(msg))) {
-						return wrappedError({ status: 200, message: msg, _server_message: true });
-					}
-				}
-			} catch (e) { /* fallthrough */ }
+			var serverMsg = extractServerMessage(r);
+			if (looksLikeServerError(serverMsg)) {
+				return wrappedError({ status: 200, message: serverMsg, _server_message: true });
+			}
 		}
 		if (r && r.exc) {
 			return wrappedError({ status: 200, message: r.exc, _server_message: true });
