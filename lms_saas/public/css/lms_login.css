@@ -312,16 +312,20 @@ body.lms-login-page .page-breadcrumbs {
 
 .lms-login-card-head {
 	text-align: center;
-	padding: 1.35rem 1.35rem 0.5rem !important;
+	padding: 1.75rem 1.35rem 1rem !important;
 	border: none !important;
 	background: transparent !important;
+	display: flex !important;
+	flex-direction: column;
+	align-items: center;
+	gap: 0.5rem;
 }
 
 .lms-login-card-head .app-logo,
 .lms-login-card-head .lms-login-lockup__mark {
 	height: 3.25rem;
 	width: 3.25rem;
-	margin: 0 auto 0.85rem;
+	margin: 0 auto;
 }
 
 .lms-login-card-title {
@@ -330,12 +334,16 @@ body.lms-login-page .page-breadcrumbs {
 	font-weight: 700;
 	color: var(--lms-text);
 	letter-spacing: -0.02em;
+	text-align: center;
+	width: 100%;
 }
 
 .lms-login-card-subtitle {
-	margin: 0.35rem 0 0;
+	margin: 0;
 	font-size: 0.875rem;
 	color: var(--lms-text-muted);
+	text-align: center;
+	width: 100%;
 }
 
 .lms-login-card .page-card-body {

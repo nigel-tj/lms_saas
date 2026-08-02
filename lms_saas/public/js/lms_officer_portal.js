@@ -16,11 +16,6 @@ lms_officer.init = function () {
 	var root = document.getElementById("lms-officer-root");
 	if (!root) return;
 
-	// R36: restore the last-active tab so a refresh (e.g. after saving an
-	// application) doesn't bounce the officer back to Dashboard. Falls back
-	// to "dashboard" on the very first visit.
-	lms_officer._currentTab = lms_portal.persistedTab("officer", lms_officer._tabs, "dashboard");
-
 	root.innerHTML = lms_officer._pageHeader() + lms_officer._tabNav() + '<div id="lms-officer-tab-content"></div>';
 	lms_officer._bindTabs();
 	lms_officer._bindPrimaryAction();
@@ -80,7 +75,6 @@ lms_officer._bindPrimaryAction = function () {
 	if (viewLoansBtn) {
 		viewLoansBtn.addEventListener("click", function () {
 			lms_officer._currentTab = "loans";
-			lms_portal.saveActiveTab("officer", "loans");
 			root.querySelectorAll(".lms-tab").forEach(function (b) {
 				b.classList.toggle("is-active", b.getAttribute("data-tab") === "loans");
 				b.setAttribute("aria-selected", b.getAttribute("data-tab") === "loans" ? "true" : "false");
@@ -96,9 +90,6 @@ lms_officer._bindTabs = function () {
 		tabs: lms_officer._tabs,
 		onTab: function (tabId) {
 			lms_officer._currentTab = tabId;
-			// R36: persist so a refresh lands the officer back on the same
-			// tab (e.g. when they save an application and the modal closes).
-			lms_portal.saveActiveTab("officer", tabId);
 			lms_officer._showTab(tabId);
 		},
 	});
@@ -1457,58 +1448,13 @@ lms_officer._viewBorrower = function (customerName) {
 	});
 };
 
-// ---------------------------------------------------------------------------
-// Borrower Profile modal (R35 de-dup).
-//
-// Single source of truth:
-//   * National ID, consent and ID documents live on LMS Borrower Compliance
-//     and are edited ONLY through the KYC review modal (`_showKycReviewModal`).
-//   * Name / mobile / email live on Customer and are edited through the
-//     inline "Edit contact details" toggle inside this modal.
-//
-// This modal is a read-only snapshot + two action paths (Open KYC review /
-// Edit contact details). The KYC modal pre-fills the NID input from
-// Customer.custom_national_id_number (see `_hydratedNid` there) so the
-// officer doesn't have to retype.
 lms_officer._showBorrowerModal = function (b) {
+	// Build the editable profile form. The Loan Officer is allowed to
+	// update contact details on a borrower in their branch. Backend
+	// enforcement (branch scope + role) lives in
+	// lms_saas.api.officer.update_borrower; this form is the UI half.
 	var html = '<div class="lms-form">';
-
-	// Read-only summary card with data-brw-field hooks so a contact
-	// update can write back without a round-trip.
-	html += '<div class="lms-grid-2" id="lms-brw-readonly-card">';
-	html += '<div><div class="lms-summary-label">Name</div><div class="lms-summary-value" data-brw-field="name">' +
-		lms_portal.escape(b.customer_name || "—") + '</div></div>';
-	html += '<div><div class="lms-summary-label">Branch</div><div class="lms-summary-value">' +
-		lms_portal.escape(b.custom_lms_branch || "—") + '</div></div>';
-	html += '<div><div class="lms-summary-label">Mobile</div><div class="lms-summary-value" data-brw-field="mobile">' +
-		lms_portal.escape(b.mobile_no || "—") + '</div></div>';
-	html += '<div><div class="lms-summary-label">Email</div><div class="lms-summary-value" data-brw-field="email">' +
-		lms_portal.escape(b.email_id || "—") + '</div></div>';
-	html += '<div><div class="lms-summary-label">National ID</div><div class="lms-summary-value">' +
-		lms_portal.escape(b.custom_national_id_number || "—") +
-		(b.custom_national_id_number ? "" :
-			' <span class="lms-badge lms-badge--muted">on KYC only</span>') +
-		'</div></div>';
-	html += '</div>';
-
-	// KYC status summary + canonical Open-KYC button.
-	html += '<div class="lms-section-header"><h4>KYC</h4></div>';
-	html += '<div class="lms-summary-value" style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">';
-	html += '<span class="lms-badge ' + lms_portal.badgeClass(0, (b.compliance || {}).kyc_status) + '">' +
-		lms_portal.escape((b.compliance || {}).kyc_status || "No KYC") + '</span>';
-	html += (b.compliance && b.compliance.consent_given ?
-		'<span class="lms-badge lms-badge--success">Consent</span>' :
-		'<span class="lms-badge lms-badge--muted">No consent</span>');
-	html += '</div>';
-	html += '<small class="lms-form-hint">National ID, consent and ID documents are edited in the KYC review modal — single source of truth.</small>';
-	html += '<div style="margin-top:0.5rem;">' +
-		lms_officer._borrowerKycLink(b.compliance || {}, b.name) +
-		'</div>';
-
-	// Inline contact-edit form (collapsed until "Edit contact details" is clicked).
-	html += '<div id="lms-brw-contact-form" style="display:none;margin-top:1rem;padding:0.85rem;border:1px dashed var(--lms-border);border-radius:8px;">';
 	html += '<form id="lms-borrower-edit-form" class="lms-form" autocomplete="off">';
-	html += '<div class="lms-section-header"><h4>Edit contact details</h4></div>';
 	html += '<div class="lms-form-row"><label class="lms-form-label" for="lms-brw-name">Name</label>';
 	html += '<input class="lms-input" id="lms-brw-name" name="customer_name_new" type="text" value="' + lms_portal.escape(b.customer_name || "") + '" maxlength="120" required />';
 	html += '</div>';
@@ -1518,17 +1464,25 @@ lms_officer._showBorrowerModal = function (b) {
 	html += '<div class="lms-form-row"><label class="lms-form-label" for="lms-brw-email">Email</label>';
 	html += '<input class="lms-input" id="lms-brw-email" name="email_id" type="email" value="' + lms_portal.escape(b.email_id || "") + '" maxlength="120" />';
 	html += '</div>';
+	html += '<div class="lms-form-row"><label class="lms-form-label" for="lms-brw-nid">National ID</label>';
+	html += '<input class="lms-input" id="lms-brw-nid" name="national_id" type="text" value="' + lms_portal.escape(b.custom_national_id_number || "") + '" maxlength="32" />';
+	html += '</div>';
+	html += '<div class="lms-form-row"><label class="lms-form-label">KYC</label>';
+	html += '<div class="lms-summary-value" style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">';
+	html += '<span class="lms-badge ' + lms_portal.badgeClass(0, (b.compliance || {}).kyc_status) + '">' +
+		lms_portal.escape((b.compliance || {}).kyc_status || "No KYC") + '</span>';
+	html += (b.compliance && b.compliance.consent_given ? '<span class="lms-badge lms-badge--success">Consent</span>' : '<span class="lms-badge lms-badge--muted">No consent</span>');
+	html += '</div>';
+	html += '<small class="lms-form-hint">KYC is reviewed in the KYC Queue tab.</small>';
+	// Start KYC / Open KYC button — uses the KYC doc name (or customer
+	// name for the no-record-yet case) so the officer can jump straight
+	// from the borrower detail modal to the full KYC review form.
+	html += '<div style="margin-top:0.5rem;">' +
+		lms_officer._borrowerKycLink(b.compliance || {}, b.name) +
+		'</div>';
+	html += '</div>';
 	html += '<input type="hidden" name="customer_name" value="' + lms_portal.escape(b.name || "") + '" />';
-	html += '<div style="display:flex;gap:0.5rem;margin-top:0.5rem;">';
-	html += '<button type="button" id="lms-brw-save-contact" class="lms-btn lms-btn--primary lms-btn--sm">Save contact</button>';
-	html += '<button type="button" id="lms-brw-cancel-contact" class="lms-btn lms-btn--ghost lms-btn--sm">Cancel</button>';
-	html += '</div>';
 	html += '</form>';
-	html += '</div>';
-
-	html += '<div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:1rem;">';
-	html += '<button type="button" id="lms-brw-edit-contact-btn" class="lms-btn lms-btn--ghost">Edit contact details</button>';
-	html += '</div>';
 
 	if (b.loans && b.loans.length) {
 		html += '<h4 style="margin-top:1.5rem;">Loans (' + b.loans.length + ')</h4>';
@@ -1543,6 +1497,7 @@ lms_officer._showBorrowerModal = function (b) {
 		html += "</tbody></table></div>";
 	}
 
+	// Recent repayments (read-only)
 	if (b.recent_repayments && b.recent_repayments.length) {
 		html += '<h4 style="margin-top:1.5rem;">Recent Repayments</h4>';
 		html += '<div class="lms-data-table__wrap"><table class="lms-data-table"><thead><tr><th>Receipt</th><th>Loan</th><th>Amount</th><th>Date</th></tr></thead><tbody>';
@@ -1562,131 +1517,97 @@ lms_officer._showBorrowerModal = function (b) {
 		title: "Borrower Profile — " + (b.customer_name || ""),
 		body: html,
 		size: "xl",
-		// No onConfirm — nothing to save at the modal root. KYC
-		// edits route through _showKycReviewModal, contact edits
-		// through the inline form's own Save/Cancel pair.
-		confirmText: "Close",
-		confirmVariant: "ghost",
-		cancelText: null,
-		onShown: function (overlay) {
-			function _closeThisModal() {
-				var closeBtn = overlay.querySelector(".lms-modal__close");
-				if (closeBtn) closeBtn.click();
-			}
-
-			// Open the KYC review modal (Start KYC or Open KYC button).
-			// Must close this modal first so only one is on screen.
-			overlay.addEventListener("click", function _borrowerKycJump(ev) {
-				var t = ev.target.closest && ev.target.closest(
-					".lms-of-brw-start-kyc, .lms-of-brw-open-kyc"
-				);
-				if (!t) return;
-				ev.preventDefault();
-				var jumpKycName = null;
-				if (t.classList.contains("lms-of-brw-start-kyc")) {
-					var customer = t.getAttribute("data-customer");
-					lms_portal.safeCall({
-						method: "lms_saas.api.officer.start_kyc",
-						args: { customer: customer, kyc_status: "Pending" },
-						callback: function (r) {
-							var res = (r && r.message) || {};
-							if (res.kyc) {
-								lms_portal.toast("KYC record created.", "success");
-								jumpKycName = res.kyc;
-								_closeThisModal();
-								setTimeout(function () {
-									lms_officer._openKycReview(
-										jumpKycName,
-										document.getElementById("lms-officer-tab-content")
-									);
-								}, 50);
-							} else {
-								lms_portal.toast("Could not start KYC.", "danger");
-							}
-						},
-						error: function (err) {
-							var msg = (err && (err.message || err._server_message)) ||
-								"Could not start KYC.";
-							lms_portal.toast(msg, "danger");
-						},
-					});
-				} else if (t.classList.contains("lms-of-brw-open-kyc")) {
-					jumpKycName = t.getAttribute("data-kyc");
-					_closeThisModal();
-					setTimeout(function () {
-						lms_officer._openKycReview(
-							jumpKycName,
-							document.getElementById("lms-officer-tab-content")
-						);
-					}, 50);
-				}
-				overlay.removeEventListener("click", _borrowerKycJump);
+		confirmText: "Save",
+		confirmVariant: "primary",
+		cancelText: "Close",
+		onConfirm: function () {
+			// Collect the form values and POST them.
+			var form = document.getElementById("lms-borrower-edit-form");
+			if (!form) return;
+			var args = {
+				customer_name: officerCustomerName,
+				customer_name_new: form.customer_name_new.value || officerCustomerName,
+				email_id: form.email_id.value || "",
+				mobile_no: form.mobile_no.value || "",
+				national_id: form.national_id.value || "",
+			};
+			lms_portal.safeCall({
+				method: "lms_saas.api.officer.update_borrower",
+				args: args,
+				callback: function (r) {
+					if (r && r.message && r.message.status === "updated") {
+						lms_portal.toast("Borrower updated.", "success");
+						// Reload the borrowers list if the Borrowers tab is showing
+						var content = document.getElementById("lms-officer-tab-content");
+						if (content) {
+							lms_officer._loadBorrowers(content);
+						}
+					} else {
+						lms_portal.toast("Could not save borrower.", "danger");
+					}
+				},
+				error: function (err) {
+					var msg = (err && (err.message || err._server_message)) || "Could not save borrower.";
+					lms_portal.toast(msg, "danger");
+				},
 			});
-
-			// Toggle + save the inline contact-edit form.
-			var editBtn = overlay.querySelector("#lms-brw-edit-contact-btn");
-			var contactFormWrap = overlay.querySelector("#lms-brw-contact-form");
-			var saveBtn = overlay.querySelector("#lms-brw-save-contact");
-			var cancelBtn = overlay.querySelector("#lms-brw-cancel-contact");
-			if (editBtn && contactFormWrap) {
-				editBtn.addEventListener("click", function () {
-					contactFormWrap.style.display = "block";
-					editBtn.style.display = "none";
-				});
-			}
-			if (cancelBtn && contactFormWrap && editBtn) {
-				cancelBtn.addEventListener("click", function () {
-					contactFormWrap.style.display = "none";
-					editBtn.style.display = "";
-				});
-			}
-			if (saveBtn) {
-				saveBtn.addEventListener("click", function () {
-					var form = overlay.querySelector("#lms-borrower-edit-form");
-					if (!form) return;
-					var args = {
-						customer_name: officerCustomerName,
-						customer_name_new: form.customer_name_new.value || officerCustomerName,
-						email_id: form.email_id.value || "",
-						mobile_no: form.mobile_no.value || "",
-					};
-					// Note: no national_id — NID lives on the
-					// Compliance record and is edited through the
-					// KYC review modal (single source of truth).
-					lms_portal.safeCall({
-						method: "lms_saas.api.officer.update_borrower",
-						args: args,
-						callback: function (r) {
-							if (r && r.message && r.message.status === "updated") {
-								lms_portal.toast("Contact details updated.", "success");
-								var card = overlay.querySelector("#lms-brw-readonly-card");
-								if (card) {
-									var nm = card.querySelector('[data-brw-field="name"]');
-									var mb = card.querySelector('[data-brw-field="mobile"]');
-									var em = card.querySelector('[data-brw-field="email"]');
-									if (nm && args.customer_name_new) nm.textContent = args.customer_name_new;
-									if (mb) mb.textContent = args.mobile_no || "—";
-									if (em) em.textContent = args.email_id || "—";
-								}
-								if (contactFormWrap) contactFormWrap.style.display = "none";
-								if (editBtn) editBtn.style.display = "";
-								var tab = document.getElementById("lms-officer-tab-content");
-								if (tab) lms_officer._loadBorrowers(tab);
-							} else {
-								lms_portal.toast("Could not save borrower.", "danger");
-							}
-						},
-						error: function (err) {
-							var msg = (err && (err.message || err._server_message)) ||
-								"Could not save borrower.";
-							lms_portal.toast(msg, "danger");
-						},
-					});
-				});
-			}
 		},
 	});
+
+	// KYC buttons inside the borrower detail modal. The modal element
+	// is the document.body (LMSModal puts it in a div at the body root),
+	// so we listen at the document level and filter to clicks on the
+	// matching class — saves us a query for the dialog element.
+	document.addEventListener("click", function _lms_brw_kyc_handler(ev) {
+		var t = ev.target.closest && ev.target.closest(
+			".lms-of-brw-start-kyc, .lms-of-brw-open-kyc"
+		);
+		if (!t) return;
+		// Bail if the click is on a different open modal (don't
+		// double-fire when the KYC modal itself renders the same class).
+		if (t.closest(".lms-modal") !== t.closest(".lms-modal-root") &&
+			t.closest(".lms-modal-root") !== document.querySelector(".lms-modal-root")) {
+			// Click is inside the borrower modal but not the KYC one
+		}
+		if (t.classList.contains("lms-of-brw-start-kyc")) {
+			var customer = t.getAttribute("data-customer");
+			lms_portal.safeCall({
+				method: "lms_saas.api.officer.start_kyc",
+				args: { customer: customer, kyc_status: "Pending" },
+				callback: function (r) {
+					var res = (r && r.message) || {};
+					if (res.kyc) {
+						lms_portal.toast("KYC record created.", "success");
+						// Close the borrower modal, then open the KYC review
+						var openModal = document.querySelector(".lms-modal-root .lms-modal__close");
+						if (openModal) openModal.click();
+						setTimeout(function () {
+							lms_officer._openKycReview(res.kyc,
+								document.getElementById("lms-officer-tab-content"));
+						}, 50);
+					} else {
+						lms_portal.toast("Could not start KYC.", "danger");
+					}
+				},
+				error: function (err) {
+					var msg = (err && (err.message || err._server_message)) || "Could not start KYC.";
+					lms_portal.toast(msg, "danger");
+				},
+			});
+		} else if (t.classList.contains("lms-of-brw-open-kyc")) {
+			var kyc = t.getAttribute("data-kyc");
+			var openModal2 = document.querySelector(".lms-modal-root .lms-modal__close");
+			if (openModal2) openModal2.click();
+			setTimeout(function () {
+				lms_officer._openKycReview(kyc,
+					document.getElementById("lms-officer-tab-content"));
+			}, 50);
+		}
+	});
 };
+
+// ---------------------------------------------------------------------------
+// Loans tab
 
 // ---------------------------------------------------------------------------
 lms_officer._loadLoans = function (content) {
@@ -2262,28 +2183,8 @@ lms_officer._showKycReviewModal = function (data, content) {
 	var kyc = data.kyc || {};
 	var borrower = data.borrower || {};
 
-	// R35: hydrate the National ID input from the Customer's master record
-	// when the Compliance record is blank. Two stores of truth were the
-	// root cause of the "I entered NID in the borrower modal but it didn't
-	// propagate to KYC" complaint — the borrower modal wrote
-	// Customer.custom_national_id_number, but the KYC approval gate reads
-	// the Compliance record's national_id_number, so the officer's
-	// approval got blocked. The KYC modal is now the canonical NID entry
-	// point. Pre-fill from Customer so the officer doesn't re-type.
-	var _hydratedNid = kyc.national_id_number || borrower.custom_national_id_number || "";
-
 	var body =
 		'<form id="lms-kyc-review-form" class="lms-form" autocomplete="off">' +
-		// --- Live validation alert (R33) ---
-		// Shown only when the user selects "Approved" but is missing one
-		// or more required fields. Re-evaluated on every change to the
-		// form (status / NID / consent / docs). The server-side 417
-		// gates are still authoritative — this is purely a UX guard to
-		// stop the officer clicking Save with the gate already failing.
-		'<div id="lms-kyc-requirements" class="lms-form-alert lms-form-alert--error" role="alert" aria-live="polite">' +
-		'<p class="lms-form-alert__title">Cannot save yet — missing requirements</p>' +
-		'<ul class="lms-form-alert__list" id="lms-kyc-requirements-list"></ul>' +
-		'</div>' +
 		// --- Borrower summary ---
 		'<div class="lms-section-header"><h4>Borrower</h4></div>' +
 		'<div class="lms-grid-2">' +
@@ -2308,7 +2209,7 @@ lms_officer._showKycReviewModal = function (data, content) {
 		'</select></label>' +
 		'<label>National ID number ' +
 		'<input type="text" id="lms-kyc-nid" class="lms-input" value="' +
-		lms_portal.escape(_hydratedNid) + '" maxlength="32" />' +
+		lms_portal.escape(kyc.national_id_number || "") + '" maxlength="32" />' +
 		'</label>' +
 		'<label class="lms-grid-2__full"><input type="checkbox" id="lms-kyc-consent" ' +
 		(kyc.consent_given ? 'checked' : '') + '> Customer consents to data processing' +
@@ -2366,80 +2267,6 @@ lms_officer._showKycReviewModal = function (data, content) {
 	if (!dlgRoot) return;
 
 	var kycName = kyc.name;
-
-	// R33: live validation hook. Re-runs on every form change. When the
-	// officer has selected "Approved" without satisfying the server-side
-	// gate (NID + consent + ID document), we (a) show an inline alert at
-	// the top of the form listing the missing items, (b) disable the
-	// modal's primary "Save changes" button. This prevents the 417 flood
-	// the operator saw when clicking through the modal without first
-	// recording consent + ID document + NID. The server gate at
-	// `officer.update_kyc` remains authoritative — we don't loosen it.
-	function lmsKycEvalRequirements() {
-		var statusEl = dlgRoot.querySelector("#lms-kyc-status");
-		var nidEl = dlgRoot.querySelector("#lms-kyc-nid");
-		var consentEl = dlgRoot.querySelector("#lms-kyc-consent");
-		var iddocEl = dlgRoot.querySelector("#lms-kyc-iddoc-url");
-		var alertEl = dlgRoot.querySelector("#lms-kyc-requirements");
-		var listEl = dlgRoot.querySelector("#lms-kyc-requirements-list");
-		if (!statusEl || !alertEl || !listEl) return;
-
-		var targetStatus = statusEl.value || "Pending";
-		var missing = [];
-		if (targetStatus === "Approved") {
-			// R35: the input is the canonical source — but allow the
-			// hydration from Customer's NID to satisfy the gate even
-			// before the officer re-types it. Lets the Compliance record
-			// stay in sync with the Customer master.
-			var nidLive = (nidEl && nidEl.value && nidEl.value.trim()) || _hydratedNid;
-			if (!nidLive) {
-				missing.push("National ID number is required for an Approved KYC.");
-			}
-			if (!(consentEl && consentEl.checked) && !kyc.consent_given) {
-				missing.push("Borrower consent must be recorded before approval.");
-			}
-			if (!((iddocEl && iddocEl.value) || kyc.id_document_proof)) {
-				missing.push("ID document proof must be uploaded before approval.");
-			}
-		}
-
-		if (missing.length) {
-			listEl.innerHTML = missing
-				.map(function (m) { return "<li>" + lms_portal.escape(m) + "</li>"; })
-				.join("");
-			alertEl.classList.add("lms-form-alert--show");
-		} else {
-			alertEl.classList.remove("lms-form-alert--show");
-			listEl.innerHTML = "";
-		}
-
-		// Toggle the Save button. We find the modal's primary action via
-		// the data attribute LMSModal stamps on its confirm button. The
-		// button is re-rendered each time the dialog is mounted, so we
-		// resolve it lazily (the alert toggle races with re-render).
-		var saveBtn = dlgRoot.querySelector('[data-lms-modal-action="true"]');
-		if (saveBtn) {
-			if (missing.length) {
-				saveBtn.classList.add("lms-action-disabled");
-				saveBtn.setAttribute("aria-disabled", "true");
-				saveBtn.setAttribute("title", "Resolve the missing requirements above before saving.");
-			} else {
-				saveBtn.classList.remove("lms-action-disabled");
-				saveBtn.removeAttribute("aria-disabled");
-				saveBtn.removeAttribute("title");
-			}
-		}
-	}
-
-	// Initial pass + wire up change listeners
-	lmsKycEvalRequirements();
-	["#lms-kyc-status", "#lms-kyc-nid", "#lms-kyc-consent"].forEach(function (sel) {
-		var node = dlgRoot.querySelector(sel);
-		if (node) node.addEventListener("change", lmsKycEvalRequirements);
-	});
-	// NID is a free-text input — listen on input too, not just change.
-	var nidLive = dlgRoot.querySelector("#lms-kyc-nid");
-	if (nidLive) nidLive.addEventListener("input", lmsKycEvalRequirements);
 
 	// Load audit trail asynchronously
 	lms_portal.safeCall({
@@ -2528,56 +2355,15 @@ lms_officer._showKycReviewModal = function (data, content) {
 			// the API call returns.
 			ev.preventDefault();
 			ev.stopImmediatePropagation();
-			// R35: pull the NID input value, fall back to the
-			// Customer-hydrated value if the officer didn't type
-			// anything new. This way saving the KYC always seeds the
-			// Compliance record with whatever was pre-loaded from the
-			// Customer master (or the existing value), even if the
-			// officer never touched the field. update_kyc still
-			// writes it to LMS Borrower Compliance.national_id_number.
-			var nidInputVal = (dlgRoot.querySelector("#lms-kyc-nid") || {}).value || "";
-			var nidArg = nidInputVal.trim() || _hydratedNid;
 			var args = {
 				kyc_name: kycName,
 				kyc_status: (dlgRoot.querySelector("#lms-kyc-status") || {}).value || "",
 				consent_given: ((dlgRoot.querySelector("#lms-kyc-consent") || {}).checked) ? 1 : 0,
-				national_id: nidArg,
+				national_id: (dlgRoot.querySelector("#lms-kyc-nid") || {}).value || "",
 				id_document_proof: (dlgRoot.querySelector("#lms-kyc-iddoc-url") || {}).value || "",
 				proof_of_address: (dlgRoot.querySelector("#lms-kyc-poa-url") || {}).value || "",
 				notes: (dlgRoot.querySelector("#lms-kyc-note") || {}).value || "",
 			};
-
-			// R33: client-side mirror of the server gate. Stops the
-			// 417 flood that happens when the officer hits Save with
-			// an ineligible "Approved" form. The server gate at
-			// `officer.update_kyc` is still authoritative — we just
-			// refuse to post and surface the list inline so the
-			// console stays clean.
-			if (args.kyc_status === "Approved") {
-				var missing = [];
-				if (!(args.national_id || _hydratedNid)) {
-					missing.push("National ID number");
-				}
-				if (!(args.consent_given || kyc.consent_given)) {
-					missing.push("Borrower consent");
-				}
-				if (!(args.id_document_proof || kyc.id_document_proof)) {
-					missing.push("ID document proof");
-				}
-				if (missing.length) {
-					lms_portal.toast(
-						"Cannot approve KYC — missing: " + missing.join(", ") + ".",
-						"danger"
-					);
-					var reqEl = dlgRoot.querySelector("#lms-kyc-requirements");
-					if (reqEl) {
-						reqEl.classList.add("lms-form-alert--show");
-						reqEl.scrollIntoView({ behavior: "smooth", block: "start" });
-					}
-					return;
-				}
-			}
-
 			lms_portal.safeCall({
 				method: "lms_saas.api.officer.update_kyc",
 				args: args,

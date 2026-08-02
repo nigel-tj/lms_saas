@@ -6,10 +6,6 @@ if (typeof frappe !== "undefined" && typeof frappe.provide === "function") {
 }
 
 lms_manager._charts = {};
-// R36: active tab is restored from sessionStorage on init() and persisted
-// on every tab switch. The default ("dashboard") only applies on the
-// very first visit — every subsequent refresh lands the manager back on
-// whichever tab they were last working on (Approvals, Borrowers, etc).
 lms_manager._currentTab = "dashboard";
 // R18-14: keep a per-tab timeout so a stuck safeCall can never leave the
 // content area on a perpetual "Loading…" spinner. After 6 s we render an
@@ -24,19 +20,18 @@ lms_manager.init = function () {
 	var root = document.getElementById("lms-manager-root");
 	if (!root) return;
 
-	// R36: restore the last-active tab from sessionStorage so the manager
-	// stays on their work tab (Approvals, Borrowers) across page refresh.
-	// Fall back to "dashboard" on the very first visit.
-	lms_manager._currentTab = lms_portal.persistedTab("manager", lms_manager._tabs(), "dashboard");
-
 	// Render tab navigation first
 	root.innerHTML = lms_manager._tabNav() + '<div id="lms-manager-tab-content"></div>';
 	lms_manager._bindTabs();
 	lms_manager._showTab(lms_manager._currentTab);
 };
 
-lms_manager._tabs = function () {
-	return [
+lms_manager._tabNav = function () {
+	// R18-15: add the Approvals tab between Loans and Reports. Four-eyes
+	// approvals are the single most important action on this page for a
+	// branch manager; not having a tab for them was the #1 staff-side
+	// complaint from the R18 board.
+	var tabs = [
 		{ id: "dashboard", label: "Dashboard", icon: "bar-chart" },
 		{ id: "borrowers", label: "Borrowers", icon: "user" },
 		{ id: "loans", label: "Loans", icon: "wallet" },
@@ -45,14 +40,6 @@ lms_manager._tabs = function () {
 		{ id: "collateral", label: "Collateral", icon: "home" },
 		{ id: "team", label: "Team", icon: "users" },
 	];
-};
-
-lms_manager._tabNav = function () {
-	// R18-15: add the Approvals tab between Loans and Reports. Four-eyes
-	// approvals are the single most important action on this page for a
-	// branch manager; not having a tab for them was the #1 staff-side
-	// complaint from the R18 board.
-	var tabs = lms_manager._tabs();
 	var html = '<nav class="lms-tab-nav" role="tablist">';
 	tabs.forEach(function (t) {
 		var active = lms_manager._currentTab === t.id ? " is-active" : "";
@@ -68,10 +55,6 @@ lms_manager._bindTabs = function () {
 	root.querySelectorAll(".lms-tab").forEach(function (btn) {
 		btn.addEventListener("click", function () {
 			lms_manager._currentTab = btn.getAttribute("data-tab");
-			// R36: persist so a refresh (e.g. after save) lands the manager
-			// back on the same tab. sessionStorage so it doesn't bleed into
-			// a new browser session.
-			lms_portal.saveActiveTab("manager", lms_manager._currentTab);
 			// Update active styles via class
 			root.querySelectorAll(".lms-tab").forEach(function (b) {
 				b.classList.remove("is-active");
@@ -239,7 +222,7 @@ lms_manager._renderApprovalsTable = function (content, queueData, showHeader) {
 			"<h3>All caught up</h3><p>No applications pending approval.</p></div>";
 	} else {
 		html += '<div class="lms-data-table__wrap"><table class="lms-data-table">';
-		html += "<thead><tr><th>Applicant</th><th>Product</th><th>Amount</th><th>Officer</th><th>Branch</th><th>Created</th><th>Actions</th></tr></thead><tbody>";
+		html += "<thead><tr><th>Applicant</th><th>Product</th><th>Amount</th><th>Officer</th><th>Branch</th><th>KYC</th><th>AML</th><th>Created</th><th>Actions</th></tr></thead><tbody>";
 		apps.forEach(function (app) {
 			html += "<tr>";
 			html += "<td><strong>" + lms_portal.escape(app.customer_name || app.applicant || "—") + "</strong></td>";
@@ -247,64 +230,46 @@ lms_manager._renderApprovalsTable = function (content, queueData, showHeader) {
 			html += "<td class=\"is-num\">" + (window.format_currency ? format_currency(app.loan_amount || 0) : (app.loan_amount || 0)) + "</td>";
 			html += "<td>" + lms_portal.escape(app.officer_name || app.custom_loan_officer || "—") + "</td>";
 			html += "<td>" + lms_portal.escape(app.custom_lms_branch || "—") + "</td>";
+			// R34-QA: KYC + AML status badges. Approve is disabled when
+			// KYC != Approved OR AML is not Clear. The Review modal still
+			// opens so the manager can drill in to the AML override flow.
+			html += '<td><span class="lms-badge lms-badge--' + lms_manager._kycBadgeClass(app.kyc_status) + '">' + lms_portal.escape(app.kyc_status || "Pending") + "</span></td>";
+			html += '<td><span class="lms-badge lms-badge--' + lms_manager._amlBadgeClass(app.aml_status) + '">' + lms_portal.escape(app.aml_status || "Pending") + "</span></td>";
 			html += "<td>" + lms_portal.escape((app.creation || "").slice(0, 10)) + "</td>";
+			var canApprove = !!app.is_approvable;
+			var approveTitle = canApprove
+				? "Approve"
+				: "Cannot approve: borrower KYC must be Approved and AML must be Clear. Current: KYC=" +
+					(app.kyc_status || "Pending") + ", AML=" + (app.aml_status || "Pending") + ".";
 			html += '<td><div class="lms-data-table__actions">';
 			html += '<button type="button" class="lms-btn lms-btn--ghost lms-btn--sm lms-review-btn" data-app="' + lms_portal.escape(app.name) + '">Review</button>';
-			html += '<button type="button" class="lms-btn lms-btn--success lms-btn--sm lms-approve-btn" data-app="' + lms_portal.escape(app.name) + '">Approve</button>';
+			html += '<button type="button" class="lms-btn lms-btn--success lms-btn--sm lms-approve-btn" data-app="' + lms_portal.escape(app.name) + '"' +
+				(canApprove ? "" : ' disabled title="' + lms_portal.escape(approveTitle) + '"') + ">" + (canApprove ? "Approve" : "Approve (locked)") + "</button>";
 			html += '<button type="button" class="lms-btn lms-btn--ghost lms-btn--sm lms-reject-btn" data-app="' + lms_portal.escape(app.name) + '">Reject</button>';
 			html += "</div></td></tr>";
 		});
 		html += "</tbody></table></div>";
 	}
 	html += "</div>";
-	// R36: wipe any prior loader / stale "Loading…" before injecting the
-	// approval table. The previous behaviour appended the panel via
-	// `insertAdjacentHTML("beforeend", ...)` which left the Loading
-	// spinner behind forever (mixed with the rendered table — see
-	// "Loading…" stuck on the live site). Replace the panel only on the
-	// first render; on subsequent refreshes (e.g. after approve/reject)
-	// the dashboard keeps a `_approvalPanelRoot` reference and updates
-	// just that subtree.
-	var existingRoot = lms_manager._approvalPanelRoot;
-	if (!existingRoot) {
-		// Cold paint — clear the loader and inject the fresh panel.
-		content.innerHTML = "";
-		content.insertAdjacentHTML("beforeend", html);
-		// Remember the panel root so we can update it in place later.
-		lms_manager._approvalPanelRoot = content.querySelector(".lms-portal-board");
-	} else {
-		// Hot refresh — swap the panel's contents in place. Preserves any
-		// event listeners bound during the initial render.
-		var wrapper = document.createElement("div");
-		wrapper.innerHTML = html;
-		var freshPanel = wrapper.querySelector(".lms-portal-board");
-		if (freshPanel) {
-			existingRoot.replaceWith(freshPanel);
-			lms_manager._approvalPanelRoot = freshPanel;
-		} else {
-			// Defensive — if the mark-up regressed, fall back to replace-all.
-			content.innerHTML = html;
-			lms_manager._approvalPanelRoot = content.querySelector(".lms-portal-board");
-		}
-	}
-	// Re-wire handlers on whichever panel is now mounted.
-	var mount = lms_manager._approvalPanelRoot || content;
-	mount.querySelectorAll(".lms-review-btn").forEach(function (btn) {
+	content.insertAdjacentHTML("beforeend", html);
+
+	content.querySelectorAll(".lms-review-btn").forEach(function (btn) {
 		btn.addEventListener("click", function () {
 			lms_manager._reviewApplication(btn.getAttribute("data-app"));
 		});
 	});
-	mount.querySelectorAll(".lms-approve-btn").forEach(function (btn) {
+	content.querySelectorAll(".lms-approve-btn").forEach(function (btn) {
 		btn.addEventListener("click", function () {
 			lms_manager._approve(btn.getAttribute("data-app"));
 		});
 	});
-	mount.querySelectorAll(".lms-reject-btn").forEach(function (btn) {
+	content.querySelectorAll(".lms-reject-btn").forEach(function (btn) {
 		btn.addEventListener("click", function () {
 			lms_manager._reject(btn.getAttribute("data-app"));
 		});
 	});
 };
+
 lms_manager._renderAll = function (root, dash, queue) {
 	var html = "";
 
@@ -423,6 +388,35 @@ lms_manager._statCard = function (label, value, icon, tone) {
 		'<span class="lms-sidebar__icon" style="color:var(--lms-text-muted);opacity:0.5;">' + iconSvg + "</span>" +
 		"</div></div>"
 	);
+};
+
+// R34-QA: tone helpers for KYC / AML badges. The approval queue uses
+// these to colour the status pill and to drive the Approve button
+// enabled state (Approve is only enabled when KYC=Approved AND AML=Clear).
+lms_manager._kycBadgeClass = function (status) {
+	switch ((status || "Pending")) {
+		case "Approved":
+			return "success";
+		case "In Review":
+			return "warning";
+		case "Rejected":
+			return "danger";
+		default:
+			return "muted";
+	}
+};
+
+lms_manager._amlBadgeClass = function (status) {
+	switch ((status || "Pending")) {
+		case "Clear":
+			return "success";
+		case "Flagged":
+			return "warning";
+		case "Rejected":
+			return "danger";
+		default:
+			return "muted";
+	}
 };
 
 lms_manager._icon = function (name) {

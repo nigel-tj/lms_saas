@@ -1157,31 +1157,17 @@ dialog.lms-modal::backdrop {
 /* Toast notifications                                                 */
 /* ------------------------------------------------------------------ */
 .lms-toast-stack {
-	/* R36: centre-stage — fixed at the top centre so users can't miss a
-	 * save success / 417 in a screen-full of dashboard tiles. Was previously
-	 * bottom-right (clashed with the VS Code chat sidebar at this
-	 * viewport). `pointer-events: none` on the stack and `auto` on each
-	 * toast keeps the dismiss button clickable while the area is otherwise
-	 * transparent to clicks. `max-width` + `inset-inline: 0` keeps the
-	 * stack horizontally centred on every screen width. */
 	position: fixed;
-	top: 1.25rem;
-	inset-inline: 0;
-	margin: 0 auto;
-	max-width: min(560px, calc(100vw - 2rem));
+	bottom: 1.5rem;
+	right: 1.5rem;
 	z-index: 1100;
 	display: flex;
 	flex-direction: column;
 	gap: 0.5rem;
 	pointer-events: none;
-	align-items: center;
 }
 
 .lms-toast {
-	/* R36: re-enable pointer events for the actual toast so the close (×)
-	 * button works even though the stack container is `pointer-events: none`
-	 * to stay click-transparent. */
-	pointer-events: auto;
 	background: var(--lms-surface);
 	border: 1px solid var(--lms-border);
 	border-left: 4px solid var(--lms-primary);
@@ -1366,60 +1352,6 @@ dialog.lms-modal::backdrop {
 
 .lms-section-header .lms-btn {
 	flex-shrink: 0;
-}
-
-/* ------------------------------------------------------------------ */
-/* Inline alerts (validation messaging inside forms / modals)        */
-/*                                                                    */
-/* Used by the KYC review modal to show a live list of missing        */
-/* requirements before the user clicks "Save changes" — prevents the  */
-/* server-side 417 from being triggered repeatedly.                   */
-/* ------------------------------------------------------------------ */
-.lms-form-alert {
-	display: none;
-	margin: 0.75rem 0 1rem;
-	padding: 0.85rem 1rem;
-	border-radius: var(--lms-radius-md, 8px);
-	border: 1px solid #f0c674;
-	background: #fef9e7;
-	color: #6b5300;
-	font-size: 0.875rem;
-	line-height: 1.5;
-}
-
-.lms-form-alert--show {
-	display: block;
-}
-
-.lms-form-alert--error {
-	border-color: #e57373;
-	background: #fdecea;
-	color: #8a1f1f;
-}
-
-.lms-form-alert__title {
-	font-weight: 700;
-	margin: 0 0 0.4rem;
-	font-size: 0.85rem;
-	text-transform: uppercase;
-	letter-spacing: 0.04em;
-}
-
-.lms-form-alert__list {
-	margin: 0;
-	padding-left: 1.25rem;
-}
-
-.lms-form-alert__list li {
-	margin: 0.15rem 0;
-}
-
-/* When the form alert is showing, dim the primary confirm action so
- * the officer sees the gate before clicking. */
-.lms-action-disabled {
-	opacity: 0.45;
-	cursor: not-allowed;
-	pointer-events: none;
 }
 
 /* ------------------------------------------------------------------ */

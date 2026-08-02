@@ -2,58 +2,6 @@
 frappe.provide("lms_portal");
 
 /* ------------------------------------------------------------------ */
-/* lms_portal.persistedTab / lms_portal.tabStorage                     */
-/* ------------------------------------------------------------------ */
-/* R36: persist the active tab across page refresh so a manager working */
-/* on the Approvals queue doesn't get bounced back to Dashboard every  */
-/* time the page reloads (e.g. after a save). Uses sessionStorage so   */
-/* the tab resets when the user closes the tab/window — never carries  */
-/* over to a different browser session.                                */
-/*                                                                     */
-/* Each portal has its own key (e.g. "lms_manager_active_tab") so the  */
-/* officer's tab and the manager's tab don't collide.                    */
-lms_portal.tabStorage = {
-	get: function (key, fallback) {
-		try {
-			var v = window.sessionStorage && window.sessionStorage.getItem(key);
-			return v == null ? (fallback || null) : v;
-		} catch (e) {
-			// sessionStorage can throw in private-browsing mode on some
-			// browsers; fall back to the in-memory default.
-			return fallback || null;
-		}
-	},
-	set: function (key, value) {
-		try {
-			if (window.sessionStorage) {
-				window.sessionStorage.setItem(key, value || "");
-			}
-		} catch (e) {
-			// Swallow — persistence is a nice-to-have, not critical.
-		}
-	},
-};
-
-/* Helper used by manager/officer portals: read the previously-active
- * tab for `ns` (portal namespace, e.g. "manager" / "officer") and
- * validate it against the known tab list. Returns fallback if absent,
- * stale, or invalid (e.g. removed tab id from a prior deploy). */
-lms_portal.persistedTab = function (ns, knownTabs, fallback) {
-	var key = "lms_" + ns + "_active_tab";
-	var stored = lms_portal.tabStorage.get(key, fallback);
-	if (!stored) return fallback;
-	// Only accept tabs that exist in the current portal definition.
-	for (var i = 0; i < (knownTabs || []).length; i++) {
-		if (knownTabs[i].id === stored) return stored;
-	}
-	return fallback;
-};
-
-lms_portal.saveActiveTab = function (ns, tabId) {
-	lms_portal.tabStorage.set("lms_" + ns + "_active_tab", tabId);
-};
-
-/* ------------------------------------------------------------------ */
 /* lms_portal.safeCall                                                 */
 /* ------------------------------------------------------------------ */
 /* Wrap frappe.call with a defensive layer so the UI never sits on a    */
