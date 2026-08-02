@@ -1957,19 +1957,11 @@ def get_collateral_register(loan_status: str | None = None):
 	_require_manager()
 	branch = _manager_branch()
 
-	# R25-F13: scope the top-level LMS Collateral read by branch. The
-	# previous version iterated all collateral and then filtered by
-	# linked-loan branch, which let orphan collateral (no linked loan)
-	# survive even when not in the manager's branch.
-	collateral_filters = {}
-	if branch:
-		collateral_filters["branch"] = branch
 	collateral = frappe.get_all(
 		"LMS Collateral",
-		filters=collateral_filters,
 		fields=[
 			"name", "collateral_title", "collateral_type", "market_value",
-			"net_realizable_value", "status", "owner_customer",
+			"net_realizable_value", "status", "owner_customer", "branch", "loan_application",
 		],
 		order_by="creation desc",
 		limit_page_length=200,
@@ -1977,10 +1969,22 @@ def get_collateral_register(loan_status: str | None = None):
 
 	result = []
 	for c in collateral:
+		collateral_branch = c.get("branch") or ""
+		if not collateral_branch and c.get("loan_application"):
+			collateral_branch = (
+				frappe.db.get_value("Loan Application", c.get("loan_application"), "custom_lms_branch") or ""
+			)
+		if not collateral_branch and c.get("owner_customer"):
+			collateral_branch = (
+				frappe.db.get_value("Customer", c.get("owner_customer"), "custom_lms_branch") or ""
+			)
+		if branch and collateral_branch and collateral_branch != branch:
+			continue
+
 		# Find linked loans
 		links = frappe.get_all(
 			"LMS Loan Collateral",
-			filters={"collateral": c.name},
+			filters={"collateral": c.get("name")},
 			fields=["parent", "allocated_value"],
 			limit_page_length=0,
 		)
@@ -2001,7 +2005,10 @@ def get_collateral_register(loan_status: str | None = None):
 					"status": loan.status,
 					"allocated_value": flt(link.allocated_value),
 				})
-		if linked_loans:
-			result.append({**c, "linked_loans": linked_loans})
+		# Keep collateral rows visible even before the loan-child join is
+		# written, as long as we can resolve them to the manager's branch.
+		if branch and not collateral_branch:
+			continue
+		result.append({**c, "linked_loans": linked_loans})
 
 	return {"collateral": result}
