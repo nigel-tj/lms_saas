@@ -301,3 +301,71 @@ doc_events = {
         "on_update": "lms_saas.lms_saas.doctype.lms_addon_settings.lms_addon_settings.on_update",
     },
 }
+
+
+# ---------------------------------------------------------------------------
+# Whitelist bootstrap
+# ---------------------------------------------------------------------------
+# Frappe only adds a function to `frappe.whitelisted` when the module that
+# declares it is actually imported on the bench process. Our api/ submodules
+# are not referenced by any auto-boot code path (no doctype, no scheduled
+# job, no fixture depends on them), so on a fresh Frappe Cloud deploy
+# the first request to /api/method/lms_saas.api.manager.get_approval_queue
+# (or any other whitelisted function in api/) returned
+# 'Function lms_saas.api.manager.get_approval_queue is not whitelisted.'
+#
+# Fix: register a `connect` hook that imports every lms_saas.api.* module
+# once on the first request of the process. This is the canonical way
+# Frappe apps ensure their @frappe.whitelist() methods are available
+# without forcing operators to manually restart the bench.
+#
+# Idempotent + safe: `frappe.connect` runs at the start of every HTTP
+# request; we keep a module-level flag so the package walk happens at
+# most once per process. `importlib.import_module` is cached, so even
+# a forced re-run is a no-op beyond the dict iteration.
+import importlib
+import pkgutil
+
+import frappe
+
+import lms_saas  # noqa: F401  (ensure package object is created)
+
+_LMS_WHITELIST_BOOTSTRAP_DONE = False
+
+
+def _bootstrap_lms_whitelisted_methods():
+    """Import every lms_saas.api.* module so its @frappe.whitelist() methods
+    are registered with the handler."""
+    global _LMS_WHITELIST_BOOTSTRAP_DONE
+    if _LMS_WHITELIST_BOOTSTRAP_DONE:
+        return
+    try:
+        api_pkg = importlib.import_module("lms_saas.api")
+    except Exception as exc:  # noqa: BLE001 - never break the request loop
+        frappe.log_error(
+            title="LMS whitelist bootstrap: import lms_saas.api failed",
+            message=f"{type(exc).__name__}: {exc}",
+        )
+        return
+    for _mod_info in pkgutil.iter_modules(api_pkg.__path__):
+        mod_name = f"lms_saas.api.{_mod_info.name}"
+        try:
+            importlib.import_module(mod_name)
+        except Exception as exc:  # noqa: BLE001 - never break the request loop
+            frappe.log_error(
+                title=f"LMS whitelist bootstrap: import {mod_name} failed",
+                message=f"{type(exc).__name__}: {exc}",
+            )
+    _LMS_WHITELIST_BOOTSTRAP_DONE = True
+
+
+# Register the hook so it runs on every request lifecycle. Doing it via the
+# official `connect` hook key (rather than monkey-patching frappe.connect)
+# means Frappe runs it on every new request and operators do not need to
+# restart the bench after a deploy.
+connect = ["lms_saas.hooks._lms_on_connect"]
+
+
+def _lms_on_connect(*_args, **_kwargs):
+    """Frappe ``connect`` hook — run once per request lifecycle."""
+    _bootstrap_lms_whitelisted_methods()
