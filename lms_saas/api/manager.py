@@ -170,7 +170,13 @@ def get_manager_dashboard():
 
 	# Team performance summary
 	team = get_team_performance()
-	team_count = len(team.get("officers", []))
+	# R35-#27: the "Team Members" KPI was sourced from the team-performance
+	# loan aggregator, which only counts officers who own at least one
+	# active loan. That made the KPI disagree with the Team tab (which
+	# counts every active branch staff). Use the branch-roster count
+	# directly so the dashboard headline matches the tab view the
+	# operator sees when they click in.
+	team_count = len(get_branch_staff()["staff"])
 
 	return {
 		"branch": branch,
