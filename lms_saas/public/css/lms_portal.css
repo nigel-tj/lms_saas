@@ -2788,3 +2788,186 @@ body:not(.lms-portal-borrower):not(.lms-page-loans):not(.lms-page-apply):not(.lm
 	user-select: none;
 	transition: filter 0.15s ease;
 }
+
+/* ------------------------------------------------------------------ */
+/* R36 — Re-skin Frappe default dialogs inside the LMS portal         */
+/* ------------------------------------------------------------------ */
+/* frappe.msgprint / frappe.confirm / frappe.prompt render a Bootstrap
+ * dialog (.modal / .modal-content / .modal-header / .modal-body /
+ * .modal-footer / .btn) that doesn't share the LMS design tokens, so any
+ * server-side frappe.throw("…") in the portal surfaces as a tiny
+ * unstyled box in the middle of the page. We re-skin the Frappe
+ * markup here, scoped to body.lms-portal, so the desk (which doesn't
+ * set lms-portal) keeps the original look. Every Python API call site
+ * (payments, KYC, AML, branch mismatch, disburse hooks) is fixed
+ * transitively — no JS changes required.                                */
+
+body.lms-portal .modal.fade .modal-dialog {
+	max-width: min(560px, calc(100vw - 2rem));
+	margin: 1.75rem auto;
+}
+
+body.lms-portal .modal.fade .modal-content {
+	background: var(--lms-surface);
+	color: var(--lms-text);
+	border: 1px solid var(--lms-border);
+	border-radius: var(--lms-radius-lg);
+	box-shadow: var(--lms-shadow-lg);
+	overflow: hidden;
+	font-family: var(--lms-font);
+}
+
+body.lms-portal .modal.fade .modal-content::before {
+	content: "";
+	display: block;
+	height: 3px;
+	background: linear-gradient(
+		90deg,
+		var(--lms-primary) 0%,
+		var(--lms-accent, var(--lms-primary)) 100%
+	);
+}
+
+body.lms-portal .modal.fade .modal-header {
+	padding: 1.1rem 1.5rem 0.75rem;
+	border-bottom: 1px solid var(--lms-border);
+	background: var(--lms-surface);
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1rem;
+}
+
+body.lms-portal .modal.fade .modal-title {
+	margin: 0;
+	font-size: 1.05rem;
+	font-weight: 700;
+	color: var(--lms-text);
+	letter-spacing: -0.01em;
+	line-height: 1.3;
+}
+
+body.lms-portal .modal.fade .modal-header .close {
+	width: 32px;
+	height: 32px;
+	padding: 0;
+	border: none;
+	background: transparent;
+	color: var(--lms-text-muted);
+	border-radius: var(--lms-radius-sm);
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	cursor: pointer;
+	font-size: 1rem;
+	line-height: 1;
+	opacity: 1;
+	text-shadow: none;
+	margin: 0;
+}
+
+body.lms-portal .modal.fade .modal-header .close:hover,
+body.lms-portal .modal.fade .modal-header .close:focus-visible {
+	background: var(--lms-surface-alt);
+	color: var(--lms-text);
+	outline: none;
+}
+
+body.lms-portal .modal.fade .modal-body {
+	padding: 1.25rem 1.5rem;
+	color: var(--lms-text);
+	font-size: 0.95rem;
+	line-height: 1.55;
+}
+
+body.lms-portal .modal.fade .modal-body .msgprint {
+	color: var(--lms-text);
+	font-size: 0.95rem;
+}
+
+body.lms-portal .modal.fade .modal-body .msgprint pre,
+body.lms-portal .modal.fade .modal-body .msgprint code {
+	background: var(--lms-surface-alt);
+	color: var(--lms-text);
+	border: 1px solid var(--lms-border);
+	border-radius: var(--lms-radius-sm);
+	padding: 0.5rem 0.75rem;
+}
+
+body.lms-portal .modal.fade .modal-footer {
+	padding: 0.85rem 1.5rem 1.1rem;
+	border-top: 1px solid var(--lms-border);
+	background: var(--lms-surface-alt, var(--lms-surface));
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: flex-end;
+	gap: 0.6rem;
+}
+
+body.lms-portal .modal.fade .modal-footer.hidden {
+	display: none;
+}
+
+body.lms-portal .modal.fade .modal-footer .btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.4rem;
+	padding: 0.6rem 1.1rem;
+	border-radius: var(--lms-radius-sm);
+	font-weight: 600;
+	font-size: 0.875rem;
+	line-height: 1.2;
+	border: 1px solid transparent;
+	cursor: pointer;
+	transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+	text-shadow: none;
+	box-shadow: none;
+}
+
+body.lms-portal .modal.fade .modal-footer .btn:focus-visible {
+	outline: 2px solid var(--lms-accent, var(--lms-primary));
+	outline-offset: 2px;
+}
+
+body.lms-portal .modal.fade .modal-footer .btn-secondary,
+body.lms-portal .modal.fade .modal-footer .btn-default {
+	background: transparent;
+	color: var(--lms-text);
+	border-color: var(--lms-border);
+}
+
+body.lms-portal .modal.fade .modal-footer .btn-secondary:hover,
+body.lms-portal .modal.fade .modal-footer .btn-default:hover {
+	background: var(--lms-surface);
+	color: var(--lms-text);
+	border-color: var(--lms-text-muted, var(--lms-text));
+}
+
+body.lms-portal .modal.fade .modal-footer .btn-primary {
+	background: var(--lms-primary);
+	color: #fff;
+	border-color: var(--lms-primary);
+}
+
+body.lms-portal .modal.fade .modal-footer .btn-primary:hover:not(:disabled) {
+	background: var(--lms-primary-light, var(--lms-primary));
+	border-color: var(--lms-primary-light, var(--lms-primary));
+	color: #fff;
+}
+
+body.lms-portal .modal.fade .modal-footer .btn-primary:disabled {
+	opacity: 0.7;
+	cursor: wait;
+}
+
+body.lms-portal .modal-backdrop {
+	background: rgba(15, 23, 42, 0.55);
+	opacity: 0.65;
+}
+
+/* Frappe's two-arg msgprint wraps the title in a <h4>; align it. */
+body.lms-portal .modal.fade .modal-header h4.modal-title,
+body.lms-portal .modal.fade .modal-header h5.modal-title {
+	margin: 0;
+}
