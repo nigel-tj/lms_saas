@@ -113,9 +113,48 @@ if (typeof frappe !== "undefined" && typeof frappe.provide === "function") {
 		return null;
 	};
 
+	/** Coerce a div into a canvas so Chart.js can acquire a 2D context.
+
+	When the calling code passes a ``<div id="...">`` target to a chart
+	function, ``document.getElementById`` returns the div, then Chart.js
+	tries ``el.getContext("2d")`` and logs ``Failed to create chart: can't
+	acquire context from the given item`` (industry-known Chart.js issue).
+
+	R35-#25 fix: insert a fresh ``<canvas>`` inside the div (or replace an
+	empty container div with a canvas), carrying the original id so any
+	subsequent ``getElementById(canvasId)`` lookup still resolves.
+	Returns the canvas element ready for Chart.js, or null if the target
+	is missing.
+	*/
+	lms_charts._resolveCanvas = function (target) {
+		if (!target) return null;
+		// If it's already a canvas and not destroyed, reuse it.
+		if (target.tagName === "CANVAS" && target.getContext && target.isConnected) {
+			try {
+				var ctx = target.getContext("2d");
+				if (ctx) return target;
+			} catch (e) {
+				// destroyed — fall through and replace
+			}
+		}
+		// Build a fresh canvas inside the div (or replace it).
+		var id = target.id || "";
+		var canvas = document.createElement("canvas");
+		if (id) canvas.id = id;
+		canvas.width = target.offsetWidth || 300;
+		canvas.height = target.offsetHeight || 180;
+		canvas.style.width = "100%";
+		canvas.style.height = "180px";
+		canvas.setAttribute("role", "img");
+		canvas.setAttribute("aria-label", target.getAttribute("aria-label") || "Chart");
+		target.innerHTML = "";
+		target.appendChild(canvas);
+		return canvas;
+	};
+
 	/** Donut / doughnut chart.  data = [{label, value, color?}] */
 	lms_charts.donut = function (canvasId, data, options) {
-		var el = document.getElementById(canvasId);
+		var el = lms_charts._resolveCanvas(document.getElementById(canvasId));
 		if (!el) return null;
 		if (typeof Chart === "undefined") return lms_charts._chartMissing(el);
 		options = options || {};
@@ -146,7 +185,7 @@ if (typeof frappe !== "undefined" && typeof frappe.provide === "function") {
 
 	/** Horizontal bar chart.  data = [{label, value, color?}] */
 	lms_charts.bars = function (canvasId, data, options) {
-		var el = document.getElementById(canvasId);
+		var el = lms_charts._resolveCanvas(document.getElementById(canvasId));
 		if (!el) return null;
 		if (typeof Chart === "undefined") return lms_charts._chartMissing(el);
 		options = options || {};
@@ -176,8 +215,9 @@ if (typeof frappe !== "undefined" && typeof frappe.provide === "function") {
 
 	/** Vertical bar chart (for time series).  data = {labels:[], datasets:[{label,data,color?}]} */
 	lms_charts.column = function (canvasId, data, options) {
-		var el = document.getElementById(canvasId);
-		if (!el || typeof Chart === "undefined") return null;
+		var el = lms_charts._resolveCanvas(document.getElementById(canvasId));
+		if (!el) return null;
+		if (typeof Chart === "undefined") return lms_charts._chartMissing(el);
 		options = options || {};
 		var c = palette();
 		var datasets = (data.datasets || []).map(function (ds, i) {
@@ -210,8 +250,9 @@ if (typeof frappe !== "undefined" && typeof frappe.provide === "function") {
 
 	/** Line chart.  data = {labels:[], datasets:[{label,data,color?}]} */
 	lms_charts.line = function (canvasId, data, options) {
-		var el = document.getElementById(canvasId);
-		if (!el || typeof Chart === "undefined") return null;
+		var el = lms_charts._resolveCanvas(document.getElementById(canvasId));
+		if (!el) return null;
+		if (typeof Chart === "undefined") return lms_charts._chartMissing(el);
 		options = options || {};
 		var c = palette();
 		var datasets = (data.datasets || []).map(function (ds, i) {

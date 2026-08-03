@@ -84,3 +84,57 @@ class TestLmsWhitelistBootstrap(unittest.TestCase):
 
 if __name__ == "__main__":
 	unittest.main()
+
+
+class TestR35OnLoginRedirectFix(unittest.TestCase):
+    """R35-#24 / R35-#26: the on_login hook rewrites the post-login home_page
+    so portal users never get stuck on the broken /desk/lending URL."""
+
+    def setUp(self):
+        import frappe
+        self._original_user = getattr(frappe.session, "user", None)
+        self._original_response_home = getattr(frappe.local.response, "home_page", None)
+        frappe.session.user = "Administrator"
+        frappe.local.response["home_page"] = "/desk/lending"
+
+    def tearDown(self):
+        import frappe
+        frappe.session.user = self._original_user or "Administrator"
+        if self._original_response_home is None:
+            frappe.local.response.pop("home_page", None)
+        else:
+            frappe.local.response["home_page"] = self._original_response_home
+
+    def test_borrower_redirect_rewrites_desk_lending(self):
+        """A borrower login must not land on /desk/lending."""
+        import frappe
+        from lms_saas.boot import on_login, get_lms_home_page
+
+        login_manager = type("LM", (), {"user": "borrower@example.com"})()
+        on_login(login_manager=login_manager)
+        self.assertEqual(
+            frappe.local.response.get("home_page"),
+            get_lms_home_page(user="borrower@example.com"),
+        )
+        # Specifically NOT the broken URL.
+        self.assertNotEqual(
+            frappe.local.response.get("home_page"),
+            "/desk/lending",
+        )
+
+    def test_admin_redirect_uses_actual_workspace(self):
+        """An admin login must not land on the broken /desk/lending URL."""
+        import frappe
+        from lms_saas.boot import on_login, get_lms_home_page
+
+        login_manager = type("LM", (), {"user": "admin@kesari.africa"})()
+        on_login(login_manager=login_manager)
+        target = frappe.local.response.get("home_page")
+        # Must point at a real desk workspace (not /desk/lending).
+        self.assertNotEqual(target, "/desk/lending")
+        # And must satisfy get_lms_home_page for admin.
+        self.assertEqual(target, get_lms_home_page(user="admin@kesari.africa"))
+
+
+if __name__ == "__main__":
+    unittest.main()
