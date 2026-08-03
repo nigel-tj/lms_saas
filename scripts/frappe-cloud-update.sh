@@ -268,5 +268,8 @@ fi
 if [[ "$DRY_RUN" -eq 1 ]]; then
 	echo "  (dry run complete — no bench commands were executed)"
 else
+	# Provision test users if they don't exist yet (idempotent, admin-only).
+	echo "  → Provisioning test users (idempotent)…"
+	bench --site "$FC_SITE" execute lms_saas.setup.live_repair.provision_test_users 2>&1 | sed 's/^/    /' || true
 	echo "=== Update complete for $FC_SITE ==="
 fi
