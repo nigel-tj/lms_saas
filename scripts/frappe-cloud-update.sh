@@ -271,6 +271,11 @@ else
 	# Provision test users if they don't exist yet (idempotent, admin-only).
 	echo "  → Provisioning test users (idempotent)…"
 	bench --site "$FC_SITE" execute lms_saas.setup.live_repair.provision_test_users 2>&1 | sed 's/^/    /' || true
+	# QA-2026-08-03-#23: Re-link the demo borrower User to a Customer that
+	# owns at least one Loan. Surgical fix that runs after provision_test_users
+	# so a fresh re-seed always shows real loans in the borrower portal.
+	echo "  → Re-linking demo borrower User → Customer with active loans…"
+	bench --site "$FC_SITE" execute lms_saas.setup.live_repair.link_borrower_to_demo_customer 2>&1 | sed 's/^/    /' || true
 	# Seed demo collateral for borrowers with active loans (idempotent, admin-only).
 	echo "  → Seeding demo collateral (idempotent)…"
 	bench --site "$FC_SITE" execute lms_saas.setup.live_repair.seed_demo_collateral 2>&1 | sed 's/^/    /' || true

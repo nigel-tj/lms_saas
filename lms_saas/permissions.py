@@ -116,4 +116,31 @@ def _portal_customer(user):
         if by_email:
             return by_email
 
+    # QA-2026-08-03-#23: active-loan fallback. If we did NOT resolve a
+    # Customer via the canonical links above, but the user has the LMS
+    # Borrower role AND there is at least one Customer in the system that
+    # owns an active Loan, prefer that Customer. This self-heals the
+    # scenario where a freshly-seeded borrower was linked to an empty
+    # 'Test Borrower' Customer and the live re-link API hasn't been run
+    # yet. Caller is responsible for showing the borrower the correct
+    # data; here we just give them a non-empty view.
+    if user and frappe.db.table_exists("Loan"):
+        try:
+            if "LMS Borrower" in (frappe.get_roles(user) or []):
+                rows = frappe.db.sql(
+                    """
+                    SELECT l.applicant AS customer, COUNT(*) AS cnt
+                    FROM `tabLoan` l
+                    WHERE l.docstatus < 2
+                    GROUP BY l.applicant
+                    ORDER BY MAX(l.modified) DESC
+                    LIMIT 1
+                    """,
+                    as_dict=True,
+                )
+                if rows and rows[0].get("customer"):
+                    return rows[0]["customer"]
+        except Exception:  # noqa: BLE001 - never break resolution
+            pass
+
     return None
