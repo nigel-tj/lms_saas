@@ -166,11 +166,6 @@ lms_portal.guardedCall = function (opts) {
 	});
 };
 
-lms_portal._looksLikeServerError = function (msg) {
-	if (!msg) return false;
-	return /error|traceback|exception|frappe\.exceptions|not permitted|permission|not whitelisted|login to access/i.test(String(msg));
-};
-
 window.addEventListener("unhandledrejection", function (event) {
 	console.error("[lms_portal] unhandledrejection", event.reason);
 });
