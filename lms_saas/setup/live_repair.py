@@ -314,6 +314,17 @@ def provision_test_users() -> dict:
 					emp.flags.ignore_permissions = True
 					emp.insert()
 
+			# For the demo borrower: also create a Customer record and link
+			# the user to it via Contact + Customer's primary contact. The
+			# borrower portal's _require_customer() check in
+			# lms_saas.api.portal resolves the user → Customer via the
+			# Contact + Customer link table, and returns 403 if the
+			# link is missing. Without this, the borrower logs in
+			# successfully but the /lms portal renders with a
+			# "No Customer linked to your portal account" error.
+			if email == "borrower@example.com":
+				_provision_borrower_customer(email, cfg)
+
 		except Exception as exc:
 			skipped.append({"email": email, "error": str(exc)})
 		finally:
@@ -321,6 +332,95 @@ def provision_test_users() -> dict:
 
 	frappe.db.commit()
 	return {"created": created, "updated": updated, "skipped": skipped}
+
+
+def _provision_borrower_customer(email: str, cfg: dict) -> None:
+	"""Create a Customer + Contact + link to the borrower User.
+
+	Idempotent: safe to re-run. If a Customer linked to this user already
+	exists, we update it in place. We do NOT enqueue background jobs.
+	"""
+	# Find an existing Customer linked to this user via Contact.
+	linked_customer = None
+	if frappe.db.table_exists("Contact"):
+		contact_name = frappe.db.get_value(
+			"Contact",
+			{"user": email, "is_primary_contact": 1},
+			"name",
+		)
+		if contact_name:
+			linked_customer = frappe.db.get_value(
+				"Dynamic Link",
+				{"parent": contact_name, "parenttype": "Contact", "link_doctype": "Customer"},
+				"link_name",
+			)
+
+	customer_name = f"Test Borrower — {cfg['first_name']} {cfg['last_name']}"
+	customer_id = linked_customer or customer_name
+
+	if frappe.db.exists("Customer", customer_id):
+		frappe.db.set_value(
+			"Customer",
+			customer_id,
+			{
+				"customer_name": customer_name,
+				"customer_type": "Individual",
+				"customer_group": "Individual",
+				"territory": "All Territories",
+			},
+			update_modified=True,
+		)
+	else:
+		frappe.flags.mute_emails = True
+		try:
+			cust = frappe.get_doc({
+				"doctype": "Customer",
+				"name": customer_id,
+				"customer_name": customer_name,
+				"customer_type": "Individual",
+				"customer_group": "Individual",
+				"territory": "All Territories",
+			})
+			cust.flags.ignore_permissions = True
+			cust.insert()
+		finally:
+			pass  # mute_emails reset by outer finally
+
+	# Create / update the Contact row that links the user → Customer.
+	contact_name = frappe.db.get_value(
+		"Contact", {"user": email}, "name"
+	)
+	if not contact_name:
+		contact = frappe.get_doc({
+			"doctype": "Contact",
+			"first_name": cfg["first_name"],
+			"last_name": cfg["last_name"],
+			"email_id": email,
+			"is_primary_contact": 1,
+			"user": email,
+			"links": [{
+				"link_doctype": "Customer",
+				"link_name": customer_id,
+			}],
+		})
+		contact.flags.ignore_permissions = True
+		contact.insert(ignore_permissions=True)
+	else:
+		# Ensure the Dynamic Link to Customer exists.
+		has_link = frappe.db.exists(
+			"Dynamic Link",
+			{"parent": contact_name, "parenttype": "Contact",
+			 "link_doctype": "Customer", "link_name": customer_id},
+		)
+		if not has_link:
+			frappe.get_doc({
+				"doctype": "Dynamic Link",
+				"parent": contact_name,
+				"parenttype": "Contact",
+				"parentfield": "links",
+				"link_doctype": "Customer",
+				"link_name": customer_id,
+			}).insert(ignore_permissions=True)
 
 
 # ---------------------------------------------------------------------------

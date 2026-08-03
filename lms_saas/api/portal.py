@@ -355,7 +355,17 @@ def _require_customer(raise_exception=True):
     linked = _portal_customer(frappe.session.user)
     if not linked:
         if raise_exception:
-            frappe.throw("No Customer linked to your portal account.", frappe.PermissionError)
+            # Soft, friendly message — a freshly-provisioned demo borrower
+            # (or a real borrower whose Customer record was archived) lands
+            # here, and we don't want to scare them with "PermissionError".
+            # The portal renders this as a yellow info card on /lms when
+            # surfaced via _require_customer(raise_exception=False).
+            frappe.msgprint(
+                "We couldn't find a borrower account linked to your login. "
+                "Please contact your branch so we can link your records.",
+                title="No account on file yet",
+                indicator="orange",
+            )
         return None
     return linked
 

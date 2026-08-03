@@ -15,6 +15,86 @@
 }
 
 /* ------------------------------------------------------------------ */
+/* Defensive modal positioning                                        */
+/* ------------------------------------------------------------------ */
+/* The Frappe desk renders error/info dialogs as Bootstrap modals
+ * (`.modal.fade.show`). On portal pages we don't load the full Bootstrap
+ * CSS, so the modal falls back to `position: static` and ends up under
+ * the sidebar / nav, making the close button un-clickable. Force the
+ * modal and its backdrop into a fixed, top-layer position so the
+ * user can always reach the X button. */
+.lms-portal .modal,
+.lms-portal-legacy .modal,
+.lms-portal-borrower .modal,
+.lms-portal-officer .modal,
+.lms-portal-manager .modal,
+.lms-portal-collector .modal {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	z-index: var(--lms-z-modal, 1000);
+	overflow-x: hidden;
+	overflow-y: auto;
+	outline: 0;
+	display: block;
+}
+
+.lms-portal .modal-dialog,
+.lms-portal-legacy .modal-dialog,
+.lms-portal-borrower .modal-dialog,
+.lms-portal-officer .modal-dialog,
+.lms-portal-manager .modal-dialog,
+.lms-portal-collector .modal-dialog {
+	position: relative;
+	width: auto;
+	margin: 1.75rem auto;
+	max-width: 500px;
+	pointer-events: auto;
+	z-index: 1100;
+}
+
+.lms-portal .modal-content,
+.lms-portal-legacy .modal-content,
+.lms-portal-borrower .modal-content,
+.lms-portal-officer .modal-content,
+.lms-portal-manager .modal-content,
+.lms-portal-collector .modal-content {
+	position: relative;
+	background: var(--lms-surface, #fff);
+	border: 1px solid var(--lms-border, #d1d8dd);
+	border-radius: var(--lms-radius-lg, 10px);
+	box-shadow: var(--lms-shadow-lg, 0 10px 40px rgba(0, 0, 0, 0.2));
+	padding: 1.25rem 1.5rem;
+}
+
+.lms-portal .modal-backdrop,
+.lms-portal-legacy .modal-backdrop,
+.lms-portal-borrower .modal-backdrop,
+.lms-portal-officer .modal-backdrop,
+.lms-portal-manager .modal-backdrop,
+.lms-portal-collector .modal-backdrop {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background: rgba(0, 0, 0, 0.45);
+	z-index: 1050;
+}
+
+/* Body that gets `modal-open` should not allow background scroll. */
+.lms-portal.modal-open,
+.lms-portal-legacy.modal-open,
+.lms-portal-borrower.modal-open,
+.lms-portal-officer.modal-open,
+.lms-portal-manager.modal-open,
+.lms-portal-collector.modal-open {
+	overflow: hidden;
+}
+
+/* ------------------------------------------------------------------ */
 /* Canvas & panel                                                      */
 /* ------------------------------------------------------------------ */
 .lms-canvas,
