@@ -11,6 +11,7 @@ Run:
 from __future__ import annotations
 
 import frappe
+from frappe.utils import flt
 
 LEGACY_LMS_ROLES = (
     "LMS Admin",
@@ -297,3 +298,73 @@ def provision_test_users() -> dict:
 
 	frappe.db.commit()
 	return {"created": created, "updated": updated, "skipped": skipped}
+
+
+# ---------------------------------------------------------------------------
+# Demo collateral seeding (idempotent, admin-only)
+# ---------------------------------------------------------------------------
+
+@frappe.whitelist()
+def seed_demo_collateral() -> dict:
+	"""Create a demo collateral record for each borrower with an active loan.
+
+	Admin-only. Idempotent — skips borrowers who already have collateral.
+	"""
+	if not set(frappe.get_roles()).intersection({"System Manager", "Administrator"}):
+		frappe.throw("Only administrators can seed demo collateral.", frappe.PermissionError)
+
+	company = frappe.db.get_single_value("Global Defaults", "default_company") or ""
+	branch = ""
+	if company:
+		branch = frappe.db.get_value("Cost Center", {"company": company, "is_group": 0}, "name") or ""
+
+	# Find all borrowers with active loans but no collateral.
+	loans = frappe.get_all(
+		"Loan",
+		filters={"docstatus": 1, "status": ("in", ["Disbursed", "Active", "Partially Disbursed"])},
+		fields=["name", "applicant", "loan_amount", "custom_lms_branch"],
+		limit_page_length=200,
+	)
+
+	created = []
+	skipped = []
+
+	for loan in loans:
+		customer = loan.applicant
+		if not customer:
+			continue
+
+		# Skip if this borrower already has collateral.
+		existing = frappe.db.get_value("LMS Collateral", {"owner_customer": customer, "docstatus": 1}, "name")
+		if existing:
+			skipped.append({"customer": customer, "reason": "already has collateral"})
+			continue
+
+		# Find the loan application for this loan.
+		loan_app = frappe.db.get_value("Loan", loan.name, "custom_lms_loan_application") if frappe.get_meta("Loan").has_field("custom_lms_loan_application") else None
+
+		try:
+			collateral = frappe.get_doc({
+				"doctype": "LMS Collateral",
+				"collateral_title": f"Demo Vehicle ({customer[:20]})",
+				"collateral_type": "Vehicle",
+				"owner_customer": customer,
+				"loan_application": loan_app or "",
+				"company": company or "Kesari",
+				"branch": loan.custom_lms_branch or branch or "",
+				"status": "Pledged",
+				"market_value": flt(loan.loan_amount) * 1.5,
+				"haircut_percent": 20,
+				"valuation_date": frappe.utils.today(),
+				"valuer_name": "Demo Valuations Ltd",
+				"reference_no": f"DEMO-{loan.name[-6:]}",
+			})
+			collateral.flags.ignore_permissions = True
+			collateral.insert()
+			collateral.submit()
+			created.append({"customer": customer, "collateral": collateral.name, "loan": loan.name})
+		except Exception as exc:
+			skipped.append({"customer": customer, "error": str(exc)})
+
+	frappe.db.commit()
+	return {"created": created, "skipped": skipped, "total_loans": len(loans)}
