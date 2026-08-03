@@ -160,23 +160,36 @@ fi
 #   3. The site whose name contains "lms" (case-insensitive)
 #   4. error with helpful list
 if [[ -z "${FC_SITE:-}" ]]; then
-	available_sites=$(ls -1 sites/ 2>/dev/null | grep -v '^assets$' || true)
+	# Only consider directories inside sites/ — earlier versions of this
+	# script globbed every path, which picked up `common_site_config.json`,
+	# `apps.json`, `apps.txt`, etc. as "sites" and confused the
+	# auto-detect when a bench has multiple real sites.
+	available_sites=$(find sites/ -mindepth 1 -maxdepth 1 -type d -printf '%f\n' 2>/dev/null | grep -v '^assets$' || true)
 	count=$(printf '%s\n' "$available_sites" | grep -c . || true)
 	if [[ "$count" -eq 1 ]]; then
 		FC_SITE="$available_sites"
 		echo "auto-detected single site on bench: $FC_SITE"
 	elif [[ "$count" -gt 1 ]]; then
+		# Prefer a site whose name literally starts with "lms" — the
+		# operator's domain name is the strongest signal. Fall back to a
+		# site containing "lms" anywhere (catches domains like
+		# `lending-client.frappe.cloud`). Last-resort fallback uses the
+		# first site alphabetically and warns the operator.
 		lms_site=$(printf '%s\n' "$available_sites" | grep -i '^lms' | head -1 || true)
+		if [[ -z "$lms_site" ]]; then
+			lms_site=$(printf '%s\n' "$available_sites" | grep -i 'lms' | head -1 || true)
+		fi
 		if [[ -n "$lms_site" ]]; then
 			FC_SITE="$lms_site"
 			echo "auto-detected lms site on bench: $FC_SITE"
 			echo "  (other sites on this bench: $(printf '%s\n' "$available_sites" | grep -v "^$FC_SITE\$" | tr '\n' ' '))"
 		else
-			echo "error: bench has multiple sites and none match 'lms*':" >&2
-			printf '  %s\n' $available_sites >&2
-			echo "  Set FC_SITE explicitly:" >&2
+			echo "warning: bench has multiple sites and none contain 'lms'." >&2
+			echo "  Picking the alphabetically-first site as a guess:" >&2
+			echo "    $(printf '%s\n' "$available_sites" | sort | head -1)" >&2
+			echo "  Set FC_SITE explicitly to silence this warning:" >&2
 			echo "    FC_SITE=<site> bash apps/lms_saas/scripts/frappe-cloud-update.sh" >&2
-			exit 2
+			FC_SITE=$(printf '%s\n' "$available_sites" | sort | head -1)
 		fi
 	else
 		echo "error: no sites found in sites/. Set FC_SITE explicitly." >&2
