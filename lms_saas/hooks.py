@@ -28,6 +28,10 @@ jinja = {
 after_install = "lms_saas.install.after_install"
 after_migrate = "lms_saas.install.after_install"
 boot_session = "lms_saas.boot.apply_default_route"
+# R35-#24 / R35-#26: rewrite Frappe's post-login ``home_page`` so portal
+# users land on their persona page instead of /desk/lending (which Frappe
+# v15+v16 no longer resolves to a Workspace).
+on_login = "lms_saas.boot.on_login"
 
 # R20-L1: clear transient security flags at end of request so a leaked
 # `frappe.flags.ignore_permissions` set inside one endpoint cannot carry
@@ -335,10 +339,16 @@ _LMS_WHITELIST_BOOTSTRAP_DONE = False
 
 def _bootstrap_lms_whitelisted_methods():
     """Import every lms_saas.api.* module so its @frappe.whitelist() methods
-    are registered with the handler."""
+    are registered with the handler.
+
+    R35-#22 hardening: the flag is only set after ALL modules import
+    successfully. If any one fails (transient DB / Redis / sandbox import
+    state), the bootstrap keeps retrying on the next request until every
+    module is loaded — preventing the post-deploy "Function is not
+    whitelisted" race that bites the very next API call after a long
+    disburse round-trip on the live bench.
+    """
     global _LMS_WHITELIST_BOOTSTRAP_DONE
-    if _LMS_WHITELIST_BOOTSTRAP_DONE:
-        return
     try:
         api_pkg = importlib.import_module("lms_saas.api")
     except Exception as exc:  # noqa: BLE001 - never break the request loop
@@ -347,6 +357,7 @@ def _bootstrap_lms_whitelisted_methods():
             message=f"{type(exc).__name__}: {exc}",
         )
         return
+    failures = 0
     for _mod_info in pkgutil.iter_modules(api_pkg.__path__):
         mod_name = f"lms_saas.api.{_mod_info.name}"
         try:
@@ -356,7 +367,12 @@ def _bootstrap_lms_whitelisted_methods():
                 title=f"LMS whitelist bootstrap: import {mod_name} failed",
                 message=f"{type(exc).__name__}: {exc}",
             )
-    _LMS_WHITELIST_BOOTSTRAP_DONE = True
+            failures += 1
+    # Only short-circuit future bootstraps once every module imported
+    # clean. If even one failed, the next request will retry the sweep
+    # so we don't leave a half-loaded lms_saas.api behind.
+    if not failures:
+        _LMS_WHITELIST_BOOTSTRAP_DONE = True
 
 
 # Register the hook so it runs on every request lifecycle. Doing it via the
