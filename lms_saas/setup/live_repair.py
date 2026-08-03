@@ -21,6 +21,75 @@ LEGACY_LMS_ROLES = (
 )
 
 
+
+def _pick_branch_used_by_seeded_data(company: str) -> str:
+	"""Return the Cost Center that the existing seeded data is tagged with.
+
+	QA-2026-08-03-#13-#18 (branch-drift root cause): on live, the
+	R28/R29 seed runs created Customers/Loans on Cost Center
+	``Main Branch - LS`` (suffixed -LS) while the seeder's original
+	``provision_test_users`` was tagging Employees/Users with
+	``Main Branch - LMS`` (or the un-suffixed ``Main Branch``). That
+	mismatch meant the manager's data tabs (Borrowers/Loans/Reports/
+	Collateral) showed 0 rows and the officer's disburse flow hit
+	``Not in your branch.`` 403s -- even though the data was sitting
+	right there in the DB.
+
+	Resolution: rank Cost Centers by the count of Customer/Loan records
+	already tagged with them, and pick the most-used one. If no
+	records exist, fall back to the first non-group Cost Center.
+
+	Args:
+		company: the company the Cost Centers are scoped to.
+
+	Returns:
+		The Cost Center name (string) to use as the seeder's branch.
+		Empty string if no Cost Center is available.
+	"""
+	if not company:
+		return ""
+
+	branches = frappe.get_all(
+		"Cost Center",
+		filters={"company": company, "is_group": 0},
+		pluck="name",
+	)
+	if not branches:
+		return ""
+
+	# If only one branch, no choice to make.
+	if len(branches) == 1:
+		return branches[0]
+
+	# Rank by Customer count, then Loan count. The branch with the
+	# most existing records is the one the seeded data was tagged
+	# with -- that is the branch the seeder must also use.
+	def _count(table, field):
+		rows = frappe.db.sql(
+			"""
+			SELECT {0} AS branch, COUNT(*) AS n
+			FROM `tab{1}`
+			WHERE {0} IN %(branches)s
+			GROUP BY {0}
+			""".format(field, table),
+			{"branches": branches},
+			as_dict=True,
+		)
+		return {r["branch"]: int(r["n"]) for r in rows}
+
+	customer_counts = _count("Customer", "custom_lms_branch")
+	loan_counts = _count("Loan", "custom_lms_branch")
+
+	best_branch = max(
+		branches,
+		key=lambda b: (
+			customer_counts.get(b, 0),
+			loan_counts.get(b, 0),
+		),
+	)
+	return best_branch
+
+
 def _repair_legacy_user_roles() -> dict[str, int | list[str]]:
     """Remove stale legacy LMS roles from user assignments.
 
@@ -219,9 +288,14 @@ def provision_test_users() -> dict:
 		frappe.throw("Only administrators can provision test users.", frappe.PermissionError)
 
 	company = frappe.db.get_single_value("Global Defaults", "default_company") or ""
-	branch = ""
-	if company:
-		branch = frappe.db.get_value("Cost Center", {"company": company, "is_group": 0}, "name") or ""
+	# QA-2026-08-03-#13-#18 (root cause): the seeder used to pick
+	# the first non-group Cost Center, which on live disagrees with
+	# the branch the R28/R29 seeded Customers/Loans are tagged with
+	# (e.g. "Main Branch - LS" vs "Main Branch - LMS"). That mismatch
+	# blocked the manager's data tabs and the officer's disburse flow
+	# with "Not in your branch." 403s. Now we pick the Cost Center
+	# that the most existing records are tagged with.
+	branch = _pick_branch_used_by_seeded_data(company)
 
 	created = []
 	updated = []
@@ -330,8 +404,88 @@ def provision_test_users() -> dict:
 		finally:
 			frappe.flags.mute_emails = False
 
+	# QA-2026-08-03-#13-#18 (root-cause reconciliation): after
+	# updating each user's Employee branch, also reconcile the
+	# existing Customers/Loans/KYC records to the SAME branch.
+	# The seeded data and the seeder have historically picked
+	# different Cost Centers (e.g. "Main Branch - LS" vs
+	# "Main Branch - LMS") and that drift broke the manager's data
+	# tabs and the officer's disburse flow. _pick_branch above
+	# already chose the most-used branch, so we now nudge every
+	# other branch onto it in one pass. Bulk UPDATE so we don't
+	# enqueue background jobs.
+	if branch:
+		_reconciled = _reconcile_seeded_branches(branch)
+		if _reconciled.get("reassigned", 0):
+			updated.append(
+				f"reconciled {_reconciled['reassigned']} existing records to branch '{branch}' "
+				f"({_reconciled.get('per_table', {})})"
+			)
+
 	frappe.db.commit()
 	return {"created": created, "updated": updated, "skipped": skipped}
+
+
+def _reconcile_seeded_branches(target_branch: str) -> dict:
+	"""Move existing Customer/Loan records to the target branch in bulk.
+
+	QA-2026-08-03-#13-#18: this is the root-cause fix for the
+	branch-drift bug. When the seeder runs and discovers that the
+	existing Customer/Loan/KYC records are on a different Cost Center
+	than the one the manager/officer Employees are tagged with, we
+	reassign them in a single bulk UPDATE so the data views line up.
+
+	We touch every DocType that has a ``custom_lms_branch`` field
+	and a non-empty value pointing to a different Cost Center. We
+	deliberately do NOT touch the Employees/Users here -- the
+	``provision_test_users`` loop above is the source of truth for
+	those.
+
+	Args:
+		target_branch: the Cost Center name the seeder has chosen
+			(via ``_pick_branch_used_by_seeded_data``).
+
+	Returns:
+		Dict with ``reassigned`` count and ``per_table`` breakdown.
+	"""
+	reassigned = 0
+	per_table: dict[str, int] = {}
+
+	# DocTypes with a custom_lms_branch field. We only touch
+	# LMS-managed tables; the standard Cost Center on Customer
+	# is the same field but Customer is in ERPNext.
+	for table in ("Customer", "Loan", "LMS Borrower Compliance"):
+		if not frappe.db.table_exists(table):
+			continue
+		meta = frappe.get_meta(table)
+		if not meta.has_field("custom_lms_branch"):
+			continue
+		# Count how many rows would be updated (cheap, no row data).
+		count = frappe.db.sql(
+			f"""
+			SELECT COUNT(*)
+			FROM `tab{table}`
+			WHERE custom_lms_branch IS NOT NULL
+			  AND custom_lms_branch != %s
+			""",
+			target_branch,
+		)[0][0]
+		if not count:
+			continue
+		# Bulk UPDATE.
+		frappe.db.sql(
+			f"""
+			UPDATE `tab{table}`
+			SET custom_lms_branch = %s
+			WHERE custom_lms_branch IS NOT NULL
+			  AND custom_lms_branch != %s
+			""",
+			(target_branch, target_branch),
+		)
+		per_table[table] = int(count)
+		reassigned += int(count)
+
+	return {"reassigned": reassigned, "per_table": per_table, "target": target_branch}
 
 
 def _provision_borrower_customer(email: str, cfg: dict) -> None:
