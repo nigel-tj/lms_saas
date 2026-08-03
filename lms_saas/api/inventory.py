@@ -62,11 +62,16 @@ def get_asset_register(limit=100):
                     filters[field] = branch
                     break
 
-    # Pick the actual Asset fields that exist in the installed ERPNext version
+    # Pick only the Asset fields that actually exist in the installed
+    # ERPNext version. Querying a non-existent column raises
+    # MySQLdb.OperationalError(1054, "Unknown column ...").
     asset_meta = frappe.get_meta("Asset")
-    wanted = ["name", "asset_name", "asset_category", "status",
-              "purchase_date", "gross_purchase_amount", "location",
-              "custodian", "department", "cost_center", "is_existing_asset"]
+    candidate_fields = [
+        "name", "asset_name", "asset_category", "status",
+        "purchase_date", "gross_purchase_amount", "location",
+        "custodian", "department", "cost_center", "is_existing_asset",
+    ]
+    wanted = [f for f in candidate_fields if asset_meta.has_field(f)]
     # Depreciation columns: prefer opening_accumulated_depreciation (always present)
     # over accumulated_depreciation (removed in some ERPNext releases).
     if asset_meta.has_field("opening_accumulated_depreciation"):
