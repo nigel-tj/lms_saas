@@ -369,3 +369,9 @@ connect = ["lms_saas.hooks._lms_on_connect"]
 def _lms_on_connect(*_args, **_kwargs):
     """Frappe ``connect`` hook — run once per request lifecycle."""
     _bootstrap_lms_whitelisted_methods()
+
+# Run the bootstrap at module import time so the whitelisted set is populated
+# BEFORE any request is served. This eliminates the first-load race condition
+# where the very first API call hits "not whitelisted" because the connect
+# hook hasn't fired yet. The module-level flag keeps this idempotent.
+_bootstrap_lms_whitelisted_methods()

@@ -32,6 +32,32 @@ lms_portal._isAuthish = function (status, message) {
 	return status === 401 || status === 403 || /not permitted|permission|not whitelisted|login to access/i.test(message);
 };
 
+// Track pending XHR requests so we can abort them on logout and prevent
+// the post-logout 403 storm that fires when the dashboard refresh runs
+// after the session cookie is already destroyed.
+lms_portal._loggingOut = false;
+lms_portal._abortAllPending = function () {
+	lms_portal._loggingOut = true;
+};
+
+// Intercept all logout navigations (sidebar link, user menu, idle timeout)
+// to suppress pending request errors before the session is destroyed.
+lms_portal._wireLogoutGuard = function () {
+	if (lms_portal._logoutGuardWired) return;
+	lms_portal._logoutGuardWired = true;
+	document.addEventListener("click", function (e) {
+		var link = e.target.closest && e.target.closest('a[href*="cmd=web_logout"]');
+		if (link) {
+			lms_portal._abortAllPending();
+		}
+	}, true);
+};
+if (document.readyState === "loading") {
+	document.addEventListener("DOMContentLoaded", lms_portal._wireLogoutGuard);
+} else {
+	lms_portal._wireLogoutGuard();
+}
+
 /* ------------------------------------------------------------------ */
 /* lms_portal.safeCall                                                 */
 /* ------------------------------------------------------------------ */
@@ -55,6 +81,9 @@ lms_portal.safeCall = function (opts) {
 	var userError = opts.error;
 	var userCallback = opts.callback;
 	var wrappedError = function (err) {
+		// Suppress errors that arrive after logout — the page is already
+		// navigating away and the 403/401 is expected, not a real bug.
+		if (lms_portal._loggingOut) return;
 		console.error("[lms_portal.safeCall] error", err);
 		var status = (err && (err.status || err.httpStatusCode)) || 0;
 		var message = String((err && (err.message || err._server_message || "")) || "");
