@@ -21,8 +21,10 @@ class TestManagerCollateralRegister(TestCase):
 		}
 		fake_frappe = SimpleNamespace(
 			get_all=mock.Mock(side_effect=[
-				[collateral_row],
-				[],
+				[collateral_row],  # LMS Collateral rows
+				[{"name": "APP-0001", "custom_lms_branch": "Main Branch - LS"}],  # app branch batch
+				[{"name": "CUST-0001", "custom_lms_branch": "Main Branch - LS"}],  # cust branch batch
+				[],  # LMS Loan Collateral links
 			]),
 			db=SimpleNamespace(get_value=mock.Mock(return_value="Main Branch - LS")),
 		)
