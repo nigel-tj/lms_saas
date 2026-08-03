@@ -1618,15 +1618,15 @@ lms_officer._loadLoans = function (content) {
 	}).then(function (res) {
 		if (!res.ok) {
 			var status = (res.payload && res.payload.status) || 0;
-			var isAuthish = status === 401 || status === 403 ||
-				/login to access|not permitted|not whitelisted|permission/i.test(String((res.payload && res.payload.message) || ""));
+			var message = String((res.payload && res.payload.message) || "");
+			var isAuthish = lms_portal._isAuthish(status, message);
 			content.innerHTML =
 				'<div class="lms-panel lms-error" role="alert">' +
 				'<h3 style="margin:0 0 0.5rem;">Loans could not load</h3>' +
 				'<p>' + lms_portal.escape(
 					isAuthish
 						? "You don't have permission to view assigned loans. Please sign in again or contact your manager."
-						: (res.payload && res.payload.message) || "The server did not respond in time."
+						: message || "The server did not respond in time."
 				) + '</p>' +
 				'<button type="button" class="lms-btn lms-btn--primary" id="lms-of-loans-retry">Retry</button>' +
 				'</div>';

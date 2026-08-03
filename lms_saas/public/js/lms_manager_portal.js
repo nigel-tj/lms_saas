@@ -168,14 +168,6 @@ lms_manager._loadDashboard = function (content) {
 		}
 		lms_manager._renderAll(content, dashData, queueData);
 	});
-	// Surface the queued call rejection so the operator knows which endpoint failed.
-	Promise.allSettled([dashP, queueP]).then(function (results) {
-		results.forEach(function (r) {
-			if (r.status === "rejected") {
-				console.error("[lms_manager] dashboard call failed", r.reason);
-			}
-		});
-	});
 };
 
 // ---------------------------------------------------------------------------

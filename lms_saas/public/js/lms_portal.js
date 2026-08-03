@@ -1,13 +1,36 @@
 /* LMS borrower portal — UX-focused UI */
 frappe.provide("lms_portal");
 
-// highlight.js v10.6+ deprecates initHighlighting(); keep compatibility
-// with older callers by routing to highlightAll when available.
-if (window.hljs && typeof window.hljs.highlightAll === "function") {
-	window.hljs.initHighlighting = function () {
-		window.hljs.highlightAll();
-	};
-}
+/* ------------------------------------------------------------------ */
+/* Shared server-message classification (module scope)                 */
+/* ------------------------------------------------------------------ */
+/* Hoisted to module scope so safeCall, guardedCall, and every portal  */
+/* page share the same classification without re-defining it per call. */
+lms_portal._extractServerMessage = function (payload) {
+	if (!payload || !payload._server_messages) return "";
+	try {
+		var msgs = JSON.parse(payload._server_messages || "[]");
+		if (!msgs || !msgs.length) return "";
+		var msg = msgs[0];
+		if (typeof msg === "string") {
+			try { msg = JSON.parse(msg).message || msg; } catch (e) {}
+		}
+		return String(msg || "");
+	} catch (e) {
+		return "";
+	}
+};
+
+lms_portal._looksLikeServerError = function (msg) {
+	if (!msg) return false;
+	return /error|traceback|exception|frappe\.exceptions|not permitted|permission|not whitelisted|login to access/i.test(String(msg));
+};
+
+lms_portal._isAuthish = function (status, message) {
+	status = status || 0;
+	message = String(message || "");
+	return status === 401 || status === 403 || /not permitted|permission|not whitelisted|login to access/i.test(message);
+};
 
 /* ------------------------------------------------------------------ */
 /* lms_portal.safeCall                                                 */
@@ -31,32 +54,11 @@ lms_portal.safeCall = function (opts) {
 	// Build a wrapped error handler that always fires, even for 500s.
 	var userError = opts.error;
 	var userCallback = opts.callback;
-	// Shared helpers used by both the wrapped callback (below) and the public
-	// guardedCall helper. Keep them as module-level so any future portal
-	// wrappers can reuse the classification without re-defining it.
-	lms_portal._extractServerMessage = function (payload) {
-		if (!payload || !payload._server_messages) return "";
-		try {
-			var msgs = JSON.parse(payload._server_messages || "[]");
-			if (!msgs || !msgs.length) return "";
-			var msg = msgs[0];
-			if (typeof msg === "string") {
-				try { msg = JSON.parse(msg).message || msg; } catch (e) {}
-			}
-			return String(msg || "");
-		} catch (e) {
-			return "";
-		}
-	};
-	lms_portal._looksLikeServerError = function (msg) {
-		if (!msg) return false;
-		return /error|traceback|exception|frappe\.exceptions|not permitted|permission|not whitelisted|login to access/i.test(String(msg));
-	};
 	var wrappedError = function (err) {
 		console.error("[lms_portal.safeCall] error", err);
 		var status = (err && (err.status || err.httpStatusCode)) || 0;
 		var message = String((err && (err.message || err._server_message || "")) || "");
-		var isAuthish = status === 401 || status === 403 || /not permitted|permission|not whitelisted|login to access/i.test(message);
+		var isAuthish = lms_portal._isAuthish(status, message);
 		// Cheap session / rate-limit messaging so reviewers never see a silent fail.
 		if (isAuthish) {
 			try {
@@ -162,21 +164,6 @@ lms_portal.guardedCall = function (opts) {
 			},
 		});
 	});
-};
-
-lms_portal._extractServerMessage = function (payload) {
-	if (!payload || !payload._server_messages) return "";
-	try {
-		var msgs = JSON.parse(payload._server_messages || "[]");
-		if (!msgs || !msgs.length) return "";
-		var msg = msgs[0];
-		if (typeof msg === "string") {
-			try { msg = JSON.parse(msg).message || msg; } catch (e) {}
-		}
-		return String(msg || "");
-	} catch (e) {
-		return "";
-	}
 };
 
 lms_portal._looksLikeServerError = function (msg) {

@@ -1967,17 +1967,33 @@ def get_collateral_register(loan_status: str | None = None):
 		limit_page_length=200,
 	)
 
+	# Batch-fetch branch fallbacks to avoid N+1 per-row get_value calls.
+	app_names = {c.get("loan_application") for c in collateral if c.get("loan_application") and not c.get("branch")}
+	cust_names = {c.get("owner_customer") for c in collateral if c.get("owner_customer") and not c.get("branch")}
+	app_branches = {}
+	cust_branches = {}
+	if app_names:
+		for row in frappe.get_all(
+			"Loan Application",
+			filters={"name": ["in", list(app_names)]},
+			fields=["name", "custom_lms_branch"],
+		):
+			app_branches[row["name"]] = row.get("custom_lms_branch") or ""
+	if cust_names:
+		for row in frappe.get_all(
+			"Customer",
+			filters={"name": ["in", list(cust_names)]},
+			fields=["name", "custom_lms_branch"],
+		):
+			cust_branches[row["name"]] = row.get("custom_lms_branch") or ""
+
 	result = []
 	for c in collateral:
 		collateral_branch = c.get("branch") or ""
 		if not collateral_branch and c.get("loan_application"):
-			collateral_branch = (
-				frappe.db.get_value("Loan Application", c.get("loan_application"), "custom_lms_branch") or ""
-			)
+			collateral_branch = app_branches.get(c.get("loan_application"), "")
 		if not collateral_branch and c.get("owner_customer"):
-			collateral_branch = (
-				frappe.db.get_value("Customer", c.get("owner_customer"), "custom_lms_branch") or ""
-			)
+			collateral_branch = cust_branches.get(c.get("owner_customer"), "")
 		if branch and collateral_branch and collateral_branch != branch:
 			continue
 

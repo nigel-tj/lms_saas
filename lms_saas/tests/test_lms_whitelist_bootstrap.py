@@ -68,16 +68,17 @@ class TestLmsWhitelistBootstrap(unittest.TestCase):
 		self.assertEqual(whitelisted_names, whitelisted_names2)
 
 	def test_bootstrap_idempotent_flag(self):
+		import frappe
 		import lms_saas.hooks as hooks
 
-		# A second call short-circuits via the module-level flag even if the
-		# first call raised an error. We use a dummy frappe whose
-		# `log_error` is a no-op so the first call is observable.
+		# Idempotency: call the bootstrapper twice and confirm the
+		# whitelisted set is unchanged (no duplicates, no missing entries).
 		hooks._LMS_WHITELIST_BOOTSTRAP_DONE = False
-		with mock.patch.object(hooks, "frappe", SimpleNamespace(log_error=lambda *a, **kw: None)):
-			hooks._bootstrap_lms_whitelisted_methods()
-			hooks._LMS_WHITELIST_BOOTSTRAP_DONE = True
-			hooks._bootstrap_lms_whitelisted_methods()  # should be a no-op
+		hooks._bootstrap_lms_whitelisted_methods()
+		after_first = set(frappe.whitelisted)
+		hooks._bootstrap_lms_whitelisted_methods()
+		after_second = set(frappe.whitelisted)
+		self.assertEqual(after_first, after_second)
 		self.assertTrue(hooks._LMS_WHITELIST_BOOTSTRAP_DONE)
 
 
