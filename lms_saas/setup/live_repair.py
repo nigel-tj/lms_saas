@@ -134,3 +134,166 @@ def repair_live_site_state() -> dict:
 def run_live_repair() -> dict:
     """Compatibility entry-point used by bench execute."""
     return repair_live_site_state()
+
+# ---------------------------------------------------------------------------
+# Test-user provisioning (idempotent, admin-only)
+# ---------------------------------------------------------------------------
+
+TEST_USERS = [
+	{
+		"email": "manager@kesari.africa",
+		"first_name": "Branch",
+		"last_name": "Manager",
+		"password": "Manager@123",
+		"persona": "Branch Manager",
+		"roles": ["LMS Portal Staff"],
+	},
+	{
+		"email": "officer@kesari.africa",
+		"first_name": "Loan",
+		"last_name": "Officer",
+		"password": "Officer@123",
+		"persona": "Loan Officer",
+		"roles": ["LMS Portal Staff"],
+	},
+	{
+		"email": "collector@kesari.africa",
+		"first_name": "Collection",
+		"last_name": "Agent",
+		"password": "Collector@123",
+		"persona": "Collection Agent",
+		"roles": ["LMS Portal Staff"],
+	},
+	{
+		"email": "admin@kesari.africa",
+		"first_name": "System",
+		"last_name": "Administrator",
+		"password": "Admin@123",
+		"persona": "Branch Manager",
+		"roles": ["LMS Portal Staff", "System Manager", "Administrator"],
+	},
+	{
+		"email": "supervisor@kesari.africa",
+		"first_name": "Operations",
+		"last_name": "Supervisor",
+		"password": "Supervisor@123",
+		"persona": "Branch Manager",
+		"roles": ["LMS Portal Staff"],
+	},
+	{
+		"email": "field@kesari.africa",
+		"first_name": "Field",
+		"last_name": "Officer",
+		"password": "Field@123",
+		"persona": "Loan Officer",
+		"roles": ["LMS Portal Staff"],
+	},
+	{
+		"email": "senior.collector@kesari.africa",
+		"first_name": "Senior",
+		"last_name": "Collector",
+		"password": "Senior@123",
+		"persona": "Collection Agent",
+		"roles": ["LMS Portal Staff"],
+	},
+	{
+		"email": "borrower@example.com",
+		"first_name": "Test",
+		"last_name": "Borrower",
+		"password": "Borrower@123",
+		"persona": None,
+		"roles": ["Customer"],
+	},
+]
+
+
+@frappe.whitelist()
+def provision_test_users() -> dict:
+	"""Create or update the 8 standard test users on the live site.
+
+	Admin-only: requires System Manager or Administrator role. Idempotent —
+	safe to re-run; existing users are updated in place.
+	"""
+	if not set(frappe.get_roles()).intersection({"System Manager", "Administrator"}):
+		frappe.throw("Only administrators can provision test users.", frappe.PermissionError)
+
+	company = frappe.db.get_single_value("Global Defaults", "default_company") or ""
+	branch = ""
+	if company:
+		branch = frappe.db.get_value("Cost Center", {"company": company, "is_group": 0}, "name") or ""
+
+	created = []
+	updated = []
+	skipped = []
+
+	for cfg in TEST_USERS:
+		email = cfg["email"]
+		try:
+			if frappe.db.exists("User", email):
+				user = frappe.get_doc("User", email)
+				user.first_name = cfg["first_name"]
+				user.last_name = cfg["last_name"]
+				if cfg.get("password"):
+					user.new_password = cfg["password"]
+				user.flags.ignore_permissions = True
+				user.save()
+				# Update roles
+				user.roles = []
+				for role_name in cfg.get("roles", []):
+					if frappe.db.exists("Role", role_name):
+						user.append("roles", {"role": role_name})
+				user.flags.ignore_permissions = True
+				user.save()
+				updated.append(email)
+			else:
+				user = frappe.get_doc({
+					"doctype": "User",
+					"email": email,
+					"first_name": cfg["first_name"],
+					"last_name": cfg["last_name"],
+					"new_password": cfg.get("password"),
+					"send_welcome_email": False,
+					"roles": [{"role": r} for r in cfg.get("roles", []) if frappe.db.exists("Role", r)],
+				})
+				user.flags.ignore_permissions = True
+				user.insert()
+				created.append(email)
+
+			# Create or update Employee record for persona
+			if cfg.get("persona"):
+				emp_id = f"EMP-{email.split('@')[0].upper().replace('.', '_')}"
+				if frappe.db.exists("Employee", {"user_id": email}):
+					emp_name = frappe.db.get_value("Employee", {"user_id": email}, "name")
+					frappe.db.set_value("Employee", emp_name, {
+						"custom_lms_persona": cfg["persona"],
+						"custom_lms_branch": branch or None,
+						"status": "Active",
+					}, update_modified=True)
+				elif frappe.db.exists("Employee", emp_id):
+					frappe.db.set_value("Employee", emp_id, {
+						"user_id": email,
+						"custom_lms_persona": cfg["persona"],
+						"custom_lms_branch": branch or None,
+						"status": "Active",
+					}, update_modified=True)
+				else:
+					emp = frappe.get_doc({
+						"doctype": "Employee",
+						"employee_id": emp_id,
+						"first_name": cfg["first_name"],
+						"last_name": cfg["last_name"],
+						"user_id": email,
+						"status": "Active",
+						"company": company or "Kesari",
+						"date_of_joining": frappe.utils.today(),
+						"custom_lms_persona": cfg["persona"],
+						"custom_lms_branch": branch or None,
+					})
+					emp.flags.ignore_permissions = True
+					emp.insert()
+
+		except Exception as exc:
+			skipped.append({"email": email, "error": str(exc)})
+
+	frappe.db.commit()
+	return {"created": created, "updated": updated, "skipped": skipped}
