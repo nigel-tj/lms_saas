@@ -568,7 +568,15 @@ def disburse_assigned_loan(loan_name: str, disbursed_amount: float | None = None
 		disbursement.submit()
 		disbursement_name = disbursement.name
 	finally:
-		frappe.set_user(original_user)
+		# R34-QA safety: never call set_user(None) — that would corrupt
+		# the session and any subsequent API call in the same process
+		# would see session.user=None and trigger is_whitelisted's "User
+		# None not found" path. Restore only when original_user was a
+		# valid string.
+		if original_user and isinstance(original_user, str):
+			frappe.set_user(original_user)
+		else:
+			frappe.set_user("Administrator")
 
 	# Invalidate dashboard cache so KPIs reflect the new active loan.
 	from lms_saas.api.dashboard import invalidate_dashboard_cache

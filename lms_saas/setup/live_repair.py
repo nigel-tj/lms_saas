@@ -492,7 +492,10 @@ def _provision_borrower_customer(email: str, cfg: dict) -> None:
 	"""Create a Customer + Contact + link to the borrower User.
 
 	Idempotent: safe to re-run. If a Customer linked to this user already
-	exists, we update it in place. We do NOT enqueue background jobs.
+	exists, we update it in place. If the linked Customer has zero loans and
+	another Customer in the same company has active loans (typical after a
+	re-seed), we re-point the borrower to that existing Customer so the demo
+	borrower portal shows real loans. We do NOT enqueue background jobs.
 	"""
 	# Find an existing Customer linked to this user via Contact.
 	linked_customer = None
@@ -511,6 +514,36 @@ def _provision_borrower_customer(email: str, cfg: dict) -> None:
 
 	customer_name = f"Test Borrower — {cfg['first_name']} {cfg['last_name']}"
 	customer_id = linked_customer or customer_name
+
+	# If the linked Customer has zero active loans but another Customer in the
+	# same branch/company has them (typical after a fresh re-seed), re-point
+	# the borrower Contact to that existing Customer so the demo /lms portal
+	# shows real loans. We only re-point if the existing customer has at least
+	# one Loan record — otherwise leave the empty Customer in place.
+	if customer_id:
+		has_loans = frappe.db.sql(
+			"SELECT 1 FROM `tabLoan` WHERE applicant = %s LIMIT 1",
+			(customer_id,),
+		)
+		if not has_loans:
+			# Look for any Customer with at least one Loan (most recent first).
+			other = frappe.db.sql(
+				"""
+				SELECT l.applicant AS customer
+				FROM `tabLoan` l
+				WHERE l.docstatus < 2
+				GROUP BY l.applicant
+				ORDER BY MAX(l.modified) DESC
+				LIMIT 1
+				""",
+				as_dict=True,
+			)
+			if other:
+				existing_cust = other[0]["customer"]
+				# Only re-point if it's a different Customer.
+				if existing_cust and existing_cust != customer_id:
+					customer_id = existing_cust
+					customer_name = frappe.db.get_value("Customer", customer_id, "customer_name") or customer_name
 
 	if frappe.db.exists("Customer", customer_id):
 		frappe.db.set_value(
@@ -575,6 +608,149 @@ def _provision_borrower_customer(email: str, cfg: dict) -> None:
 				"link_doctype": "Customer",
 				"link_name": customer_id,
 			}).insert(ignore_permissions=True)
+
+	return customer_id
+
+
+# ---------------------------------------------------------------------------
+# Standalone borrower Customer re-linking (issue #23 root-cause fix)
+# ---------------------------------------------------------------------------
+
+@frappe.whitelist()
+def link_borrower_to_demo_customer(email: str = "borrower@example.com") -> dict:
+	"""Re-point a borrower User's Contact → Customer link to a Customer
+	with at least one active loan.
+
+	QA-2026-08-03-#23: the seeder used to create a brand-new Customer
+	named "Test Borrower — Test Borrower" and link borrower@example.com
+	to it via Contact. After a fresh re-seed that new Customer has zero
+	loans, so the borrower's /lms portal shows an empty portfolio even
+	when the manager dashboard shows 8 active loans across 6 borrowers.
+
+	This endpoint is the safe, surgical fix: it does NOT touch any
+	users / employees / branches / loans / KYC. It ONLY re-points the
+	borrower's Contact link to the most-recently-modified Customer that
+	has at least one Loan.
+
+	Admin-only. Idempotent: re-running is a no-op once the link is correct.
+
+	Args:
+		email: borrower email (default: borrower@example.com).
+
+	Returns:
+		Dict with previous_customer_id, current_customer_id,
+		loan_count (on the new customer), and a human-readable message.
+	"""
+	if not set(frappe.get_roles()).intersection({"System Manager", "Administrator"}):
+		frappe.throw(
+			"Only administrators can re-link a borrower Customer.",
+			frappe.PermissionError,
+		)
+
+	if not frappe.db.exists("User", email):
+		return {
+			"ok": False,
+			"email": email,
+			"message": f"User {email!r} does not exist on this site.",
+		}
+
+	# Find current Customer linked to this user via Contact + Dynamic Link.
+	previous_customer_id = None
+	contact_name = frappe.db.get_value(
+		"Contact", {"user": email}, "name"
+	)
+	if contact_name:
+		previous_customer_id = frappe.db.get_value(
+			"Dynamic Link",
+			{"parent": contact_name, "parenttype": "Contact", "link_doctype": "Customer"},
+			"link_name",
+		)
+
+	# Find a Customer that has at least one Loan, most-recent first.
+	other = frappe.db.sql(
+		"""
+		SELECT l.applicant AS customer, COUNT(*) AS loan_count, MAX(l.modified) AS last_modified
+		FROM `tabLoan` l
+		WHERE l.docstatus < 2
+		GROUP BY l.applicant
+		ORDER BY MAX(l.modified) DESC
+		LIMIT 1
+		""",
+		as_dict=True,
+	)
+	if not other:
+		return {
+			"ok": False,
+			"email": email,
+			"previous_customer_id": previous_customer_id,
+			"message": "No Customer with at least one Loan exists on this site. Seed demo loans first.",
+		}
+
+	target_customer = other[0]["customer"]
+	loan_count = int(other[0]["loan_count"] or 0)
+
+	if target_customer == previous_customer_id:
+		return {
+			"ok": True,
+			"email": email,
+			"previous_customer_id": previous_customer_id,
+			"current_customer_id": target_customer,
+			"loan_count": loan_count,
+			"message": f"Already linked to {target_customer!r} with {loan_count} loan(s); no change.",
+		}
+
+	# Update or insert the Dynamic Link. Two cases:
+	# 1. Contact exists: replace the link_doctype=Customer link to point to the
+	#    target customer.
+	# 2. Contact doesn't exist: create one and link.
+	if contact_name:
+		existing_link_name = frappe.db.get_value(
+			"Dynamic Link",
+			{"parent": contact_name, "parenttype": "Contact", "link_doctype": "Customer"},
+			"name",
+		)
+		if existing_link_name:
+			frappe.db.set_value(
+				"Dynamic Link", existing_link_name, "link_name", target_customer
+			)
+		else:
+			frappe.get_doc({
+				"doctype": "Dynamic Link",
+				"parent": contact_name,
+				"parenttype": "Contact",
+				"parentfield": "links",
+				"link_doctype": "Customer",
+				"link_name": target_customer,
+			}).insert(ignore_permissions=True)
+	else:
+		contact = frappe.get_doc({
+			"doctype": "Contact",
+			"first_name": "Test",
+			"last_name": "Borrower",
+			"email_id": email,
+			"is_primary_contact": 1,
+			"user": email,
+			"links": [{
+				"link_doctype": "Customer",
+				"link_name": target_customer,
+			}],
+		})
+		contact.flags.ignore_permissions = True
+		contact.insert(ignore_permissions=True)
+
+	frappe.db.commit()
+
+	return {
+		"ok": True,
+		"email": email,
+		"previous_customer_id": previous_customer_id,
+		"current_customer_id": target_customer,
+		"loan_count": loan_count,
+		"message": (
+			f"Re-linked {email!r} from {previous_customer_id!r} → {target_customer!r} "
+			f"({loan_count} loan(s))."
+		),
+	}
 
 
 # ---------------------------------------------------------------------------
