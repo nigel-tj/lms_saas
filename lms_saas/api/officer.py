@@ -979,21 +979,33 @@ def get_officer_leads():
 	_require_officer()
 	branch = _officer_branch()
 
+	# QA-2026-08-03-#16: `source` is a custom field on Lead that
+	# may or may not be present depending on whether the Lead
+	# DocType has the custom field migrated. SELECT a hardcoded
+	# field name that doesn't exist (like 'source') raises a 1054
+	# MySQL error and the whole API fails. Guard: only include
+	# `source` (and any other optional custom fields) in the
+	# fields list if the Lead DocType actually has them.
+	lead_meta = frappe.get_meta("Lead")
+	lead_field_names = {f.fieldname for f in lead_meta.fields}
+	base_fields = [
+		"name", "lead_name", "email_id", "mobile_no", "status",
+		"custom_consent_given", "custom_lms_branch",
+	]
+	if "source" in lead_field_names:
+		base_fields.append("source")
+	# Any other custom fields the operator may have added; we
+	# only include the safe ones from the original SELECT.
+	for optional in ("source",):
+		if optional in lead_field_names and optional not in base_fields:
+			base_fields.append(optional)
+
 	leads = []
 	if branch:
 		leads = frappe.get_all(
 			"Lead",
 			filters={"custom_lms_branch": branch},
-			fields=[
-				"name",
-				"lead_name",
-				"email_id",
-				"mobile_no",
-				"status",
-				"source",
-				"custom_consent_given",
-				"custom_lms_branch",
-			],
+			fields=base_fields,
 			order_by="creation desc",
 			limit_page_length=50,
 		)
@@ -1002,16 +1014,7 @@ def get_officer_leads():
 		leads = frappe.get_all(
 			"Lead",
 			filters={"status": ["not in", ["Converted", "Do Not Contact"]]},
-			fields=[
-				"name",
-				"lead_name",
-				"email_id",
-				"mobile_no",
-				"status",
-				"source",
-				"custom_consent_given",
-				"custom_lms_branch",
-			],
+			fields=base_fields,
 			order_by="creation desc",
 			limit_page_length=50,
 		)
