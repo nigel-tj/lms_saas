@@ -162,7 +162,7 @@ TEST_USERS = [
 		"first_name": "Collection",
 		"last_name": "Agent",
 		"password": "Collector@123",
-		"persona": "Collection Agent",
+		"persona": "Collector",
 		"roles": ["LMS Portal Staff"],
 	},
 	{
@@ -194,7 +194,7 @@ TEST_USERS = [
 		"first_name": "Senior",
 		"last_name": "Collector",
 		"password": "Senior@123",
-		"persona": "Collection Agent",
+		"persona": "Collector",
 		"roles": ["LMS Portal Staff"],
 	},
 	{
@@ -230,21 +230,39 @@ def provision_test_users() -> dict:
 	for cfg in TEST_USERS:
 		email = cfg["email"]
 		try:
+			# Mute emails for the entire seeder pass. The default User.on_update
+			# path sends a "your password changed" security alert that runs
+			# through frappe.sendmail -> email_queue -> bundled_assets. On a
+			# freshly-built bench the assets bundle is None, which crashes the
+			# email render. Mute to keep the seeder self-contained.
+			frappe.flags.mute_emails = True
 			if frappe.db.exists("User", email):
-				user = frappe.get_doc("User", email)
-				user.first_name = cfg["first_name"]
-				user.last_name = cfg["last_name"]
+				# Update existing user with the lightest possible touch:
+				# set_value (no save → no rename, no on_update, no email),
+				# update_password (writes the auth table directly, no email),
+				# and replace Has Role rows directly (no role reset, no
+				# background jobs enqueued). This is safe to re-run.
+				frappe.db.set_value(
+					"User", email, {
+						"first_name": cfg["first_name"],
+						"last_name": cfg["last_name"],
+					}, update_modified=True,
+				)
 				if cfg.get("password"):
-					user.new_password = cfg["password"]
-				user.flags.ignore_permissions = True
-				user.save()
-				# Update roles
-				user.roles = []
+					from frappe.utils.password import update_password
+					update_password(email, cfg["password"])
+				# Replace roles directly via SQL (no doc.save → no jobs).
+				frappe.db.delete("Has Role", {"parent": email, "parenttype": "User"})
 				for role_name in cfg.get("roles", []):
 					if frappe.db.exists("Role", role_name):
-						user.append("roles", {"role": role_name})
-				user.flags.ignore_permissions = True
-				user.save()
+						frappe.get_doc({
+							"doctype": "Has Role",
+							"parent": email,
+							"parenttype": "User",
+							"parentfield": "roles",
+							"role": role_name,
+						}).insert(ignore_permissions=True)
+				frappe.db.commit()
 				updated.append(email)
 			else:
 				user = frappe.get_doc({
@@ -256,6 +274,7 @@ def provision_test_users() -> dict:
 					"send_welcome_email": False,
 					"roles": [{"role": r} for r in cfg.get("roles", []) if frappe.db.exists("Role", r)],
 				})
+				user.flags.no_welcome_mail = True
 				user.flags.ignore_permissions = True
 				user.insert()
 				created.append(email)
@@ -287,6 +306,8 @@ def provision_test_users() -> dict:
 						"status": "Active",
 						"company": company or "Kesari",
 						"date_of_joining": frappe.utils.today(),
+						"date_of_birth": "1990-01-01",  # required by ERPNext; demo placeholder
+						"gender": "Prefer not to say",  # required by ERPNext; demo placeholder
 						"custom_lms_persona": cfg["persona"],
 						"custom_lms_branch": branch or None,
 					})
@@ -295,6 +316,8 @@ def provision_test_users() -> dict:
 
 		except Exception as exc:
 			skipped.append({"email": email, "error": str(exc)})
+		finally:
+			frappe.flags.mute_emails = False
 
 	frappe.db.commit()
 	return {"created": created, "updated": updated, "skipped": skipped}
