@@ -271,5 +271,8 @@ else
 	# Provision test users if they don't exist yet (idempotent, admin-only).
 	echo "  → Provisioning test users (idempotent)…"
 	bench --site "$FC_SITE" execute lms_saas.setup.live_repair.provision_test_users 2>&1 | sed 's/^/    /' || true
+	# Seed demo collateral for borrowers with active loans (idempotent, admin-only).
+	echo "  → Seeding demo collateral (idempotent)…"
+	bench --site "$FC_SITE" execute lms_saas.setup.live_repair.seed_demo_collateral 2>&1 | sed 's/^/    /' || true
 	echo "=== Update complete for $FC_SITE ==="
 fi
