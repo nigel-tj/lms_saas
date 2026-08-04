@@ -475,6 +475,34 @@ def approve_application(application_name: str):
 	except Exception as e:  # schedule is non-blocking for approval; log and continue
 		frappe.logger().warning(f"Could not generate repayment schedule for {loan.name}: {e}")
 
+	# R39: transition the application's status to "Approved" so the
+	# approval queue filter ``{"docstatus": 1, "status": "Open"}``
+	# (the canonical "submitted, awaiting manager" state per
+	# lending's number card) properly excludes this app from the
+	# queue on the next refresh. Without this transition, every
+	# approved app would stay at ``status="Open"`` and reappear in
+	# the queue forever (R37 surfaced this gap — approve moves
+	# docstatus 0→1 but doesn't move status, so the Open filter
+	# still matches). Use db_update to skip on_update hook chains
+	# (the application's value is already canonical).
+	# R39: set status to "Approved" via db_set so on_update hooks (which
+	# would re-emit audit rows and trip guard hooks) don't fire. The
+	# user's session is the manager at this point (we used
+	# ``frappe.flags.ignore_permissions`` instead of ``set_user`` so the
+	# session is intact — R38). The status field on Loan Application is
+	# a Select with values ["Open", "Approved", "Rejected"]; "Approved"
+	# is the terminal-state value so the queue filter
+	# ``{"docstatus": 1, "status": "Open"}`` excludes this app on the
+	# very next refresh. Without this transition every approved app
+	# would stay visible in the queue forever (R37 surfaced this gap).
+	frappe.db.set_value(
+		"Loan Application",
+		app.name,
+		"status",
+		"Approved",
+		update_modified=False,
+	)
+
 	return {
 		"status": "approved",
 		"application": application_name,

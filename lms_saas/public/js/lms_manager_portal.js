@@ -233,7 +233,14 @@ lms_manager._renderApprovalsTable = function (content, queueData, showHeader) {
 		html += "</tbody></table></div>";
 	}
 	html += "</div>";
-	content.insertAdjacentHTML("beforeend", html);
+	// R39: replace the tab content (clear the "Loading…" state set by
+	// _showTab) instead of appending. The old ``insertAdjacentHTML("beforeend", ...)``
+	// stacked the table under the loading card so users saw a
+	// persistent spinner even after the queue resolved. The dashboard
+	// KPI card (rendered by _renderAll) continues to use
+	// ``insertAdjacentHTML`` because it appends a partial view under
+	// the dashboard's KPI sections — that's a different usage.
+	content.innerHTML = html;
 
 	content.querySelectorAll(".lms-review-btn").forEach(function (btn) {
 		btn.addEventListener("click", function () {
@@ -1329,9 +1336,11 @@ lms_manager._renderCollateralRegister = function (el, collateral) {
 	var html = '<div class="lms-panel">';
 	html += '<div class="lms-section-header"><h3>Collateral Register</h3><span class="lms-muted">' + collateral.length + ' items</span></div>';
 	html += '<div class="lms-data-table__wrap"><table class="lms-data-table">';
-	html += "<thead><tr><th>Collateral #</th><th>Type</th><th>Description</th><th>Market Value</th><th>NRV</th><th>Status</th><th>Linked Loans</th></tr></thead><tbody>";
+	html += "<thead><tr><th>Collateral #</th><th>Type</th><th>Description</th><th>Market Value</th><th>NRV</th><th>Status</th><th>Linked Loans</th><th></th></tr></thead><tbody>";
 	collateral.forEach(function (c) {
-		html += "<tr>";
+		var rowId = "lms-col-row-" + lms_portal.escape(c.name);
+		var detailId = "lms-col-detail-" + lms_portal.escape(c.name);
+		html += '<tr id="' + rowId + '">';
 		html += "<td><strong>" + lms_portal.escape(c.name || "") + "</strong></td>";
 		html += "<td>" + lms_portal.escape(c.collateral_type || "—") + "</td>";
 		html += "<td>" + lms_portal.escape(c.collateral_title || "—") + "</td>";
@@ -1339,10 +1348,94 @@ lms_manager._renderCollateralRegister = function (el, collateral) {
 		html += "<td>" + format_currency(c.net_realizable_value || 0) + "</td>";
 		html += "<td>" + lms_portal.escape(c.status || "—") + "</td>";
 		html += "<td>" + ((c.linked_loans || []).length) + "</td>";
+		// R39: View button expands the row inline to show linked loans,
+		// owner customer, valuation date, and any relevant metadata. The
+		// click toggles a sibling detail <tr> that the row below reads.
+		html += '<td><button type="button" class="lms-btn lms-btn--ghost lms-btn--sm lms-collateral-toggle" data-cid="' + lms_portal.escape(c.name) + '" aria-expanded="false" aria-controls="' + detailId + '">View</button></td>';
 		html += "</tr>";
+		// Hidden detail row, revealed on toggle. The on-demand expand keeps
+		// the dense table scannable while giving the manager every relevant
+		// signal on click (loan ties, allocation values, owner).
+		html += '<tr class="lms-collateral-detail" id="' + detailId + '" style="display:none;" data-loaded="0"><td colspan="8">';
+		html += '<div class="lms-collateral-detail__body">Loading details…</div>';
+		html += '</td></tr>';
 	});
 	html += "</tbody></table></div></div>";
 	el.innerHTML = html;
+
+	el.querySelectorAll(".lms-collateral-toggle").forEach(function (btn) {
+		btn.addEventListener("click", function () {
+			var cid = btn.getAttribute("data-cid");
+			var detail = el.querySelector("#lms-collateral-detail-" + cid);
+			if (!detail) return;
+			var isOpen = detail.style.display !== "none";
+			if (isOpen) {
+				detail.style.display = "none";
+				btn.textContent = "View";
+				btn.setAttribute("aria-expanded", "false");
+			} else {
+				detail.style.display = "";
+				btn.textContent = "Hide";
+				btn.setAttribute("aria-expanded", "true");
+				if (detail.getAttribute("data-loaded") !== "1") {
+					lms_manager._renderCollateralDetail(cid, detail);
+				}
+			}
+		});
+	});
+};
+
+// R39: render the expanded details row for a collateral item. Looks up
+// the row in the most recently fetched collateral list (cached on the
+// element so this is a single render pass without an extra API call).
+lms_manager._renderCollateralDetail = function (cid, detailRow) {
+	// The collateral list passed to _renderCollateralRegister isn't kept
+	// in scope here, so we re-fetch via the same API to populate a single
+	// row's detail. The list is small enough (<=200 items, paged on the
+	// server) that re-running once per expand keeps the code path simple.
+	lms_portal.safeCall({
+		method: "lms_saas.api.manager.get_collateral_register",
+		callback: function (r) {
+			var list = (r && r.message && r.message.collateral) || [];
+			var row = list.find(function (c) { return c.name === cid; });
+			var body = detailRow.querySelector(".lms-collateral-detail__body");
+			if (!body) return;
+			if (!row) {
+				body.innerHTML = '<p class="lms-muted">Collateral record not found.</p>';
+				detailRow.setAttribute("data-loaded", "1");
+				return;
+			}
+			var html = '<div class="lms-grid-2">';
+			html += '<div><div class="lms-summary-label">Owner customer</div><div class="lms-summary-value">' + lms_portal.escape(row.owner_customer || "—") + "</div></div>";
+			html += '<div><div class="lms-summary-label">Branch</div><div class="lms-summary-value">' + lms_portal.escape(row.branch || "—") + "</div></div>";
+			html += '<div><div class="lms-summary-label">Loan application</div><div class="lms-summary-value">' + lms_portal.escape(row.loan_application || "—") + "</div></div>";
+			html += '<div><div class="lms-summary-label">Created</div><div class="lms-summary-value">' + lms_portal.escape((row.creation || "").slice(0, 10)) + "</div></div>";
+			html += "</div>";
+
+			var linked = row.linked_loans || [];
+			if (linked.length) {
+				html += '<h4 style="margin-top:0.75rem;">Linked loans</h4>';
+				html += '<div class="lms-data-table__wrap"><table class="lms-data-table"><thead><tr><th>Loan #</th><th>Borrower</th><th>Status</th><th>Allocated value</th></tr></thead><tbody>';
+				linked.forEach(function (ln) {
+					html += "<tr>";
+					html += "<td><strong>" + lms_portal.escape(ln.loan || "—") + "</strong></td>";
+					html += "<td>" + lms_portal.escape(ln.borrower || "—") + "</td>";
+					html += "<td>" + lms_portal.escape(ln.status || "—") + "</td>";
+					html += "<td>" + format_currency(ln.allocated_value || 0) + "</td>";
+					html += "</tr>";
+				});
+				html += "</tbody></table></div>";
+			} else {
+				html += '<p class="lms-muted" style="margin-top:0.75rem;">No loans currently use this collateral as security. It may be pledged but not yet linked, or it may be standalone.</p>';
+			}
+			body.innerHTML = html;
+			detailRow.setAttribute("data-loaded", "1");
+		},
+		error: function () {
+			var body = detailRow.querySelector(".lms-collateral-detail__body");
+			if (body) body.innerHTML = '<p class="lms-muted">Could not load details.</p>';
+		},
+	});
 };
 
 // ---------------------------------------------------------------------------
