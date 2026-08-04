@@ -552,10 +552,16 @@ def disburse_assigned_loan(loan_name: str, disbursed_amount: float | None = None
 	# on it before insert blew up with "Loan Disbursement None not
 	# found". Fix: ``disb.insert()`` first, then ``reload()``, then
 	# submit.
+	# R38: use ignore_permissions instead of set_user("Administrator")
+	# to avoid corrupting the officer's session on Frappe Cloud.
+	# ``set_user`` clears ``local.session.data`` and ``local.cache`` —
+	# the restore only flips ``session.user`` back, leaving the session
+	# cache empty. The next request from the same SID arrives as Guest
+	# → "User None not found" + "Function ... is not whitelisted".
+	frappe.flags.ignore_permissions = True
 	try:
 		from lending.loan_management.doctype.loan.loan import make_loan_disbursement
 
-		frappe.set_user("Administrator")
 		disbursement = make_loan_disbursement(
 			loan=loan.name,
 			disbursement_amount=amount,
@@ -575,15 +581,7 @@ def disburse_assigned_loan(loan_name: str, disbursed_amount: float | None = None
 		disbursement.submit()
 		disbursement_name = disbursement.name
 	finally:
-		# R34-QA safety: never call set_user(None) — that would corrupt
-		# the session and any subsequent API call in the same process
-		# would see session.user=None and trigger is_whitelisted's "User
-		# None not found" path. Restore only when original_user was a
-		# valid string.
-		if original_user and isinstance(original_user, str):
-			frappe.set_user(original_user)
-		else:
-			frappe.set_user("Administrator")
+		frappe.flags.ignore_permissions = False
 
 	# Invalidate dashboard cache so KPIs reflect the new active loan.
 	from lms_saas.api.dashboard import invalidate_dashboard_cache
