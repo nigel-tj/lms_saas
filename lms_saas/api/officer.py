@@ -713,17 +713,40 @@ def submit_application_on_behalf(
 		cust_doc.flags.ignore_permissions = True
 		cust_doc.save()
 
-	# Create linked LMS Collateral records (if any were captured in the form).
+	# R40-fix: append collateral rows to the Loan Application's
+	# ``custom_collateral`` child table (``LMS Loan Collateral``) so the
+	# manager-portal collateral register, the KYC gate, and the
+	# downstream Loan's coverage check all see the same linkage.
+	#
+	# The R19 / R26 code created STANALONE ``LMS Collateral`` records
+	# and set ``loan_application`` as a string field. That made the
+	# rows visible in the register but invisible to:
+	#   - the manager's ``get_collateral_register`` (which queries the
+	#     LMS Loan Collateral child table to find linked loans — those
+	#     rows were never written)
+	#   - the Loan's auto-copied child table when the manager approves
+	#     and a new Loan record is created
+	#   - ``get_collateral_coverage`` which reads ``doc.custom_collateral``
+	#
+	# We do BOTH: create a standalone LMS Collateral so the register
+	# shows the asset (with full detail / valuation), AND append a
+	# matching child row to ``app.custom_collateral`` so the linkage
+	# flows through the approval → Loan → coverage chain.
 	if collateral and isinstance(collateral, list):
 		for c in collateral:
 			if not isinstance(c, dict):
 				continue
+			customer_doc = customer
+			# Standalone LMS Collateral: the asset register record. NRV is
+			# computed from market_value via collateral.compute_net_realizable_value
+			# (configurable via forced_sale_value or haircut_percent); the
+			# server's before_save on LMS Collateral sets it.
 			coll = frappe.get_doc(
 				{
 					"doctype": "LMS Collateral",
 					"collateral_type": c.get("collateral_type") or "Other",
 					"collateral_title": c.get("description") or "Collateral",
-					"owner_customer": customer,
+					"owner_customer": customer_doc,
 					"company": company,
 					"branch": branch or "",
 					"market_value": flt(c.get("collateral_value") or 0),
@@ -759,6 +782,31 @@ def submit_application_on_behalf(
 			)
 			coll.flags.ignore_permissions = True
 			coll.insert()
+
+			# R40: append a matching child row to app.custom_collateral so
+			# the LMS Loan Collateral table gets populated with a row whose
+			# `parent` is this Loan Application. The manager portal's
+			# get_collateral_register queries this child table by
+			# collateral name + parent → loan name to surface linked loans;
+			# without these rows every collateral shows "0 linked loans" no
+			# matter what the JS submit did. Default allocated_value to the
+			# collateral's market value (the operator can edit per-loan
+			# allocations later).
+			allocated = flt(c.get("collateral_value") or c.get("market_value") or 0)
+			app.append(
+				"custom_collateral",
+				{
+					"collateral": coll.name,
+					"collateral_type": coll.collateral_type,
+					"net_realizable_value": flt(coll.net_realizable_value) or 0,
+					"allocated_value": allocated or flt(coll.market_value) or 0,
+					"notes": coll.notes or "",
+				},
+			)
+
+		# Persist the appended child rows.
+		app.flags.ignore_permissions = True
+		app.save()
 
 	return {"application": app.name, "status": "Draft"}
 

@@ -405,6 +405,32 @@ def approve_application(application_name: str):
 	# Administrator-owned seed apps and made the check pass vacuously).
 	if frappe.get_meta("Loan").has_field("custom_lms_loan_application"):
 		loan.custom_lms_loan_application = app.name
+	# R40: carry the application-side collateral child table onto the
+	# Loan so the manager-portal collateral register, the Loans tab
+	# "View" modal, and downstream coverage / NRV computations all see
+	# the same pledged assets. Without this copy the Loan exists with
+	# ``custom_collateral`` empty even though the originating application
+	# had rows — the loan's coverage ratio drops to 0, the collateral
+	# register's "linked loan" count drops to 0 for every row in this
+	# loan, and the operator sees two conflicting books of truth.
+	if app.get("custom_collateral"):
+		loan_meta = frappe.get_meta("Loan")
+		loan_has_custom_collateral = loan_meta.has_field("custom_collateral") and any(
+			f.fieldname == "custom_collateral" and f.fieldtype == "Table"
+			for f in loan_meta.fields
+		)
+		if loan_has_custom_collateral:
+			for src in app.custom_collateral:
+				loan.append(
+					"custom_collateral",
+					{
+						"collateral": src.collateral,
+						"collateral_type": src.collateral_type,
+						"net_realizable_value": flt(src.net_realizable_value) or 0,
+						"allocated_value": flt(src.allocated_value) or 0,
+						"notes": src.notes or "",
+					},
+				)
 	loan.flags.ignore_permissions = True
 	loan.insert()
 
