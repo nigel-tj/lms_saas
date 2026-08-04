@@ -1339,6 +1339,11 @@ lms_manager._renderCollateralRegister = function (el, collateral) {
 	html += "<thead><tr><th>Collateral #</th><th>Type</th><th>Description</th><th>Market Value</th><th>NRV</th><th>Status</th><th>Linked Loans</th><th></th></tr></thead><tbody>";
 	collateral.forEach(function (c) {
 		var rowId = "lms-col-row-" + lms_portal.escape(c.name);
+		// R40-fix: use a single, consistent detail-row ID prefix. The
+		// R39 code used ``lms-col-detail-`` for the row but
+		// ``lms-collateral-detail-`` in the click handler — the click
+		// silently no-op'd because the selector missed. Standardise on
+		// ``lms-col-detail-`` (matches the row ID convention).
 		var detailId = "lms-col-detail-" + lms_portal.escape(c.name);
 		html += '<tr id="' + rowId + '">';
 		html += "<td><strong>" + lms_portal.escape(c.name || "") + "</strong></td>";
@@ -1353,9 +1358,9 @@ lms_manager._renderCollateralRegister = function (el, collateral) {
 		// click toggles a sibling detail <tr> that the row below reads.
 		html += '<td><button type="button" class="lms-btn lms-btn--ghost lms-btn--sm lms-collateral-toggle" data-cid="' + lms_portal.escape(c.name) + '" aria-expanded="false" aria-controls="' + detailId + '">View</button></td>';
 		html += "</tr>";
-		// Hidden detail row, revealed on toggle. The on-demand expand keeps
-		// the dense table scannable while giving the manager every relevant
-		// signal on click (loan ties, allocation values, owner).
+		// Hidden detail row, revealed on toggle. The on-demand expand
+		// keeps the dense table scannable while giving the manager every
+		// relevant signal on click (loan ties, allocation values, owner).
 		html += '<tr class="lms-collateral-detail" id="' + detailId + '" style="display:none;" data-loaded="0"><td colspan="8">';
 		html += '<div class="lms-collateral-detail__body">Loading details…</div>';
 		html += '</td></tr>';
@@ -1366,7 +1371,11 @@ lms_manager._renderCollateralRegister = function (el, collateral) {
 	el.querySelectorAll(".lms-collateral-toggle").forEach(function (btn) {
 		btn.addEventListener("click", function () {
 			var cid = btn.getAttribute("data-cid");
-			var detail = el.querySelector("#lms-collateral-detail-" + cid);
+			// R40-fix: use the same prefix as the rendered detail row
+			// (lms-col-detail-) so the lookup doesn't silently miss and
+			// the click is a no-op. The R39 typo (lms-collateral-detail-)
+			// was caught by the user on live — fix it consistently.
+			var detail = el.querySelector("#lms-col-detail-" + cid);
 			if (!detail) return;
 			var isOpen = detail.style.display !== "none";
 			if (isOpen) {
