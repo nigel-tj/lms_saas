@@ -139,8 +139,12 @@ def get_officer_dashboard():
 	employee = _officer_employee()
 	company = frappe.db.get_single_value("Global Defaults", "default_company")
 
-	# Pending applications in officer's branch
-	app_filters = {"docstatus": 0, "custom_lms_branch": branch} if branch else {"docstatus": 0}
+	# Pending applications in officer's branch — R37: ds=1 status='Open'.
+	app_filters = (
+		{"docstatus": 1, "status": "Open", "custom_lms_branch": branch}
+		if branch
+		else {"docstatus": 1, "status": "Open"}
+	)
 	pending_apps = frappe.db.count("Loan Application", app_filters)
 
 	# Active loans assigned to this officer
@@ -223,11 +227,14 @@ def get_pending_applications():
 	# officer in Branch A with no in-branch work sees an empty queue,
 	# NOT every branch's confidential deal pipeline. Admins can still
 	# use the desk query for global visibility.
+	#
+	# R37: filter on ds=1 status='Open' so officers see their own
+	# submitted applications as "pending" until the manager decides.
 	applications = []
 	if branch:
 		applications = frappe.get_all(
 			"Loan Application",
-			filters={"docstatus": 0, "custom_lms_branch": branch},
+			filters={"docstatus": 1, "status": "Open", "custom_lms_branch": branch},
 			fields=[
 				"name",
 				"applicant",

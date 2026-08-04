@@ -351,7 +351,11 @@ def get_branch_overview(company=None):
         limit_page_length=20,
     )
 
-    # Pending approvals (disbursements needing four-eyes)
+    # Pending approvals (disbursements needing four-eyes) — UNCHANGED.
+    # R37 only changes the manager-/officer-side Loan Application
+    # queue filters to ds=1 status='Open'. The Loan Disbursement
+    # four-eyes gate (post-approval disbursement) keeps its original
+    # ds=0 filter.
     pending_approvals = frappe.get_all(
         "Loan Disbursement",
         filters={"docstatus": 0},

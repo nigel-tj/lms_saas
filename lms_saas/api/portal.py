@@ -499,10 +499,21 @@ def submit_loan_application(loan_amount, loan_product=None, repayment_periods=6)
             "custom_lms_branch": branch,
         }
     )
-    app.insert(ignore_permissions=True)
+    # R37: submit() advances the doc to ds=1, status='Open' — the same
+    # state officer-submit reaches. This means both origination paths
+    # now land in the manager approval queue. The before_submit hooks
+    # fire here too, so AML/KYC gates run at the borrower boundary
+    # exactly as they already do for the officer path. The earlier
+    # "insert + return Draft" shortcut kept borrower apps invisible to
+    # the manager queue (which filtered on ds=1), so managers never saw
+    # borrower-initiated applications.
+    app.flags.ignore_permissions = True
+    app.insert()
+    app.submit()
+    app.reload()
 
     # R22-C2: audit the successful submission. critical=True so a failure
-    # to write rolls back the insert (no audit = no business op).
+    # to write rolls back the operation (no audit = no business op).
     try:
         write_audit_event(
             event_type="LoanApplication:Submitted",
@@ -530,7 +541,7 @@ def submit_loan_application(loan_amount, loan_product=None, repayment_periods=6)
     except Exception:
         pass
 
-    return {"application": app.name, "status": "Draft"}
+    return {"application": app.name, "status": "Open", "docstatus": app.docstatus}
 
 
 @frappe.whitelist()
