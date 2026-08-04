@@ -413,16 +413,23 @@ def approve_application(application_name: str):
 	# ``loan.docstatus == 1`` (Sanctioned) when the officer clicks
 	# Disburse. Without this submit, the officer-side ``disburse_assigned_loan``
 	# would have to mid-flight submit the Loan itself, which races with
-	# the repayment-schedule insert below and is brittle. Submit here,
-	# as Administrator so lending's on_submit hook has the perms it
-	# needs (lending creates the canonical repayment schedule on submit).
-	original_user = frappe.session.user
-	try:
-		frappe.set_user("Administrator")
-		loan.submit()
-		loan.reload()
-	finally:
-		frappe.set_user(original_user)
+	# the repayment-schedule insert below and is brittle. Submit here
+	# with ignore_permissions so lending's on_submit hook has the perms
+	# it needs (lending creates the canonical repayment schedule on
+	# submit) WITHOUT corrupting the manager's session.
+	#
+	# R38: previously this block called ``frappe.set_user("Administrator")``
+	# then restored in ``finally``. On Frappe Cloud's multi-worker setup
+	# ``set_user`` clears ``local.session.data`` and ``local.cache`` —
+	# the restore only flips ``session.user`` back, leaving the session
+	# cache empty. The next request from the same SID arrives as Guest
+	# → "User None not found" + "Function ... is not whitelisted".
+	# ``frappe.flags.ignore_permissions`` is the canonical Frappe
+	# pattern for privileged operations within an authenticated
+	# request and does NOT touch the session.
+	loan.flags.ignore_permissions = True
+	loan.submit()
+	loan.reload()
 
 	# Generate the repayment schedule so it is visible to the BM / officer
 	# (Frappe Lending only builds it on disbursement; the portal needs it at approval).
@@ -553,13 +560,15 @@ def reject_application(application_name: str, reason: str = ""):
 	# Version entries) — these are non-critical audit noise for a draft;
 	# Frappe's `add_to_deleted_document` recovery option is also skipped
 	# (drafts cannot be recovered anyway).
-	original_user = frappe.session.user
+	# R38: use ignore_permissions instead of set_user("Administrator")
+	# to avoid corrupting the manager's session on Frappe Cloud (see
+	# approve_application R38 note for the full root cause).
+	frappe.flags.ignore_permissions = True
 	try:
-		frappe.set_user("Administrator")
 		frappe.db.delete("Loan Application", {"name": application_name})
 		frappe.clear_document_cache("Loan Application", application_name)
 	finally:
-		frappe.set_user(original_user)
+		frappe.flags.ignore_permissions = False
 
 	return {
 		"status": "rejected",
@@ -1191,10 +1200,12 @@ def disburse_loan(loan_name: str, disbursed_amount: float | None = None):
 
 	original_user = frappe.session.user
 	disbursement_name = None
+	# R38: use ignore_permissions instead of set_user("Administrator")
+	# to avoid corrupting the manager's session on Frappe Cloud.
+	frappe.flags.ignore_permissions = True
 	try:
 		from lending.loan_management.doctype.loan.loan import make_loan_disbursement
 
-		frappe.set_user("Administrator")
 		# Step 1: build in-memory doc (helper returns unsaved).
 		disbursement = make_loan_disbursement(
 			loan=loan.name,
@@ -1203,7 +1214,7 @@ def disburse_loan(loan_name: str, disbursed_amount: float | None = None):
 			posting_date=today(),
 			disbursement_date=today(),
 		)
-		# Step 2: insert as Administrator so lending's on_update hook
+		# Step 2: insert with ignore_permissions so lending's on_update hook
 		# (which creates the Loan Repayment Schedule rows) has the perms
 		# it needs.
 		disbursement.flags.ignore_permissions = True
@@ -1217,7 +1228,7 @@ def disburse_loan(loan_name: str, disbursed_amount: float | None = None):
 		disbursement.submit()
 		disbursement_name = disbursement.name
 	finally:
-		frappe.set_user(original_user)
+		frappe.flags.ignore_permissions = False
 
 	# R29-F11 sibling: emit an LMS Audit Event on the manager-side
 	# disbursement so the regulator's audit trail distinguishes it
@@ -1265,8 +1276,10 @@ def write_off_loan(loan_name: str, write_off_amount: float | None = None, reason
 
 	original_user = frappe.session.user
 	write_off_name = None
+	# R38: use ignore_permissions instead of set_user("Administrator")
+	# to avoid corrupting the manager's session on Frappe Cloud.
+	frappe.flags.ignore_permissions = True
 	try:
-		frappe.set_user("Administrator")
 		wo = frappe.get_doc(
 			{
 				"doctype": "Loan Write Off",
@@ -1284,7 +1297,7 @@ def write_off_loan(loan_name: str, write_off_amount: float | None = None, reason
 		wo.submit()
 		write_off_name = wo.name
 	finally:
-		frappe.set_user(original_user)
+		frappe.flags.ignore_permissions = False
 
 	# R29-F9: explicit LMS Audit Event row (matches the record_repayment
 	# pattern). critical=True — write-offs are regulator-facing capital
@@ -1397,8 +1410,10 @@ def record_repayment(
 	# original user is restored in ``finally``.
 	original_user = frappe.session.user
 	repayment_name = None
+	# R38: use ignore_permissions instead of set_user("Administrator")
+	# to avoid corrupting the manager's session on Frappe Cloud.
+	frappe.flags.ignore_permissions = True
 	try:
-		frappe.set_user("Administrator")
 		repayment = frappe.get_doc(
 			{
 				"doctype": "Loan Repayment",
@@ -1414,7 +1429,7 @@ def record_repayment(
 		repayment.insert()
 		# Four-eyes: set owner to the manager (maker) so
 		# lending's enforce_four_eyes sees them as maker. The submit
-		# is still as Administrator (so lending's hooks have perms),
+		# runs with ignore_permissions (so lending's hooks have perms),
 		# which satisfies the maker-vs-submitter check.
 		frappe.db.set_value(
 			"Loan Repayment", repayment.name, "owner", original_user
@@ -1423,7 +1438,7 @@ def record_repayment(
 		repayment.submit()
 		repayment_name = repayment.name
 	finally:
-		frappe.set_user(original_user)
+		frappe.flags.ignore_permissions = False
 
 	# R12 board: explicit audit event for manager.record_repayment.
 	try:
