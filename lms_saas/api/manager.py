@@ -162,8 +162,10 @@ def get_manager_dashboard():
 	kpis = metrics["kpis"]
 	risk_buckets = metrics["risk_buckets"]
 
-	# Approval queue count
-	app_filters = {"docstatus": 0}
+	# Approval queue count — R37: ds=1 status='Open' (canonical
+	# "submitted, awaiting manager" state). Matches the queue endpoint
+	# below so dashboard and tab agree.
+	app_filters = {"docstatus": 1, "status": "Open"}
 	if branch:
 		app_filters["custom_lms_branch"] = branch
 	approval_queue_count = frappe.db.count("Loan Application", app_filters)
@@ -200,12 +202,16 @@ def get_approval_queue():
 
 	R18-1: in sandbox mode, hide demo seed records so the manager's
 	Approval Queue tab doesn't show 14 copies of the same Test/R14-APP row.
+
+	R37: filter on canonical "submitted, awaiting manager approval" state
+	(docstatus=1, status='Open'). See apps/lms_saas/lms_saas/tests/test_r37_approval_queue_state.py.
 	"""
 	_require_manager()
 	branch = _manager_branch()
 	sandbox = is_sandbox_mode()
 
-	filters = {"docstatus": 0}
+	# R37: ds=1 status='Open' so officer- AND borrower-submitted apps both show up.
+	filters = {"docstatus": 1, "status": "Open"}
 	if branch:
 		filters["custom_lms_branch"] = branch
 
@@ -286,7 +292,15 @@ def get_approval_queue():
 
 @frappe.whitelist()
 def approve_application(application_name: str):
-	"""Approve a Loan Application: submit it and create the Loan record."""
+	"""Approve a Loan Application: create the Loan record (and submit it).
+
+	R37: accept the canonical "submitted, awaiting manager" state
+	(docstatus=1, status='Open'). Officer-side submit already advances
+	the doc to ds=1 via `submit_pending_application`; this endpoint
+	must therefore not require ds=0. R37a keeps the legacy ds=0 path
+	working too so manager-created drafts (no officer intermediate)
+	still flow through here.
+	"""
 	_require_manager()
 	if not frappe.db.exists("Loan Application", application_name):
 		frappe.throw(_("Loan Application {0} not found.").format(application_name))
@@ -298,8 +312,15 @@ def approve_application(application_name: str):
 	# origination is unsafe).
 	_assert_branch_scope(app.get("custom_lms_branch"), write=True)
 
-	if app.docstatus != 0:
-		frappe.throw(_("Only draft applications can be approved (current status: {0}).").format(app.docstatus))
+	# R37: accepted states are Draft (ds=0) for direct approvals, or the
+	# canonical SUBMITTED (ds=1, status='Open') state for officer-submitted
+	# applications. Anything else (Cancelled / Approved) is rejected.
+	if app.docstatus not in (0, 1) or (app.docstatus == 1 and app.status != "Open"):
+		frappe.throw(
+			_("Only draft or submitted applications can be approved (current status: docstatus={0}, status={1}).").format(
+				app.docstatus, app.status
+			)
+		)
 
 	# R25-F1: four-eyes enforcement on approval. The maker of the
 	# originating Loan Application must not also be the approver.
@@ -354,9 +375,16 @@ def approve_application(application_name: str):
 			).format(current_aml),
 		}
 
-	# Submit the application (triggers compliance/credit policy hooks)
+	# Submit the application if it is still a draft. R37: officer-side
+	# submit already advanced the doc to ds=1; for that path we skip the
+	# resubmit and keep the existing status="Open" record. The before_submit
+	# hooks (AML gate, credit policy) already fired during the officer
+	# submit, so re-running them at approval time would be redundant
+	# (and would also reject the KYC/AML clearing checks redundantly).
 	app.flags.ignore_permissions = True
-	app.submit()
+	if app.docstatus == 0:
+		app.submit()
+		app.reload()
 
 	# Create the Loan record from the application
 	loan = frappe.new_doc("Loan")
@@ -1935,8 +1963,8 @@ def get_branch_overview():
 	)
 	today_total = flt(today_collections[0].total) if today_collections else 0
 
-	# Pending approvals
-	app_filters = {"docstatus": 0}
+	# Pending approvals — R37: ds=1 status='Open'. Same canonical state as the queue endpoint.
+	app_filters = {"docstatus": 1, "status": "Open"}
 	if branch:
 		app_filters["custom_lms_branch"] = branch
 	pending_approvals = frappe.db.count("Loan Application", app_filters)

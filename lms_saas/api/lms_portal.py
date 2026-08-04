@@ -127,6 +127,17 @@ def submit_loan_application_officer(
 	# failure surfaces in the operator's error log.
 	from lms_saas.api.compliance import write_audit_event
 
+	# R37: advance to ds=1 status='Open' so the manager queue picks it up.
+	# The before_submit hooks (AML gate, credit policy, collateral coverage)
+	# fire here — same lifecycle as the officer-portal "Submit for manager
+	# approval" button. Keeping the borrower & officer submit entry points
+	# in this canonical state means the manager queue and the Approval Queue
+	# tab see every origination in one place.
+	app.flags.ignore_permissions = True
+	app.insert()
+	app.submit()
+	app.reload()
+
 	try:
 		write_audit_event(
 			event_type="LoanApplication:Submitted:Officer",
@@ -145,7 +156,7 @@ def submit_loan_application_officer(
 			message=frappe.get_traceback(),
 		)
 
-	return {"application": app.name, "status": app.status or "Draft"}
+	return {"application": app.name, "status": app.status or "Open", "docstatus": app.docstatus}
 
 
 @frappe.whitelist()
