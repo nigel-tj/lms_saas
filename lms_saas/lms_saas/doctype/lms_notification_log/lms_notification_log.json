@@ -43,7 +43,7 @@
    "fieldname": "channel",
    "fieldtype": "Select",
    "label": "Channel",
-   "options": "SMS\nEmail\nToDo",
+   "options": "SMS\nEmail\nToDo\nBell",
    "in_list_view": 1,
    "reqd": 1
   },
@@ -51,7 +51,7 @@
    "fieldname": "status",
    "fieldtype": "Select",
    "label": "Status",
-   "options": "Sent\nFailed\nSkipped",
+   "options": "Sent\nFailed\nSkipped\nDev-Sent\nQueued",
    "in_list_view": 1,
    "reqd": 1,
    "default": "Sent"

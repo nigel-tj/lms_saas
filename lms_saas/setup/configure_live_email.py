@@ -241,7 +241,7 @@ def send_test_email(recipient: str | None = None) -> dict:
 
 	from lms_saas.utils.email import send_branded_email
 
-	sent = send_branded_email(
+	result = send_branded_email(
 		recipients=[recipient],
 		# R23-H1 fix: the test email subject now includes the configured
 		# live SMTP server rather than a hard-coded operator's domain.
@@ -254,4 +254,14 @@ def send_test_email(recipient: str | None = None) -> dict:
 		context={"lead_name": "SMTP Test"},
 		delayed=False,
 	)
-	return {"ok": sent, "recipient": recipient}
+	# R41: send_branded_email now returns a dict (was a bool). Accept both
+	# shapes so older callers/tests that still see a bool keep working.
+	if isinstance(result, dict):
+		return {
+			"ok": bool(result.get("ok")),
+			"recipient": recipient,
+			"status": result.get("status"),
+			"email_queue": result.get("email_queue"),
+			"error": result.get("error"),
+		}
+	return {"ok": bool(result), "recipient": recipient}

@@ -2245,46 +2245,55 @@ lms_portal._initNotificationCenter = function () {
 		if (body) {
 			body.innerHTML = lms_portal.loading("Loading notifications…");
 		}
+		// R41: a freshly-onboarded borrower's bell is empty until the
+		// next nightly cron tick. Backfill a per-loan "loan_activated"
+		// row on the first open so the borrower sees something — the
+		// backfill is idempotent (no-ops when rows already exist).
 		frappe.call({
-			method: "lms_saas.api.portal.get_portal_notifications",
-			callback: function (r) {
-				var data = r.message || {};
-				var notifs = data.notifications || [];
-				if (!notifs.length) {
-					body.innerHTML = '<p class="lms-muted">No notifications.</p>';
-					return;
-				}
-				body.innerHTML = notifs
-					.map(function (n) {
-						var unreadCls = n.read_on ? "" : " lms-notification-item--unread";
-						return (
-							'<div class="lms-notification-item' + unreadCls + '">' +
-							'<p class="lms-notification-item__type">' +
-							lms_portal.escape(n.reminder_type || "Notification") +
-							"</p>" +
-							'<p class="lms-notification-item__preview">' +
-							lms_portal.escape((n.message_preview || "").slice(0, 120)) +
-							"</p>" +
-							'<p class="lms-notification-item__meta">' +
-							lms_portal.formatDate(n.notification_date) +
-							" · " +
-							lms_portal.escape(n.channel || "") +
-							"</p></div>"
-						);
-					})
-					.join("");
-				// Mark all as read now that the borrower has seen them.
-				if (data.unread_count > 0) {
-					frappe.call({
-						method: "lms_saas.api.portal.mark_notifications_read",
-						callback: function () {
-							if (badge) badge.style.display = "none";
-						},
-					});
-				}
-			},
-			error: function () {
-				body.innerHTML = '<p class="lms-muted">Could not load notifications.</p>';
+			method: "lms_saas.api.portal.backfill_portal_notifications",
+			callback: function () {
+				frappe.call({
+					method: "lms_saas.api.portal.get_portal_notifications",
+					callback: function (r) {
+						var data = r.message || {};
+						var notifs = data.notifications || [];
+						if (!notifs.length) {
+							body.innerHTML = '<p class="lms-muted">No notifications.</p>';
+							return;
+						}
+						body.innerHTML = notifs
+							.map(function (n) {
+								var unreadCls = n.read_on ? "" : " lms-notification-item--unread";
+								return (
+									'<div class="lms-notification-item' + unreadCls + '">' +
+									'<p class="lms-notification-item__type">' +
+									lms_portal.escape(n.reminder_type || "Notification") +
+									"</p>" +
+									'<p class="lms-notification-item__preview">' +
+									lms_portal.escape((n.message_preview || "").slice(0, 120)) +
+									"</p>" +
+									'<p class="lms-notification-item__meta">' +
+									lms_portal.formatDate(n.notification_date) +
+									" · " +
+									lms_portal.escape(n.channel || "") +
+									"</p></div>"
+								);
+							})
+							.join("");
+						// Mark all as read now that the borrower has seen them.
+						if (data.unread_count > 0) {
+							frappe.call({
+								method: "lms_saas.api.portal.mark_notifications_read",
+								callback: function () {
+									if (badge) badge.style.display = "none";
+								},
+							});
+						}
+					},
+					error: function () {
+						body.innerHTML = '<p class="lms-muted">Could not load notifications.</p>';
+					},
+				});
 			},
 		});
 	});
@@ -2298,15 +2307,21 @@ lms_portal._initNotificationCenter = function () {
 		}
 	});
 
-	// Load unread count
+	// Load unread count — backfill first so a brand-new borrower with
+	// no cron-fired notifications yet still gets a badge (R41).
 	frappe.call({
-		method: "lms_saas.api.portal.get_portal_notifications",
-		callback: function (r) {
-			var count = (r.message && r.message.unread_count) || 0;
-			if (count > 0 && badge) {
-				badge.textContent = count > 99 ? "99+" : String(count);
-				badge.style.display = "inline-block";
-			}
+		method: "lms_saas.api.portal.backfill_portal_notifications",
+		callback: function () {
+			frappe.call({
+				method: "lms_saas.api.portal.get_portal_notifications",
+				callback: function (r) {
+					var count = (r.message && r.message.unread_count) || 0;
+					if (count > 0 && badge) {
+						badge.textContent = count > 99 ? "99+" : String(count);
+						badge.style.display = "inline-block";
+					}
+				},
+			});
 		},
 	});
 };

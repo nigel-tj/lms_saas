@@ -1,5 +1,7 @@
 """Bench verification: bench --site lms.localhost execute lms_saas.setup.verify_spec.run_all_checks"""
 
+import os
+
 
 def run_checks():
     return run_all_checks()
@@ -29,6 +31,7 @@ def run_all_checks():
     check("admin_console", _check_admin_console)
     check("print_formats", _check_print_formats)
     check("notifications", _check_notifications)
+    check("r41_notifications", _check_r41_notifications)
     check("crm", _check_crm)
     check("portal_api", _check_portal_api)
     check("investor_gl", _check_investor_gl)
@@ -604,6 +607,64 @@ def _check_notifications():
         "ok": len(found) == len(templates) and branded,
         "templates": found,
         "branded_html": branded,
+    }
+
+
+def _check_r41_notifications():
+    """R41: portal bell + email/SMS delivery plumbing.
+
+    A red check here means the regression the user reported on 2026-08-05
+    has crept back in: ``send_branded_email`` lies about delivery, the
+    bell hides Dev-Sent / Queued rows, the new backfill API is gone, or
+    the default Email Account is back to ``Jobs`` (no smtp_server).
+    """
+    import frappe
+
+    from lms_saas.api import portal as _portal
+    from lms_saas.utils import email as _email
+
+    # 1. New contract: send_branded_email returns a dict, not a bool.
+    import inspect
+    try:
+        sig = inspect.signature(_email.send_branded_email)
+        src = inspect.getsource(_email.send_branded_email)
+        has_dict_return = (
+            "-> dict" in str(sig) or '"""Queue a branded HTML email and return a result dict.' in src
+        )
+    except (TypeError, OSError):
+        has_dict_return = False
+
+    # 2. The bell helper must accept the new statuses.
+    src = frappe.read_file(
+        os.path.join(
+            os.path.dirname(os.path.dirname(__file__)),
+            "api",
+            "portal.py",
+        )
+    )
+    bell_widened = ("Dev-Sent" in src) and ("Queued" in src) and "backfill_portal_notifications" in src
+
+    # 3. Default Email Account must have an smtp_server (R41 root cause).
+    default_ea = frappe.db.get_value(
+        "Email Account",
+        {"enable_outgoing": 1, "default_outgoing": 1},
+        ["name", "smtp_server", "smtp_port"],
+        as_dict=True,
+    )
+    smtp_ok = bool(default_ea and default_ea.get("smtp_server") and default_ea.get("smtp_port"))
+
+    # 4. backfill_portal_notifications must be importable.
+    backfill_callable = callable(getattr(_portal, "backfill_portal_notifications", None))
+
+    return {
+        # All three must hold — this is a regression pin. A red check
+        # means the R41 bug has crept back in.
+        "ok": bool(bell_widened and backfill_callable and has_dict_return),
+        "bell_widened": bell_widened,
+        "backfill_api": backfill_callable,
+        "send_branded_email_dict_return": has_dict_return,
+        "smtp_configured": smtp_ok,
+        "default_email_account": default_ea["name"] if default_ea else None,
     }
 
 

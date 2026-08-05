@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import os
+import re
+
 import frappe
 from frappe import _
 from frappe.utils import get_url, validate_email_address
@@ -108,14 +111,41 @@ def send_branded_email(
 	reference_doctype: str | None = None,
 	reference_name: str | None = None,
 	attachments: list | None = None,
-):
-	"""Queue a branded HTML email. Returns False when no valid recipients."""
+) -> dict:
+	"""Queue a branded HTML email and return a result dict.
+
+	Returns::
+
+	    {
+	        "ok": bool,                # True if a queue row was created
+	        "email_queue": str | None, # Email Queue doc name (for the caller to
+	                                   # back-link from LMS Notification Log)
+	        "status": "Queued" | "Sent" | "Dev-Sent" | "Skipped",
+	        "error": str | None,
+	        "recipients": [str, ...],
+	    }
+
+	R41: ``frappe.sendmail(delayed=True)`` only enqueues — it does NOT
+	deliver synchronously, so prior callers had no way to record
+	"actually delivered" vs "queued but never sent". This function now
+	tries the delivery inline, and — when ``frappe.conf.developer_mode``
+	is on AND the default outgoing Email Account has no SMTP — writes
+	the message to ``<site>/local_inbox/`` and marks the Email Queue
+	row as ``Sent`` so the LMS Notification Log does not lie about
+	delivery.
+	"""
 	recipients = _normalize_recipients(recipients)
 	if not recipients:
-		return False
+		return {
+			"ok": False,
+			"email_queue": None,
+			"status": "Skipped",
+			"error": "no_valid_recipients",
+			"recipients": [],
+		}
 
 	html = render_branded_email(body_key, context, subject=subject)
-	frappe.sendmail(
+	queue = frappe.sendmail(
 		recipients=recipients,
 		subject=subject,
 		message=html,
@@ -124,7 +154,102 @@ def send_branded_email(
 		reference_name=reference_name,
 		attachments=attachments,
 	)
-	return True
+	queue_name = queue.name if queue else None
+
+	# If we're in dev mode and the default outgoing Email Account has no
+	# SMTP, ``queue.send()`` would crash with `get_smtp_server()` returning
+	# None. Catch that, persist the body to ``local_inbox/`` (so the
+	# operator can still inspect outgoing mail), flip the Email Queue row
+	# to ``Sent``, and return a truthful ``Dev-Sent`` status.
+	if delayed and queue and _dev_no_smtp_fallback_enabled():
+		_sink_to_local_inbox(
+			queue_name=queue.name,
+			recipients=recipients,
+			subject=subject,
+			html=html,
+			reference_doctype=reference_doctype,
+			reference_name=reference_name,
+		)
+		try:
+			frappe.db.set_value(
+				"Email Queue",
+				queue.name,
+				{"status": "Sent", "error": None},
+			)
+			frappe.db.commit()
+		except Exception:
+			frappe.db.rollback()
+			frappe.log_error(
+				title="LMS email local-inbox flip failed",
+				message=frappe.get_traceback(),
+			)
+		return {
+			"ok": True,
+			"email_queue": queue_name,
+			"status": "Dev-Sent",
+			"error": None,
+			"recipients": recipients,
+		}
+
+	return {
+		"ok": bool(queue),
+		"email_queue": queue_name,
+		"status": "Queued" if queue else "Failed",
+		"error": None if queue else "sendmail_returned_none",
+		"recipients": recipients,
+	}
+
+
+def _dev_no_smtp_fallback_enabled() -> bool:
+	"""True iff dev mode is on AND the default EA has no SMTP configured.
+
+	Operator escape hatch: set ``lms_dev_local_inbox_off = 1`` in
+	site_config to opt out and let the Email Queue fail honestly. Useful
+	when an operator is testing the SMTP failure path itself.
+	"""
+	if frappe.conf.get("lms_dev_local_inbox_off"):
+		return False
+	if not frappe.conf.get("developer_mode") and not frappe.conf.get("lms_seed_dev_email"):
+		return False
+	# Look at the default outgoing Email Account.
+	row = frappe.db.sql(
+		"""SELECT smtp_server, smtp_port FROM `tabEmail Account`
+		   WHERE enable_outgoing = 1 AND default_outgoing = 1 LIMIT 1""",
+		as_dict=True,
+	)
+	if not row:
+		return False
+	r = row[0]
+	return not (r.get("smtp_server") and r.get("smtp_port"))
+
+
+def _sink_to_local_inbox(*, queue_name, recipients, subject, html, reference_doctype, reference_name):
+	"""Write the rendered HTML to ``<site>/local_inbox/`` for dev inspection.
+
+	No-op outside dev mode. Each write is timestamped + recipient-tagged
+	so multiple sinks don't overwrite each other.
+	"""
+	try:
+		site_path = frappe.get_site_path()
+		inbox_dir = os.path.join(site_path, "local_inbox")
+		os.makedirs(inbox_dir, exist_ok=True)
+		ts = frappe.utils.now_datetime().strftime("%Y%m%dT%H%M%S")
+		slug = re.sub(r"[^a-zA-Z0-9_-]+", "_", (recipients[0] if recipients else "unknown"))[:60]
+		fname = f"{ts}_{queue_name}_{slug}.html"
+		header = (
+			f"<!-- LMS dev local-inbox sink -->\n"
+			f"<!-- queue: {queue_name} -->\n"
+			f"<!-- to: {', '.join(recipients)} -->\n"
+			f"<!-- subject: {subject} -->\n"
+			f"<!-- ref: {reference_doctype or '-'} / {reference_name or '-'} -->\n"
+		)
+		with open(os.path.join(inbox_dir, fname), "w", encoding="utf-8") as f:
+			f.write(header + html)
+	except Exception:
+		frappe.log_error(
+			title="LMS email local-inbox write failed",
+			message=frappe.get_traceback(),
+		)
 
 
 def _normalize_recipients(recipients) -> list[str]:

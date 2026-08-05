@@ -4,3 +4,4 @@
 [post_model_sync]
 # Patches added in this section will be executed after doctypes are migrated
 lms_saas.patches.v15_1.migrate_legacy_role_perms
+lms_saas.patches.v15_1.r41_notification_log_widen_status

@@ -28,12 +28,42 @@ def run():
 
 
 def ensure_dev_email_account(*, allow_without_dev_flag: bool = False) -> dict:
-	"""Create a default outgoing Email Account when the site has none."""
+	"""Create a default outgoing Email Account when the site has none.
+
+	R41: also self-heals an existing default that is broken (e.g. an
+	out-of-the-box Frappe 'Jobs' account with ``smtp_server`` unset).
+	A broken default is just as bad as no default — every Email Queue
+	row would land in 'Error' with a 'get_smtp_server()' traceback, and
+	the LMS Notification Log would lie about delivery.
+	"""
 	existing = frappe.db.get_value(
-		"Email Account", {"enable_outgoing": 1, "default_outgoing": 1}, "name"
+		"Email Account", {"enable_outgoing": 1, "default_outgoing": 1},
+		["name", "smtp_server", "smtp_port", "login_id", "password"],
+		as_dict=True,
 	)
 	if existing:
-		return {"ok": True, "skipped": True, "email_account": existing}
+		# Self-heal a broken default (no smtp_server / no port) when dev mode
+		# is on. A non-default account is not ours to touch.
+		if _dev_seed_enabled() and not (existing.get("smtp_server") and existing.get("smtp_port")):
+			_email_id, smtp_server, smtp_port = _dev_smtp_settings()
+			frappe.db.set_value(
+				"Email Account",
+				existing["name"],
+				{
+					"smtp_server": smtp_server,
+					"smtp_port": smtp_port,
+					"no_smtp_authentication": 1,
+					"use_tls": 0,
+					"use_ssl_for_outgoing": 0,
+				},
+			)
+			frappe.db.commit()
+			return {
+				"ok": True,
+				"repaired": existing["name"],
+				"smtp": f"{smtp_server}:{smtp_port}",
+			}
+		return {"ok": True, "skipped": True, "email_account": existing["name"]}
 
 	if not allow_without_dev_flag and not _dev_seed_enabled():
 		return {
@@ -42,9 +72,7 @@ def ensure_dev_email_account(*, allow_without_dev_flag: bool = False) -> dict:
 			"reason": "Set developer_mode, lms_seed_dev_email in site_config, or run seed_dev_email.run",
 		}
 
-	email_id = (frappe.conf.get("lms_dev_email_id") or "noreply@lms.localhost").strip()
-	smtp_server = frappe.conf.get("lms_dev_smtp_server") or "127.0.0.1"
-	smtp_port = int(frappe.conf.get("lms_dev_smtp_port") or 1025)
+	email_id, smtp_server, smtp_port = _dev_smtp_settings()
 
 	doc = frappe.get_doc(
 		{
@@ -81,6 +109,14 @@ def ensure_dev_email_account(*, allow_without_dev_flag: bool = False) -> dict:
 			"Start Mailpit on port {0} or edit this Email Account in Desk for real SMTP."
 		).format(smtp_port),
 	}
+
+
+def _dev_smtp_settings() -> tuple[str, str, int]:
+	"""Resolve (email_id, smtp_server, smtp_port) for the dev default."""
+	email_id = (frappe.conf.get("lms_dev_email_id") or "noreply@lms.localhost").strip()
+	smtp_server = frappe.conf.get("lms_dev_smtp_server") or "127.0.0.1"
+	smtp_port = int(frappe.conf.get("lms_dev_smtp_port") or 1025)
+	return email_id, smtp_server, smtp_port
 
 
 def _dev_seed_enabled() -> bool:

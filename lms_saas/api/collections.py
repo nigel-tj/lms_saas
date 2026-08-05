@@ -177,6 +177,33 @@ def get_applicant_contact(applicant_type: str, applicant: str) -> dict:
 	return {"mobile": mobile, "email": email, "customer_name": customer_name}
 
 
+# Map send_branded_email result status → LMS Notification Log status.
+# (The status names are stable on purpose — the bell's R22 read-only tests
+#  pin the meaning of ``Sent``/``Failed``/``Skipped``.)
+_LMS_EMAIL_STATUS_MAP = {
+	"Sent": "Sent",
+	"Dev-Sent": "Sent",  # dev-sandboxed; treat as delivered for UX + bell
+	"Queued": "Queued",
+	"Failed": "Failed",
+	"Skipped": "Skipped",
+}
+
+
+def _lms_email_status_from_result(result) -> str:
+	"""Translate send_branded_email's dict return into a Notification Log status.
+
+	Handles the legacy ``True``/``False`` bool return so callers that have
+	not yet been updated keep working.
+	"""
+	if isinstance(result, dict):
+		s = result.get("status") or ("Sent" if result.get("ok") else "Failed")
+		return _LMS_EMAIL_STATUS_MAP.get(s, "Failed" if not result.get("ok") else "Sent")
+	if isinstance(result, bool):
+		return "Sent" if result else "Failed"
+	# Unknown / None
+	return "Failed"
+
+
 def send_loan_reminder(
 	loan_name: str,
 	reminder_type: str,
@@ -263,7 +290,14 @@ def send_loan_reminder(
 		from lms_saas.utils.email import send_branded_email
 
 		try:
-			send_branded_email(
+			# R41: send_branded_email now returns a dict with the actual
+			# delivery status (``Sent`` / ``Dev-Sent`` / ``Queued`` /
+			# ``Failed``). The LMS Notification Log must mirror that, not
+			# always say ``Sent`` — otherwise the bell lies to the borrower
+			# when the SMTP path is broken (regression seen on lms.localhost
+			# on 2026-08-05: 16 rows said ``Sent`` while the underlying
+			# Email Queue was ``Error``).
+			result = send_branded_email(
 				recipients=[contact["email"]],
 				subject=_reminder_email_subject(reminder_type, loan_name),
 				body_key="payment_reminder",
@@ -276,7 +310,7 @@ def send_loan_reminder(
 				reference_doctype="Loan",
 				reference_name=loan_name,
 			)
-			email_status = "Sent"
+			email_status = _lms_email_status_from_result(result)
 		except Exception:  # noqa: BLE001
 			frappe.log_error(title="LMS collection email failed", message=frappe.get_traceback())
 			email_status = "Failed"

@@ -815,7 +815,13 @@ def get_my_applications():
 
 @frappe.whitelist()
 def get_portal_notifications():
-    """Recent notification log entries for the borrower's loans."""
+    """Recent notification log entries for the borrower's loans.
+
+    R41: include ``Dev-Sent`` and ``Queued`` (not just ``Sent``) so the
+    bell is not empty on dev sites where the Email Queue has been
+    sandboxed to local-inbox. Production sites with real SMTP still get
+    only ``Sent`` rows because the dev-sink path is disabled.
+    """
     if frappe.session.user == "Guest":
         frappe.throw("Please log in", frappe.PermissionError)
     # Portal staff (collectors/officers) don't have a Customer linked — return
@@ -839,9 +845,14 @@ def get_portal_notifications():
     if not loan_names:
         return {"notifications": [], "unread_count": 0}
 
+    # R41: include all delivery-shaped statuses (Sent, Dev-Sent, Queued)
+    # so the bell surfaces real activity, not just perfectly-delivered
+    # emails. Failed/Skipped rows stay hidden — they are operational
+    # signal, not user-facing notifications.
+    visible_statuses = ("Sent", "Dev-Sent", "Queued")
     notifications = frappe.get_all(
         "LMS Notification Log",
-        filters={"loan": ("in", loan_names), "status": "Sent"},
+        filters={"loan": ("in", loan_names), "status": ("in", visible_statuses)},
         fields=[
             "name",
             "loan",
@@ -856,10 +867,14 @@ def get_portal_notifications():
         order_by="notification_date desc",
         limit_page_length=20,
     )
-    # Unread = delivered (Sent) and not yet opened (read_on is null).
+    # Unread = delivered (Sent / Dev-Sent / Queued) and not yet opened.
     unread_count = frappe.db.count(
         "LMS Notification Log",
-        {"loan": ("in", loan_names), "status": "Sent", "read_on": ("is", "not set")},
+        {
+            "loan": ("in", loan_names),
+            "status": ("in", visible_statuses),
+            "read_on": ("is", "not set"),
+        },
     )
     return {"notifications": notifications, "unread_count": unread_count}
 
@@ -879,12 +894,77 @@ def mark_notifications_read():
     now = frappe.utils.now_datetime()
     updated = frappe.db.set_value(
         "LMS Notification Log",
-        {"loan": ("in", loan_names), "status": "Sent", "read_on": ("is", "not set")},
+        {
+            "loan": ("in", loan_names),
+            "status": ("in", ("Sent", "Dev-Sent", "Queued")),
+            "read_on": ("is", "not set"),
+        },
         "read_on",
         now,
     )
     frappe.db.commit()
     return {"marked": updated}
+
+
+@frappe.whitelist()
+def backfill_portal_notifications():
+    """One-shot backfill: seed a notification row per borrower loan that has none.
+
+    R41 root-cause: ``run_collections_escalation`` only fires nightly, so
+    a freshly-onboarded borrower's bell is empty until the next cron
+    tick. New borrowers reported "I never see any notifications in the
+    bell" — the bell was correctly empty, not broken. This endpoint
+    creates a single ``loan_activated`` notification per active loan
+    that has zero existing logs, so the bell has something to show
+    immediately. Idempotent: re-running creates no duplicates (it
+    gates on ``frappe.db.exists`` of any log row for the loan).
+
+    Safe for borrowers to call themselves — only writes rows for their
+    own loans.
+    """
+    customer = _require_customer(raise_exception=False)
+    if not customer:
+        return {"created": 0, "skipped": "no_customer"}
+
+    loans = frappe.get_all(
+        "Loan",
+        filters={"applicant_type": "Customer", "applicant": customer, "docstatus": 1},
+        fields=["name", "loan_amount", "repayment_periods", "rate_of_interest", "posting_date", "modified"],
+    )
+
+    created = 0
+    for loan in loans:
+        if frappe.db.exists("LMS Notification Log", {"loan": loan.name}):
+            continue
+        # R41: hand-write the log row (no SMTP, no SMS — purely a bell
+        # seed). Reuse the same idempotency helper the email/SMS path
+        # uses so a re-run is a no-op.
+        from lms_saas.api.collections import log_notification
+        from frappe.utils import add_days, getdate, now_datetime, today
+
+        try:
+            log_notification(
+                loan.name,
+                "loan_activated",
+                "Bell",
+                "Sent",
+                reference_doctype="Loan",
+                reference_name=loan.name,
+                recipient=customer,
+                message_preview=(
+                    f"Welcome — your loan {loan.name} is active. "
+                    f"You'll see payment reminders here before each installment."
+                ),
+                notification_date=getdate(today()),
+            )
+            created += 1
+        except Exception:
+            frappe.log_error(
+                title="LMS portal notification backfill failed",
+                message=frappe.get_traceback(),
+            )
+    frappe.db.commit()
+    return {"created": created, "loans_scanned": len(loans)}
 
 
 @frappe.whitelist()
