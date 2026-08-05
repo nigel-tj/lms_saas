@@ -199,6 +199,13 @@ def assert_production_money_op_allowed() -> None:
     """
     if is_production_mode():
         return
+    # R42 fix: sandbox mode must short-circuit BEFORE the operator-profile
+    # check. Previously, a site with both lms_sandbox_end_date set AND
+    # lms_operator_licence_validated=true fell through to the "profile
+    # incomplete" throw — blocking all demo seeding. Sandbox mode is the
+    # explicit "allow money movement for testing" gate; it must win.
+    if is_sandbox_mode():
+        return
     # If no operator profile was even started, this is sandbox → no-op.
     if not has_operator_profile() and not is_sandbox_mode():
         return

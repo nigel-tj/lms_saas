@@ -360,6 +360,40 @@ def _seed_loan_purposes():
             ).insert(ignore_permissions=True)
 
 
+def _ensure_collection_offset_order() -> str:
+    """Create the standard Loan Demand Offset Order if missing, return its name.
+
+    R42 fix: the lending app requires Loan Product to link a Loan Demand
+    Offset Order for each asset class (standard, sub-standard, written-off,
+    settlement). Without these the Loan Product insert throws
+    "Collection Offset Sequence For Standard Asset is mandatory."
+    The standard order is Principal → Interest → Penalty → Charges.
+    """
+    offset_name = "Standard Collection Offset"
+    if not frappe.db.exists("DocType", "Loan Demand Offset Order"):
+        return ""  # lending app not installed — skip
+    if frappe.db.exists("Loan Demand Offset Order", offset_name):
+        return offset_name
+    try:
+        doc = frappe.get_doc(
+            {
+                "doctype": "Loan Demand Offset Order",
+                "title": offset_name,
+                "components": [
+                    {"demand_type": "Principal"},
+                    {"demand_type": "Interest"},
+                    {"demand_type": "Penalty"},
+                    {"demand_type": "Charges"},
+                ],
+            }
+        )
+        doc.flags.ignore_permissions = True
+        doc.insert()
+        return doc.name
+    except Exception:
+        return ""
+
+
 def _seed_loan_product():
     company = _default_company()
     if not company or frappe.db.exists("Loan Product", {"company": company, "product_code": "LMS-STD"}):
@@ -391,6 +425,15 @@ def _seed_loan_product():
             "interest_receivable_account": accounts["interest_receivable_account"],
             "penalty_income_account": accounts["penalty_income_account"],
             "penalty_receivable_account": accounts["penalty_receivable_account"],
+            # R42 fix: lending app requires collection offset sequences on
+            # the Loan Product (or Company). Without these the Loan Product
+            # insert throws "Collection Offset Sequence For Standard Asset
+            # is mandatory." The fields are Links to Loan Demand Offset
+            # Order, which we create in _ensure_collection_offset_order.
+            "collection_offset_sequence_for_standard_asset": _ensure_collection_offset_order(),
+            "collection_offset_sequence_for_sub_standard_asset": _ensure_collection_offset_order(),
+            "collection_offset_sequence_for_written_off_asset": _ensure_collection_offset_order(),
+            "collection_offset_sequence_for_settlement_collection": _ensure_collection_offset_order(),
         }
     )
     doc.insert(ignore_permissions=True)
@@ -447,7 +490,20 @@ def _loan_product_accounts(company):
         return None
 
     loan_account = configured("lms_loan_account") or acc(account_type="Receivable") or acc(name_like="Debtors")
-    income = configured("lms_interest_income_account") or acc(account_type="Income")
+    # R42 fix: ERPNext's Manufacturing domain creates Income-root accounts
+    # (Indirect Income, Direct Income, Interest Income, Sales) but leaves
+    # their account_type blank. The original lookup only matched
+    # account_type='Income', which missed every Income account on a fresh
+    # install. Now fall through to root_type='Income' and a name-like
+    # match on 'Interest Income' so the Loan Product can be seeded
+    # without manual account-type tagging.
+    income = (
+        configured("lms_interest_income_account")
+        or acc(account_type="Income")
+        or acc(root_type="Income", name_like="Interest Income")
+        or acc(root_type="Income", name_like="Indirect Income")
+        or acc(root_type="Income")
+    )
     bank = (
         configured("lms_disbursement_account")
         or acc(account_type="Cash")

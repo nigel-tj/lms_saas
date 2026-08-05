@@ -44,6 +44,10 @@ def run():
 			doc.status = chosen or (opts[0] if opts else "Open")
 		if meta.has_field("description"):
 			doc.description = "Demo program: field collections, KYC reminders, and offline PWA basics."
+		# R42 fix: Training Program requires a company on fresh installs
+		# (the field is mandatory in ERPNext HRMS). Pick the default company.
+		if meta.has_field("company") and not doc.get("company"):
+			doc.company = frappe.db.get_single_value("Global Defaults", "default_company") or frappe.db.get_value("Company", {}, "name")
 		doc.flags.ignore_permissions = True
 		doc.insert()
 		out["training_program"] = doc.name

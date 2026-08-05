@@ -44,16 +44,25 @@ after_request = [
 splash_image = "/assets/lms_saas/images/lms-favicon.svg"
 
 required_apps = [
-	{"name": "frappe", "version": ">=15.0.0,<16.0.0"},
-	{"name": "erpnext", "version": ">=15.0.0,<16.0.0"},
-	{"name": "lending", "version": ">=0.0.1"},
-	{"name": "hrms", "version": ">=15.0.0,<16.0.0"},
+	"frappe",
+	"erpnext",
+	"lending",
+	"hrms",
 ]
 # B19 (board MEDIUM): declare minimum versions. Major-version mismatches
 # (e.g. installing against Frappe 14) cause silent breakage in newer
-# loan Repayment Schedule schema and the popover API. Bench enforce
+# loan Repayment Schedule schema and the popover API. Bench enforces
 # these via `bench update --patch`; the historical bare-list form
 # (`required_apps = ["erpnext", ...]`) accepted any version.
+#
+# R42 fix: Frappe v16's `parse_app_name` calls `name.rstrip("/")` on each
+# entry, which only works on strings. The dict form
+# (`{"name": "frappe", "version": ">=15.0.0,<16.0.0"}`) was supported in
+# Frappe 14/15 but breaks `bench install-app` on v16 with
+# `'dict' object has no attribute 'rstrip'`. The version constraints
+# also capped at `<16.0.0` which would reject the v16 bench we run on.
+# Reverted to the bare-list form; version enforcement moves to
+# `bench update --patch` and the verify_spec suite.
 
 add_to_apps_screen = [
 	{
