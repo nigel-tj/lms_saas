@@ -340,15 +340,21 @@ def get_sandbox_report(days=7):
 		pluck="applicant",
 	)
 
-	disbursements = frappe.get_all(
-		"Loan Disbursement",
-		filters={"docstatus": 1, "posting_date": (">=", since)},
-		fields=["count(name) as count", "sum(disbursed_amount) as value"],
+	# R42: Frappe v15+ rejects string-form SQL functions in `fields`.
+	# Use ``frappe.db.sql`` directly for aggregate queries.
+	disbursements = frappe.db.sql(
+		"""SELECT COUNT(*) AS count, COALESCE(SUM(disbursed_amount), 0) AS value
+		   FROM `tabLoan Disbursement`
+		   WHERE docstatus = 1 AND posting_date >= %s""",
+		since,
+		as_dict=True,
 	)[0]
-	repayments = frappe.get_all(
-		"Loan Repayment",
-		filters={"docstatus": 1, "posting_date": (">=", since)},
-		fields=["count(name) as count", "sum(amount_paid) as value"],
+	repayments = frappe.db.sql(
+		"""SELECT COUNT(*) AS count, COALESCE(SUM(amount_paid), 0) AS value
+		   FROM `tabLoan Repayment`
+		   WHERE docstatus = 1 AND posting_date >= %s""",
+		since,
+		as_dict=True,
 	)[0]
 
 	incidents = frappe.get_all(

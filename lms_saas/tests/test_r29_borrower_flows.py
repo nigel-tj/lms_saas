@@ -188,11 +188,13 @@ class TestR29SubmitLoanApplication(unittest.TestCase):
 				loan_amount=2000, repayment_periods=2
 			)
 			self.assertIn("application", out)
-			# Cleanup
+			# Cleanup — R42: can't delete a submitted doc; cancel first.
 			frappe.set_user("Administrator")
 			app = frappe.get_doc("Loan Application", out["application"])
 			app.flags.ignore_permissions = True
-			app.delete()
+			if app.docstatus == 1:
+				app.cancel()
+			frappe.delete_doc("Loan Application", app.name, force=1, ignore_permissions=True)
 
 
 # ---------------------------------------------------------------------------

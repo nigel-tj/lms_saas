@@ -227,6 +227,9 @@ class TestOfficerBorrowerEdit(unittest.TestCase):
         # Create a borrower in a different branch and try to edit as the
         # officer. Must be rejected.
         other = "R14-OTHER-BRANCH"
+        # R42: a prior test run may have left this Customer with the wrong
+        # branch (e.g. "Main Branch - LMS" instead of "South Branch - LMS").
+        # Force the branch to a different one so the scope check fires.
         if not frappe.db.exists("Customer", other):
             cust = frappe.new_doc("Customer")
             cust.name = other
@@ -235,9 +238,11 @@ class TestOfficerBorrowerEdit(unittest.TestCase):
             cust.customer_group = "Individual"
             cust.territory = "All Territories"
             cust.insert(ignore_permissions=True)
-            if cust.meta.has_field("custom_lms_branch"):
-                cust.custom_lms_branch = "South Branch - LMS"
-                cust.save(ignore_permissions=True)
+        # Always (re)set the branch to a different one so the test is
+        # deterministic regardless of prior state.
+        if frappe.get_meta("Customer").has_field("custom_lms_branch"):
+            frappe.db.set_value("Customer", other, "custom_lms_branch", "South Branch - LMS")
+            frappe.db.commit()
 
         with self.assertRaises(frappe.PermissionError):
             officer_api.update_borrower(

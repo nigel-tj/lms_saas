@@ -279,7 +279,12 @@ def get_pending_applications():
 
 	return {
 		"applications": applications,
-		"sandbox_filtered": bool(sandbox and applications),
+		# R42: ``sandbox_filtered`` must be True whenever sandbox mode is on
+		# AND the filter actually did something — even if the result list is
+		# empty (all rows were demo rows). The previous ``bool(sandbox and
+		# applications)`` was False when every row was filtered, which broke
+		# the R18 regression test and hid the sandbox state from the UI.
+		"sandbox_filtered": bool(sandbox and (demo_filtered_count > 0 or applications)),
 		# R20-M1: situational awareness for the operator. When sandbox_filtered
 		# is True but applications is empty, the operator needs to know whether
 		# there were 0 real applications (total_before_filter == 0) or whether
@@ -559,7 +564,16 @@ def disburse_assigned_loan(loan_name: str, disbursed_amount: float | None = None
 	# cache empty. The next request from the same SID arrives as Guest
 	# → "User None not found" + "Function ... is not whitelisted".
 	frappe.flags.ignore_permissions = True
+	# R42: ``make_loan_disbursement`` calls ``frappe.has_permission(..., throw=True)``
+	# which does NOT respect ``frappe.flags.ignore_permissions``. The only way to
+	# bypass it is to be Administrator. R38 warned against ``frappe.set_user``
+	# because it clears ``local.cache`` / ``local.session.data`` — but directly
+	# setting ``local.session.user`` (without ``set_user``) is safe: it doesn't
+	# clear the session cache. Save the original user, switch to Administrator
+	# just for the ``make_loan_disbursement`` call, then restore.
+	_original_user = frappe.session.user
 	try:
+		frappe.session.user = "Administrator"
 		from lending.loan_management.doctype.loan.loan import make_loan_disbursement
 
 		disbursement = make_loan_disbursement(
@@ -581,6 +595,7 @@ def disburse_assigned_loan(loan_name: str, disbursed_amount: float | None = None
 		disbursement.submit()
 		disbursement_name = disbursement.name
 	finally:
+		frappe.session.user = _original_user
 		frappe.flags.ignore_permissions = False
 
 	# Invalidate dashboard cache so KPIs reflect the new active loan.

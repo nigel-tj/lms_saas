@@ -31,8 +31,15 @@ class TestLMSUserSetup(FrappeTestCase):
 	def _purge_test_state(self):
 		"""R30-F2: previous test runs left Users / Customers /
 		LMS User Setups alive when assertions failed mid-test.
-		Wipe them out so the test is rerunnable in any order."""
-		for doctype in ("LMS User Setup", "Contact", "Employee", "Customer", "User"):
+		Wipe them out so the test is rerunnable in any order.
+
+		R42: also purge Contacts by ``email_id`` (not just ``name``)
+		because ``User.on_update → create_contact`` creates a Contact
+		whose ``name`` is "Test Admin" (not the email), so the name-based
+		filter missed it. The stale Contact then caused
+		``set_primary_email`` to throw "Only one Email ID can be set as
+		primary" on the next run."""
+		for doctype in ("LMS User Setup", "Employee", "Customer", "User"):
 			test_users = frappe.get_all(
 				doctype,
 				filters=[
@@ -47,6 +54,21 @@ class TestLMSUserSetup(FrappeTestCase):
 					frappe.delete_doc(doctype, name, force=1, ignore_permissions=True)
 				except Exception:
 					pass
+		# R42: purge Contacts by email_id (name is "Test Admin", not the email).
+		test_contacts = frappe.get_all(
+			"Contact Email",
+			filters=[
+				["Contact Email", "email_id", "like", "test.%@example.com"],
+				["Contact Email", "email_id", "like", "r26.%.@example.com"],
+				["Contact Email", "email_id", "like", "test.r26.%.@example.com"],
+			],
+			pluck="parent",
+		)
+		for contact_name in set(test_contacts or []):
+			try:
+				frappe.delete_doc("Contact", contact_name, force=1, ignore_permissions=True)
+			except Exception:
+				pass
 		frappe.db.commit()
 
 	def _make_setup(self, persona, email, **extra):

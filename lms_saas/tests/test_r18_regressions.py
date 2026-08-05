@@ -83,10 +83,25 @@ class TestR18SandboxFilter(FrappeTestCase):
 
 	def test_demo_applicants_filtered_in_sandbox(self):
 		# Insert a demo Loan Application.
-		_make_demo_loan_application(DEMO_NAMES[0])
+		app = _make_demo_loan_application(DEMO_NAMES[0])
+		# R42: the application must be submitted + branch-tagged so the
+		# officer's pending list actually contains it. The previous test
+		# only inserted a draft (docstatus=0) and called as Administrator
+		# (no branch) — so the API's branch-scoped query returned [] and
+		# ``sandbox_filtered`` was always False.
+		if app:
+			branch = frappe.db.get_value(
+				"Cost Center", {"is_group": 0, "name": "Main Branch - LMS"}, "name"
+			) or frappe.db.get_value("Cost Center", {"is_group": 0}, "name")
+			if branch and frappe.get_meta("Loan Application").has_field("custom_lms_branch"):
+				app.custom_lms_branch = branch
+				app.flags.ignore_permissions = True
+				app.submit()
+				frappe.db.commit()
 		frappe.db.commit()
-		# Switch to Administrator and call the endpoint.
-		frappe.set_user("Administrator")
+		# Call as the demo officer (has a branch) so the branch-scoped
+		# query returns the demo application.
+		frappe.set_user("officer@kesari.africa")
 		from lms_saas.api.officer import get_pending_applications
 
 		res = get_pending_applications()
@@ -94,7 +109,8 @@ class TestR18SandboxFilter(FrappeTestCase):
 		for n in DEMO_NAMES:
 			self.assertNotIn(n, applicants,
 				f"Demo applicant {n} should be filtered in sandbox mode")
-		self.assertTrue(res.get("sandbox_filtered"))
+		self.assertTrue(res.get("sandbox_filtered"),
+			f"sandbox_filtered should be True in sandbox mode. Got: {res}")
 
 
 class TestR18ApplyContext(FrappeTestCase):

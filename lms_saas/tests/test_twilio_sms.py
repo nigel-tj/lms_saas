@@ -460,7 +460,7 @@ class TestTwilioSettingsValidation(FrappeTestCase):
 		self.assertTrue(_ACCOUNT_SID_RE.match("SK" + hex_body))
 		# Digits also OK.
 		self.assertTrue(_ACCOUNT_SID_RE.match("AC" + "0" * 32))
-		# Mixed hex.
+		# Mixed hex (exactly 32 hex chars after the AC prefix).
 		self.assertTrue(_ACCOUNT_SID_RE.match("ACa1b2c3d4e5f6a7b8c9d0e1f2a3b4c5"))  # 32 hex
 		# Wrong prefix rejected.
 		self.assertFalse(_ACCOUNT_SID_RE.match("VA" + hex_body))

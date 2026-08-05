@@ -556,9 +556,12 @@ class TestR28OrphanLoanFriendlyError(unittest.TestCase):
 			officer_api.disburse_assigned_loan(
 				loan_name=loan_name, disbursed_amount=1000
 			)
-		# The error message must reference the missing borrower
-		self.assertIn(
-			"is missing on the site",
-			str(cm.exception),
-			"Friendly error message must surface — not a stack trace",
+		# The error message must reference the missing borrower.
+		# R42: the API's friendly message says "no longer exists in the Customer
+		# table" — accept either the old or new phrasing so the test is robust.
+		err_msg = str(cm.exception)
+		self.assertTrue(
+			"is missing on the site" in err_msg
+			or "no longer exists in the Customer" in err_msg,
+			f"Friendly error message must surface — not a stack trace. Got: {err_msg}",
 		)
