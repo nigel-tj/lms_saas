@@ -858,10 +858,12 @@ lms_officer._openApplicationModal = function (customers, products, root) {
 		'<div class="lms-section-header"><h4>Loan terms</h4></div>' +
 		'<div class="lms-grid-2" data-grid="2">' +
 		// QA-2026-08-03-#18: pre-fill sensible defaults so the form is
-		// never blank on first render. 10,000 ZAR is the median
-		// disbursed loan amount on the demo data and 24% is the
-		// common rate. The officer can still override.
-		'<label>Loan amount<input type="number" id="lms-app-amount" class="lms-input" min="1" step="0.01" value="10000"></label>' +
+		// never blank on first render. R44: the loan amount field is
+		// left empty (no default 10000) so the officer must enter the
+		// actual requested amount — a hardcoded default led to demo
+		// data with identical 10,000 amounts across every application.
+		// The rate and periods still default to the common values.
+		'<label>Loan amount<input type="number" id="lms-app-amount" class="lms-input" min="1" step="0.01" placeholder="Enter amount" required></label>' +
 		'<label>Rate of interest (% / yr)<input type="number" id="lms-app-rate" class="lms-input" min="0" max="100" step="0.01" value="24"></label>' +
 		'<label>Repayment periods (months)<input type="number" id="lms-app-periods" class="lms-input" min="1" value="6"></label>' +
 		'<label>Repayment method<select id="lms-app-method" class="lms-input lms-fallback-select">' +

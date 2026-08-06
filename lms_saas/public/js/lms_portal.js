@@ -255,7 +255,7 @@ lms_portal.formatCurrency = function (value, currency) {
 	currency = currency
 		|| window.__lms_currency
 		|| (typeof frappe !== "undefined" && frappe.boot && frappe.boot.sysdefaults && frappe.boot.sysdefaults.currency)
-		|| "ZAR";
+		|| "USD";
 	var locale = window.__lms_lang || undefined;
 	if (typeof Intl !== "undefined" && Intl.NumberFormat) {
 		try {

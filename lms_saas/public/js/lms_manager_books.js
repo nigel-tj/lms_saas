@@ -128,7 +128,7 @@ if (typeof frappe !== "undefined" && typeof frappe.provide === "function") {
 			try {
 				return new Intl.NumberFormat(undefined, {
 					style: 'currency',
-					currency: currency || window.__lms_currency || 'ZAR',
+					currency: currency || window.__lms_currency || 'USD',
 					maximumFractionDigits: 2,
 				}).format(Number(value));
 			} catch (e) {

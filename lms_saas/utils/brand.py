@@ -557,6 +557,19 @@ def apply_portal_context(context, nav_active="loans", page_js=None):
 	from lms_saas.api.compliance_config import is_sandbox_mode
 
 	context.lms_sandbox_mode = is_sandbox_mode()
+	# R44: expose the company's default currency so the portal shell
+	# can set window.__lms_currency correctly. The previous template
+	# defaulted to 'ZAR' when lms_currency was unset — which meant every
+	# portal page showed ZAR even when the company was configured for
+	# USD. Resolve from the default company's default_currency.
+	try:
+		_company = frappe.db.get_single_value("Global Defaults", "default_company")
+		if _company:
+			context.lms_currency = frappe.db.get_value("Company", _company, "default_currency") or "USD"
+		else:
+			context.lms_currency = frappe.conf.get("lms_currency") or "USD"
+	except Exception:
+		context.lms_currency = "USD"
 	# R43: expose the current user's branch (Cost Center) so the portal
 	# toolbar can render a "branch scope" badge. Falls back to empty
 	# string when no branch is set (e.g. admins / borrowers).

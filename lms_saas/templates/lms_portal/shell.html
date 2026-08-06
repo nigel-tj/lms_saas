@@ -27,7 +27,7 @@
 	<script>window.__lms_home_route = {{ (lms_home_route or "/lms") | tojson }};</script>
 	<script>window.__lms_support_email = {{ (brand.support_email if brand else '') | tojson }};</script>
 	<script>window.__lms_enforce_four_eyes = {{ 'true' if lms_enforce_four_eyes else 'false' }};</script>
-	<script>window.__lms_currency = {{ (lms_currency or 'ZAR') | tojson }};</script>
+	<script>window.__lms_currency = {{ (lms_currency or 'USD') | tojson }};</script>
 	<script>window.__lms_idle_minutes = {{ (lms_idle_minutes if lms_idle_minutes is defined else 30) | int }};</script>
 	<script>window.__lms_lang = {{ (lms_lang or 'en') | tojson }};</script>
 	{# R43: expose the current user's branch scope so the portal toolbar can render a branch badge. #}
