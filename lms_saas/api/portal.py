@@ -815,41 +815,71 @@ def get_my_applications():
 
 @frappe.whitelist()
 def get_portal_notifications():
-    """Recent notification log entries for the borrower's loans.
+    """Recent notification log entries the user should see in the bell.
 
     R41: include ``Dev-Sent`` and ``Queued`` (not just ``Sent``) so the
     bell is not empty on dev sites where the Email Queue has been
     sandboxed to local-inbox. Production sites with real SMTP still get
     only ``Sent`` rows because the dev-sink path is disabled.
+
+    R43: extend to portal staff (officer / manager) — they don't have a
+    Customer linked, but they DO need to see notifications for loans
+    in their branch (e.g. PIN deliverability failures surfaced by the
+    R41 cron, loan_activated, milestone emails). The bell surfaces
+    activity scoped to the user's branch via the ``custom_lms_branch``
+    field on the linked Loan. Admins still get empty notifications
+    (they have no branch scope — the bell is a user-facing surface,
+    not an audit trail).
     """
     if frappe.session.user == "Guest":
         frappe.throw("Please log in", frappe.PermissionError)
-    # Portal staff (collectors/officers) don't have a Customer linked — return
-    # empty notifications for them so the notification bell doesn't 403.
     from lms_saas.install import PORTAL_STAFF_ROLE
 
     roles = set(frappe.get_roles(frappe.session.user))
-    if PORTAL_STAFF_ROLE in roles and "Customer" not in roles:
-        return {"notifications": [], "unread_count": 0}
-    # Desk admins (System Manager / Administrator) have no Customer either —
-    # the notification bell is a borrower-only feature; return empty for them
-    # so the page doesn't surface a persistent "Not permitted" dialog.
-    if roles.intersection({"System Manager", "Administrator"}):
-        return {"notifications": [], "unread_count": 0}
-    customer = _require_customer()
-    loan_names = frappe.get_all(
-        "Loan",
-        filters={"applicant_type": "Customer", "applicant": customer, "docstatus": 1},
-        pluck="name",
-    )
-    if not loan_names:
-        return {"notifications": [], "unread_count": 0}
+    is_admin = bool(roles.intersection({"System Manager", "Administrator"}))
+    is_staff = (PORTAL_STAFF_ROLE in roles and "Customer" not in roles) and not is_admin
+    is_borrower = "Customer" in roles and not is_staff
 
     # R41: include all delivery-shaped statuses (Sent, Dev-Sent, Queued)
     # so the bell surfaces real activity, not just perfectly-delivered
     # emails. Failed/Skipped rows stay hidden — they are operational
     # signal, not user-facing notifications.
     visible_statuses = ("Sent", "Dev-Sent", "Queued")
+
+    loan_names: list[str] = []
+
+    if is_borrower:
+        customer = _require_customer()
+        loan_names = frappe.get_all(
+            "Loan",
+            filters={"applicant_type": "Customer", "applicant": customer, "docstatus": 1},
+            pluck="name",
+        )
+    elif is_staff:
+        # R43: portal staff see notifications for loans in their branch.
+        # This surfaces e.g. SMS/email delivery confirmations and PIN
+        # failures on loans the officer is responsible for so they can
+        # proactively re-engage the borrower. Branch is resolved via the
+        # same resolver the rest of the staff APIs use so scope is
+        # consistent across tabs. Admins still get empty (no branch).
+        from lms_saas.api.staff import get_current_user_branch
+
+        branch = get_current_user_branch()
+        if not branch:
+            return {"notifications": [], "unread_count": 0}
+        loan_names = frappe.get_all(
+            "Loan",
+            filters={"custom_lms_branch": branch, "docstatus": 1},
+            pluck="name",
+        )
+    else:
+        # Plain admin / no persona — return empty so the bell is silent
+        # rather than surfacing a "Not permitted" dialog.
+        return {"notifications": [], "unread_count": 0}
+
+    if not loan_names:
+        return {"notifications": [], "unread_count": 0}
+
     notifications = frappe.get_all(
         "LMS Notification Log",
         filters={"loan": ("in", loan_names), "status": ("in", visible_statuses)},

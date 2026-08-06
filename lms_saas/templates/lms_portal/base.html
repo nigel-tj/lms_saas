@@ -176,6 +176,20 @@
     {% if lms_enforce_four_eyes %}
     <button type="button" class="lms-four-eyes-badge" id="lms-four-eyes-badge" title="Maker-checker is enforced on disbursements and write-offs" aria-haspopup="dialog">4-eyes on</button>
     {% endif %}
+    {# R43: render the operator's branch scope as a topbar chip so the
+       officer at a glance sees which Cost Center their dashboard is
+       filtered to. Sits between the page title (left) and the
+       notification bell (right) as the operator requested. Resolves to
+       empty when no branch is set (admins / borrowers). #}
+    {% if lms_branch %}
+    <span class="lms-topbar__branch" title="Your branch">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+        <polyline points="9 22 9 12 15 12 15 22"/>
+      </svg>
+      <span class="lms-topbar__branch-text">{{ lms_branch }}</span>
+    </span>
+    {% endif %}
     <button type="button" class="lms-topbar__icon-btn" id="lms-notification-bell" aria-label="Notifications" title="Notifications">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>

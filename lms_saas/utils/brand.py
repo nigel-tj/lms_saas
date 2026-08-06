@@ -557,6 +557,14 @@ def apply_portal_context(context, nav_active="loans", page_js=None):
 	from lms_saas.api.compliance_config import is_sandbox_mode
 
 	context.lms_sandbox_mode = is_sandbox_mode()
+	# R43: expose the current user's branch (Cost Center) so the portal
+	# toolbar can render a "branch scope" badge. Falls back to empty
+	# string when no branch is set (e.g. admins / borrowers).
+	try:
+		import lms_saas.api.staff as _staff
+		context.lms_branch = _staff.get_current_user_branch() or ""
+	except Exception:
+		context.lms_branch = ""
 	# R18-9: full display name (Employee / Customer / email-prefix fallback).
 	context.lms_user_display_name = _resolve_user_display_name(frappe.session.user, context.lms_persona)
 	context.show_sidebar = False

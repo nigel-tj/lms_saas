@@ -2318,7 +2318,13 @@ lms_portal._initNotificationCenter = function () {
 					var count = (r.message && r.message.unread_count) || 0;
 					if (count > 0 && badge) {
 						badge.textContent = count > 99 ? "99+" : String(count);
-						badge.style.display = "inline-block";
+						// R43: dropping the inline `style.display` so the
+						// CSS rule (`.lms-notification-badge` / `.lms-topbar__badge`)
+						// with `display: inline-flex + align-items: center +
+						// justify-content: center` actually applies. The
+						// prior `inline-block` clobbered the CSS flex and
+						// left the count digit at the top-left of the pill.
+						badge.style.removeProperty("display");
 					}
 				},
 			});
@@ -2631,6 +2637,30 @@ lms_portal.toast = function (message, type) {
 	};
 	el.querySelector(".lms-toast__close").addEventListener("click", close);
 	setTimeout(close, 4500);
+};
+
+/* ------------------------------------------------------------------ */
+/* Tab persistence (R36-C2)                                            */
+/* ------------------------------------------------------------------ */
+/* Persist the active portal tab in sessionStorage so a refresh lands
+   the user back on the tab they were working on. Session-scoped (not
+   local) so it doesn't bleed across browser sessions. Each portal
+   (officer, manager) namespaced by its short id. */
+lms_portal.persistedTab = function (ns, fallback) {
+	try {
+		var v = sessionStorage.getItem("lms_" + ns + "_active_tab");
+		return v || fallback || "dashboard";
+	} catch (e) {
+		return fallback || "dashboard";
+	}
+};
+
+lms_portal.saveActiveTab = function (ns, tabId) {
+	try {
+		sessionStorage.setItem("lms_" + ns + "_active_tab", tabId);
+	} catch (e) {
+		/* sessionStorage may be unavailable (private mode); fail silently. */
+	}
 };
 
 /* ------------------------------------------------------------------ */

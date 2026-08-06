@@ -12,6 +12,8 @@
 :root,
 [data-lms-theme="default"] {
 	/* Brand — Dark Forest (primary), Signature Light Green (accent CTA) */
+	/* hex: #2f4f46 (forest green — brand primary) */
+	--theme-primary: oklch(0.353 0.038 175);
 	/* hex: #5faf61 (success) */
 	--theme-focus: oklch(0.65 0.15 145);
 	/* hex: #36544a (primary-light) */

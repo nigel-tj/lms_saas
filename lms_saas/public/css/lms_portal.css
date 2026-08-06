@@ -750,13 +750,18 @@ body.lms-portal {
 	height: 16px;
 	padding: 0 4px;
 	border-radius: 999px;
-	background: var(--lms-danger);
+	/* R43: brand green (forest), not danger-red. The bell badge signals
+	   "unread notification" — informational, not an error. Red collides
+	   with our brand palette and the "danger" semantic, so a green badge
+	   reads as a system-level signal instead of an alarm. */
+	background: var(--lms-primary);
 	color: #fff;
 	font-size: 0.65rem;
 	font-weight: 700;
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
+	line-height: 1;
 }
 
 .lms-user-menu__trigger {
@@ -1790,10 +1795,16 @@ body.lms-portal-borrower .form-control:focus {
 	padding: 0 0.25rem;
 	font-size: 0.625rem;
 	font-weight: 700;
-	line-height: 1.1rem;
-	text-align: center;
+	/* R43: inline-flex + align-items/justify-content centres the count
+	   digit inside the pill. The previous ``text-align: center`` only
+	   centred horizontally and left the digit at the top of the pill
+	   because the inline span had no vertical alignment. */
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	line-height: 1;
 	color: #fff;
-	background: var(--lms-danger);
+	background: var(--lms-primary);
 	border-radius: 999px;
 }
 .lms-notification-panel {
@@ -2300,6 +2311,242 @@ body.lms-portal-borrower .form-control:focus {
 	display: flex;
 	gap: 0.4rem;
 	flex-wrap: wrap;
+}
+
+/* ------------------------------------------------------------------ */
+/* R43: Work queue card-style list (officer dashboard)                */
+/* ------------------------------------------------------------------ */
+/* Each row is a 3-column grid: borrower ┃ amount ┃ action. The eyebrow
+   row holds the borrower name + status badge so the operator can scan
+   the work queue at a glance without parsing em-dash delimiters. The
+   amount is the primary KPI (right-aligned). The action button is
+   anchored on the far right. The whole row is hover-highlighted so the
+   operator has a clear focus target. */
+.lms-queue-list {
+	list-style: none;
+	padding: 0;
+	margin: 0;
+	display: flex;
+	flex-direction: column;
+}
+.lms-queue-list__item {
+	display: grid;
+	grid-template-columns: 1fr auto auto;
+	column-gap: 1rem;
+	row-gap: 0.25rem;
+	align-items: center;
+	padding: 0.85rem 0.25rem;
+	border-bottom: 1px solid var(--lms-border);
+	transition: background 0.12s ease;
+}
+.lms-queue-list__item:last-child {
+	border-bottom: none;
+}
+.lms-queue-list__item:hover {
+	background: var(--lms-surface-alt, #f8fafc);
+	border-radius: var(--lms-radius-sm);
+	padding-left: 0.75rem;
+	padding-right: 0.75rem;
+}
+.lms-queue-list__main {
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	row-gap: 0.15rem;
+}
+.lms-queue-list__head {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	flex-wrap: wrap;
+}
+.lms-queue-list__name {
+	font-size: 0.95rem;
+	font-weight: 700;
+	color: var(--lms-text);
+	letter-spacing: -0.005em;
+}
+.lms-queue-list__status {
+	font-size: 0.65rem;
+}
+.lms-queue-list__sub {
+	font-size: 0.8rem;
+	color: var(--lms-text-muted);
+}
+.lms-queue-list__amount {
+	text-align: right;
+	min-width: 7rem;
+	display: flex;
+	flex-direction: column;
+	row-gap: 0.1rem;
+}
+.lms-queue-list__amount-label {
+	font-size: 0.65rem;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+	color: var(--lms-text-muted);
+}
+.lms-queue-list__amount-value {
+	font-size: 1rem;
+	font-weight: 700;
+	color: var(--lms-primary);
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+.lms-queue-list__action {
+	justify-self: end;
+}
+.lms-queue-list__action .lms-btn {
+	white-space: nowrap;
+}
+@media (max-width: 640px) {
+	.lms-queue-list__item {
+		grid-template-columns: 1fr auto;
+		grid-template-areas:
+			"main action"
+			"amount amount";
+	}
+	.lms-queue-list__main { grid-area: main; }
+	.lms-queue-list__action { grid-area: action; }
+	.lms-queue-list__amount {
+		grid-area: amount;
+		text-align: left;
+		flex-direction: row;
+		justify-content: flex-start;
+		gap: 0.5rem;
+	}
+}
+
+/* Status badge variants used by the queue + manager approvals. */
+.lms-badge--success { background: #d1fae5; color: var(--lms-success); }
+.lms-badge--warning { background: #fef3c7; color: var(--lms-warning); }
+.lms-badge--info    { background: #dbeafe; color: var(--lms-info); }
+.lms-badge--danger  { background: #fee2e2; color: var(--lms-danger); }
+.lms-badge--muted   { background: var(--lms-surface-alt); color: var(--lms-text-muted); }
+
+/* ------------------------------------------------------------------ */
+/* R43: Officer tasks card (above Pending applications)               */
+/* ------------------------------------------------------------------ */
+.lms-tasks-card {
+	margin-bottom: 1.25rem;
+}
+.lms-tasks-card__head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.75rem;
+	margin-bottom: 0.5rem;
+}
+.lms-tasks-card__head h3 {
+	margin: 0;
+	font-size: 1.05rem;
+	font-weight: 700;
+}
+.lms-tasks-card__head .lms-muted {
+	font-size: 0.85rem;
+}
+.lms-tasks-card__list {
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+}
+.lms-tasks-card__row {
+	display: grid;
+	grid-template-columns: auto 1fr auto auto;
+	column-gap: 0.75rem;
+	align-items: center;
+	padding: 0.6rem 0.75rem;
+	border: 1px solid var(--lms-border);
+	border-radius: var(--lms-radius-sm);
+	background: var(--lms-surface);
+	transition: border-color 0.12s ease, background 0.12s ease;
+}
+.lms-tasks-card__row:hover {
+	border-color: var(--lms-primary);
+	background: var(--lms-surface-alt, #f8fafc);
+}
+.lms-tasks-card__row.is-overdue {
+	border-left: 3px solid var(--lms-danger);
+}
+.lms-tasks-card__status {
+	width: 0.6rem;
+	height: 0.6rem;
+	border-radius: 999px;
+	background: var(--lms-text-muted);
+	flex-shrink: 0;
+}
+.lms-tasks-card__status--Open        { background: var(--lms-info); }
+.lms-tasks-card__status--Working     { background: var(--lms-warning); }
+.lms-tasks-card__status--Pending     { background: var(--lms-info); }
+.lms-tasks-card__status--In Progress { background: var(--lms-warning); }
+.lms-tasks-card__status--Overdue     { background: var(--lms-danger); }
+.lms-tasks-card__status--Completed   { background: var(--lms-success); }
+.lms-tasks-card__status--Cancelled   { background: var(--lms-text-muted); }
+.lms-tasks-card__body {
+	min-width: 0;
+}
+.lms-tasks-card__subject {
+	font-size: 0.9rem;
+	font-weight: 600;
+	color: var(--lms-text);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.lms-tasks-card__due {
+	font-size: 0.75rem;
+	color: var(--lms-text-muted);
+	white-space: nowrap;
+}
+.lms-tasks-card__due.is-overdue {
+	color: var(--lms-danger);
+	font-weight: 600;
+}
+.lms-tasks-card__priority {
+	font-size: 0.65rem;
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+	padding: 0.15rem 0.5rem;
+	border-radius: 999px;
+	background: var(--lms-surface-alt);
+	color: var(--lms-text-muted);
+}
+.lms-tasks-card__priority--High,
+.lms-tasks-card__priority--Urgent {
+	background: #fee2e2;
+	color: var(--lms-danger);
+}
+.lms-tasks-card__priority--Medium {
+	background: #fef3c7;
+	color: var(--lms-warning);
+}
+.lms-tasks-card__priority--Low {
+	background: var(--lms-surface-alt);
+	color: var(--lms-text-muted);
+}
+.lms-tasks-card__empty {
+	padding: 0.75rem 1rem;
+	font-size: 0.85rem;
+	color: var(--lms-text-muted);
+	background: var(--lms-surface-alt);
+	border: 1px dashed var(--lms-border);
+	border-radius: var(--lms-radius-sm);
+	text-align: center;
+}
+@media (max-width: 640px) {
+	.lms-tasks-card__row {
+		grid-template-columns: auto 1fr;
+		grid-template-areas:
+			"status body"
+			"priority due";
+		row-gap: 0.25rem;
+	}
+	.lms-tasks-card__status { grid-area: status; }
+	.lms-tasks-card__body { grid-area: body; }
+	.lms-tasks-card__priority { grid-area: priority; }
+	.lms-tasks-card__due { grid-area: due; text-align: right; }
 }
 .lms-collect-sync {
 	margin-top: 1rem;

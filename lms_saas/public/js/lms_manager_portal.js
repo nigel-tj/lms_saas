@@ -20,6 +20,10 @@ lms_manager.init = function () {
 	var root = document.getElementById("lms-manager-root");
 	if (!root) return;
 
+	// R36-C2: restore the last-active tab so a refresh lands the manager
+	// back on the tab they were working on (e.g. mid-approval on Approvals).
+	lms_manager._currentTab = lms_portal.persistedTab("manager", lms_manager._currentTab);
+
 	// Render tab navigation first
 	root.innerHTML = lms_manager._tabNav() + '<div id="lms-manager-tab-content"></div>';
 	lms_manager._bindTabs();
@@ -55,6 +59,8 @@ lms_manager._bindTabs = function () {
 	root.querySelectorAll(".lms-tab").forEach(function (btn) {
 		btn.addEventListener("click", function () {
 			lms_manager._currentTab = btn.getAttribute("data-tab");
+			// R36-C2: persist the clicked tab so a refresh lands back here.
+			lms_portal.saveActiveTab("manager", lms_manager._currentTab);
 			// Update active styles via class
 			root.querySelectorAll(".lms-tab").forEach(function (b) {
 				b.classList.remove("is-active");
@@ -236,14 +242,23 @@ lms_manager._renderApprovalsTable = function (content, queueData, showHeader) {
 		html += "</tbody></table></div>";
 	}
 	html += "</div>";
-	// R39: replace the tab content (clear the "Loading…" state set by
-	// _showTab) instead of appending. The old ``insertAdjacentHTML("beforeend", ...)``
-	// stacked the table under the loading card so users saw a
-	// persistent spinner even after the queue resolved. The dashboard
-	// KPI card (rendered by _renderAll) continues to use
-	// ``insertAdjacentHTML`` because it appends a partial view under
-	// the dashboard's KPI sections — that's a different usage.
-	content.innerHTML = html;
+	// R36-C1: replace the tab content in-place so the "Loading…" spinner
+	// set by _showTab is wiped. The old ``insertAdjacentHTML("beforeend", ...)``
+	// stacked the table under the loading card so users saw a persistent
+	// spinner even after the queue resolved. We cache the rendered panel
+	// on _approvalPanelRoot so a hot-refresh (re-render of the same tab)
+	// swaps the existing panel via replaceWith rather than appending a
+	// second copy.
+	content.innerHTML = "";
+	var panel = document.createElement("div");
+	panel.innerHTML = html;
+	var newRoot = panel.firstChild;
+	if (lms_manager._approvalPanelRoot && lms_manager._approvalPanelRoot.parentNode === content) {
+		lms_manager._approvalPanelRoot.replaceWith(newRoot);
+	} else {
+		content.appendChild(newRoot);
+	}
+	lms_manager._approvalPanelRoot = newRoot;
 
 	content.querySelectorAll(".lms-review-btn").forEach(function (btn) {
 		btn.addEventListener("click", function () {

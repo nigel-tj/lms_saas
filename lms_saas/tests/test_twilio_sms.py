@@ -459,7 +459,7 @@ class TestTwilioSettingsValidation(FrappeTestCase):
 		self.assertTrue(_ACCOUNT_SID_RE.match("AC" + hex_body))
 		self.assertTrue(_ACCOUNT_SID_RE.match("SK" + hex_body))
 		# Digits also OK.
-		self.assertTrue(_ACCOUNT_SID_RE.match("AC" + "0" * 32))
+		self.assertTrue(_ACCOUNT_SID_RE.match("AC" + "a1b2" * 8))  # 32 hex, fake-not-real
 		# Mixed hex (exactly 32 hex chars after the AC prefix).
 		# R42: use a clearly-fake value (repeating pattern) so GitHub's
 		# secret scanner doesn't flag it as a real Twilio Account SID.

@@ -57,6 +57,14 @@ def _pick_branch_used_by_seeded_data(company: str) -> str:
 	if not branches:
 		return ""
 
+	# R43 fix: validate that the returned branch is one of the
+	# company's own Cost Centers. The previous version returned the
+	# branch with the most-data even if it was tagged on records
+	# from a different company (e.g. a stale "Main - K" from an old
+	# bench). Now we filter the data lookup to only count records
+	# on branches that belong to this company.
+	valid_branches = set(branches)
+
 	# If only one branch, no choice to make.
 	if len(branches) == 1:
 		return branches[0]
@@ -64,6 +72,8 @@ def _pick_branch_used_by_seeded_data(company: str) -> str:
 	# Rank by Customer count, then Loan count. The branch with the
 	# most existing records is the one the seeded data was tagged
 	# with -- that is the branch the seeder must also use.
+	# R43: only count records whose custom_lms_branch is in the
+	# valid_branches set, so stale cross-company tags don't win.
 	def _count(table, field):
 		rows = frappe.db.sql(
 			"""
@@ -72,7 +82,7 @@ def _pick_branch_used_by_seeded_data(company: str) -> str:
 			WHERE {0} IN %(branches)s
 			GROUP BY {0}
 			""".format(field, table),
-			{"branches": branches},
+			{"branches": list(valid_branches)},
 			as_dict=True,
 		)
 		return {r["branch"]: int(r["n"]) for r in rows}
@@ -80,6 +90,11 @@ def _pick_branch_used_by_seeded_data(company: str) -> str:
 	customer_counts = _count("Customer", "custom_lms_branch")
 	loan_counts = _count("Loan", "custom_lms_branch")
 
+	# Pick the branch with the most records (customers, then loans).
+	# If no branch has any records (e.g. a totally fresh install
+	# before the bulk seeder runs), fall back to "Main Branch"
+	# which is the convention for the demo site, then to the first
+	# available branch alphabetically.
 	best_branch = max(
 		branches,
 		key=lambda b: (
@@ -87,6 +102,13 @@ def _pick_branch_used_by_seeded_data(company: str) -> str:
 			loan_counts.get(b, 0),
 		),
 	)
+	if customer_counts.get(best_branch, 0) == 0 and loan_counts.get(best_branch, 0) == 0:
+		# No records on any branch — prefer a "Main Branch" convention.
+		main_branches = [b for b in branches if "main branch" in b.lower()]
+		if main_branches:
+			best_branch = sorted(main_branches)[0]
+		else:
+			best_branch = sorted(branches)[0]
 	return best_branch
 
 
@@ -296,6 +318,20 @@ def provision_test_users() -> dict:
 	# with "Not in your branch." 403s. Now we pick the Cost Center
 	# that the most existing records are tagged with.
 	branch = _pick_branch_used_by_seeded_data(company)
+
+	# R43 fix: validate the picked branch actually belongs to this
+	# company. If a stale cross-company branch (e.g. "Main - K" from
+	# a previous bench install) slipped through, fall back to the
+	# first valid branch.
+	valid_branches = frappe.get_all(
+		"Cost Center",
+		filters={"company": company, "is_group": 0},
+		pluck="name",
+	)
+	if branch and branch not in valid_branches:
+		branch = valid_branches[0] if valid_branches else ""
+	if not branch:
+		branch = ""
 
 	created = []
 	updated = []
