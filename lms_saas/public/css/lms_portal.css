@@ -2400,6 +2400,119 @@ body.lms-portal-borrower .form-control:focus {
 .lms-queue-list__action .lms-btn {
 	white-space: nowrap;
 }
+
+/* R44-F1: Work queue panel — single panel containing two sub-headings
+   (My tasks + Pending applications). The sub-headings use h4 + a muted
+   count so they read as section dividers, not separate panels. */
+.lms-work-queue__sub {
+	padding: 0.5rem 0;
+	border-top: 1px dashed var(--lms-border);
+}
+.lms-work-queue__sub:first-of-type {
+	border-top: none;
+	padding-top: 0;
+}
+.lms-work-queue__sub-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.5rem;
+	margin-bottom: 0.5rem;
+}
+.lms-work-queue__sub-head h4 {
+	margin: 0;
+	font-size: 0.85rem;
+	font-weight: 700;
+	color: var(--lms-text);
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+}
+.lms-work-queue__sub-head .lms-muted {
+	font-size: 0.75rem;
+}
+.lms-work-queue__empty {
+	padding: 0.75rem 1rem;
+	font-size: 0.85rem;
+	color: var(--lms-text-muted);
+	background: var(--lms-surface-alt);
+	border: 1px dashed var(--lms-border);
+	border-radius: var(--lms-radius-sm);
+	text-align: center;
+}
+
+/* R44-F3: Collapsible charts — <details> wrapper so the dashboard stays
+   scannable. The summary reads as a section header with a chevron. */
+.lms-dashboard-metrics {
+	margin-top: 1rem;
+	border: 1px solid var(--lms-border);
+	border-radius: var(--lms-radius);
+	background: var(--lms-surface);
+	padding: 0;
+}
+.lms-dashboard-metrics > summary {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.75rem;
+	padding: 1rem 1.25rem;
+	cursor: pointer;
+	list-style: none;
+	font-weight: 600;
+}
+.lms-dashboard-metrics > summary::-webkit-details-marker {
+	display: none;
+}
+.lms-dashboard-metrics > summary h3 {
+	margin: 0;
+	font-size: 1.05rem;
+	font-weight: 700;
+	color: var(--lms-text);
+}
+.lms-dashboard-metrics > summary .lms-muted {
+	font-size: 0.8rem;
+	font-weight: 500;
+}
+.lms-dashboard-metrics > summary::after {
+	content: "▸";
+	font-size: 0.85rem;
+	color: var(--lms-text-muted);
+	transition: transform 0.15s ease;
+}
+.lms-dashboard-metrics[open] > summary::after {
+	transform: rotate(90deg);
+}
+.lms-dashboard-metrics[open] {
+	padding-bottom: 1rem;
+}
+.lms-dashboard-metrics .lms-chart-slot {
+	margin: 0 1.25rem;
+}
+
+/* R44-F7: End-of-day summary line — a quiet strip at the bottom of the
+   dashboard so the operator can audit the day at a glance. */
+.lms-eod-summary {
+	display: flex;
+	align-items: center;
+	gap: 0.75rem;
+	margin-top: 1rem;
+	padding: 0.75rem 1.25rem;
+	background: var(--lms-surface-alt);
+	border: 1px solid var(--lms-border);
+	border-left: 3px solid var(--lms-primary);
+	border-radius: var(--lms-radius-sm);
+	font-size: 0.85rem;
+}
+.lms-eod-summary__label {
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+	font-size: 0.7rem;
+	color: var(--lms-primary);
+}
+.lms-eod-summary__value {
+	color: var(--lms-text);
+	font-weight: 500;
+}
 @media (max-width: 640px) {
 	.lms-queue-list__item {
 		grid-template-columns: 1fr auto;
