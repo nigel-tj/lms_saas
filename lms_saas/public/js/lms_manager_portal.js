@@ -226,7 +226,10 @@ lms_manager._renderApprovalsTable = function (content, queueData, showHeader) {
 			html += '<td><div class="lms-data-table__actions">';
 			html += '<button type="button" class="lms-btn lms-btn--ghost lms-btn--sm lms-review-btn" data-app="' + lms_portal.escape(app.name) + '">Review</button>';
 			html += '<button type="button" class="lms-btn lms-btn--success lms-btn--sm lms-approve-btn" data-app="' + lms_portal.escape(app.name) + '"' +
-				(canApprove ? "" : ' disabled title="' + lms_portal.escape(approveTitle) + '" aria-label="Approval locked"') + ">" + (canApprove ? "Approve" : "&#128274;") + "</button>";
+				(canApprove ? "" : ' disabled title="' + lms_portal.escape(approveTitle) + '" aria-label="Approval locked"') + '>' +
+				'<svg class="lms-icon lms-btn__icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+				(canApprove ? '' : '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>') +
+				'</svg><span>Approve</span></button>';
 			html += '<button type="button" class="lms-btn lms-btn--ghost lms-btn--sm lms-reject-btn" data-app="' + lms_portal.escape(app.name) + '">Reject</button>';
 			html += "</div></td></tr>";
 		});
@@ -317,7 +320,9 @@ lms_manager._renderAll = function (root, dash, queue) {
 			html += '<button type="button" class="lms-btn lms-btn--ghost lms-btn--sm lms-review-btn" data-app="' + lms_portal.escape(app.name) + '">Review</button>';
 			html += '<button type="button" class="lms-btn lms-btn--success lms-btn--sm lms-approve-btn" data-app="' + lms_portal.escape(app.name) + '"' +
 				(canApprove ? "" : ' disabled title="' + lms_portal.escape(approveTitle) + '" aria-label="Approval locked"') +
-				">" + (canApprove ? "Approve" : "&#128274;") + "</button>";
+				'><svg class="lms-icon lms-btn__icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+				(canApprove ? '' : '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>') +
+				'</svg><span>Approve</span></button>';
 			html += '<button type="button" class="lms-btn lms-btn--ghost lms-btn--sm lms-reject-btn" data-app="' + lms_portal.escape(app.name) + '">Reject</button>';
 			html += "</div></td></tr>";
 		});

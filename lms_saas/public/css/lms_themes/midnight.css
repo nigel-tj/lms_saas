@@ -38,7 +38,7 @@
 	/* hex: #94a39a (muted text dark) */
 	--theme-text-muted: oklch(0.65 0.012 175);
 	/* hex: #5faf61 */
-	--theme-success: oklch(0.65 0.15 145);
+	--theme-success: oklch(0.55 0.065 175);
 	/* hex: #f4b942 */
 	--theme-warning: oklch(0.78 0.15 75);
 	/* hex: #e15c5c */

@@ -37,7 +37,7 @@
 	--theme-text: oklch(0.96 0.005 130);
 	/* hex: #94a39a (muted text dark) */
 	--theme-text-muted: oklch(0.65 0.012 175);
-	--theme-success: oklch(0.65 0.15 145);
+	--theme-success: oklch(0.55 0.065 175);
 	--theme-warning: oklch(0.78 0.15 75);
 	--theme-danger: oklch(0.62 0.20 25);
 
@@ -107,7 +107,7 @@
 		--theme-border: oklch(0.34 0.025 175);
 		--theme-text: oklch(0.96 0.005 130);
 		--theme-text-muted: oklch(0.65 0.012 175);
-		--theme-success: oklch(0.65 0.15 145);
+		--theme-success: oklch(0.55 0.065 175);
 		--theme-warning: oklch(0.78 0.15 75);
 		--theme-danger: oklch(0.62 0.20 25);
 		--theme-shadow-sm: 0 1px 2px oklch(0 0 0 / 0.30);

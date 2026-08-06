@@ -12,8 +12,8 @@
 :root,
 [data-lms-theme="default"] {
 	/* Brand — Dark Forest (primary), Signature Light Green (accent CTA) */
-	/* hex: #2f4f46 (forest green) */
-	--theme-primary: oklch(0.353 0.038 175);
+	/* hex: #5faf61 (success) */
+	--theme-focus: oklch(0.65 0.15 145);
 	/* hex: #36544a (primary-light) */
 	--theme-primary-light: oklch(0.385 0.032 175);
 	/* hex: #b9f19d (signature light green) */
@@ -41,8 +41,8 @@
 	--theme-text: oklch(0.20 0 0);
 	/* hex: #666666 (muted text light) */
 	--theme-text-muted: oklch(0.45 0 0);
-	/* hex: #5faf61 (success) */
-	--theme-success: oklch(0.65 0.15 145);
+	/* hex: #2f4f46 (forest green — brand) */
+	--theme-success: oklch(0.353 0.038 175);
 	/* hex: #f4b942 (warning) */
 	--theme-warning: oklch(0.78 0.15 75);
 	/* hex: #e15c5c (danger) */
