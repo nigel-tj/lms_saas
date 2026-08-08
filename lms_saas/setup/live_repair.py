@@ -566,6 +566,15 @@ def reconcile_company_name(
 
     # Rename the Company doc itself. Frappe's rename_doc is safe for the
     # Company master (no GL/JE references are keyed on the name).
+    #
+    # R49 fix: after rename_doc, the in-memory `current_doc` handle is
+    # STALE — rename_doc creates a new doc under the hood. We must
+    # reload via `frappe.get_doc("Company", new_name)` BEFORE the next
+    # save() call, otherwise the optimistic-lock check ("Company has
+    # been modified after you opened it") fires. Same applies to any
+    # abbr/currency/country update: each save() bumps the doc's
+    # `modified` timestamp, so a stale in-memory handle raises an
+    # exception on the second save().
     if rename:
         try:
             frappe.rename_doc("Company", current_name, target_company, merge=0)
@@ -575,11 +584,21 @@ def reconcile_company_name(
         except Exception as exc:  # noqa: BLE001
             plan["skipped"].append(f"company rename failed: {exc}")
 
+    # R49 fix: Company.abbr is locked by ERPNext (controller hook raises
+    # "Value cannot be changed for Abbr" on save). We have to bypass
+    # the controller with a direct SQL UPDATE — same approach as
+    # _rename_cost_centers_for_abbr_change. Safe because abbr is
+    # referenced by name (e.g. ``Main Branch - <abbr>``) and we just
+    # renamed every Cost Center to use the new abbr.
     if abbr_change:
         try:
-            current_doc.abbr = target_abbr
-            current_doc.save(ignore_permissions=True)
-            plan["applied"].append(f"company abbr updated: {current_abbr} → {target_abbr}")
+            frappe.db.sql(
+                "UPDATE `tabCompany` SET abbr = %s WHERE name = %s",
+                (target_abbr, current_name),
+            )
+            plan["applied"].append(f"company abbr updated (SQL): {current_abbr} → {target_abbr}")
+            # Invalidate the stale in-memory handle.
+            current_doc = frappe.get_doc("Company", current_name)
         except Exception as exc:  # noqa: BLE001
             plan["skipped"].append(f"company abbr update failed: {exc}")
 
@@ -589,9 +608,15 @@ def reconcile_company_name(
                 frappe.get_doc(
                     {"doctype": "Currency", "currency_name": target_currency, "enabled": 1}
                 ).insert(ignore_permissions=True)
+            # Reload to avoid stale-handle / "modified after you opened
+            # it" errors when an earlier step (rename, abbr) bumped
+            # the modified timestamp.
+            current_doc = frappe.get_doc("Company", current_name)
             current_doc.default_currency = target_currency
             current_doc.save(ignore_permissions=True)
             plan["applied"].append(f"company default_currency: {current_currency} → {target_currency}")
+            # Reload again so subsequent steps use fresh state.
+            current_doc = frappe.get_doc("Company", current_name)
         except Exception as exc:  # noqa: BLE001
             plan["skipped"].append(f"company currency update failed: {exc}")
 
@@ -601,9 +626,11 @@ def reconcile_company_name(
                 frappe.get_doc(
                     {"doctype": "Country", "country_name": target_country}
                 ).insert(ignore_permissions=True)
+            current_doc = frappe.get_doc("Company", current_name)
             current_doc.country = target_country
             current_doc.save(ignore_permissions=True)
             plan["applied"].append(f"company country: {current_country} → {target_country}")
+            current_doc = frappe.get_doc("Company", current_name)
         except Exception as exc:  # noqa: BLE001
             plan["skipped"].append(f"company country update failed: {exc}")
 
