@@ -3049,12 +3049,14 @@ body:not(.lms-portal-borrower):not(.lms-page-loans):not(.lms-page-apply):not(.lm
 	align-items: center;
 }
 
-/* R46-3: Right-align the <th> whose sibling <td> holds the actions
-   cluster. The header text now sits above the right-aligned buttons
-   instead of floating at the left edge. :has() is widely supported
-   in modern browsers and matches only the actions header, not any
-   other last-column header. */
-.lms-data-table thead th:has(+ td .lms-data-table__actions) {
+/* R46-3: Right-align the <th> that heads the actions column so the
+   header text lines up with the right-aligned action cluster below.
+   The selector must traverse from <table> into <tbody> because <th>
+   and <td> live in different rows (thead/tr vs tbody/tr), so the
+   "adjacent sibling" combinator (+ td) cannot reach them. Instead,
+   match any <th> in the last position of a table whose body contains
+   an actions cluster. */
+.lms-data-table:has(td .lms-data-table__actions) thead th:last-child {
 	text-align: right;
 }
 
