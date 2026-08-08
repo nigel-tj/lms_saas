@@ -254,6 +254,30 @@ fi
 # The provision_test_users ensures all demo users have the correct branch
 # assignment (Main Branch - LD) and roles. Idempotent — safe to re-run.
 if [[ "${LMS_SKIP_CURRENCY_RESET:-0}" != "1" ]]; then
+	# R45: if LMS_COMPANY_OVERRIDE is set, rename the live Company to the
+	# operator-requested name (e.g. "Kesari" → "LMS Demo Co") so live matches
+	# local. Comma-separated key=value list, e.g.:
+	#   LMS_COMPANY_OVERRIDE="company=LMS Demo Co,abbr=LD,currency=USD,country=Zimbabwe"
+	if [[ -n "${LMS_COMPANY_OVERRIDE:-}" ]]; then
+		echo "  → R45: reconcile Company name/currency/country per LMS_COMPANY_OVERRIDE"
+		# Build the kwargs JSON from the comma-separated key=value string.
+		override_kwargs=$(python3 -c '
+import os, json, sys
+raw = os.environ.get("LMS_COMPANY_OVERRIDE", "")
+out = {}
+for kv in raw.split(","):
+    kv = kv.strip()
+    if not kv or "=" not in kv:
+        continue
+    k, v = kv.split("=", 1)
+    out[k.strip()] = v.strip()
+out["apply"] = 1
+print(json.dumps(out))
+' 2>/dev/null || echo '{"apply":1}')
+		run bench --site "$FC_SITE" execute \
+			lms_saas.setup.live_repair.reconcile_company_name \
+			--kwargs "'$override_kwargs'" || true
+	fi
 	echo "  → R44: sync lms_currency site_config key to match company default_currency"
 	run bench --site "$FC_SITE" execute lms_saas.setup.set_company_currency_country._sync_site_config_currency || true
 	echo "  → R44: repair live site state"

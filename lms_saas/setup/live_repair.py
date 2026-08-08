@@ -227,6 +227,193 @@ def run_live_repair() -> dict:
     """Compatibility entry-point used by bench execute."""
     return repair_live_site_state()
 
+
+# ---------------------------------------------------------------------------
+# Company reconciliation (rename + retag on live)
+# ---------------------------------------------------------------------------
+
+# R45 lesson: live sites were bootstrapped with whatever Company name was in
+# the operator's environment at the time (e.g. "Kesari"), so the live bench
+# and the local dev bench drift apart. _sync_site_config_currency reads the
+# Company's currency and writes it to site_config, but it cannot fix the
+# root cause: the Company itself is on the wrong currency / wrong name.
+#
+# reconcile_company_name() is the surgical one-shot that:
+#   1. Renames the current default Company to the operator-requested name
+#      (so live matches local), OR if no rename requested, leaves the name.
+#   2. Updates default_currency + country on the Company + Global Defaults
+#      so every downstream view resolves to the same currency.
+#   3. Re-points Global Defaults.default_company so all defaulters use the
+#      (possibly renamed) Company.
+#   4. Updates the Company abbreviation if requested, so Cost Center /
+#      Account names that embed the abbr stay consistent.
+#   5. Updates site_config lms_currency so the login page reflects the new
+#      currency immediately.
+#
+# Idempotent and safe to re-run. Safe to skip (just returns a no-op).
+# Args can be supplied as kwargs OR via frappe.flags.lms_company_reconcile.
+#
+# Usage:
+#   bench --site <site> execute lms_saas.setup.live_repair.reconcile_company_name \
+#       --kwargs '{"company":"LMS Demo Co","abbr":"LD","currency":"USD","country":"Zimbabwe","apply":1}'
+#
+
+
+@frappe.whitelist()
+def reconcile_company_name(
+    company: str | None = None,
+    abbr: str | None = None,
+    currency: str | None = None,
+    country: str | None = None,
+    apply: int = 0,
+) -> dict:
+    """Rename + retag the default Company so live matches local.
+
+    All args are optional — pass only what you want to change. If ``apply``
+    is falsy the function returns a plan instead of writing anything.
+    """
+    if not frappe.db.exists("DocType", "Company"):
+        return {"ok": False, "skipped": "DocType Company not found"}
+
+    target_company = (company or "").strip() or None
+    target_abbr = (abbr or "").strip().upper() or None
+    target_currency = (currency or "").strip().upper() or None
+    target_country = (country or "").strip() or None
+
+    # Find the current default Company. If there is no default_company set,
+    # fall back to the first Company — there should only ever be one in a
+    # freshly-installed lms_saas site.
+    current_name = frappe.db.get_single_value("Global Defaults", "default_company") or ""
+    if not current_name:
+        first = frappe.get_all("Company", limit=1, pluck="name")
+        current_name = first[0] if first else ""
+    if not current_name:
+        return {"ok": False, "skipped": "no Company on site"}
+
+    current_doc = frappe.get_doc("Company", current_name)
+    current_currency = current_doc.default_currency
+    current_country = current_doc.country
+    current_abbr = current_doc.abbr
+
+    plan = {
+        "ok": True,
+        "applied": [],
+        "skipped": [],
+        "would_rename": False,
+        "from_name": current_name,
+        "to_name": target_company or current_name,
+        "from_abbr": current_abbr,
+        "to_abbr": target_abbr or current_abbr,
+        "from_currency": current_currency,
+        "to_currency": target_currency or current_currency,
+        "from_country": current_country,
+        "to_country": target_country or current_country,
+    }
+
+    if not int(apply or 0):
+        plan["dry_run"] = True
+        plan["plan"] = [
+            f"Company rename: {current_name!r} → {plan['to_name']!r}"
+            if plan["from_name"] != plan["to_name"]
+            else f"Company name unchanged: {current_name!r}",
+            f"Company abbr:  {current_abbr!r} → {plan['to_abbr']!r}"
+            if current_abbr != plan["to_abbr"]
+            else f"Company abbr unchanged: {current_abbr!r}",
+            f"Currency:      {current_currency!r} → {plan['to_currency']!r}"
+            if current_currency != plan["to_currency"]
+            else f"Currency unchanged: {current_currency!r}",
+            f"Country:       {current_country!r} → {plan['to_country']!r}"
+            if current_country != plan["to_country"]
+            else f"Country unchanged: {current_country!r}",
+            "site_config: lms_currency updated to match Company.default_currency",
+        ]
+        return plan
+
+    rename = target_company and target_company != current_name
+    abbr_change = target_abbr and target_abbr != current_abbr
+    currency_change = target_currency and target_currency != current_currency
+    country_change = target_country and target_country != current_country
+
+    if not (rename or abbr_change or currency_change or country_change):
+        plan["skipped"].append("no changes requested")
+        return plan
+
+    # Rename the Company doc itself. Frappe's rename_doc is safe for the
+    # Company master (no GL/JE references are keyed on the name).
+    if rename:
+        try:
+            frappe.rename_doc("Company", current_name, target_company, merge=0)
+            plan["applied"].append(f"company renamed: {current_name} → {target_company}")
+            current_name = target_company
+            current_doc = frappe.get_doc("Company", current_name)
+        except Exception as exc:  # noqa: BLE001
+            plan["skipped"].append(f"company rename failed: {exc}")
+
+    if abbr_change:
+        try:
+            current_doc.abbr = target_abbr
+            current_doc.save(ignore_permissions=True)
+            plan["applied"].append(f"company abbr updated: {current_abbr} → {target_abbr}")
+        except Exception as exc:  # noqa: BLE001
+            plan["skipped"].append(f"company abbr update failed: {exc}")
+
+    if currency_change:
+        try:
+            if not frappe.db.exists("Currency", target_currency):
+                frappe.get_doc(
+                    {"doctype": "Currency", "currency_name": target_currency, "enabled": 1}
+                ).insert(ignore_permissions=True)
+            current_doc.default_currency = target_currency
+            current_doc.save(ignore_permissions=True)
+            plan["applied"].append(f"company default_currency: {current_currency} → {target_currency}")
+        except Exception as exc:  # noqa: BLE001
+            plan["skipped"].append(f"company currency update failed: {exc}")
+
+    if country_change:
+        try:
+            if not frappe.db.exists("Country", target_country):
+                frappe.get_doc(
+                    {"doctype": "Country", "country_name": target_country}
+                ).insert(ignore_permissions=True)
+            current_doc.country = target_country
+            current_doc.save(ignore_permissions=True)
+            plan["applied"].append(f"company country: {current_country} → {target_country}")
+        except Exception as exc:  # noqa: BLE001
+            plan["skipped"].append(f"company country update failed: {exc}")
+
+    # Re-point Global Defaults at the (possibly renamed) Company + currency.
+    try:
+        frappe.db.set_single_value("Global Defaults", "default_company", current_name)
+        frappe.db.set_single_value(
+            "Global Defaults", "default_currency", current_doc.default_currency
+        )
+        plan["applied"].append(
+            f"global_defaults: default_company={current_name}, default_currency={current_doc.default_currency}"
+        )
+    except Exception as exc:  # noqa: BLE001
+        plan["skipped"].append(f"global_defaults update failed: {exc}")
+
+    # Mirror the new currency into site_config.json + frappe.conf so the
+    # login page (which reads window.__lms_currency from site_config before
+    # any User session exists) shows the right symbol immediately.
+    try:
+        import json
+        from pathlib import Path
+
+        site_path = Path(frappe.utils.get_site_path("site_config.json"))
+        raw = json.loads(site_path.read_text() or "{}")
+        raw["lms_currency"] = current_doc.default_currency
+        site_path.write_text(json.dumps(raw, indent=2, sort_keys=True))
+        frappe.conf["lms_currency"] = current_doc.default_currency
+        frappe.clear_cache()
+        plan["applied"].append(f"site_config: lms_currency={current_doc.default_currency}")
+    except Exception as exc:  # noqa: BLE001
+        plan["skipped"].append(f"site_config lms_currency sync failed: {exc}")
+
+    frappe.db.commit()
+    return plan
+
+
 # ---------------------------------------------------------------------------
 # Test-user provisioning (idempotent, admin-only)
 # ---------------------------------------------------------------------------

@@ -134,6 +134,28 @@ def run(**kwargs: Any) -> dict:
             frappe.get_doc({"doctype": "Country", "country_name": country}).insert(ignore_permissions=True)
         if not frappe.db.exists("Currency", currency):
             frappe.get_doc({"doctype": "Currency", "currency_name": currency, "enabled": 1}).insert(ignore_permissions=True)
+        # R45: if a Company exists but with a different name/abbr/currency
+        # (e.g. live was bootstrapped as "Kesari" before R44), use
+        # reconcile_company_name to surgically rename + retag it so the
+        # downstream Cost Center / Account / Loan names still resolve.
+        # reconcile_company_name is a no-op if there's nothing to change.
+        if frappe.db.exists("Company"):
+            try:
+                from lms_saas.setup.live_repair import reconcile_company_name
+                reco = reconcile_company_name(
+                    company=company,
+                    abbr=abbr,
+                    currency=currency,
+                    country=country,
+                    apply=1,
+                )
+                for line in reco.get("applied", []):
+                    result["applied"].append(f"company_reconcile: {line}")
+                for line in reco.get("skipped", []):
+                    if line and line != "no changes requested":
+                        result["skipped"].append(f"company_reconcile: {line}")
+            except Exception as exc:  # noqa: BLE001
+                result["skipped"].append(f"company_reconcile failed: {exc}")
         if not frappe.db.exists("Company", company):
             co = frappe.get_doc({
                 "doctype": "Company",
