@@ -607,6 +607,54 @@ def reconcile_company_name(
         except Exception as exc:  # noqa: BLE001
             plan["skipped"].append(f"company abbr update failed: {exc}")
 
+    # R51 fix: rename Cost Centers BEFORE the currency/country save.
+    # ERPNext's Company controller validates that cost_center,
+    # round_off_cost_center, and depreciation_cost_center point to
+    # existing Cost Centers. If we rename the Cost Centers (via
+    # _rename_cost_centers_for_abbr_change) but leave the Company doc
+    # still referencing the OLD names, the save() will fail with
+    # "Could not find Default Cost Center: Main - LS". The fix is to
+    # run the Cost Center rename + Company reference update BEFORE
+    # the currency/country save, so the save validates against the
+    # new Cost Center names.
+    if abbr_change:
+        try:
+            old_abbr, new_abbr = current_abbr, target_abbr
+            renamed_ccs = _rename_cost_centers_for_abbr_change(
+                current_name, old_abbr, new_abbr
+            )
+            for line in renamed_ccs:
+                plan["applied"].append(f"cost_center_rename: {line}")
+            # R51: also update the Company doc's Cost Center references
+            # (cost_center, round_off_cost_center, depreciation_cost_center)
+            # so they point to the new names. Use set_value to bypass
+            # the controller (which would validate the old names).
+            cc_link_fields = []
+            try:
+                meta = frappe.get_meta("Company")
+                cc_link_fields = [
+                    f.fieldname for f in meta.fields
+                    if f.fieldtype == "Link" and f.options == "Cost Center"
+                ]
+            except Exception:
+                pass
+            for field in cc_link_fields:
+                old_cc = current_doc.get(field) or ""
+                if not old_cc:
+                    continue
+                # Replace the old abbr suffix with the new one.
+                new_cc = old_cc.replace(f" - {old_abbr}", f" - {new_abbr}")
+                if new_cc != old_cc:
+                    frappe.db.set_value(
+                        "Company", current_name, field, new_cc,
+                        update_modified=True,
+                    )
+                    plan["applied"].append(f"company {field}: {old_cc} → {new_cc}")
+            # Reload so subsequent save() calls see the updated references.
+            current_doc = frappe.get_doc("Company", current_name)
+        except Exception as exc:  # noqa: BLE001
+            plan["skipped"].append(f"cost_center_rename failed: {exc}")
+
     if currency_change:
         try:
             if not frappe.db.exists("Currency", target_currency):
@@ -651,23 +699,10 @@ def reconcile_company_name(
     except Exception as exc:  # noqa: BLE001
         plan["skipped"].append(f"global_defaults update failed: {exc}")
 
-    # R48 fix: when the Company abbr changes (e.g. "LS" → "SP"), every
-    # Cost Center name that embeds the old abbr (e.g. "Main Branch - LS")
-    # must be renamed too — otherwise the branches are still tagged with
-    # the old company identifier and any branch-resolution code falls
-    # over. We rename Cost Centers, then retag Customers/Loans/Employees
-    # to use the new branch names. Both halves are required for branch
-    # parity after an abbr change.
-    if abbr_change:
-        try:
-            old_abbr, new_abbr = current_abbr, target_abbr
-            renamed_ccs = _rename_cost_centers_for_abbr_change(
-                current_name, old_abbr, new_abbr
-            )
-            for line in renamed_ccs:
-                plan["applied"].append(f"cost_center_rename: {line}")
-        except Exception as exc:  # noqa: BLE001
-            plan["skipped"].append(f"cost_center_rename failed: {exc}")
+    # R51: the Cost Center rename + Company reference update now runs
+    # BEFORE the currency/country save (moved up to the abbr_change block).
+    # The old location (here, after Global Defaults) was too late — the
+    # save() calls had already failed on the stale Cost Center references.
     # Always run the retag pass — it normalizes any Customer/Loan/Employee
     # that ended up on a phantom branch (the R47 scenario) to the fallback
     # branch, which is the branch that most existing records are tagged
