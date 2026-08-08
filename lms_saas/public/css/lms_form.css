@@ -9,6 +9,79 @@
  * keeps a <select class="lms-fallback-select"> for that path.
  */
 
+/* ----- Form cards (R46-9) --------------------------------------------- */
+/* Long forms (e.g. New loan application) wrap each thematic section
+   (Customer, Loan terms, Classification, Household, Collateral) in a
+   bordered card with a coloured top stripe + label. This replaces the
+   previous flat .lms-section-header <h4> layout, which read as one
+   continuous form with no visual separation between groupings. */
+.lms-form-card {
+	border: 1px solid var(--lms-border);
+	border-radius: var(--lms-radius);
+	background: var(--lms-surface);
+	overflow: hidden;
+}
+.lms-form-card + .lms-form-card {
+	margin-top: 1.25rem;
+}
+.lms-form-card__head {
+	display: flex;
+	align-items: center;
+	gap: 0.75rem;
+	padding: 0.6rem 1rem;
+	background: var(--lms-surface-alt, var(--lms-surface));
+	border-bottom: 1px solid var(--lms-border);
+}
+.lms-form-card__stripe {
+	display: block;
+	width: 4px;
+	height: 18px;
+	border-radius: 2px;
+	background: var(--lms-primary);
+	flex-shrink: 0;
+}
+.lms-form-card__head h4 {
+	margin: 0;
+	font-size: 0.92rem;
+	font-weight: 700;
+	color: var(--lms-text);
+	letter-spacing: 0.005em;
+}
+.lms-form-card__body {
+	padding: 1rem;
+	display: flex;
+	flex-direction: column;
+	gap: 0.75rem;
+}
+.lms-form-card__body > .lms-grid-2 {
+	margin: 0;
+}
+
+/* Inline product hints — Rate / Max amount readouts that appear under
+   the product <select> so the officer sees the product's defaults
+   without scrolling down to the rate field. */
+.lms-app-product-hints {
+	display: flex;
+	gap: 1.25rem;
+	flex-wrap: wrap;
+	padding: 0.5rem 0.75rem;
+	background: var(--lms-surface-alt, var(--lms-surface));
+	border: 1px dashed var(--lms-border);
+	border-radius: var(--lms-radius-sm);
+	font-size: 0.8rem;
+	color: var(--lms-text-muted);
+	margin-top: 0.5rem;
+}
+.lms-app-product-hints[hidden] {
+	display: none;
+}
+.lms-app-product-hint strong {
+	color: var(--lms-text);
+	font-weight: 600;
+	margin-right: 0.25rem;
+}
+
+/* ------------------------------------------------------------------ */
 /* ----- Input primitives ----------------------------------------------- */
 
 /* Single source of truth for form control sizing/styling. Every <input>,

@@ -827,9 +827,17 @@ lms_officer._openApplicationModal = function (customers, products, root) {
 		return '<option value="' + lms_portal.escape(c.name) + '">' +
 			lms_portal.escape(c.customer_name) + "</option>";
 	}).join("");
+	// R46-9: encode rate_of_interest + maximum_loan_amount into the
+	// <option>'s data-* attributes so the product <select>'s change
+	// handler can pre-fill the rate field (and use the max amount as a
+	// ceiling placeholder) without a second API round-trip.
 	var productOpts = (products.products || []).map(function (p) {
-		return '<option value="' + lms_portal.escape(p.name) + '">' +
-			lms_portal.escape(p.product_name) + "</option>";
+		var rate = (p.rate_of_interest != null && p.rate_of_interest !== "") ? p.rate_of_interest : "";
+		var maxAmt = (p.maximum_loan_amount != null && p.maximum_loan_amount !== "") ? p.maximum_loan_amount : "";
+		return '<option value="' + lms_portal.escape(p.name) + '"' +
+			(rate !== "" ? ' data-rate="' + lms_portal.escape(String(rate)) + '"' : '') +
+			(maxAmt !== "" ? ' data-max-amount="' + lms_portal.escape(String(maxAmt)) + '"' : '') +
+			'>' + lms_portal.escape(p.product_name) + "</option>";
 	}).join("");
 
 	// R34 — layout: the form has more than 20 inputs plus a repeatable
@@ -841,7 +849,9 @@ lms_officer._openApplicationModal = function (customers, products, root) {
 	// 3-up by default).
 	var body =
 		'<div class="lms-form">' +
-		'<div class="lms-section-header"><h4>Customer</h4></div>' +
+		'<div class="lms-form-card">' +
+		'<div class="lms-form-card__head"><span class="lms-form-card__stripe"></span><h4>Customer</h4></div>' +
+		'<div class="lms-form-card__body">' +
 		'<div class="lms-grid-2" data-grid="2">' +
 		'<label class="lms-grid-2__full">Customer' +
 		'<select id="lms-app-customer" class="lms-input lms-fallback-select lms-pop-select" data-searchable>' +
@@ -853,7 +863,14 @@ lms_officer._openApplicationModal = function (customers, products, root) {
 		'<select id="lms-app-product" class="lms-input lms-fallback-select lms-pop-select">' +
 		productOpts +
 		"</select></label>" +
-		"</div>" +
+		// R46-9: rate + amount hints live just below the product picker
+		// so the officer can see the product's defaults without opening
+		// the field. JavaScript fills these from the selected option.
+		'<div id="lms-app-product-hints" class="lms-app-product-hints" hidden>' +
+		'<span class="lms-app-product-hint"><strong>Rate:</strong> <span id="lms-app-product-rate">—</span></span>' +
+		'<span class="lms-app-product-hint"><strong>Max amount:</strong> <span id="lms-app-product-max">—</span></span>' +
+		'</div>' +
+		"</div></div></div>" +
 		// R34: the inline "+ New borrower…" picker now shares the full
 		// onboarding form with the topbar "Add Borrower" modal (Identity,
 		// Contact, Household / Spouse, KYC + consent, ID doc + proof-of-
@@ -867,7 +884,9 @@ lms_officer._openApplicationModal = function (customers, products, root) {
 		"</div>" +
 
 		// --- Loan terms ---
-		'<div class="lms-section-header"><h4>Loan terms</h4></div>' +
+		'<div class="lms-form-card">' +
+		'<div class="lms-form-card__head"><span class="lms-form-card__stripe"></span><h4>Loan terms</h4></div>' +
+		'<div class="lms-form-card__body">' +
 		'<div class="lms-grid-2" data-grid="2">' +
 		// QA-2026-08-03-#18: pre-fill sensible defaults so the form is
 		// never blank on first render. R44: the loan amount field is
@@ -875,8 +894,11 @@ lms_officer._openApplicationModal = function (customers, products, root) {
 		// actual requested amount — a hardcoded default led to demo
 		// data with identical 10,000 amounts across every application.
 		// The rate and periods still default to the common values.
+		// R46-9: rate default comes from the selected loan product
+		// (handler below) — no hardcoded value here. Amount stays empty so
+		// the officer must enter the actual requested amount.
 		'<label>Loan amount<input type="number" id="lms-app-amount" class="lms-input" min="1" step="0.01" placeholder="Enter amount" required></label>' +
-		'<label>Rate of interest (% / yr)<input type="number" id="lms-app-rate" class="lms-input" min="0" max="100" step="0.01" value="24"></label>' +
+		'<label>Rate of interest (% / yr)<input type="number" id="lms-app-rate" class="lms-input" min="0" max="100" step="0.01" placeholder="From product"></label>' +
 		'<label>Repayment periods (months)<input type="number" id="lms-app-periods" class="lms-input" min="1" value="6"></label>' +
 		'<label>Repayment method<select id="lms-app-method" class="lms-input lms-fallback-select">' +
 		'<option value="Repay Over Number of Periods" selected>Repay Over Number of Periods</option>' +
@@ -884,10 +906,12 @@ lms_officer._openApplicationModal = function (customers, products, root) {
 		'</select></label>' +
 		'<label>Repayment start date<input type="date" id="lms-app-start" class="lms-input"></label>' +
 		'<label>Posting date<input type="date" id="lms-app-posting" class="lms-input"></label>' +
-		"</div>" +
+		"</div></div></div>" +
 
 		// --- Loan classification + dates ---
-		'<div class="lms-section-header"><h4>Classification &amp; dates</h4></div>' +
+		'<div class="lms-form-card">' +
+		'<div class="lms-form-card__head"><span class="lms-form-card__stripe"></span><h4>Classification &amp; dates</h4></div>' +
+		'<div class="lms-form-card__body">' +
 		'<div class="lms-grid-2" data-grid="2">' +
 		'<label>Loan type<select id="lms-app-loantype" class="lms-input lms-fallback-select">' +
 		'<option value="">—</option><option value="Term Loan">Term Loan</option><option value="Revolving / Overdraft">Revolving / Overdraft</option><option value="Hire Purchase">Hire Purchase</option><option value="Asset Finance">Asset Finance</option><option value="Emergency / Top-up">Emergency / Top-up</option><option value="Working Capital">Working Capital</option>' +
@@ -898,10 +922,12 @@ lms_officer._openApplicationModal = function (customers, products, root) {
 		'<label>Expiry date<input type="date" id="lms-app-expiry" class="lms-input"></label>' +
 		'<label>Maximum enforceable amount<input type="number" id="lms-app-maxenforce" class="lms-input" min="0" step="0.01" placeholder="Statutory cap"></label>' +
 		'<label class="lms-grid-2__full">Nature / type of security interest<textarea id="lms-app-security" class="lms-input" rows="2" placeholder="e.g. notarial bond over vehicle COL-00012"></textarea></label>' +
-		"</div>" +
+		"</div></div></div>" +
 
 		// --- Household / Spouse (pre-fills from selected borrower) ---
-		'<div class="lms-section-header"><h4>Household &amp; Spouse</h4></div>' +
+		'<div class="lms-form-card">' +
+		'<div class="lms-form-card__head"><span class="lms-form-card__stripe"></span><h4>Household &amp; Spouse</h4></div>' +
+		'<div class="lms-form-card__body">' +
 		'<p class="lms-muted" style="margin:0 0 0.5rem;font-size:0.8rem;">Pre-filled from the borrower record; edit here if anything has changed.</p>' +
 		'<div class="lms-grid-2">' +
 		'<label><input type="checkbox" id="lms-app-marital"> Married (Marital status)</label>' +
@@ -909,12 +935,18 @@ lms_officer._openApplicationModal = function (customers, products, root) {
 		'<label>Name of spouse (first &amp; last)<input type="text" id="lms-app-spouse-name" class="lms-input" placeholder="Jane Doe"></label>' +
 		'<label>Spouse date of birth<input type="date" id="lms-app-spouse-dob" class="lms-input"></label>' +
 		'<label class="lms-grid-2__full">Applicant\'s physical address<textarea id="lms-app-physical" class="lms-input" rows="2" placeholder="House / plot, street, suburb, city"></textarea></label>' +
-		'</div>' +
+		'</div></div></div>' +
 
-		'<div class="lms-section-header"><h4>Collateral</h4></div>' +
+		// --- Collateral ---
+		'<div class="lms-form-card">' +
+		'<div class="lms-form-card__head"><span class="lms-form-card__stripe"></span><h4>Collateral</h4></div>' +
+		'<div class="lms-form-card__body">' +
 		'<div id="lms-app-collateral-rows"></div>' +
-		'<button type="button" id="lms-app-add-collateral" class="lms-btn lms-btn--ghost">+ Add collateral item</button>' +
-		"</div>";
+		'<button type="button" id="lms-app-add-collateral" class="lms-btn lms-btn--ghost lms-btn--sm lms-app-add-collateral">' +
+		(window.lms_icons ? lms_icons.icon("plus", { size: 14 }) : "+") +
+		'<span>Add collateral item</span>' +
+		'</button>' +
+		'</div></div>';
 
 	var dlg = LMSModal.open({
 		title: "New loan application",
@@ -1005,6 +1037,63 @@ lms_officer._openApplicationModal = function (customers, products, root) {
 				fillHousehold({});
 			}
 		});
+	}
+
+	// R46-9: when the officer picks a Loan product, pre-fill the rate
+	// field with the product's rate_of_interest. The product select's
+	// <option>s carry data-rate and data-max-amount attributes (see
+	// _openApplicationModal's productOpts builder) so no second API
+	// call is needed. The rate field is editable — if the officer
+	// changes the product after entering a rate, the new product's
+	// rate overwrites whatever they had typed.
+	var productSelect = dlg.dialog.querySelector("#lms-app-product");
+	var rateInput = dlg.dialog.querySelector("#lms-app-rate");
+	var amountInput = dlg.dialog.querySelector("#lms-app-amount");
+	var productHints = dlg.dialog.querySelector("#lms-app-product-hints");
+	var productRateLabel = dlg.dialog.querySelector("#lms-app-product-rate");
+	var productMaxLabel = dlg.dialog.querySelector("#lms-app-product-max");
+	if (productSelect && rateInput) {
+		productSelect.addEventListener("change", function () {
+			var opt = productSelect.options[productSelect.selectedIndex];
+			if (!opt) return;
+			var rate = opt.getAttribute("data-rate");
+			var maxAmt = opt.getAttribute("data-max-amount");
+			// Pre-fill rate (overwrites whatever the officer typed — matches
+			// the expectation that the rate field reflects the selected
+			// product).
+			if (rate !== null && rate !== "") {
+				rateInput.value = rate;
+			}
+			// Set the amount ceiling as a max attribute (don't force-fill —
+			// the officer may legitimately want less than the cap).
+			if (amountInput) {
+				if (maxAmt !== null && maxAmt !== "" && parseFloat(maxAmt) > 0) {
+					amountInput.setAttribute("max", maxAmt);
+				} else {
+					amountInput.removeAttribute("max");
+				}
+			}
+			// Show the hint strip with both rate and max amount.
+			if (productHints && (rate !== null && rate !== "" || maxAmt !== null && maxAmt !== "")) {
+				if (productRateLabel) {
+					productRateLabel.textContent = rate !== null && rate !== "" ? (rate + "% / yr") : "—";
+				}
+				if (productMaxLabel) {
+					if (maxAmt !== null && maxAmt !== "" && parseFloat(maxAmt) > 0) {
+						// Format with thousands separator.
+						productMaxLabel.textContent = Number(maxAmt).toLocaleString();
+					} else {
+						productMaxLabel.textContent = "—";
+					}
+				}
+				productHints.hidden = false;
+			} else if (productHints) {
+				productHints.hidden = true;
+			}
+		});
+		// Trigger once on modal open so a default-selected product shows its
+		// hints immediately.
+		productSelect.dispatchEvent(new Event("change"));
 	}
 
 	// Collateral: append a repeatable row each time "Add collateral item" is clicked.
