@@ -530,6 +530,17 @@ body.lms-portal {
 	border-left: 3px solid var(--lms-warning);
 }
 
+/* R46: Collector PWA now renders rows with .lms-queue-list__item
+   (consistent with the Officer Work Queue card-row shape). The old
+   border-left indicator fought the hover padding animation, so we
+   re-tint the row instead. Hover still overrides it. */
+.lms-queue-list__item.is-pending-sync {
+	background: rgba(245, 158, 11, 0.08);
+}
+.lms-queue-list__item.is-pending-sync:hover {
+	background: rgba(245, 158, 11, 0.16);
+}
+
 .sr-only {
 	position: absolute;
 	width: 1px;

@@ -155,7 +155,11 @@ lms_collect._renderRunSheet = function (root, rows) {
 	if (!rows.length) {
 		listBody = '<p class="lms-muted">No dues in range.</p>';
 	} else {
-		listBody = '<ul class="lms-list">';
+		// R46: use the .lms-queue-list card-row shape (consistent with the
+		// Officer Work Queue). 3-column grid: borrower+sub ┃ amount ┃
+		// action. The "Due" eyebrow + tabular-numeric amount replace the
+		// old em-dash text. is-pending-sync becomes a soft yellow tint.
+		listBody = '<ul class="lms-list lms-queue-list">';
 		rows.forEach(function (row) {
 			// R18-4: mobile is masked by default. Show a Reveal button that
 			// hits `reveal_borrower_pii` (which writes one audit-log row).
@@ -169,20 +173,27 @@ lms_collect._renderRunSheet = function (root, rows) {
 				: "";
 			var pending = !!queued[row.loan];
 			var syncBadge = pending
-				? ' <span class="lms-badge lms-badge--warning" title="Queued on this device — tap Sync">Pending sync</span>'
-				: ' <span class="lms-badge lms-badge--success" title="No offline queue for this stop">Synced</span>';
+				? '<span class="lms-badge lms-badge--warning" title="Queued on this device — tap Sync">Pending sync</span>'
+				: '<span class="lms-badge lms-badge--success" title="No offline queue for this stop">Synced</span>';
 			listBody +=
-				'<li class="lms-list__item' + (pending ? " is-pending-sync" : "") + '">' +
-				'<div class="lms-list__info">' +
-				'<strong>' + lms_portal.escape(row.borrower) + "</strong>" +
-				" — " + lms_portal.formatDate(row.due_date) +
-				" — " + format_currency(row.amount) +
+				'<li class="lms-queue-list__item' + (pending ? " is-pending-sync" : "") + '">' +
+				'<div class="lms-queue-list__main">' +
+				'<div class="lms-queue-list__head">' +
+				'<span class="lms-queue-list__name">' + lms_portal.escape(row.borrower) + '</span>' +
 				syncBadge +
-				' <span class="lms-pii-mobile" data-loan="' + lms_portal.escape(row.loan) + '">' +
-				(mobile ? (masked ? '<span class="lms-pii-masked">' + lms_portal.escape(mobile) + '</span>' + " " + revealBtn : '<span>' + lms_portal.escape(mobile) + '</span>') : '<span class="lms-muted">No mobile on file</span>') +
-				"</span>" +
-				"</div>" +
-				'<div class="lms-list__actions">' +
+				'</div>' +
+				'<div class="lms-queue-list__sub">' +
+				lms_portal.escape("Due " + lms_portal.formatDate(row.due_date)) +
+				'</div>' +
+				'<div class="lms-pii-mobile" data-loan="' + lms_portal.escape(row.loan) + '" style="margin-top:0.15rem;font-size:0.8rem;">' +
+				(mobile ? (masked ? '<span class="lms-pii-masked">' + lms_portal.escape(mobile) + '</span> ' + revealBtn : '<span>' + lms_portal.escape(mobile) + '</span>') : '<span class="lms-muted">No mobile on file</span>') +
+				'</div>' +
+				'</div>' +
+				'<div class="lms-queue-list__amount">' +
+				'<span class="lms-queue-list__amount-label">Due</span>' +
+				'<span class="lms-queue-list__amount-value">' + format_currency(row.amount) + '</span>' +
+				'</div>' +
+				'<div class="lms-queue-list__action">' +
 				callBtn +
 				'<button type="button" class="lms-btn lms-btn--primary lms-btn--sm lms-collect-btn" data-loan="' +
 				lms_portal.escape(row.loan) +
@@ -192,7 +203,7 @@ lms_collect._renderRunSheet = function (root, rows) {
 				'<button type="button" class="lms-btn lms-btn--ghost lms-btn--sm lms-promise-btn" data-loan="' +
 				lms_portal.escape(row.loan) +
 				'">Promise</button>' +
-				"</div></li>";
+				'</div></li>';
 		});
 		listBody += "</ul>";
 	}

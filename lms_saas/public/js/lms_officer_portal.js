@@ -528,17 +528,27 @@ lms_officer._renderAll = function (root, dash, apps, loans, branch, collections,
 		html += '<h3>Recent active loans</h3>';
 		html += '<a href="#" class="lms-btn lms-btn--ghost lms-btn--sm" id="lms-officer-view-all-loans">View all</a>';
 		html += '</div>';
-		html += '<ul class="lms-list">';
+		// R46: refactored to use the .lms-queue-list card-row shape
+		// (consistent with the Officer Work Queue). 2 columns here — no
+		// per-row action, just main + amount — because the panel header
+		// already carries the "View all" affordance.
+		html += '<ul class="lms-list lms-queue-list">';
 		topOfficer.forEach(function (row) {
 			var badge = lms_portal.badgeClass(row.dpd, row.status);
 			var badgeLabel = lms_portal.badgeLabel(row.dpd, row.status);
 			html +=
-				'<li class="lms-list__item">' +
-				'<div class="lms-list__info">' +
-				"<strong>" + lms_portal.escape(row.customer_name || row.applicant || "—") + "</strong>" +
-				" — " + format_currency(row.outstanding || 0) +
-				' <span class="lms-badge ' + badge + '">' + lms_portal.escape(badgeLabel) + "</span>" +
-				"</div></li>";
+				'<li class="lms-queue-list__item">' +
+				'<div class="lms-queue-list__main">' +
+				'<div class="lms-queue-list__head">' +
+				'<span class="lms-queue-list__name">' + lms_portal.escape(row.customer_name || row.applicant || "—") + '</span>' +
+				'<span class="lms-badge ' + badge + ' lms-queue-list__status">' + lms_portal.escape(badgeLabel) + '</span>' +
+				'</div>' +
+				'</div>' +
+				'<div class="lms-queue-list__amount">' +
+				'<span class="lms-queue-list__amount-label">Outstanding</span>' +
+				'<span class="lms-queue-list__amount-value">' + format_currency(row.outstanding || 0) + '</span>' +
+				'</div>' +
+				'</li>';
 		});
 		html += "</ul></div>";
 	}
