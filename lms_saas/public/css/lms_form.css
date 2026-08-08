@@ -66,7 +66,9 @@
  * .lms-modal__body. */
 .lms-modal .lms-form,
 .lms-modal__body {
-	padding: 0.25rem 1.5rem 0.75rem 1.5rem;
+	/* R46-6: bumped top padding from 0.25rem → 1.5rem so the first
+	 * content row breathes below the dark-green header band. */
+	padding: 1.5rem 1.5rem;
 	/* When the form is the body, let it scroll while header and actions
 	 * stay pinned. The .lms-modal is flex column so flex:1 fills the
 	 * remaining height between header and actions. */

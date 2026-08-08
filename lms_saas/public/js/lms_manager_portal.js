@@ -614,7 +614,9 @@ lms_manager._showReviewModal = function (data) {
 	// Approve / Reject actions (only for submitted applications)
 	var canDecide = a.docstatus === 1;
 	var modalOpts = {
-		title: "Review — " + (a.applicant_name || a.name || ""),
+		title: "Review",
+		titleSubject: (a.applicant_name || a.name || ""),
+		titleIcon: "clipboard",
 		size: "xl",
 		body: html,
 		confirmText: canDecide ? "Approve" : "Close",
@@ -983,7 +985,9 @@ lms_manager._showBorrowerModal = function (b) {
 	html += '</div>';
 
 	lms_portal.modal({
-		title: "Borrower Profile — " + (b.customer_name || ""),
+		title: "Borrower Profile",
+		titleSubject: (b.customer_name || ""),
+		titleIcon: "user",
 		body: html,
 		size: "xl",
 		confirmText: "Close",
@@ -1157,7 +1161,9 @@ lms_manager._showLoanModal = function (data) {
 	html += '</div>';
 
 	lms_portal.modal({
-		title: "Loan Detail — " + (l.name || ""),
+		title: "Loan Detail",
+		titleSubject: (l.name || ""),
+		titleIcon: "wallet",
 		body: html,
 		size: "xl",          // 960px so the summary grid engages (4/2/1 cols)
 		confirmText: "Close",

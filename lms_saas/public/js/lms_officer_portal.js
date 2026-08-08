@@ -748,7 +748,9 @@ lms_officer._showApplicationReviewModal = function (data) {
 	// stay in the portal — no desk link.
 	var canSubmit = a.docstatus === 0;
 	var modalOpts = {
-		title: "Application — " + (a.applicant_name || a.name || ""),
+		title: "Application",
+		titleSubject: (a.applicant_name || a.name || ""),
+		titleIcon: "file-text",
 		size: "xl",
 		body: html,
 		confirmText: canSubmit ? "Submit for manager approval" : "Close",
@@ -1787,9 +1789,10 @@ lms_officer._showBorrowerModal = function (b) {
 	html += '</div>';
 
 	var officerCustomerName = b.name || "";
-
 	lms_portal.modal({
-		title: "Borrower Profile — " + (b.customer_name || ""),
+		title: "Borrower Profile",
+		titleSubject: (b.customer_name || ""),
+		titleIcon: "user",
 		body: html,
 		size: "xl",
 		confirmText: "Save",
@@ -2136,7 +2139,9 @@ lms_officer._showLoanModal = function (data) {
 	html += '</div>';
 
 	lms_portal.modal({
-		title: "Loan Detail — " + (l.name || ""),
+		title: "Loan Detail",
+		titleSubject: (l.name || ""),
+		titleIcon: "wallet",
 		body: html,
 		size: "xl",
 		confirmText: "Close",
@@ -2472,6 +2477,61 @@ lms_officer._showKycReviewModal = function (data, content) {
 	var kyc = data.kyc || {};
 	var borrower = data.borrower || {};
 
+	// R46-6: helper to render a doc-cell with inline preview + lightbox.
+	// file_url may be a private/files path or a public /files URL.
+	// We classify by extension; unknown types fall back to a "no preview"
+	// placeholder that still links out. Click the preview to open a
+	// second LMSModal layer (lightbox) so the officer never leaves the
+	// review flow.
+	var renderDocCell = function (label, fieldname, fileUrl) {
+		var ext = (fileUrl || "").split("?")[0].split("#")[0].split(".").pop().toLowerCase();
+		var isImage = ["jpg", "jpeg", "png", "webp", "gif"].indexOf(ext) !== -1;
+		var isPdf = ext === "pdf";
+		var previewHtml;
+		var viewLink = "";
+		if (fileUrl) {
+			viewLink = '<a class="lms-doc-link" href="' + lms_portal.escape(encodeURI(fileUrl)) +
+				'" target="_blank" rel="noopener">Open in new tab</a>';
+			if (isImage) {
+				previewHtml =
+					'<div class="lms-doc-preview lms-doc-preview--img" data-doc-lightbox="' +
+					lms_portal.escape(encodeURI(fileUrl)) +
+					'" data-doc-kind="image" title="Click to enlarge">' +
+					'<img src="' + lms_portal.escape(encodeURI(fileUrl)) +
+					'" alt="' + lms_portal.escape(label) + '" loading="lazy" />' +
+					'</div>';
+			} else if (isPdf) {
+				previewHtml =
+					'<div class="lms-doc-preview lms-doc-preview--pdf" data-doc-lightbox="' +
+					lms_portal.escape(encodeURI(fileUrl)) +
+					'" data-doc-kind="pdf" title="Click to open the full PDF">' +
+					(window.lms_icons ? lms_icons.icon("file-text", { size: 28 }) : "📄") +
+					'<strong>PDF document</strong>' +
+					'<span>Click to preview</span>' +
+					'</div>';
+			} else {
+				previewHtml =
+					'<div class="lms-doc-preview lms-doc-preview--empty" title="No inline preview for this file type">' +
+					'No preview available</div>';
+			}
+		} else {
+			previewHtml =
+				'<div class="lms-doc-preview lms-doc-preview--empty">No document uploaded yet</div>';
+		}
+		return (
+			'<div class="lms-doc-cell">' +
+			'<div class="lms-doc-label">' + lms_portal.escape(label) + ' ' + viewLink + '</div>' +
+			previewHtml +
+			'<div class="lms-doc-controls">' +
+			'<input type="hidden" id="lms-kyc-' + (fieldname === "id_document_proof" ? "iddoc" : "poa") +
+			'-url" value="' + lms_portal.escape(fileUrl || "") + '" />' +
+			'<button type="button" class="lms-btn lms-btn--ghost lms-btn--sm" data-upload-field="' +
+			lms_portal.escape(fieldname) + '">Upload / replace</button>' +
+			'</div>' +
+			'</div>'
+		);
+	};
+
 	var body =
 		'<form id="lms-kyc-review-form" class="lms-form" autocomplete="off">' +
 		// --- Borrower summary ---
@@ -2508,23 +2568,11 @@ lms_officer._showKycReviewModal = function (data, content) {
 		'</label>' +
 		'</div>' +
 
-		// --- Documents (upload + view) ---
+		// --- Documents (upload + inline preview + lightbox) ---
 		'<div class="lms-section-header"><h4>Documents</h4></div>' +
 		'<div class="lms-grid-2">' +
-		'<div class="lms-doc-cell">' +
-		'<div class="lms-doc-label">ID document ' +
-		(kyc.id_document_proof ? '<a class="lms-doc-link" href="' + lms_portal.escape(encodeURI(kyc.id_document_proof)) + '" target="_blank">view</a>' : '') +
-		'</div>' +
-		'<input type="hidden" id="lms-kyc-iddoc-url" value="' + lms_portal.escape(kyc.id_document_proof || "") + '" />' +
-		'<button type="button" class="lms-btn lms-btn--ghost lms-btn--sm" data-upload-field="id_document_proof">Upload / replace</button>' +
-		'</div>' +
-		'<div class="lms-doc-cell">' +
-		'<div class="lms-doc-label">Proof of address ' +
-		(kyc.proof_of_address ? '<a class="lms-doc-link" href="' + lms_portal.escape(encodeURI(kyc.proof_of_address)) + '" target="_blank">view</a>' : '') +
-		'</div>' +
-		'<input type="hidden" id="lms-kyc-poa-url" value="' + lms_portal.escape(kyc.proof_of_address || "") + '" />' +
-		'<button type="button" class="lms-btn lms-btn--ghost lms-btn--sm" data-upload-field="proof_of_address">Upload / replace</button>' +
-		'</div>' +
+		renderDocCell("ID document", "id_document_proof", kyc.id_document_proof) +
+		renderDocCell("Proof of address", "proof_of_address", kyc.proof_of_address) +
 		'</div>' +
 
 		// --- AML (read-only) ---
@@ -2543,7 +2591,9 @@ lms_officer._showKycReviewModal = function (data, content) {
 		'</form>';
 
 	var dlg = LMSModal.open({
-		title: "Review KYC — " + (borrower.customer_name || kyc.customer || ""),
+		title: "Review KYC",
+		titleSubject: (borrower.customer_name || kyc.customer || ""),
+		titleIcon: "shield",
 		body: body,
 		size: "xl",
 		actions: [
@@ -2554,6 +2604,37 @@ lms_officer._showKycReviewModal = function (data, content) {
 
 	var dlgRoot = (dlg && dlg.dialog) || null;
 	if (!dlgRoot) return;
+
+	// R46-6: bind doc-preview click → open LMSModal lightbox with the
+	// full image (or PDF iframe) so the officer never leaves the
+	// review flow. The lightbox sits on top of the current modal via
+	// LMSModal's existing z-index management.
+	dlgRoot.querySelectorAll("[data-doc-lightbox]").forEach(function (el) {
+		el.addEventListener("click", function () {
+			var url = el.getAttribute("data-doc-lightbox");
+			var kind = el.getAttribute("data-doc-kind");
+			var bodyHtml;
+			if (kind === "pdf") {
+				// Embed PDF in an iframe; sandbox so the parent page
+				// can't be framed.
+				bodyHtml = '<iframe src="' + lms_portal.escape(url) +
+					'" style="width:100%;height:75vh;border:0;border-radius:var(--lms-radius-sm);" ' +
+					'sandbox="allow-same-origin"></iframe>';
+			} else {
+				bodyHtml = '<img src="' + lms_portal.escape(url) +
+					'" style="max-width:100%;max-height:75vh;display:block;margin:0 auto;border-radius:var(--lms-radius-sm);" ' +
+					'alt="Document preview" />';
+			}
+			LMSModal.open({
+				title: "Document preview",
+				body: bodyHtml,
+				size: "lg",
+				actions: [
+					{ label: "Close", value: false, primary: true },
+				],
+			});
+		});
+	});
 
 	var kycName = kyc.name;
 

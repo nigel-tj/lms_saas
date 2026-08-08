@@ -33,7 +33,29 @@
 	}
 
 	function buildHtml(opts) {
-		var title = opts.title ? '<h3 class="lms-modal__title">' + esc(opts.title) + "</h3>" : "";
+		// R46-6: structured modal title. When `titleIcon` is provided,
+		// render the icon next to the title. When `titleSubject` is
+		// provided, render it as a smaller subtitle line below the
+		// title so the user gets "Review KYC / LMS Borrower 001"
+		// instead of the previous flat "Review KYC — LMS Borrower 001".
+		// Both are optional and backward-compatible.
+		var iconSvg = "";
+		if (opts.titleIcon && typeof window.lms_icons !== "undefined" && lms_icons.icon) {
+			iconSvg = lms_icons.icon(opts.titleIcon, { size: 18, cls: "lms-modal__title-icon" });
+		}
+		var titleMain = opts.title
+			? '<span class="lms-modal__title-text">' + esc(opts.title) + "</span>"
+			: "";
+		var titleSub = opts.titleSubject
+			? '<span class="lms-modal__title-subject">' + esc(opts.titleSubject) + "</span>"
+			: "";
+		var titleBlock = (titleMain || titleSub)
+			? '<div class="lms-modal__title-block">' + titleMain + titleSub + "</div>"
+			: "";
+		var title = (iconSvg || titleBlock)
+			? '<h3 class="lms-modal__title"><span class="lms-modal__title-row">' +
+				iconSvg + titleBlock + "</span></h3>"
+			: "";
 		var closeBtn = opts.dismissable !== false
 			? '<button type="button" class="lms-modal__close" data-lms-modal-close aria-label="Close">×</button>'
 			: "";

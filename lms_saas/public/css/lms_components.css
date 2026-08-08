@@ -1187,7 +1187,7 @@ dialog.lms-modal::backdrop {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	padding: 0.85rem 1.5rem;
+	padding: 0.85rem 1.5rem 1.1rem 1.5rem;
 	margin: 0;
 	background: var(--lms-primary);
 	color: #fff;
@@ -1200,6 +1200,45 @@ dialog.lms-modal::backdrop {
 	font-weight: 700;
 	color: #fff;
 	letter-spacing: -0.01em;
+}
+
+/* R46-6: structured modal title — icon + main title + optional
+   subject subtitle. The title-row is a flex container so the icon
+   sits next to the title-block; the title-block stacks title-main
+   on top of title-subject. Without the subject, title-subject is
+   omitted and the row collapses cleanly to a single line. */
+.lms-modal__title-row {
+	display: flex;
+	align-items: center;
+	gap: 0.6rem;
+	min-width: 0;
+}
+.lms-modal__title-block {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+	line-height: 1.2;
+}
+.lms-modal__title-text {
+	font-size: 1.05rem;
+	font-weight: 700;
+	letter-spacing: -0.01em;
+	color: #fff;
+}
+.lms-modal__title-subject {
+	font-size: 0.78rem;
+	font-weight: 500;
+	color: rgba(255, 255, 255, 0.78);
+	margin-top: 0.1rem;
+	letter-spacing: 0;
+	text-overflow: ellipsis;
+	overflow: hidden;
+	white-space: nowrap;
+	max-width: 60ch;
+}
+.lms-modal__title-icon {
+	color: rgba(255, 255, 255, 0.85);
+	flex: 0 0 auto;
 }
 
 .lms-modal__close {
@@ -1226,7 +1265,7 @@ dialog.lms-modal::backdrop {
 }
 
 .lms-modal__body {
-	padding: 1.25rem 1.5rem;
+	padding: 1.75rem 1.5rem 1.5rem 1.5rem;
 	margin: 0;
 }
 
@@ -1238,6 +1277,87 @@ dialog.lms-modal::backdrop {
 	border-top: 1px solid var(--lms-border);
 	background: var(--lms-surface-alt, var(--lms-surface));
 	margin: 0;
+}
+
+/* ------------------------------------------------------------------ */
+/* R46-6: Document preview inside modals (KYC review, etc.)           */
+/* ------------------------------------------------------------------ */
+/* Each doc-cell stacks: label row, preview frame, controls row. The
+   preview frame is a fixed-height bordered box that contains either
+   an <img> thumbnail (clipped with object-fit: contain) or a
+   clickable "no preview" fallback. Click the preview to open the
+   full file in an LMSModal lightbox (lms_modal.js handles the
+   second layer). */
+.lms-doc-cell {
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+	padding: 0.75rem;
+	border: 1px solid var(--lms-border);
+	border-radius: var(--lms-radius-sm);
+	background: var(--lms-surface-alt, var(--lms-surface));
+	min-height: 0;
+}
+.lms-doc-label {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.5rem;
+	font-size: 0.78rem;
+	font-weight: 600;
+	color: var(--lms-text-muted);
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+}
+.lms-doc-link {
+	color: var(--lms-primary);
+	text-decoration: none;
+	font-size: 0.78rem;
+	font-weight: 600;
+	text-transform: none;
+	letter-spacing: 0;
+}
+.lms-doc-link:hover { text-decoration: underline; }
+.lms-doc-preview {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	min-height: 180px;
+	max-height: 220px;
+	border: 1px dashed var(--lms-border);
+	border-radius: var(--lms-radius-sm);
+	background: var(--lms-surface, #fff);
+	overflow: hidden;
+	cursor: zoom-in;
+	position: relative;
+}
+.lms-doc-preview img {
+	max-width: 100%;
+	max-height: 220px;
+	object-fit: contain;
+	display: block;
+}
+.lms-doc-preview--pdf {
+	font-size: 0.85rem;
+	color: var(--lms-text-muted);
+	text-align: center;
+	padding: 1rem;
+	flex-direction: column;
+	gap: 0.5rem;
+}
+.lms-doc-preview--pdf svg { color: var(--lms-primary); }
+.lms-doc-preview--pdf strong { color: var(--lms-text); font-size: 0.95rem; }
+.lms-doc-preview--empty {
+	font-size: 0.8rem;
+	color: var(--lms-text-muted);
+	font-style: italic;
+	cursor: default;
+}
+.lms-doc-controls {
+	display: flex;
+	gap: 0.4rem;
+	flex-wrap: wrap;
+	align-items: center;
 }
 
 @keyframes lms-modal-fade {
