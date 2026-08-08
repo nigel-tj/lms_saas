@@ -95,23 +95,32 @@
 {% endif %}
 {% endblock %}
 
-{% macro logo_section(title=null) %}
+{# R46: card-head inner markup. Rendered INSIDE the white .lms-login-card
+   by each call site so the brand mark sits on the card surface (close to
+   the title and the first input). The title + subtitle are suppressed
+   when logged_out so the success alert remains the single headline. #}
+{% macro card_head_inner(title=null) %}
 <div class="page-card-head lms-login-card-head">
-	{# R44: the inner card icon uses the favicon-style icon (no text baked in),
-	   so the 52px square renders as a clean mark instead of a clipped wordmark. #}
 	{% if logo %}
 	<img class="app-logo lms-login-lockup__mark" src="{{ favicon_url or '/assets/lms_saas/images/lms-favicon.svg' }}" alt="{{ _lms_brand_name }}">
 	{% endif %}
-	{% if title %}
-	<h4 class="lms-login-card-title">{{ _(title) }}</h4>
-	{% else %}
-	<h4 class="lms-login-card-title">{{ lms_login.headline if lms_login else _('Login to {0}').format(_lms_brand_name) }}</h4>
-	{% endif %}
-	{% if not title and lms_login and lms_login.subtitle %}
-	<p class="lms-login-card-subtitle">{{ lms_login.subtitle }}</p>
+	{% if not logged_out %}
+		{% if title %}
+		<h4 class="lms-login-card-title">{{ _(title) }}</h4>
+		{% else %}
+		<h4 class="lms-login-card-title">{{ lms_login.headline if lms_login else _('Login to {0}').format(_lms_brand_name) }}</h4>
+		{% endif %}
+		{% if not title and lms_login and lms_login.subtitle %}
+		<p class="lms-login-card-subtitle">{{ lms_login.subtitle }}</p>
+		{% endif %}
 	{% endif %}
 </div>
 {% endmacro %}
+
+{# R46: legacy wrapper kept for any external template that still calls
+   logo_section() as a sibling. Returns nothing now — the favicon is
+   rendered inside the card by card_head_inner() at each call site. #}
+{% macro logo_section(title=null) %}{% endmacro %}
 
 {% block page_content %}
 <div class="lms-login-shell">
@@ -123,11 +132,10 @@
 				{% else %}
 				<img class="lms-login-lockup__mark lms-login-lockup__mark--full" src="/assets/lms_saas/images/lms-logo.svg" alt="{{ _lms_brand_name }}">
 				{% endif %}
-				{# R44: the lockup SVG already contains the brand wordmark + tagline.
-				   Render the text once (inside the asset) — not twice (here). #}
 			</div>
-			{# R44: tagline is baked into the lockup SVG; suppress the standalone
-			   paragraph to avoid the "STEWARDSHIP IN EVERY REPAYMENT" double-up. #}
+
+			<h2 class="lms-login-brand__title">{{ lms_login.brand_headline if lms_login and lms_login.brand_headline else _("Lending, with accountability.") }}</h2>
+			<p class="lms-login-brand__tagline">{{ lms_login.brand_intro if lms_login and lms_login.brand_intro else _("End-to-end loan operations with risk oversight and a clear paper trail for every repayment.") }}</p>
 
 			{# R45: group features + routes into a single flex stack so the
 			   flex container (justify-content:space-between) keeps the
@@ -182,15 +190,10 @@
 			</div>
 			{% endif %}
 			<section class="for-login">
-				{# R45: when the user is in the post-logout flow, the success
-				   alert already says "Signed out". Repeating the same word as
-				   the card title creates two competing focal points and
-				   breaks visual balance — suppress the card title + icon
-				   while the alert is shown so the form has a single,
-				   anchored headline. The icon returns when the alert is
-				   dismissed (re-login flow). #}
-				{% if not logged_out %}{{ logo_section() }}{% else %}<div class="lms-login-card-head lms-login-card-head--hidden" aria-hidden="true"></div>{% endif %}
+				{# R46: card-head is now rendered INSIDE the white card so the
+				   favicon sits on the form surface (no floating icon). #}
 				<div class="login-content page-card lms-login-card">
+					{{ card_head_inner() }}
 					<form class="form-signin form-login" role="form">
 						{%- if social_login or login_with_email_link -%}
 						{{ email_login_fields() }}
@@ -248,8 +251,8 @@
 
 			{%- if social_login -%}
 			<section class="for-email-login">
-				{{ logo_section() }}
 				<div class="login-content page-card lms-login-card">
+					{{ card_head_inner() }}
 					<form class="form-signin form-login" role="form">
 						{{ email_login_body() }}
 					</form>
@@ -264,8 +267,8 @@
 			{%- endif -%}
 
 			<section class="for-signup {{ 'signup-disabled' if disable_signup else '' }}">
-				{{ logo_section(_('Create a {0} Account').format(_lms_brand_name)) }}
 				<div class="login-content page-card lms-login-card">
+					{{ card_head_inner(_('Create a {0} Account').format(_lms_brand_name)) }}
 					{%- if not disable_signup -%}
 					{{ signup_form_template }}
 					{%- else -%}
@@ -279,8 +282,8 @@
 			</section>
 
 			<section class="for-forgot">
-				{{ logo_section(_("Forgot Password")) }}
 				<div class="login-content page-card lms-login-card">
+					{{ card_head_inner(_("Forgot Password")) }}
 					<form class="form-signin form-forgot hide" role="form">
 						<div class="page-card-body">
 							<div class="email-field">
@@ -303,8 +306,8 @@
 			</section>
 
 			<section class="for-login-with-email-link">
-				{{ logo_section(_("Login with Email Link")) }}
 				<div class="login-content page-card lms-login-card">
+					{{ card_head_inner(_("Login with Email Link")) }}
 					<form class="form-signin form-login-with-email-link hide" role="form">
 						<div class="page-card-body">
 							<div class="email-field">

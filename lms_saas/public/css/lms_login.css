@@ -111,23 +111,23 @@ body.lms-login-page .page-breadcrumbs {
 	position: relative;
 	z-index: 1;
 	max-width: 26rem;
-	/* R45: distribute brand content vertically so the panel never has
-	   a huge dead band at the bottom (which previously left the
-	   disclosure paragraph stranded ~280px below the route cards on
-	   tall viewports). The min-height keeps the content from
-	   collapsing on short viewports; the flex justify pushes the
-	   disclosure down only as far as needed without leaving a gap. */
+	/* R46: brand panel flows as one composed block (lockup → headline →
+	   intro → features → routes) with the disclosure anchored at the
+	   bottom. Gap provides the visible space between the route group
+	   and the disclosure without leaving a dead band. */
 	min-height: 100%;
 	display: flex;
 	flex-direction: column;
 	justify-content: space-between;
+	gap: 0.5rem;
 }
 
 .lms-login-brand__lockup {
 	display: flex;
 	align-items: center;
 	gap: 0.85rem;
-	margin-bottom: 1.5rem;
+	/* R46: tight gap below the lockup so the headline sits closer. */
+	margin-bottom: 0.5rem;
 }
 
 .lms-login-lockup__mark {
@@ -140,10 +140,12 @@ body.lms-login-page .page-breadcrumbs {
 /* R44: when the operator's logo asset already contains the wordmark + tagline
    (e.g. the full Kesari lockup SVG), render it as a wide element instead of
    forcing it into the 3.25rem square box. The SVG's intrinsic viewBox aspect
-   ratio is 425.2 x 141.73 (~3:1), so the height derives from the width. */
+   ratio is 425.2 x 141.73 (~3:1), so the height derives from the width.
+   R46: tight margin so the headline directly under the lockup reads as
+   one composition. */
 .lms-login-brand__lockup--full {
 	display: block;
-	margin-bottom: 1.25rem;
+	margin-bottom: 0.25rem;
 }
 
 .lms-login-lockup__mark--full {
@@ -160,13 +162,9 @@ body.lms-login-page .page-breadcrumbs {
 	min-width: 0;
 }
 
-/* R44: with the lockup SVG carrying the wordmark + tagline, suppress the
-   standalone tagline paragraph that used to sit under the brand heading —
-   otherwise "STEWARDSHIP IN EVERY REPAYMENT" shows up twice (once inside
-   the SVG, once below it). */
-.lms-login-brand__lockup--full + .lms-login-brand__tagline {
-	display: none !important;
-}
+/* R46: removed — the brand tagline is now a live paragraph under the
+   headline and MUST be visible. Suppressing it via sibling selector
+   would hide the intro that bridges the lockup to the features. */
 
 .lms-login-lockup__wordmark {
 	margin: 0;
@@ -178,17 +176,20 @@ body.lms-login-page .page-breadcrumbs {
 }
 
 .lms-login-brand__title {
-	margin: 1.25rem 0 0.35rem;
-	font-size: clamp(1.65rem, 3vw, 2rem);
+	/* R46: tight gap below the lockup so the headline reads as the
+	   next logical stop after the logo. */
+	margin: 1rem 0 0.4rem;
+	font-size: clamp(1.35rem, 2.4vw, 1.65rem);
 	font-weight: 700;
-	letter-spacing: -0.03em;
+	letter-spacing: -0.02em;
 	color: var(--lms-primary);
-	line-height: 1.15;
+	line-height: 1.2;
 }
 
 .lms-login-brand__tagline {
-	margin: 0 0 1.5rem;
-	font-size: 0.95rem;
+	/* R46: intro line is now a live paragraph under the headline. */
+	margin: 0 0 1.25rem;
+	font-size: 0.9375rem;
 	color: var(--lms-text-muted);
 	line-height: 1.5;
 }
@@ -417,21 +418,24 @@ body.lms-login-page .page-breadcrumbs {
 	margin-top: 0;
 }
 
-/* R45: the suppressed card-head placeholder still needs to claim its
-   vertical space so the form's vertical rhythm is identical to the
-   pre-logout layout (alert → input → button). Without this the form
-   would jump up the moment the alert disappears on re-login. */
-.lms-login-card-head--hidden {
-	min-height: 0.5rem;
-	padding: 0 !important;
-	margin: 0 !important;
-	border: none !important;
-}
+/* R46: obsolete — the card-head is now always rendered (just with
+   the title suppressed when the alert is shown) so the brand favicon
+   anchors the form. The --hidden placeholder is no longer needed. */
 
 .lms-login-forms {
+	/* R45: center the forms block horizontally with margin:auto so the
+	   alert+card composition is always anchored to the panel centerline. */
 	width: min(100%, 26rem);
 	max-width: 100%;
 	min-width: 0;
+	margin: 0 auto;
+}
+
+/* R45: balance — when the success alert is present, give the card a
+   hair of breathing room above so the alert→card composition doesn't
+   feel jammed together on the post-logout flow. */
+.lms-login-forms .lms-login-alert + .lms-login-card {
+	margin-top: 0.25rem;
 }
 
 .lms-login-forms > section {
@@ -446,21 +450,31 @@ body.lms-login-page .page-breadcrumbs {
 	overflow: hidden;
 }
 
+/* R46: the card-head is now INSIDE the white .page-card.lms-login-card
+   so the brand favicon sits on the form surface (not floating above it).
+   The Frappe base CSS targets `.page-card .page-card-head` with negative
+   margin tricks — we override those to give the favicon clean padding
+   and a tight composition against the title and form below. */
+.lms-login-card .page-card-head.lms-login-card-head,
 .lms-login-card-head {
 	text-align: center;
-	padding: 1.75rem 1.35rem 1rem !important;
+	padding: 1.5rem 1.35rem 0.5rem !important;
+	margin: 0 !important;
 	border: none !important;
+	border-bottom: none !important;
 	background: transparent !important;
 	display: flex !important;
 	flex-direction: column;
 	align-items: center;
-	gap: 0.5rem;
+	gap: 0.45rem;
 }
 
 .lms-login-card-head .app-logo,
 .lms-login-card-head .lms-login-lockup__mark {
-	height: 3.25rem;
-	width: 3.25rem;
+	/* R46: 2.65rem favicon sits cleanly on the white card surface, close
+	   to the title and the first input — no floating-icon-in-panel feel. */
+	height: 2.65rem;
+	width: 2.65rem;
 	margin: 0 auto;
 }
 
@@ -483,7 +497,7 @@ body.lms-login-page .page-breadcrumbs {
 }
 
 .lms-login-card .page-card-body {
-	padding: 0.75rem 1.35rem 0.25rem !important;
+	padding: 0.5rem 1.35rem 0.25rem !important;
 }
 
 .lms-login-card form.form-signin {
