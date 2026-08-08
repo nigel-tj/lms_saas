@@ -122,7 +122,10 @@ lms_procurement._showCreateRequestModal = function () {
 	html += '<hr style="margin:1rem 0;border:none;border-top:1px solid var(--lms-border);">';
 	html += '<h4>Items</h4>';
 	html += '<div id="lms-proc-items"></div>';
-	html += '<button type="button" class="lms-btn lms-btn--ghost lms-btn--sm" id="lms-proc-add-item">+ Add Item</button>';
+	html += '<button type="button" class="lms-btn lms-btn--ghost lms-btn--sm" id="lms-proc-add-item">' +
+		(window.lms_icons ? lms_icons.icon("plus", { size: 14 }) : "+") +
+		'<span>Add Item</span>' +
+		'</button>';
 	html += '</div>';
 
 	lms_portal.modal({

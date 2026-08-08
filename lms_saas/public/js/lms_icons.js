@@ -85,6 +85,11 @@ lms_icons._PATHS = {
 	"chevron-left": '<polyline points="15 18 9 12 15 6"/>',
 	"chevron-right": '<polyline points="9 18 15 12 9 6"/>',
 	"arrow-up-right": '<line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/>',
+	// R46-11: action / add glyph. Lucide plus — two crossing strokes.
+	// Anywhere calling lms_icons.icon("plus") used to fall back to the
+	// diamond placeholder, which gave the "Add collateral item" button
+	// a misleading diamond icon next to the label.
+	plus: '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
 
 	// Emoji aliases (so callers passing emojis still resolve)
 	"📊": "bar-chart",

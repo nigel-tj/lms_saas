@@ -1398,7 +1398,12 @@ lms_officer._submitApp = function (customer, product, amount, periods, rate, met
 lms_officer._borrowerFormHtml = function (P) {
 	return (
 		// --- Section: Identity ---
-		'<div class="lms-section-header"><h4>Identity</h4></div>' +
+		// R46-11: wrap each section in a .lms-form-card (matching the
+		// New Loan Application modal) so the borrower form reads as
+		// grouped cards instead of one flat list of label+input rows.
+		'<div class="lms-form-card">' +
+		'<div class="lms-form-card__head"><span class="lms-form-card__stripe"></span><h4>Identity</h4></div>' +
+		'<div class="lms-form-card__body">' +
 		'<div class="lms-grid-2">' +
 		'<label>First name *<input type="text" id="' + P + 'first" class="lms-input" placeholder="John" required></label>' +
 		'<label>Last name<input type="text" id="' + P + 'last" class="lms-input" placeholder="Doe"></label>' +
@@ -1408,9 +1413,12 @@ lms_officer._borrowerFormHtml = function (P) {
 		'</select></label>' +
 		'<label class="lms-grid-2__full">National ID *<input type="text" id="' + P + 'national" class="lms-input" placeholder="63-000000-A99" required></label>' +
 		'</div>' +
+		'</div></div>' +
 
 		// --- Section: Contact ---
-		'<div class="lms-section-header"><h4>Contact</h4></div>' +
+		'<div class="lms-form-card">' +
+		'<div class="lms-form-card__head"><span class="lms-form-card__stripe"></span><h4>Contact</h4></div>' +
+		'<div class="lms-form-card__body">' +
 		'<div class="lms-grid-2">' +
 		'<label>Email<input type="email" id="' + P + 'email" class="lms-input" placeholder="john@example.com"></label>' +
 		'<label>Mobile<input type="tel" id="' + P + 'mobile" class="lms-input" placeholder="0772..."></label>' +
@@ -1418,9 +1426,12 @@ lms_officer._borrowerFormHtml = function (P) {
 		'<label>City<input type="text" id="' + P + 'city" class="lms-input" placeholder="Harare"></label>' +
 		'<label>Customer group<select id="' + P + 'cgroup" class="lms-input lms-fallback-select"><option value="">— Default —</option></select></label>' +
 		'</div>' +
+		'</div></div>' +
 
 		// --- Section: Household / Spouse ---
-		'<div class="lms-section-header"><h4>Household &amp; Spouse</h4></div>' +
+		'<div class="lms-form-card">' +
+		'<div class="lms-form-card__head"><span class="lms-form-card__stripe"></span><h4>Household &amp; Spouse</h4></div>' +
+		'<div class="lms-form-card__body">' +
 		'<div class="lms-grid-2">' +
 		'<label><input type="checkbox" id="' + P + 'marital"> Married (Marital status)</label>' +
 		'<label>Spouse contact details<input type="text" id="' + P + 'spouse-contact" class="lms-input" placeholder="Phone / email"></label>' +
@@ -1428,9 +1439,12 @@ lms_officer._borrowerFormHtml = function (P) {
 		'<label>Spouse date of birth<input type="date" id="' + P + 'spouse-dob" class="lms-input"></label>' +
 		'<label class="lms-grid-2__full">Applicant\'s physical address<textarea id="' + P + 'physical" class="lms-input" rows="2" placeholder="House / plot, street, suburb, city"></textarea></label>' +
 		'</div>' +
+		'</div></div>' +
 
 		// --- Section: KYC ---
-		'<div class="lms-section-header"><h4>KYC &amp; consent</h4></div>' +
+		'<div class="lms-form-card">' +
+		'<div class="lms-form-card__head"><span class="lms-form-card__stripe"></span><h4>KYC &amp; consent</h4></div>' +
+		'<div class="lms-form-card__body">' +
 		'<div class="lms-grid-2">' +
 		'<label>KYC status<select id="' + P + 'kyc" class="lms-input lms-fallback-select">' +
 		'<option value="Pending" selected>Pending — collect later</option>' +
@@ -1457,7 +1471,8 @@ lms_officer._borrowerFormHtml = function (P) {
 			accept: "image/*,application/pdf",
 			buttonLabel: "Upload proof of address",
 		}) +
-		'</div>'
+		'</div>' +
+		'</div></div>'
 	);
 };
 
@@ -1823,8 +1838,20 @@ lms_officer._showBorrowerModal = function (b) {
 	// update contact details on a borrower in their branch. Backend
 	// enforcement (branch scope + role) lives in
 	// lms_saas.api.officer.update_borrower; this form is the UI half.
+	//
+	// R46-11: wrap each thematic group in a .lms-form-card (matching the
+	// New Loan Application modal) so the borrower detail reads as
+	// "Contact details" + "KYC" sections instead of one flat list of
+	// label+input rows. The `Loans (n)` and `Recent Repayments` tables
+	// below stay as-is — they're tables, not form sections, so wrapping
+	// them in cards would be wrong.
 	var html = '<div class="lms-form">';
 	html += '<form id="lms-borrower-edit-form" class="lms-form" autocomplete="off">';
+
+	// --- Card: Contact details ---
+	html += '<div class="lms-form-card">';
+	html += '<div class="lms-form-card__head"><span class="lms-form-card__stripe"></span><h4>Contact details</h4></div>';
+	html += '<div class="lms-form-card__body">';
 	html += '<div class="lms-form-row"><label class="lms-form-label" for="lms-brw-name">Name</label>';
 	html += '<input class="lms-input" id="lms-brw-name" name="customer_name_new" type="text" value="' + lms_portal.escape(b.customer_name || "") + '" maxlength="120" required />';
 	html += '</div>';
@@ -1837,7 +1864,13 @@ lms_officer._showBorrowerModal = function (b) {
 	html += '<div class="lms-form-row"><label class="lms-form-label" for="lms-brw-nid">National ID</label>';
 	html += '<input class="lms-input" id="lms-brw-nid" name="national_id" type="text" value="' + lms_portal.escape(b.custom_national_id_number || "") + '" maxlength="32" />';
 	html += '</div>';
-	html += '<div class="lms-form-row"><label class="lms-form-label">KYC</label>';
+	html += '</div></div>';
+
+	// --- Card: KYC ---
+	html += '<div class="lms-form-card">';
+	html += '<div class="lms-form-card__head"><span class="lms-form-card__stripe"></span><h4>KYC</h4></div>';
+	html += '<div class="lms-form-card__body">';
+	html += '<div class="lms-form-row"><label class="lms-form-label">Status</label>';
 	html += '<div class="lms-summary-value" style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">';
 	html += '<span class="lms-badge ' + lms_portal.badgeClass(0, (b.compliance || {}).kyc_status) + '">' +
 		lms_portal.escape((b.compliance || {}).kyc_status || "No KYC") + '</span>';
@@ -1851,6 +1884,8 @@ lms_officer._showBorrowerModal = function (b) {
 		lms_officer._borrowerKycLink(b.compliance || {}, b.name) +
 		'</div>';
 	html += '</div>';
+	html += '</div></div>';
+
 	html += '<input type="hidden" name="customer_name" value="' + lms_portal.escape(b.name || "") + '" />';
 	html += '</form>';
 
@@ -2633,8 +2668,16 @@ lms_officer._showKycReviewModal = function (data, content) {
 
 	var body =
 		'<form id="lms-kyc-review-form" class="lms-form" autocomplete="off">' +
+		// R46-11: wrap each thematic section in a .lms-form-card so
+		// the KYC review modal reads as grouped cards (matching the
+		// New Loan Application modal) instead of one flat list of
+		// label+input rows. The audit-trail container (#lms-kyc-trail)
+		// is filled asynchronously after the modal opens, so we keep
+		// its selector intact inside the card body.
 		// --- Borrower summary ---
-		'<div class="lms-section-header"><h4>Borrower</h4></div>' +
+		'<div class="lms-form-card">' +
+		'<div class="lms-form-card__head"><span class="lms-form-card__stripe"></span><h4>Borrower</h4></div>' +
+		'<div class="lms-form-card__body">' +
 		'<div class="lms-grid-2">' +
 		'<div><div class="lms-summary-label">Name</div><div class="lms-summary-value">' +
 		lms_portal.escape(borrower.customer_name || kyc.customer || "—") + '</div></div>' +
@@ -2645,9 +2688,12 @@ lms_officer._showKycReviewModal = function (data, content) {
 		'<div><div class="lms-summary-label">Email</div><div class="lms-summary-value">' +
 		lms_portal.escape(borrower.email_id || "—") + '</div></div>' +
 		'</div>' +
+		'</div></div>' +
 
 		// --- KYC fields (editable) ---
-		'<div class="lms-section-header"><h4>KYC</h4></div>' +
+		'<div class="lms-form-card">' +
+		'<div class="lms-form-card__head"><span class="lms-form-card__stripe"></span><h4>KYC</h4></div>' +
+		'<div class="lms-form-card__body">' +
 		'<div class="lms-grid-2">' +
 		'<label>Status ' +
 		'<select id="lms-kyc-status" class="lms-input lms-fallback-select">' +
@@ -2666,16 +2712,22 @@ lms_officer._showKycReviewModal = function (data, content) {
 		'<textarea id="lms-kyc-note" class="lms-input" rows="2" placeholder="e.g. ID confirmed at counter, POA is March utility bill"></textarea>' +
 		'</label>' +
 		'</div>' +
+		'</div></div>' +
 
 		// --- Documents (upload + inline preview + lightbox) ---
-		'<div class="lms-section-header"><h4>Documents</h4></div>' +
+		'<div class="lms-form-card">' +
+		'<div class="lms-form-card__head"><span class="lms-form-card__stripe"></span><h4>Documents</h4></div>' +
+		'<div class="lms-form-card__body">' +
 		'<div class="lms-grid-2">' +
 		renderDocCell("ID document", "id_document_proof", kyc.id_document_proof) +
 		renderDocCell("Proof of address", "proof_of_address", kyc.proof_of_address) +
 		'</div>' +
+		'</div></div>' +
 
 		// --- AML (read-only) ---
-		'<div class="lms-section-header"><h4>AML / CFT screening</h4></div>' +
+		'<div class="lms-form-card">' +
+		'<div class="lms-form-card__head"><span class="lms-form-card__stripe"></span><h4>AML / CFT screening</h4></div>' +
+		'<div class="lms-form-card__body">' +
 		'<div class="lms-grid-2">' +
 		'<div><div class="lms-summary-label">Status</div><div class="lms-summary-value">' +
 		lms_portal.escape(kyc.aml_status || "Pending") + '</div></div>' +
@@ -2683,10 +2735,14 @@ lms_officer._showKycReviewModal = function (data, content) {
 		lms_portal.escape((kyc.aml_screened_at || "—").split(" ")[0]) + '</div></div>' +
 		'</div>' +
 		'<p class="lms-muted" style="font-size:0.8rem;margin-top:0.5rem;">AML screening is performed by the regulator pipeline, not by the officer. If status is <strong>Flagged</strong> or <strong>Rejected</strong>, the manager portal will block origination.</p>' +
+		'</div></div>' +
 
 		// --- Audit trail ---
-		'<div class="lms-section-header"><h4>Audit trail</h4></div>' +
+		'<div class="lms-form-card">' +
+		'<div class="lms-form-card__head"><span class="lms-form-card__stripe"></span><h4>Audit trail</h4></div>' +
+		'<div class="lms-form-card__body">' +
 		'<div id="lms-kyc-trail"></div>' +
+		'</div></div>' +
 		'</form>';
 
 	var dlg = LMSModal.open({

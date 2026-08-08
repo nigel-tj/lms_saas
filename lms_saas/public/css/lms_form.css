@@ -81,6 +81,20 @@
 .lms-app-product-hints[hidden] {
 	display: none;
 }
+/* R46-11 fix: default <span> is `display:inline`, which makes the hints
+   anonymous flex items inside the parent `.lms-app-product-hints` flex
+   container — the parent's `gap: 1.25rem` then fails to separate them
+   on render (they collapse into "Rate: 18% / yrMax amount: 500,000").
+   `inline-flex` makes each hint a single inline-flex box whose strong
+   + value span align horizontally with their own gap, and the parent
+   `gap` then correctly separates the hint boxes from each other.
+   `white-space: nowrap` keeps "Rate: 18% / yr" on one line per hint. */
+.lms-app-product-hint {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.35rem;
+	white-space: nowrap;
+}
 .lms-app-product-hint strong {
 	color: var(--lms-text);
 	font-weight: 600;

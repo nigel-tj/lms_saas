@@ -323,7 +323,10 @@ lms_feedback._showCreateSurveyModal = function () {
 	html += '<hr style="margin:1rem 0;border:none;border-top:1px solid var(--lms-border);">';
 	html += '<h4>Questions</h4>';
 	html += '<div id="lms-fb-questions"></div>';
-	html += '<button type="button" class="lms-btn lms-btn--ghost lms-btn--sm" id="lms-fb-add-q">+ Add Question</button>';
+	html += '<button type="button" class="lms-btn lms-btn--ghost lms-btn--sm" id="lms-fb-add-q">' +
+		(window.lms_icons ? lms_icons.icon("plus", { size: 14 }) : "+") +
+		'<span>Add Question</span>' +
+		'</button>';
 	html += '</div>';
 
 	var m = lms_portal.modal({
