@@ -127,6 +127,39 @@ body.lms-login-page .page-breadcrumbs {
 	width: 3.25rem;
 }
 
+/* R44: when the operator's logo asset already contains the wordmark + tagline
+   (e.g. the full Kesari lockup SVG), render it as a wide element instead of
+   forcing it into the 3.25rem square box. The SVG's intrinsic viewBox aspect
+   ratio is 425.2 x 141.73 (~3:1), so the height derives from the width. */
+.lms-login-brand__lockup--full {
+	display: block;
+	margin-bottom: 0.75rem;
+}
+
+.lms-login-lockup__mark--full {
+	display: block;
+	/* R44: render the wide lockup SVG at its NATURAL intrinsic width
+	   (300px). The wordmark + tagline paths extend to ~x=405 of a
+	   425.2 viewBox; scaling the SVG below its natural 300px width
+	   clips the rightmost glyphs ("I" of KESARI, "ARD" of STEWARD).
+	   Pinning width to 300px keeps every glyph intact. max-width:100%
+	   still lets it shrink on narrow viewports (phones) without
+	   clipping because the SVG's preserveAspectRatio defaults to
+	   xMidYMid meet — the whole viewBox stays visible. */
+	width: 300px;
+	height: auto;
+	max-width: 100%;
+	min-width: 0;
+}
+
+/* R44: with the lockup SVG carrying the wordmark + tagline, suppress the
+   standalone tagline paragraph that used to sit under the brand heading —
+   otherwise "STEWARDSHIP IN EVERY REPAYMENT" shows up twice (once inside
+   the SVG, once below it). */
+.lms-login-brand__lockup--full + .lms-login-brand__tagline {
+	display: none !important;
+}
+
 .lms-login-lockup__wordmark {
 	margin: 0;
 	font-size: clamp(1.65rem, 3vw, 2rem);
@@ -463,6 +496,14 @@ body.lms-login-page .page-breadcrumbs {
 	border: 1px solid var(--lms-border) !important;
 	color: var(--lms-primary) !important;
 	text-decoration: none !important;
+	/* R44: ensure label is centered inside the full-width block button.
+	   Without this, anchor text falls back to the default left-align
+	   and "Login with Email Link" sits off-center. */
+	display: flex !important;
+	align-items: center !important;
+	justify-content: center !important;
+	text-align: center !important;
+	width: 100%;
 }
 
 .lms-login-card a.btn-login-option:hover,
@@ -599,6 +640,17 @@ body.lms-login-page .page-breadcrumbs {
 	.lms-login-lockup__mark {
 		height: 1.85rem;
 		width: 1.85rem;
+	}
+
+	/* R44: shrink the wide lockup SVG to fit the 56px phone brand strip
+	   (~3:1 aspect ratio). On phones the brand strip is too small for
+	   the natural 300px-wide lockup, so we scale it down. We keep
+	   width:auto and use height-aspect-ratio via the natural size. */
+	.lms-login-lockup__mark--full {
+		width: clamp(6.5rem, 38vw, 9rem);
+		height: auto;
+		max-width: 100%;
+		min-width: 0;
 	}
 
 	.lms-login-lockup__wordmark {

@@ -97,8 +97,10 @@
 
 {% macro logo_section(title=null) %}
 <div class="page-card-head lms-login-card-head">
+	{# R44: the inner card icon uses the favicon-style icon (no text baked in),
+	   so the 52px square renders as a clean mark instead of a clipped wordmark. #}
 	{% if logo %}
-	<img class="app-logo lms-login-lockup__mark" src="{{ logo }}" alt="{{ _lms_brand_name }}">
+	<img class="app-logo lms-login-lockup__mark" src="{{ favicon_url or '/assets/lms_saas/images/lms-favicon.svg' }}" alt="{{ _lms_brand_name }}">
 	{% endif %}
 	{% if title %}
 	<h4 class="lms-login-card-title">{{ _(title) }}</h4>
@@ -115,15 +117,17 @@
 <div class="lms-login-shell">
 	<aside class="lms-login-brand" aria-hidden="false">
 		<div class="lms-login-brand__inner">
-			<div class="lms-login-brand__lockup">
+			<div class="lms-login-brand__lockup lms-login-brand__lockup--full">
 				{% if brand and brand.logo_url %}
-				<img class="lms-login-lockup__mark" src="{{ brand.logo_url }}" alt="">
+				<img class="lms-login-lockup__mark lms-login-lockup__mark--full" src="{{ brand.logo_url }}" alt="{{ _lms_brand_name }}">
 				{% else %}
-				<img class="lms-login-lockup__mark" src="/assets/lms_saas/images/lms-logo.svg" alt="">
+				<img class="lms-login-lockup__mark lms-login-lockup__mark--full" src="/assets/lms_saas/images/lms-logo.svg" alt="{{ _lms_brand_name }}">
 				{% endif %}
-				<h1 class="lms-login-lockup__wordmark">{{ _lms_brand_name }}</h1>
+				{# R44: the lockup SVG already contains the brand wordmark + tagline.
+				   Render the text once (inside the asset) — not twice (here). #}
 			</div>
-			<p class="lms-login-brand__tagline">{{ _(brand.tagline) if brand and brand.tagline else _("Stewardship in every repayment") }}</p>
+			{# R44: tagline is baked into the lockup SVG; suppress the standalone
+			   paragraph to avoid the "STEWARDSHIP IN EVERY REPAYMENT" double-up. #}
 
 			<ul class="lms-login-brand__features">
 				{% for feature in (lms_login.features if lms_login else []) %}
