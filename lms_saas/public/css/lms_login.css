@@ -305,6 +305,14 @@ body.lms-login-page .page-breadcrumbs {
 	color: var(--lms-text);
 }
 
+.lms-login-route-card__text {
+	display: flex;
+	flex-direction: column;
+	gap: 0.05rem;
+	min-width: 0;
+	flex: 1 1 auto;
+}
+
 .lms-login-route-card__label {
 	display: block;
 	font-size: 0.875rem;
@@ -314,21 +322,14 @@ body.lms-login-page .page-breadcrumbs {
 }
 
 .lms-login-route-card__hint {
-	/* R45: hint is now an inline muted continuation next to the
-	   label (single-line row) instead of a stacked sub-line. This
-	   halves the row height and removes the route-card visual
-	   competition with the Sign in button. */
-	display: inline;
-	margin: 0 0 0 0.4rem;
-	font-size: 0.78rem;
+	/* R45: hint remains as a stacked sub-line but with tighter
+	   typography + muted color so the route card reads as a single
+	   quiet list item (not a competing CTA button). */
+	display: block;
+	font-size: 0.75rem;
 	font-weight: 400;
 	color: var(--lms-text-muted);
-	line-height: 1.3;
-}
-
-.lms-login-route-card__label,
-.lms-login-route-card__hint {
-	min-width: 0;
+	line-height: 1.35;
 }
 
 .lms-login-brand__disclosure {
@@ -352,20 +353,25 @@ body.lms-login-page .page-breadcrumbs {
 	overflow-x: hidden;
 	overflow-y: auto;
 	width: 100%;
+	/* R45: visual balance — the panel background used to be the same
+	   neutral as the brand panel which made the form card "float".
+	   Subtle accent gives the panel a soft, calm backdrop that
+	   frames the white form without competing with it. */
+	background: linear-gradient(
+		180deg,
+		color-mix(in srgb, var(--lms-canvas) 88%, var(--lms-surface-alt) 12%) 0%,
+		var(--lms-canvas) 100%
+	);
 }
 
 .lms-login-alert {
+	/* R45: alert width matches the form card exactly so the two
+	   surfaces read as one column. Slightly quieter padding so the
+	   success state doesn't dominate the page. */
 	max-width: 26rem;
 	width: 100%;
-	/* R45: balance fix — the alert is part of the form, not a
-	   floating banner. Connect it to the card below by removing its
-	   bottom margin (the card's top padding now provides the gap) and
-	   matching its border-radius to the card's top corners only, so
-	   the two surfaces visually fuse into a single composed unit
-	   instead of looking like two separate boxes with awkward whitespace
-	   between them. */
-	margin: 0 auto 0;
-	padding: 0.95rem 1.1rem;
+	margin: 0 auto;
+	padding: 0.85rem 1.1rem 0.95rem;
 	border-radius: var(--lms-radius-lg, 12px) var(--lms-radius-lg, 12px) 0 0;
 	border: 1px solid transparent;
 	border-bottom: none;
@@ -419,9 +425,22 @@ body.lms-login-page .page-breadcrumbs {
 }
 
 .lms-login-forms {
+	/* R45: forms block is the panel's single focal unit. Center it
+	   horizontally with margin:auto so the alert+card composition is
+	   always anchored to the middle of the panel — no floating to
+	   the left edge of an oversized panel on wide viewports. */
 	width: min(100%, 26rem);
 	max-width: 100%;
 	min-width: 0;
+	margin: 0 auto;
+}
+
+/* R45: balance — when the success alert is present, give the card a
+   hair of breathing room above so the alert→card composition doesn't
+   feel jammed together on the post-logout flow. The card's
+   border-top is still removed (alert provides its visual anchor). */
+.lms-login-forms .lms-login-alert + .lms-login-card {
+	margin-top: 0.25rem;
 }
 
 .lms-login-forms > section {
@@ -438,13 +457,19 @@ body.lms-login-page .page-breadcrumbs {
 
 .lms-login-card-head {
 	text-align: center;
-	padding: 1.75rem 1.35rem 1rem !important;
+	/* R45: card-head sits flush with the card so the composition
+	   (icon → title → subtitle → form → button → divider → alt CTA)
+	   reads as one continuous vertical unit. The internal gap between
+	   icon and title is supplied by `gap` below — no margin collapse
+	   surprises, no dead bands. */
+	padding: 1.85rem 1.35rem 0.75rem !important;
+	margin: 0 !important;
 	border: none !important;
 	background: transparent !important;
 	display: flex !important;
 	flex-direction: column;
 	align-items: center;
-	gap: 0.5rem;
+	gap: 0.55rem;
 }
 
 .lms-login-card-head .app-logo,
