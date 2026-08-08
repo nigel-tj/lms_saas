@@ -243,6 +243,7 @@ def get_pending_applications():
 				"loan_product",
 				"repayment_periods",
 				"status",
+				"posting_date",
 				"creation",
 				"custom_lms_branch",
 				"custom_loan_officer",
@@ -823,7 +824,16 @@ def submit_application_on_behalf(
 		app.flags.ignore_permissions = True
 		app.save()
 
-	return {"application": app.name, "status": "Draft"}
+	# R51-F2: submit the application so it becomes docstatus=1 (Submitted)
+	# and appears in the officer's pending-applications work queue. The
+	# previous code only inserted (docstatus=0, Draft) and returned
+	# {"status": "Draft"}. But get_pending_applications filters by
+	# docstatus=1, so the officer's freshly-created application was
+	# invisible — it "disappeared" the moment the modal closed.
+	app.flags.ignore_permissions = True
+	app.submit()
+
+	return {"application": app.name, "status": "Submitted"}
 
 
 @frappe.whitelist()

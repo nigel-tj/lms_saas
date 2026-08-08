@@ -364,7 +364,8 @@ lms_officer._renderApplicationsRows = function (appRows) {
 		var amount = format_currency(row.loan_amount || 0);
 		var status = row.status || "Draft";
 		var statusClass = lms_officer._appStatusBadgeClass(status);
-		html +=
+		var appDate = lms_portal.formatDate(row.posting_date || row.creation);
+	html +=
 			'<li class="lms-queue-list__item">' +
 			'<div class="lms-queue-list__main">' +
 			'<div class="lms-queue-list__head">' +
@@ -374,6 +375,7 @@ lms_officer._renderApplicationsRows = function (appRows) {
 			'</div>' +
 			'<div class="lms-queue-list__sub">' +
 			lms_portal.escape(product) +
+			' · ' + lms_portal.escape(appDate) +
 			'</div>' +
 			'</div>' +
 			'<div class="lms-queue-list__amount">' +
