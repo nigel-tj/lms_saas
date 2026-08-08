@@ -239,6 +239,8 @@ lms_training._renderFeedbackForm = function (eventName) {
 
 	lms_portal.modal({
 		title: "Training Feedback",
+		titleIcon: "trophy",
+		titleIcon: "trophy",
 		body: html,
 		size: "xl",
 		confirmText: "Submit",

@@ -140,6 +140,8 @@ lms_tasks._showCreateModal = function () {
 
 	lms_portal.modal({
 		title: "New Task",
+		titleIcon: "list",
+		titleIcon: "list",
 		body: html,
 		size: "lg",
 		confirmText: "Create",
@@ -236,6 +238,8 @@ lms_tasks._renderTaskDetail = function (data) {
 
 	lms_portal.modal({
 		title: "Task Detail",
+		titleIcon: "check-square",
+		titleIcon: "check-square",
 		body: html,
 		size: "lg",
 		confirmText: "Close",

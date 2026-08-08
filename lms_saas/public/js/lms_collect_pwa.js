@@ -323,6 +323,8 @@ lms_collect._openCollectModal = function (loan, fullAmount, root) {
 		"</div>";
 	var dlg = LMSModal.open({
 		title: "Collect payment",
+		titleIcon: "wallet",
+		titleIcon: "wallet",
 		body: body,
 		size: "lg",
 		actions: [
@@ -380,6 +382,8 @@ lms_collect._openPromiseModal = function (loan, root) {
 		"</div>";
 	var dlg = LMSModal.open({
 		title: "Promise to pay",
+		titleIcon: "clock",
+		titleIcon: "clock",
 		body: body,
 		size: "lg",
 		actions: [
@@ -522,6 +526,8 @@ lms_collect._showReceiptPrompt = function (repaymentName) {
 	// Phase 2.3 — native <dialog>
 	var dlg = LMSModal.open({
 		title: "Collection successful",
+		titleIcon: "check-circle",
+		titleIcon: "check-circle",
 		size: "sm",
 		body: "<p>Repayment <strong>" + lms_portal.escape(repaymentName) + "</strong> recorded.</p>",
 		actions: [
@@ -614,6 +620,8 @@ lms_collect._showSyncErrors = function (failed) {
 	body += "</ul>";
 	LMSModal.open({
 		title: "Sync conflicts",
+		titleIcon: "alert-triangle",
+		titleIcon: "alert-triangle",
 		body: body,
 		size: "md",
 		actions: [{ label: "Close", value: true, primary: true }]

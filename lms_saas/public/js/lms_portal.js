@@ -2114,6 +2114,8 @@ lms_portal._initFourEyesBadge = function () {
 		if (window.LMSModal && typeof LMSModal.open === "function") {
 			LMSModal.open({
 				title: "Four-eyes control",
+				titleIcon: "shield",
+				titleIcon: "shield",
 					size: "lg",
 				body: body,
 				actions: [{ label: "Got it", primary: true }],
@@ -2691,9 +2693,35 @@ lms_portal.modal = function (opts) {
 	else if (opts.size === "xl") sizeClass = " lms-modal--xl";
 	else if (opts.size === "lg") sizeClass = " lms-modal--lg";
 	else if (opts.size === "sm") sizeClass = " lms-modal--sm";
+	// R46-6: build a structured title (icon + main + optional subject
+	// subtitle) when titleIcon / titleSubject are supplied. Falls back to
+	// the previous flat <h3>title</h3> shape so existing single-action
+	// modals (e.g. "Disburse Loan") still render exactly as before.
+	var iconSvg = "";
+	if (opts.titleIcon && typeof window.lms_icons !== "undefined" && lms_icons.icon) {
+		iconSvg = lms_icons.icon(opts.titleIcon, { size: 18, cls: "lms-modal__title-icon" });
+	}
+	var titleHtml;
+	if (iconSvg || opts.titleSubject) {
+		var titleMain = opts.title
+			? '<span class="lms-modal__title-text">' + lms_portal.escape(opts.title) + "</span>"
+			: "";
+		var titleSub = opts.titleSubject
+			? '<span class="lms-modal__title-subject">' + lms_portal.escape(opts.titleSubject) + "</span>"
+			: "";
+		var titleBlock = (titleMain || titleSub)
+			? '<div class="lms-modal__title-block">' + titleMain + titleSub + "</div>"
+			: "";
+		titleHtml = (iconSvg || titleBlock)
+			? '<h3 class="lms-modal__title"><span class="lms-modal__title-row">' +
+				iconSvg + titleBlock + "</span></h3>"
+			: "";
+	} else {
+		titleHtml = opts.title ? "<h3>" + lms_portal.escape(opts.title) + "</h3>" : "";
+	}
 	overlay.innerHTML =
 		'<div class="lms-modal' + sizeClass + '">' +
-		'<div class="lms-modal__header"><h3>' + lms_portal.escape(opts.title || "") + "</h3>" +
+		'<div class="lms-modal__header">' + titleHtml +
 		'<button type="button" class="lms-modal__close" aria-label="Close">×</button></div>' +
 		'<div class="lms-modal__body">' + (opts.body || "") + "</div>" +
 		'<div class="lms-modal__actions">' +

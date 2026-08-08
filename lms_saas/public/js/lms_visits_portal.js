@@ -219,6 +219,8 @@ lms_visits._showCreateModal = function () {
 
 	lms_portal.modal({
 		title: "Schedule Field Visit",
+		titleIcon: "calendar",
+		titleIcon: "calendar",
 		body: html,
 		size: "lg",
 		confirmText: "Schedule",
@@ -322,6 +324,8 @@ lms_visits._showVisitDetail = function (visitName) {
 
 			lms_portal.modal({
 				title: "Visit Detail",
+				titleIcon: "map",
+				titleIcon: "map",
 				body: html,
 				size: "lg",
 				confirmText: "Close",
@@ -351,6 +355,8 @@ lms_visits._showCompleteModal = function (visitName) {
 
 	var overlay = lms_portal.modal({
 		title: "Complete Visit",
+		titleIcon: "check-circle",
+		titleIcon: "check-circle",
 		body: html,
 		size: "lg",
 		confirmText: "Complete",

@@ -918,6 +918,8 @@ lms_officer._openApplicationModal = function (customers, products, root) {
 
 	var dlg = LMSModal.open({
 		title: "New loan application",
+		titleIcon: "file-text",
+		titleIcon: "file-text",
 		body: body,
 		// R34: 20+ fields, KYC file uploads and a repeatable collateral
 		// section — the default 560px tier crams three-column grids into
@@ -1491,6 +1493,8 @@ lms_officer._openBorrowerModal = function () {
 		? function (content) {
 			return window.LMSModal.open({
 				title: "Add new borrower",
+				titleIcon: "user",
+				titleIcon: "user",
 				body: content,
 				size: "lg",
 				actions: [
@@ -2031,6 +2035,8 @@ lms_officer._confirmDisburse = function (loanName) {
 
 	lms_portal.modal({
 		title: "Disburse Loan",
+		titleIcon: "wallet",
+		titleIcon: "wallet",
 		size: "lg",
 		body:
 			'<div class="lms-form">' +
@@ -2245,6 +2251,8 @@ lms_officer._openLeadModal = function (content) {
 
 	var dlg = LMSModal.open({
 		title: "New Lead",
+		titleIcon: "megaphone",
+		titleIcon: "megaphone",
 		body: body,
 		size: "lg",
 		actions: [
@@ -2283,6 +2291,8 @@ lms_officer._openLeadModal = function (content) {
 lms_officer._convertLead = function (leadName) {
 	lms_portal.modal({
 		title: "Convert Lead",
+		titleIcon: "refresh",
+		titleIcon: "refresh",
 		body: '<p class="lms-muted">Convert <strong>' + lms_portal.escape(leadName) + '</strong> to a Customer? This requires consent to be recorded.</p>',
 		size: "sm",
 		confirmText: "Convert",
@@ -2627,6 +2637,8 @@ lms_officer._showKycReviewModal = function (data, content) {
 			}
 			LMSModal.open({
 				title: "Document preview",
+				titleIcon: "file-text",
+				titleIcon: "file-text",
 				body: bodyHtml,
 				size: "lg",
 				actions: [

@@ -328,6 +328,8 @@ lms_feedback._showCreateSurveyModal = function () {
 
 	var m = lms_portal.modal({
 		title: "Create Survey",
+		titleIcon: "list",
+		titleIcon: "list",
 		body: html,
 		size: "lg",
 		confirmText: "Create",

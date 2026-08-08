@@ -127,6 +127,8 @@ lms_procurement._showCreateRequestModal = function () {
 
 	lms_portal.modal({
 		title: "New Purchase Request",
+		titleIcon: "shopping-cart",
+		titleIcon: "shopping-cart",
 		body: html,
 		size: "lg",
 		confirmText: "Submit",

@@ -218,6 +218,8 @@ lms_whatsapp._showCreateTemplateModal = function () {
 
 	lms_portal.modal({
 		title: "New WhatsApp Template",
+		titleIcon: "send",
+		titleIcon: "send",
 		body: html,
 		size: "lg",
 		confirmText: "Create",

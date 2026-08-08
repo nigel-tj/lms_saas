@@ -169,7 +169,9 @@ lms_appraisals._renderAppraisalDetail = function (data) {
 	html += '</div>';
 
 	lms_portal.modal({
-		title: "Appraisal " + (a.name || ""),
+		title: "Appraisal",
+		titleSubject: (a.name || ""),
+		titleIcon: "bar-chart",
 		body: html,
 		size: "xl",
 		confirmText: "Close",
@@ -211,7 +213,9 @@ lms_appraisals._showScoreModal = function (appraisalName, rowName, type) {
 	html += '</div>';
 
 	lms_portal.modal({
-		title: "Score " + (type === "kra" ? "KRA" : "Goal"),
+		title: "Score",
+		titleSubject: (type === "kra" ? "KRA" : "Goal"),
+		titleIcon: "target",
 		body: html,
 		size: "sm",
 		confirmText: "Save Score",
@@ -245,6 +249,8 @@ lms_appraisals._showAddGoalModal = function (appraisalName) {
 
 	lms_portal.modal({
 		title: "Add Goal",
+		titleIcon: "target",
+		titleIcon: "target",
 		body: html,
 		size: "lg",
 		confirmText: "Add",

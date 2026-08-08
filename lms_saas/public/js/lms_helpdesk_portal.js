@@ -124,6 +124,8 @@ lms_helpdesk._showCreateModal = function () {
 
 	lms_portal.modal({
 		title: "New Support Ticket",
+		titleIcon: "ticket",
+		titleIcon: "ticket",
 		body: html,
 		size: "lg",
 		confirmText: "Submit",
@@ -197,7 +199,9 @@ lms_helpdesk._renderTicketDetail = function (data) {
 	html += '</div>';
 
 	lms_portal.modal({
-		title: "Ticket " + (t.name || ""),
+		title: "Ticket",
+		titleSubject: (t.name || ""),
+		titleIcon: "ticket",
 		body: html,
 		size: "lg",
 		confirmText: "Close",

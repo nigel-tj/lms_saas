@@ -240,6 +240,8 @@
 		if (LMSModal && LMSModal._current) return; // don't double-open
 		LMSModal.open({
 			title: "Session expiring",
+			titleIcon: "clock",
+			titleIcon: "clock",
 			body: "<p>Your session will expire in " + WARNING_BEFORE_MINUTES + " minutes due to inactivity.</p>",
 			actions: [{ label: "Stay signed in", value: true, primary: true }],
 			dismissable: false

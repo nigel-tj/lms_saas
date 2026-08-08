@@ -178,6 +178,8 @@ lms_insurance._renderPolicyDetail = function (data) {
 
 	lms_portal.modal({
 		title: "Policy Detail",
+		titleIcon: "shield",
+		titleIcon: "shield",
 		body: html,
 		size: "xl",
 		confirmText: "Close",
@@ -280,6 +282,8 @@ lms_insurance._showCreatePolicyModal = function () {
 
 	lms_portal.modal({
 		title: "New Insurance Policy",
+		titleIcon: "shield",
+		titleIcon: "shield",
 		body: html,
 		size: "xl",
 		confirmText: "Create",
@@ -348,6 +352,8 @@ lms_insurance._showFileClaimModal = function () {
 
 	lms_portal.modal({
 		title: "File Insurance Claim",
+		titleIcon: "file-text",
+		titleIcon: "file-text",
 		body: html,
 		size: "lg",
 		confirmText: "Submit",

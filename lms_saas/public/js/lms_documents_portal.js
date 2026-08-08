@@ -58,6 +58,8 @@ lms_documents._openUploadModal = function () {
 		"</div>";
 	var dlg = LMSModal.open({
 		title: "Upload document",
+		titleIcon: "upload",
+		titleIcon: "upload",
 		body: body,
 		size: "lg",
 		actions: [

@@ -155,6 +155,8 @@ lms_savings._showAccountDetail = function (accountName) {
 
 			lms_portal.modal({
 				title: "Savings Account Detail",
+				titleIcon: "bank",
+				titleIcon: "bank",
 				body: html,
 				size: "lg",
 				confirmText: "Close",
@@ -288,6 +290,8 @@ lms_savings._showDepositModal = function () {
 
 			var m = lms_portal.modal({
 				title: "Make a Deposit",
+				titleIcon: "coins",
+				titleIcon: "coins",
 				body: html,
 				size: "lg",
 				confirmText: "Deposit",
@@ -352,6 +356,8 @@ lms_savings._showWithdrawModal = function () {
 
 			lms_portal.modal({
 				title: "Request Withdrawal",
+				titleIcon: "banknote",
+				titleIcon: "banknote",
 				body: html,
 				size: "lg",
 				confirmText: "Submit Request",

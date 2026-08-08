@@ -126,6 +126,8 @@ lms_announcements._showCreateModal = function () {
 
 	lms_portal.modal({
 		title: "New Announcement",
+		titleIcon: "megaphone",
+		titleIcon: "megaphone",
 		body: html,
 		size: "lg",
 		confirmText: "Publish",

@@ -201,7 +201,9 @@ lms_recruitment._renderApplicantDetail = function (data) {
 	html += '</div>';
 
 	lms_portal.modal({
-		title: "Applicant " + (a.name || ""),
+		title: "Applicant",
+		titleSubject: (a.name || ""),
+		titleIcon: "user",
 		body: html,
 		size: "xl",
 		confirmText: "Close",
@@ -231,6 +233,8 @@ lms_recruitment._showScheduleModal = function (applicantName) {
 
 	lms_portal.modal({
 		title: "Schedule Interview",
+		titleIcon: "calendar",
+		titleIcon: "calendar",
 		body: html,
 		size: "lg",
 		confirmText: "Schedule",

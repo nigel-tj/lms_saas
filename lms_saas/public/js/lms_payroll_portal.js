@@ -193,7 +193,9 @@ lms_payroll._renderSlipDetail = function (data) {
 	html += '</div>';
 
 	lms_portal.modal({
-		title: "Payslip " + (s.name || ""),
+		title: "Payslip",
+		titleSubject: (s.name || ""),
+		titleIcon: "receipt",
 		body: html,
 		size: "lg",
 		confirmText: "Close",
