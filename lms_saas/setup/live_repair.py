@@ -262,7 +262,7 @@ TEST_USERS = [
 		"last_name": "Administrator",
 		"password": "Admin@123",
 		"persona": "Branch Manager",
-		"roles": ["LMS Portal Staff", "System Manager", "Administrator"],
+		"roles": ["System Manager", "Administrator"],
 	},
 	{
 		"email": "supervisor@kesari.africa",

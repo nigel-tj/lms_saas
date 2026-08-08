@@ -182,3 +182,49 @@ def _write_site_config_currency(currency: str = "USD") -> dict:
     frappe.conf["lms_currency"] = currency
     frappe.clear_cache()
     return {"applied": f"site_config.json: lms_currency={currency}"}
+
+
+def _sync_site_config_currency() -> dict:
+    """Sync ``lms_currency`` in ``site_config.json`` to match the default
+    company's ``default_currency``.
+
+    This is the **deploy-safe** version of ``_write_site_config_currency``.
+    It does NOT hardcode any currency — it reads whatever the operator
+    has already configured on their Company and writes that to
+    ``site_config.json`` so the portal shell (which reads
+    ``frappe.conf.get("lms_currency")`` as a fallback before
+    ``brand.py`` runs) shows the correct symbol on every page, including
+    the login page.
+
+    Called by ``frappe-cloud-update.sh`` on every deploy. Idempotent —
+    a no-op when the site_config key already matches the company currency.
+    """
+    import json
+    from pathlib import Path
+
+    # 1. Read the company's configured currency.
+    company = frappe.db.get_single_value("Global Defaults", "default_company") or ""
+    if not company:
+        company = frappe.db.get_value("Company", {}, "name") or ""
+    if not company:
+        return {"skipped": "no Company found — nothing to sync"}
+
+    company_currency = frappe.db.get_value("Company", company, "default_currency") or ""
+    if not company_currency:
+        return {"skipped": f"Company '{company}' has no default_currency set"}
+
+    # 2. Read the current site_config value.
+    current = frappe.conf.get("lms_currency") or ""
+    if current == company_currency:
+        return {"skipped": f"site_config lms_currency already = {company_currency!r}"}
+
+    # 3. Write the site_config key.
+    site_config_path = Path(frappe.utils.get_site_path("site_config.json"))
+    raw = json.loads(site_config_path.read_text() or "{}")
+    raw["lms_currency"] = company_currency
+    site_config_path.write_text(json.dumps(raw, indent=2, sort_keys=True))
+    frappe.conf["lms_currency"] = company_currency
+    frappe.clear_cache()
+    return {
+        "applied": f"site_config.json: lms_currency {current!r} → {company_currency!r} (from Company '{company}')"
+    }

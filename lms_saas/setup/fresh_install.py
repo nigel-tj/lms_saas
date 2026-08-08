@@ -128,7 +128,7 @@ def run(**kwargs: Any) -> dict:
     except Exception as exc:  # noqa: BLE001
         result["skipped"].append(f"gender ensure skipped: {exc}")
 
-    # ── 4. Create the Company with USD / Zimbabwe ─────────────────────
+    # ── 4. Create or update the Company with the requested currency/country ─
     try:
         if not frappe.db.exists("Country", country):
             frappe.get_doc({"doctype": "Country", "country_name": country}).insert(ignore_permissions=True)
@@ -147,11 +147,36 @@ def run(**kwargs: Any) -> dict:
             co.insert()
             result["applied"].append(f"company: created {company} ({currency}/{country})")
         else:
-            result["skipped"].append(f"company: {company} already exists")
+            # Company exists — update its currency/country to match the
+            # operator's requested values so a re-run with different
+            # currency/country params actually changes the company.
+            frappe.db.set_value("Company", company, {
+                "default_currency": currency,
+                "country": country,
+            })
+            result["applied"].append(f"company: {company} updated to {currency}/{country}")
         frappe.db.set_single_value("Global Defaults", "default_company", company)
+        # Also set Global Defaults currency so frappe.boot.sysdefaults.currency
+        # resolves correctly on the portal.
+        frappe.db.set_single_value("Global Defaults", "default_currency", currency)
         frappe.db.commit()
     except Exception as exc:  # noqa: BLE001
         result["failed"].append(f"company creation failed: {exc}")
+
+    # ── 4b. Write lms_currency to site_config.json ────────────────────
+    # The portal shell reads window.__lms_currency from context.lms_currency
+    # (set by brand.py from the company's default_currency). But on the login
+    # page — before the user has a session — brand.py hasn't run yet, so the
+    # shell falls back to frappe.conf.get("lms_currency"). Writing it here at
+    # install time means the login page shows the right currency symbol from
+    # the very first request.
+    try:
+        raw["lms_currency"] = currency
+        site_path.write_text(json.dumps(raw, indent=2, sort_keys=True))
+        frappe.conf["lms_currency"] = currency
+        result["applied"].append(f"site_config: lms_currency={currency}")
+    except Exception as exc:  # noqa: BLE001
+        result["skipped"].append(f"site_config lms_currency skipped: {exc}")
 
     # ── 5. Run lms_saas after_install (creates roles, workspaces, etc.) ─
     try:
@@ -161,6 +186,19 @@ def run(**kwargs: Any) -> dict:
         result["applied"].append("after_install: roles, workspaces, loan product")
     except Exception as exc:  # noqa: BLE001
         result["failed"].append(f"after_install failed: {exc}")
+
+    # ── 5b. Retire legacy LMS roles from any existing user assignments ─
+    # after_install creates the new role set, but users from a previous
+    # install may still have the retired LMS Admin / LMS Branch Manager /
+    # LMS Loan Officer / LMS Collector roles. Clean them up here so the
+    # live_repair step doesn't have to.
+    try:
+        from lms_saas.setup.live_repair import _repair_legacy_user_roles
+        out = _repair_legacy_user_roles()
+        if out.get("removed_rows"):
+            result["applied"].append(f"legacy_roles: removed {out['removed_rows']} stale assignments")
+    except Exception as exc:  # noqa: BLE001
+        result["skipped"].append(f"legacy role cleanup skipped: {exc}")
 
     # ── 6. Run onboard_company (cost centers, branches) ───────────────
     try:
@@ -224,6 +262,19 @@ def run(**kwargs: Any) -> dict:
         result["applied"].append("live_repair: dashboard + home pages + branding")
     except Exception as exc:  # noqa: BLE001
         result["skipped"].append(f"live_repair skipped: {exc}")
+
+    # ── 11b. Sync lms_currency in site_config to match company currency ─
+    # Ensures the portal shell shows the correct currency symbol on every
+    # page (including the login page before the user has a session).
+    try:
+        from lms_saas.setup.set_company_currency_country import _sync_site_config_currency
+        out = _sync_site_config_currency()
+        if out.get("applied"):
+            result["applied"].append(f"currency_sync: {out['applied']}")
+        else:
+            result["skipped"].append(f"currency_sync: {out.get('skipped', 'no-op')}")
+    except Exception as exc:  # noqa: BLE001
+        result["skipped"].append(f"currency_sync skipped: {exc}")
 
     # ── 12. Clear cache + enable scheduler ───────────────────────────
     try:

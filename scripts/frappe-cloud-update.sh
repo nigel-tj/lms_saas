@@ -254,18 +254,14 @@ fi
 # The provision_test_users ensures all demo users have the correct branch
 # assignment (Main Branch - LD) and roles. Idempotent — safe to re-run.
 if [[ "${LMS_SKIP_CURRENCY_RESET:-0}" != "1" ]]; then
-	echo "  → R44: set company currency to USD"
-	run bench --site "$FC_SITE" execute lms_saas.setup.set_company_currency_country.run \
-		--kwargs '{"currency": "USD", "country": "Zimbabwe", "apply": 1}' || true
-	echo "  → R44: write lms_currency=USD to site_config.json"
-	run bench --site "$FC_SITE" execute lms_saas.setup.set_company_currency_country._write_site_config_currency \
-		--kwargs '{"currency": "USD"}' || true
+	echo "  → R44: sync lms_currency site_config key to match company default_currency"
+	run bench --site "$FC_SITE" execute lms_saas.setup.set_company_currency_country._sync_site_config_currency || true
 	echo "  → R44: repair live site state"
 	run bench --site "$FC_SITE" execute lms_saas.setup.live_repair.repair_live_site_state || true
 	echo "  → R44: provision test users"
 	run bench --site "$FC_SITE" execute lms_saas.setup.live_repair.provision_test_users || true
 else
-	echo "  LMS_SKIP_CURRENCY_RESET=1 — skipping currency reset + provision"
+	echo "  LMS_SKIP_CURRENCY_RESET=1 — skipping currency sync + provision"
 fi
 
 # verify_spec is the smoke detector — capture its output separately so we can
