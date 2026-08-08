@@ -249,6 +249,25 @@ else
 	echo "  LMS_SKIP_REBRAND=1 — skipping _setup_navbar_branding"
 fi
 
+# R44: reset company currency to USD + provision test users + live repair.
+# The currency reset ensures the portal shows $ (not ZAR) after a deploy.
+# The provision_test_users ensures all demo users have the correct branch
+# assignment (Main Branch - LD) and roles. Idempotent — safe to re-run.
+if [[ "${LMS_SKIP_CURRENCY_RESET:-0}" != "1" ]]; then
+	echo "  → R44: set company currency to USD"
+	run bench --site "$FC_SITE" execute lms_saas.setup.set_company_currency_country.run \
+		--kwargs '{"currency": "USD", "country": "Zimbabwe", "apply": 1}' || true
+	echo "  → R44: write lms_currency=USD to site_config.json"
+	run bench --site "$FC_SITE" execute lms_saas.setup.set_company_currency_country._write_site_config_currency \
+		--kwargs '{"currency": "USD"}' || true
+	echo "  → R44: repair live site state"
+	run bench --site "$FC_SITE" execute lms_saas.setup.live_repair.repair_live_site_state || true
+	echo "  → R44: provision test users"
+	run bench --site "$FC_SITE" execute lms_saas.setup.live_repair.provision_test_users || true
+else
+	echo "  LMS_SKIP_CURRENCY_RESET=1 — skipping currency reset + provision"
+fi
+
 # verify_spec is the smoke detector — capture its output separately so we can
 # set the right exit code (3 = drift) without poisoning the dry-run path.
 verify_log=$(mktemp)

@@ -16,10 +16,6 @@ lms_officer.init = function () {
 	var root = document.getElementById("lms-officer-root");
 	if (!root) return;
 
-	// R36-C2: restore the last-active tab so a refresh lands the officer
-	// back on the tab they were working on (e.g. mid-review on KYC Queue).
-	lms_officer._currentTab = lms_portal.persistedTab("officer", lms_officer._currentTab);
-
 	root.innerHTML = lms_officer._pageHeader() + lms_officer._tabNav() + '<div id="lms-officer-tab-content"></div>';
 	lms_officer._bindTabs();
 	lms_officer._bindPrimaryAction();
@@ -46,14 +42,6 @@ lms_officer._pageHeader = function () {
 		'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>' +
 		'Add Borrower' +
 		'</button>' +
-		// R44-F4: Open Tasks shortcut — the operator's muscle memory for
-		// the topbar is "the place where I take action". Adding a third
-		// button keeps the cap at 3 (Hick's Law) and surfaces the Tasks
-		// addon without requiring a scroll to the dashboard section.
-		'<a class="lms-btn lms-btn--ghost lms-quick-action" href="/lms/tasks" id="lms-officer-open-tasks">' +
-		'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>' +
-		'Open Tasks' +
-		'</a>' +
 		'</div>'
 	);
 };
@@ -63,12 +51,8 @@ lms_officer._tabs = [
 	{ id: "borrowers", label: "Borrowers", icon: "users" },
 	{ id: "loans", label: "My Loans", icon: "wallet" },
 	{ id: "kyc", label: "KYC Queue", icon: "shield" },
-	// R44-F5: Reports moved before Leads. The operator audit-trail use-case
-	// (KYC, portfolio, write-offs) is more common than the sales-pipeline
-	// use-case. Nielsen's rule: first slots are higher recall / lower
-	// search cost, so the four high-frequency tabs lead.
-	{ id: "reports", label: "Reports", icon: "trending-up" },
 	{ id: "leads", label: "Leads", icon: "phone" },
+	{ id: "reports", label: "Reports", icon: "trending-up" },
 ];
 
 lms_officer._tabNav = function () {
@@ -111,8 +95,6 @@ lms_officer._bindTabs = function () {
 		tabs: lms_officer._tabs,
 		onTab: function (tabId) {
 			lms_officer._currentTab = tabId;
-			// R36-C2: persist the clicked tab so a refresh lands back here.
-			lms_portal.saveActiveTab("officer", tabId);
 			lms_officer._showTab(tabId);
 		},
 	});
@@ -144,21 +126,17 @@ lms_officer._loadDashboard = function (content) {
 	var loansLoaded = false;
 	var branchLoaded = false;
 	var collectionsLoaded = false;
-	var tasksLoaded = false;
 	var dashboardData = null;
 	var appsData = null;
 	var loansData = null;
 	var branchData = null;
 	var collectionsData = null;
-	var tasksData = null;
 	var customersData = null;
 	var productsData = null;
 
 	function tryRender() {
 		if (!dashboardLoaded || !appsLoaded || !loansLoaded || !branchLoaded || !collectionsLoaded) return;
-		// Tasks are optional — render even if the API isn't enabled or the
-		// user lacks the addon so the dashboard still populates cleanly.
-		lms_officer._renderAll(content, dashboardData, appsData, loansData, branchData, collectionsData, customersData, productsData, tasksData);
+		lms_officer._renderAll(content, dashboardData, appsData, loansData, branchData, collectionsData, customersData, productsData);
 	}
 
 	lms_portal.safeCall({
@@ -211,31 +189,6 @@ lms_officer._loadDashboard = function (content) {
 		},
 	});
 
-	// R43: tasks assigned to the officer (Open / Working / Overdue).
-	// Surfaces a /tasks snapshot above the pending-applications work queue
-	// so the officer sees actionable tasks at a glance. The Tasks addon
-	// may be disabled in some bench configs — wrap the call so a missing
-	// endpoint does not stall the dashboard.
-	try {
-		lms_portal.safeCall({
-			method: "lms_saas.api.tasks.get_task_board",
-			callback: function (r) {
-				tasksData = (r && r.message) || null;
-				tasksLoaded = true;
-				tryRender();
-			},
-			error: function () {
-				tasksLoaded = true;
-				tasksData = null;
-				tryRender();
-			},
-		});
-	} catch (e) {
-		tasksLoaded = true;
-		tasksData = null;
-		tryRender();
-	}
-
 	// Pre-load customers and products for the application modal
 	lms_portal.safeCall({
 		method: "lms_saas.api.officer.get_officer_customers",
@@ -253,258 +206,55 @@ lms_officer._loadDashboard = function (content) {
 	// Pre-load customers and products for the application modal is handled by _openApplicationModalFromHeader
 };
 
-lms_officer._appStatusBadgeClass = function (status) {
-	// Map Loan Application status to a coloured badge variant.
-	// Used by the work queue on the dashboard so the operator can
-	// spot "Open" / "Submitted" / "Draft" / "Approved" at a glance.
-	// Mirrors the KYC / AML badge taxonomy in lms_manager_portal.js so
-	// the operator has one visual vocabulary across portals.
-	switch ((status || "Draft")) {
-		case "Approved":
-			return "success";
-		case "Open":
-			return "warning";
-		case "Submitted":
-			return "info";
-		case "Rejected":
-			return "danger";
-		default:
-			return "muted";
-	}
-};
-
-lms_officer._renderWorkQueuePanel = function (tasks, appRows) {
-	// R44-F1: single panel containing two sub-headings — "My tasks"
-	// (top) and "Pending applications" (bottom). The board observed that
-	// the operator context-switches between two similarly-styled panels.
-	// Combining them into one queue with two sub-headings reads as a
-	// single "things I owe + things the team owes" list.
-	var html = '<div class="lms-panel lms-work-queue">';
-	html += '<div class="lms-section-header"><h3>Work queue</h3>';
-	html += '<span class="lms-muted">' + (appRows.length + lms_officer._countTasks(tasks)) + ' items</span></div>';
-
-	// Sub-section 1: My tasks (compact rows, no panel chrome)
-	html += lms_officer._renderTasksRows(tasks);
-
-	// Sub-section 2: Pending applications (card-style queue rows)
-	html += lms_officer._renderApplicationsRows(appRows);
-
-	html += '</div>';
-	return html;
-};
-
-lms_officer._countTasks = function (tasks) {
-	if (!tasks || !tasks.board) return 0;
-	var n = 0;
-	Object.keys(tasks.board).forEach(function (col) {
-		n += (tasks.board[col] || []).length;
-	});
-	return n;
-};
-
-lms_officer._renderTasksRows = function (tasks) {
-	// R44-F1: render the tasks as a sub-section inside the work queue
-	// panel. Returns an empty string when the Tasks addon is disabled.
-	if (!tasks || !tasks.board) return '';
-
-	var overdue = [];
-	var inProgress = []
-	var open = [];
-	var statuses = { Open: open, Working: inProgress, "In Progress": inProgress, Pending: inProgress, "Pending Review": inProgress };
-	Object.keys(tasks.board || {}).forEach(function (col) {
-		(tasks.board[col] || []).forEach(function (t) {
-			if (t.is_overdue) { overdue.push(t); return; }
-			(statuses[col] || open).push(t);
-		});
-	});
-	var rows = overdue.concat(inProgress).concat(open).slice(0, 5);
-	if (!rows.length) return '';
-
-	var html = '<div class="lms-work-queue__sub">';
-	html += '<div class="lms-work-queue__sub-head"><h4>My tasks</h4>';
-	html += '<a class="lms-muted" href="/lms/tasks">View all</a></div>';
-	html += '<div class="lms-tasks-card__list">';
-	rows.forEach(function (t) {
-		var status = t.status || "Open";
-		var overdueCls = t.is_overdue ? " is-overdue" : "";
-		var dueCls = t.is_overdue ? " is-overdue" : "";
-		var due = t.exp_end_date ? lms_portal.formatDate(t.exp_end_date) : "";
-		var priority = t.priority || "Medium";
-		html +=
-			'<div class="lms-tasks-card__row' + overdueCls + '">' +
-			'<span class="lms-tasks-card__status lms-tasks-card__status--' +
-			lms_portal.escape(status.replace(/\s+/g, "")) + '"></span>' +
-			'<div class="lms-tasks-card__body">' +
-			'<div class="lms-tasks-card__subject">' + lms_portal.escape(t.subject || "Untitled task") + '</div>' +
-			'</div>' +
-			'<span class="lms-tasks-card__priority lms-tasks-card__priority--' +
-			lms_portal.escape(priority) + '">' + lms_portal.escape(priority) + '</span>' +
-			(due ? '<span class="lms-tasks-card__due' + dueCls + '">Due ' + due + '</span>' : '<span></span>') +
-			'</div>';
-	});
-	html += '</div></div>';
-	return html;
-};
-
-lms_officer._renderApplicationsRows = function (appRows) {
-	// R44-F1: render the pending applications as a sub-section inside the
-	// work queue panel.
-	var html = '<div class="lms-work-queue__sub">';
-	html += '<div class="lms-work-queue__sub-head"><h4>Pending applications</h4>';
-	html += '<span class="lms-muted">' + appRows.length + ' pending</span></div>';
-	if (!appRows.length) {
-		html += '<div class="lms-work-queue__empty">No pending applications. When a borrower submits an application, it will appear here.</div>';
-		html += '</div>';
-		return html;
-	}
-	html += '<ul class="lms-queue-list">';
-	appRows.forEach(function (row) {
-		var borrower = row.customer_name || row.applicant || "—";
-		var product = row.product_name || row.loan_product || "—";
-		var amount = format_currency(row.loan_amount || 0);
-		var status = row.status || "Draft";
-		var statusClass = lms_officer._appStatusBadgeClass(status);
-		html +=
-			'<li class="lms-queue-list__item">' +
-			'<div class="lms-queue-list__main">' +
-			'<div class="lms-queue-list__head">' +
-			'<span class="lms-queue-list__name">' + lms_portal.escape(borrower) + '</span>' +
-			'<span class="lms-badge ' + statusClass + ' lms-queue-list__status">' +
-			lms_portal.escape(status) + '</span>' +
-			'</div>' +
-			'<div class="lms-queue-list__sub">' +
-			lms_portal.escape(product) +
-			'</div>' +
-			'</div>' +
-			'<div class="lms-queue-list__amount">' +
-			'<span class="lms-queue-list__amount-label">Requested</span>' +
-			'<span class="lms-queue-list__amount-value">' + amount + '</span>' +
-			'</div>' +
-			'<div class="lms-queue-list__action">' +
-			'<button type="button" class="lms-btn lms-btn--primary lms-btn--sm lms-of-app-review" ' +
-			'data-app="' + lms_portal.escape(row.name || "") + '" ' +
-			'data-borrower="' + lms_portal.escape(borrower) + '" ' +
-			'data-product="' + lms_portal.escape(product) + '" ' +
-			'data-amount="' + lms_portal.escape(String(row.loan_amount || 0)) + '" ' +
-			'data-status="' + lms_portal.escape(status) + '">' +
-			"Review" +
-			'</button>' +
-			'</div>' +
-			'</li>';
-	});
-	html += '</ul></div>';
-	return html;
-};
-
-lms_officer._renderEodSummary = function (collections) {
-	// R44-F7: end-of-day summary line — "what got done today" so the
-	// operator can audit the day at a glance. Renders nothing when the
-	// collections endpoint hasn't returned yet.
-	if (!collections) return '';
-	var today = collections.today_total || 0;
-	var par30 = collections.par30 || 0;
-	var par60 = collections.par60 || 0;
-	var par90 = collections.par90 || 0;
-	var parts = [];
-	if (today) parts.push(format_currency(today) + ' collected today');
-	if (par30) parts.push(par30 + ' PAR30');
-	if (par60) parts.push(par60 + ' PAR60');
-	if (par90) parts.push(par90 + ' PAR90');
-	if (!parts.length) return '';
-	return '<div class="lms-eod-summary"><span class="lms-eod-summary__label">Today</span><span class="lms-eod-summary__value">' + parts.join(' · ') + '</span></div>';
-};
-
-lms_officer._renderTasksCard = function (tasks) {
-	// R43: compact tasks snapshot for the officer dashboard. Sits above
-	// the pending-applications work queue so the officer sees actionable
-	// tasks first. Renders nothing when the Tasks addon is disabled or
-	// the API returned no board (so the dashboard stays clean on benches
-	// without the addon enabled).
-	if (!tasks || !tasks.board) return "";
-
-	// Flatten the board into a single list, prioritising overdue →
-	// in-progress → open. Cap at 5 rows so the card stays scannable.
-	var overdue = [];
-	var inProgress = [];
-	var open = [];
-	var statuses = { Open: open, Working: inProgress, "In Progress": inProgress, Pending: inProgress, "Pending Review": inProgress };
-	Object.keys(tasks.board || {}).forEach(function (col) {
-		(tasks.board[col] || []).forEach(function (t) {
-			if (t.is_overdue) { overdue.push(t); return; }
-			(statuses[col] || open).push(t);
-		});
-	});
-	var rows = overdue.concat(inProgress).concat(open).slice(0, 5);
-	if (!rows.length) {
-		// No actionable tasks — render a quiet "all caught up" card so the
-		// officer knows the section exists (and where to find the full
-		// board) without an empty hole in the layout.
-		return (
-			'<div class="lms-panel lms-tasks-card">' +
-			'<div class="lms-tasks-card__head"><h3>My tasks</h3>' +
-			'<a class="lms-muted" href="/lms/tasks">View all</a></div>' +
-			'<div class="lms-tasks-card__empty">No open tasks. You\'re all caught up.</div>' +
-			'</div>'
-		);
-	}
-
-	var total = (tasks.total || rows.length);
-	var html =
-		'<div class="lms-panel lms-tasks-card">' +
-		'<div class="lms-tasks-card__head"><h3>My tasks</h3>' +
-		'<span class="lms-muted">' + total + (total === 1 ? ' task' : ' tasks') +
-		' · <a href="/lms/tasks">View all</a></span></div>' +
-		'<div class="lms-tasks-card__list">';
-	rows.forEach(function (t) {
-		var status = t.status || "Open";
-		var overdueCls = t.is_overdue ? " is-overdue" : "";
-		var dueCls = t.is_overdue ? " is-overdue" : "";
-		var due = t.exp_end_date ? lms_portal.formatDate(t.exp_end_date) : "";
-		var priority = t.priority || "Medium";
-		html +=
-			'<div class="lms-tasks-card__row' + overdueCls + '">' +
-			'<span class="lms-tasks-card__status lms-tasks-card__status--' +
-			lms_portal.escape(status.replace(/\s+/g, "")) + '"></span>' +
-			'<div class="lms-tasks-card__body">' +
-			'<div class="lms-tasks-card__subject">' + lms_portal.escape(t.subject || "Untitled task") + '</div>' +
-			'</div>' +
-			'<span class="lms-tasks-card__priority lms-tasks-card__priority--' +
-			lms_portal.escape(priority) + '">' + lms_portal.escape(priority) + '</span>' +
-			(due ? '<span class="lms-tasks-card__due' + dueCls + '">Due ' + due + '</span>' : '<span></span>') +
-			'</div>';
-	});
-	html += '</div></div>';
-	return html;
-};
-
-lms_officer._renderAll = function (root, dash, apps, loans, branch, collections, customers, products, tasks) {
+lms_officer._renderAll = function (root, dash, apps, loans, branch, collections, customers, products) {
 	var html = '<div class="lms-stack">';
 	var k = dash.kpis || {};
 	var appRows = (apps.applications || []);
 
-	// R44: KPI strip FIRST — the operator asked for the at-a-glance
-	// numbers to lead the dashboard so they can read the health of their
-	// branch in one glance before drilling into the work queue below.
-	// F2 (board review): the first KPI is now "Review queue age" instead
-	// of "Pending applications" — the old label duplicated the count
-	// shown in the work queue heading directly below. The new label
-	// fires the alarm: "is anything overdue?".
+	// 1) Work queue first — pending applications (actionable)
+	if (!appRows.length) {
+		html += lms_portal.emptyPanel(
+			"clipboard",
+			"No pending applications",
+			"When a borrower submits an application, it will appear here."
+		);
+	} else {
+		html += '<div class="lms-panel">';
+		html += '<div class="lms-section-header"><h3>Pending applications</h3>';
+		html += '<span class="lms-muted">' + appRows.length + " pending</span></div>";
+		html += '<ul class="lms-list">';
+		appRows.forEach(function (row) {
+			var borrower = row.customer_name || row.applicant || "—";
+			html +=
+				'<li class="lms-list__item">' +
+				'<div class="lms-list__info">' +
+				"<strong>" + lms_portal.escape(borrower) + "</strong>" +
+				" — " + lms_portal.escape(row.product_name || row.loan_product || "") +
+				" — " + format_currency(row.loan_amount || 0) +
+				" — " + lms_portal.escape(row.status || "Draft") +
+				"</div>" +
+				'<div class="lms-data-table__actions">' +
+				'<button type="button" class="lms-btn lms-btn--primary lms-btn--sm lms-of-app-review" ' +
+				'data-app="' + lms_portal.escape(row.name || "") + '" ' +
+				'data-borrower="' + lms_portal.escape(borrower) + '" ' +
+				'data-product="' + lms_portal.escape(row.product_name || row.loan_product || "") + '" ' +
+				'data-amount="' + lms_portal.escape(String(row.loan_amount || 0)) + '" ' +
+				'data-status="' + lms_portal.escape(row.status || "Draft") + '">' +
+				"Review</button>" +
+				"</div></li>";
+		});
+		html += "</ul></div>";
+	}
+
+	// 2) Compact KPI strip (max 4) — below the queue
 	html += lms_portal.kpiStrip([
-		{ label: "Review queue age", value: (k.review_queue_age || (k.pending_applications ? "—" : "0 days")), tone: (k.pending_applications || 0) ? "warning" : "success" },
+		{ label: "Pending applications", value: k.pending_applications || 0, tone: (k.pending_applications || 0) ? "warning" : "" },
 		{ label: "Awaiting disbursement", value: k.pending_disbursement || 0, tone: (k.pending_disbursement || 0) ? "warning" : "" },
 		{ label: "My active loans", value: k.my_active_loans || 0 },
 		{ label: "PAR count", value: k.par_count || 0, tone: (k.par_count || 0) ? "danger" : "" },
 	]);
 
-	// 2) Work queue — single panel containing two sub-headings (R44-F1).
-	// Tasks + pending applications share one panel so the operator reads
-	// them as one combined queue rather than two similarly-styled panels.
-	html += lms_officer._renderWorkQueuePanel(tasks, appRows);
-
-	// 3) Charts (R44-F3) — collapsed by default in a <details> so the
-	// dashboard stays scannable. The operator expands them on demand.
-	html += '<details class="lms-dashboard-metrics">';
-	html += '<summary><h3>Charts</h3><span class="lms-muted">Today\'s collections · Performance trends</span></summary>';
+	// 3) Charts below
 	html += '<div class="lms-chart-slot">';
 	html += '<div class="lms-chart-slot__head"><h3>Today\'s collections</h3></div>';
 	html += '<div class="lms-chart-slot__body"><canvas id="lms-officer-today-gauge" aria-live="polite"></canvas></div>';
@@ -514,10 +264,6 @@ lms_officer._renderAll = function (root, dash, apps, loans, branch, collections,
 	html += '<div class="lms-chart-slot__head"><h3>Officer performance</h3></div>';
 	html += '<div class="lms-chart-slot__body"><canvas id="lms-officer-performance" aria-live="polite"></canvas></div>';
 	html += '</div>';
-	html += '</details>';
-
-	// 4) End-of-day summary (R44-F7) — "what got done today" line.
-	html += lms_officer._renderEodSummary(collections);
 
 	// Active loans summary (counts only — the full list lives on the My
 	// Loans tab to avoid duplicating the table and the disburse actions).
@@ -858,12 +604,10 @@ lms_officer._openApplicationModal = function (customers, products, root) {
 		'<div class="lms-section-header"><h4>Loan terms</h4></div>' +
 		'<div class="lms-grid-2" data-grid="2">' +
 		// QA-2026-08-03-#18: pre-fill sensible defaults so the form is
-		// never blank on first render. R44: the loan amount field is
-		// left empty (no default 10000) so the officer must enter the
-		// actual requested amount — a hardcoded default led to demo
-		// data with identical 10,000 amounts across every application.
-		// The rate and periods still default to the common values.
-		'<label>Loan amount<input type="number" id="lms-app-amount" class="lms-input" min="1" step="0.01" placeholder="Enter amount" required></label>' +
+		// never blank on first render. 10,000 ZAR is the median
+		// disbursed loan amount on the demo data and 24% is the
+		// common rate. The officer can still override.
+		'<label>Loan amount<input type="number" id="lms-app-amount" class="lms-input" min="1" step="0.01" value="10000"></label>' +
 		'<label>Rate of interest (% / yr)<input type="number" id="lms-app-rate" class="lms-input" min="0" max="100" step="0.01" value="24"></label>' +
 		'<label>Repayment periods (months)<input type="number" id="lms-app-periods" class="lms-input" min="1" value="6"></label>' +
 		'<label>Repayment method<select id="lms-app-method" class="lms-input lms-fallback-select">' +

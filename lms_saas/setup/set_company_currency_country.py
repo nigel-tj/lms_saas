@@ -159,3 +159,26 @@ def diff() -> dict:
         "default_currency": row.get("default_currency"),
         "country": row.get("country"),
     }
+
+
+def _write_site_config_currency(currency: str = "USD") -> dict:
+    """Write ``lms_currency`` to ``site_config.json`` so the portal shell
+    picks it up via ``frappe.conf.get("lms_currency")``.
+
+    This is the second half of the currency reset — ``run()`` sets the
+    Company + Global Defaults, this writes the site_config key that
+    ``brand.py`` reads as a fallback when the context builder hasn't
+    run yet (e.g. on the login page before the user has a session).
+    """
+    import json
+    from pathlib import Path
+
+    currency = (currency or "USD").strip().upper()
+    site_config_path = Path(frappe.utils.get_site_path("site_config.json"))
+    raw = json.loads(site_config_path.read_text() or "{}")
+    raw["lms_currency"] = currency
+    site_config_path.write_text(json.dumps(raw, indent=2, sort_keys=True))
+    # Also set in the in-memory conf so the current process picks it up.
+    frappe.conf["lms_currency"] = currency
+    frappe.clear_cache()
+    return {"applied": f"site_config.json: lms_currency={currency}"}
