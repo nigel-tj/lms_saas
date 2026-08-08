@@ -3049,6 +3049,15 @@ body:not(.lms-portal-borrower):not(.lms-page-loans):not(.lms-page-apply):not(.lm
 	align-items: center;
 }
 
+/* R46-3: Right-align the <th> whose sibling <td> holds the actions
+   cluster. The header text now sits above the right-aligned buttons
+   instead of floating at the left edge. :has() is widely supported
+   in modern browsers and matches only the actions header, not any
+   other last-column header. */
+.lms-data-table thead th:has(+ td .lms-data-table__actions) {
+	text-align: right;
+}
+
 /* Empty-state inside a data table (e.g. "No applications pending") */
 .lms-data-table__empty {
 	padding: 2rem 1rem;
