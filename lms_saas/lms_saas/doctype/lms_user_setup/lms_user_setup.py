@@ -316,9 +316,33 @@ class LMSUserSetup(Document):
 		config = PERSONA_CONFIG.get(self.persona) or {}
 		if self.persona == "Admin":
 			return
-		if config.get("create_employee") and not self.branch:
+		if not config.get("create_employee"):
+			return
+		if not self.branch:
 			frappe.throw(
 				_("Branch is required for the {0} persona").format(self.persona)
+			)
+		# R47 fix: the branch MUST resolve to a real Cost Center in the
+		# default company. Before this, an operator could pick a stale /
+		# renamed / non-existent Cost Center and the Employee would be
+		# created on a phantom branch — leaving the staff user silently
+		# filtered out of every data tab on the portal. (Concrete
+		# example: manager@kesari.africa was created with
+		# 'Main Branch - LMS' (R42's legacy abbreviation) before R43
+		# renamed it to 'Main Branch - LD'. The Employee never got
+		# updated, so the manager saw zero records until somebody ran
+		# provision_test_users manually.)
+		company = frappe.db.get_single_value("Global Defaults", "default_company") or ""
+		if not frappe.db.exists(
+			"Cost Center", {"name": self.branch, "company": company}
+		):
+			frappe.throw(
+				_(
+					"Branch {0} is not a valid Cost Center in company {1}. "
+					"Pick a Cost Center that exists, or run "
+					"lms_saas.setup.live_repair.reconcile_staff_branches() to "
+					"auto-repair any Employees stuck on a legacy branch."
+				).format(self.branch, company)
 			)
 
 	def _validate_national_id_for_borrower(self):

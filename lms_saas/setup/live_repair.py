@@ -140,6 +140,126 @@ def _repair_legacy_user_roles() -> dict[str, int | list[str]]:
     return {"removed_rows": removed, "touched_users": touched_users}
 
 
+def reconcile_staff_branches(company: str | None = None) -> dict:
+    """Reconcile Employee.custom_lms_branch onto a valid Cost Center.
+
+    R47 root cause: staff Employees can end up with a ``custom_lms_branch``
+    that no longer matches any Cost Center in the company. The most common
+    causes are:
+
+      - The branch was renamed during a brand change (R42 → R43 renamed
+        ``Main Branch - LMS`` → ``Main Branch - LD`` and the legacy rows
+        were not migrated).
+      - The branch belonged to a previous Company (e.g. ``Main - K`` from
+        the original "Kesari" bootstrapping on live).
+      - The branch was hand-edited or copied from a different bench.
+
+    Whatever the cause, the staff user lands on a phantom branch and the
+    portal sees zero records because every query filters by
+    ``custom_lms_branch``. The manager logs in, sees an empty dashboard,
+    and concludes the data is broken — when in fact the data exists, the
+    filter is just wrong.
+
+    This function:
+
+      1. Lists every Cost Center in the company.
+      2. Lists every Employee with ``custom_lms_branch`` set.
+      3. For Employees whose branch is missing from the company, picks a
+         fallback branch (the one with the most Customers/Loans, or the
+         first non-group Cost Center alphabetically).
+      4. Updates Employee.custom_lms_branch + Employee.branch to the
+         fallback, mirroring what ``LMS User Setup.on_submit`` writes.
+      5. Reports what changed.
+
+    Idempotent and safe to re-run. Returns a summary dict.
+    """
+    company = (
+        company
+        or frappe.db.get_single_value("Global Defaults", "default_company")
+        or ""
+    )
+    if not company:
+        return {"ok": False, "skipped": "no default_company set"}
+
+    valid_branches = set(
+        frappe.get_all(
+            "Cost Center",
+            filters={"company": company, "is_group": 0},
+            pluck="name",
+        )
+    )
+    if not valid_branches:
+        return {"ok": False, "skipped": "no Cost Centers in company"}
+
+    # Pick the fallback branch (the one most existing records are tagged
+    # with, so the corrected staff user lands on the same branch the data
+    # is on — that's the whole point of the reconcile).
+    fallback = _pick_branch_used_by_seeded_data(company)
+    if not fallback or fallback not in valid_branches:
+        fallback = sorted(valid_branches)[0]
+
+    repaired: list[dict] = []
+    already_valid: list[str] = []
+
+    employees = frappe.get_all(
+        "Employee",
+        filters={"custom_lms_branch": ["is", "set"]},
+        fields=["name", "user_id", "custom_lms_branch", "branch"],
+    )
+    for emp in employees:
+        current = emp.get("custom_lms_branch")
+        if not current:
+            continue
+        if current in valid_branches:
+            already_valid.append(emp["name"])
+            continue
+
+        # Employee's branch is missing from the company — repair it.
+        try:
+            frappe.db.set_value(
+                "Employee",
+                emp["name"],
+                {"custom_lms_branch": fallback, "branch": fallback},
+                update_modified=True,
+            )
+            repaired.append(
+                {
+                    "employee": emp["name"],
+                    "user_id": emp.get("user_id"),
+                    "from_branch": current,
+                    "to_branch": fallback,
+                }
+            )
+        except Exception as exc:  # noqa: BLE001
+            # If the set_value fails (e.g. permission), record it but
+            # don't abort the whole loop — the next employee might be
+            # repairable.
+            repaired.append(
+                {
+                    "employee": emp["name"],
+                    "user_id": emp.get("user_id"),
+                    "from_branch": current,
+                    "to_branch": fallback,
+                    "error": str(exc),
+                }
+            )
+
+    frappe.db.commit()
+    return {
+        "ok": True,
+        "company": company,
+        "fallback_branch": fallback,
+        "valid_branches": sorted(valid_branches),
+        "already_valid_count": len(already_valid),
+        "repaired": repaired,
+        "notes": [
+            f"Found {len(employees)} Employee(s) with custom_lms_branch set",
+            f"{len(already_valid)} already valid",
+            f"{len(repaired)} repaired to fallback branch {fallback!r}",
+        ],
+    }
+
+
 def _diagnose_user_setup() -> dict:
     """Capture a diagnostic trail for users that should be wired for desk/portal access."""
     from lms_saas.install import ADMIN_ROLES, SYS_ROLE, PORTAL_STAFF_ROLE
@@ -202,6 +322,7 @@ def repair_live_site_state() -> dict:
     repairs = _repair_user_setup(diagnostic)
     run_install_bootstrap()
     role_repair = _repair_legacy_user_roles()
+    branch_repair = reconcile_staff_branches()
     _reconcile_loan_dashboard()
     _set_admin_home_page()
     _set_portal_role_home_pages()
@@ -213,9 +334,11 @@ def repair_live_site_state() -> dict:
         "diagnostic": diagnostic,
         "user_repairs": repairs,
         "role_repair": role_repair,
+        "branch_repair": branch_repair,
         "notes": [
             "Ran after_install bootstrap and self-heal hooks",
             "Removed retired legacy roles from user assignments",
+            "Reconciled staff Employee branches onto valid Cost Centers",
             "Re-applied admin and portal home-page routing",
             "Re-applied navbar and branding settings",
             "Captured and repaired user-setup diagnostics",
