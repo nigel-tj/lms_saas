@@ -5,15 +5,7 @@
 {% block sidebar %}
 <aside class="lms-sidebar" id="lms-sidebar" aria-label="Portal navigation">
   <a class="lms-sidebar__brand" href="{{ lms_home_route or '/lms' }}" aria-label="Home">
-    {# R46-8: sidebar logo box is 40x40 (square). The bundled logo
-       (BRAND_LOGO_PATH) is a 3:1 horizontal lockup that gets squashed
-       with object-fit: contain, leaving the pinwheel tiny. Prefer the
-       favicon (BRAND_FAVICON_PATH) — a square mark designed for that
-       box. Operators who configure their own brand can override
-       either lms_brand_logo_path or lms_brand_favicon_path. #}
-    {% if brand and brand.favicon_url %}
-    <div class="lms-sidebar__logo"><img src="{{ brand.favicon_url }}" alt="{{ brand.portal_title if brand else 'Kesari' }}"></div>
-    {% elif brand and brand.logo_url %}
+    {% if brand and brand.logo_url %}
     <div class="lms-sidebar__logo"><img src="{{ brand.logo_url }}" alt="{{ brand.portal_title if brand else 'Kesari' }}"></div>
     {% else %}
     <div class="lms-sidebar__logo lms-sidebar__logo--text">K</div>
