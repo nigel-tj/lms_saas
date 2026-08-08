@@ -625,35 +625,77 @@ def reconcile_company_name(
             )
             for line in renamed_ccs:
                 plan["applied"].append(f"cost_center_rename: {line}")
-            # R51: also update the Company doc's Cost Center references
-            # (cost_center, round_off_cost_center, depreciation_cost_center)
-            # so they point to the new names. Use set_value to bypass
-            # the controller (which would validate the old names).
-            cc_link_fields = []
-            try:
-                meta = frappe.get_meta("Company")
-                cc_link_fields = [
-                    f.fieldname for f in meta.fields
-                    if f.fieldtype == "Link" and f.options == "Cost Center"
-                ]
-            except Exception:
-                pass
-            for field in cc_link_fields:
-                old_cc = current_doc.get(field) or ""
-                if not old_cc:
-                    continue
-                # Replace the old abbr suffix with the new one.
-                new_cc = old_cc.replace(f" - {old_abbr}", f" - {new_abbr}")
-                if new_cc != old_cc:
-                    frappe.db.set_value(
-                        "Company", current_name, field, new_cc,
-                        update_modified=True,
-                    )
-                    plan["applied"].append(f"company {field}: {old_cc} → {new_cc}")
-            # Reload so subsequent save() calls see the updated references.
+            # Reload so subsequent steps see the updated Cost Centers.
             current_doc = frappe.get_doc("Company", current_name)
         except Exception as exc:  # noqa: BLE001
             plan["skipped"].append(f"cost_center_rename failed: {exc}")
+
+    # R52 fix: ALWAYS repair stale Company Cost Center references.
+    # This runs even when abbr hasn't changed (e.g. a previous deploy
+    # already changed the abbr but the Company doc's cost_center /
+    # round_off_cost_center / depreciation_cost_center fields still
+    # point to the OLD Cost Center names). Without this, the
+    # currency/country save() fails with "Could not find Default
+    # Cost Center: Main - LS" because the Cost Center was renamed to
+    # "Main - SP" by a previous deploy but the Company doc was never
+    # updated.
+    try:
+        cc_link_fields = []
+        try:
+            meta = frappe.get_meta("Company")
+            cc_link_fields = [
+                f.fieldname for f in meta.fields
+                if f.fieldtype == "Link" and f.options == "Cost Center"
+            ]
+        except Exception:
+            pass
+        # Determine the current abbr to compute the correct suffix.
+        # If abbr_change is set, the new abbr is target_abbr; otherwise
+        # use the current abbr from the Company doc.
+        effective_abbr = target_abbr if abbr_change else current_abbr
+        for field in cc_link_fields:
+            old_cc = current_doc.get(field) or ""
+            if not old_cc:
+                continue
+            # Check if the referenced Cost Center actually exists.
+            if frappe.db.exists("Cost Center", old_cc):
+                continue  # Reference is valid — no repair needed.
+            # The referenced Cost Center doesn't exist. Try to find
+            # the replacement by replacing any old-abbr suffix with
+            # the effective (current) abbr.
+            # Try all known old abbrs: the original current_abbr, and
+            # any suffix pattern in the old_cc name.
+            repaired = False
+            for try_abbr in (current_abbr, target_abbr or "", "LS", "LMS", "K"):
+                if not try_abbr:
+                    continue
+                candidate = old_cc.replace(f" - {try_abbr}", f" - {effective_abbr}")
+                if candidate != old_cc and frappe.db.exists("Cost Center", candidate):
+                    frappe.db.set_value(
+                        "Company", current_name, field, candidate,
+                        update_modified=True,
+                    )
+                    plan["applied"].append(f"company {field} repaired: {old_cc} → {candidate}")
+                    repaired = True
+                    break
+            if not repaired:
+                # Fall back: find any non-group Cost Center in this company.
+                any_cc = frappe.get_all(
+                    "Cost Center",
+                    filters={"company": current_name, "is_group": 0},
+                    pluck="name",
+                    limit=1,
+                )
+                if any_cc:
+                    frappe.db.set_value(
+                        "Company", current_name, field, any_cc[0],
+                        update_modified=True,
+                    )
+                    plan["applied"].append(f"company {field} fallback: {old_cc} → {any_cc[0]}")
+        # Reload so subsequent save() calls see the updated references.
+        current_doc = frappe.get_doc("Company", current_name)
+    except Exception as exc:  # noqa: BLE001
+        plan["skipped"].append(f"company cost_center ref repair failed: {exc}")
 
     if currency_change:
         try:
