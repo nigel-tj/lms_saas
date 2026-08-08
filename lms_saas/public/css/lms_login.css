@@ -111,13 +111,23 @@ body.lms-login-page .page-breadcrumbs {
 	position: relative;
 	z-index: 1;
 	max-width: 26rem;
+	/* R45: distribute brand content vertically so the panel never has
+	   a huge dead band at the bottom (which previously left the
+	   disclosure paragraph stranded ~280px below the route cards on
+	   tall viewports). The min-height keeps the content from
+	   collapsing on short viewports; the flex justify pushes the
+	   disclosure down only as far as needed without leaving a gap. */
+	min-height: 100%;
+	display: flex;
+	flex-direction: column;
+	justify-content: space-between;
 }
 
 .lms-login-brand__lockup {
 	display: flex;
 	align-items: center;
 	gap: 0.85rem;
-	margin-bottom: 0.35rem;
+	margin-bottom: 1.5rem;
 }
 
 .lms-login-lockup__mark {
@@ -133,20 +143,18 @@ body.lms-login-page .page-breadcrumbs {
    ratio is 425.2 x 141.73 (~3:1), so the height derives from the width. */
 .lms-login-brand__lockup--full {
 	display: block;
-	margin-bottom: 0.75rem;
+	margin-bottom: 1.25rem;
 }
 
 .lms-login-lockup__mark--full {
 	display: block;
-	/* R44: render the wide lockup SVG at its NATURAL intrinsic width
-	   (300px). The wordmark + tagline paths extend to ~x=405 of a
-	   425.2 viewBox; scaling the SVG below its natural 300px width
-	   clips the rightmost glyphs ("I" of KESARI, "ARD" of STEWARD).
-	   Pinning width to 300px keeps every glyph intact. max-width:100%
-	   still lets it shrink on narrow viewports (phones) without
-	   clipping because the SVG's preserveAspectRatio defaults to
-	   xMidYMid meet — the whole viewBox stays visible. */
-	width: 300px;
+	/* R45: the wide lockup SVG must fit the brand panel's inner
+	   max-width (~26rem) WITHOUT clipping glyphs. The 425.2-wide
+	   viewBox means anything <300px wide clips the trailing
+	   characters. Use clamp(220px, 100%, 300px) so the SVG scales
+	   fluidly with the brand column but never exceeds its natural
+	   300px or shrinks below the glyph-clip threshold on tablet. */
+	width: clamp(220px, 100%, 300px);
 	height: auto;
 	max-width: 100%;
 	min-width: 0;
@@ -185,8 +193,18 @@ body.lms-login-page .page-breadcrumbs {
 	line-height: 1.5;
 }
 
+.lms-login-brand__stack {
+	/* R45: flex child that holds the "features + routes" group so the
+	   outer justify-content:space-between flex parent can push the
+	   disclosure down to the bottom of the brand panel without
+	   leaving dead space. */
+	display: flex;
+	flex-direction: column;
+	gap: 1.25rem;
+}
+
 .lms-login-brand__features {
-	margin: 0 0 1.5rem;
+	margin: 0;
 	padding: 0;
 	list-style: none;
 	display: grid;
@@ -215,34 +233,66 @@ body.lms-login-page .page-breadcrumbs {
 
 .lms-login-brand__routes {
 	display: grid;
-	gap: 0.65rem;
-	margin-bottom: 1.25rem;
+	gap: 0.6rem;
+	margin: 0;
 }
 
 .lms-login-route-card {
-	display: block;
-	padding: 0.85rem 1rem;
-	border-radius: 12px;
-	border: 1px solid var(--lms-border);
-	background: rgba(255, 255, 255, 0.72);
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.75rem;
+	/* R45: balance fix — flatten the route cards to single-row
+	   "label + hint + chevron" entries instead of stacked 2-line
+	   blocks. The previous stacked layout competed with the Sign in
+	   button for visual weight (same border-radius, similar padding,
+	   similar density). Reducing them to ~52px single-line rows with
+	   a quiet divider instead of a full bordered card removes that
+	   competition and lets the brand panel breathe. */
+	padding: 0.65rem 0.85rem;
+	border-radius: 10px;
+	border: 1px solid transparent;
+	border-bottom-color: var(--lms-border);
+	background: transparent;
 	text-decoration: none;
 	transition:
 		border-color var(--lms-transition),
-		box-shadow var(--lms-transition),
+		background var(--lms-transition),
 		transform var(--lms-transition);
+}
+
+/* R45: last route card's bottom border doubles the disclosure's
+   top margin visually — drop it so the disclosure has clean space. */
+.lms-login-route-card:last-child {
+	border-bottom-color: transparent;
+}
+
+.lms-login-route-card::after {
+	content: "›";
+	font-size: 1.1rem;
+	color: var(--lms-text-muted);
+	line-height: 1;
+	flex: 0 0 auto;
+	transition: transform var(--lms-transition), color var(--lms-transition);
 }
 
 .lms-login-route-card:hover,
 .lms-login-route-card:focus-visible {
 	border-color: var(--lms-sidebar-active-accent);
-	box-shadow: var(--lms-shadow-sm);
-	transform: translateY(-1px);
+	background: var(--lms-sidebar-hover-bg);
 	text-decoration: none;
 	outline: none;
+	transform: translateX(2px);
+}
+
+.lms-login-route-card:hover::after,
+.lms-login-route-card:focus-visible::after {
+	color: var(--lms-primary);
+	transform: translateX(2px);
 }
 
 .lms-login-route-card:focus-visible {
-	box-shadow: var(--lms-shadow-sm), 0 0 0 2px var(--lms-focus);
+	box-shadow: 0 0 0 2px var(--lms-focus);
 }
 
 .lms-login-route-card:hover .lms-login-route-card__label,
@@ -260,14 +310,25 @@ body.lms-login-page .page-breadcrumbs {
 	font-size: 0.875rem;
 	font-weight: 600;
 	color: var(--lms-primary);
+	line-height: 1.2;
 }
 
 .lms-login-route-card__hint {
-	display: block;
-	margin-top: 0.15rem;
+	/* R45: hint is now an inline muted continuation next to the
+	   label (single-line row) instead of a stacked sub-line. This
+	   halves the row height and removes the route-card visual
+	   competition with the Sign in button. */
+	display: inline;
+	margin: 0 0 0 0.4rem;
 	font-size: 0.78rem;
+	font-weight: 400;
 	color: var(--lms-text-muted);
-	line-height: 1.35;
+	line-height: 1.3;
+}
+
+.lms-login-route-card__label,
+.lms-login-route-card__hint {
+	min-width: 0;
 }
 
 .lms-login-brand__disclosure {
@@ -296,17 +357,25 @@ body.lms-login-page .page-breadcrumbs {
 .lms-login-alert {
 	max-width: 26rem;
 	width: 100%;
-	margin: 0 auto 1rem;
-	padding: 0.85rem 1rem;
-	border-radius: var(--lms-radius-md, 10px);
+	/* R45: balance fix — the alert is part of the form, not a
+	   floating banner. Connect it to the card below by removing its
+	   bottom margin (the card's top padding now provides the gap) and
+	   matching its border-radius to the card's top corners only, so
+	   the two surfaces visually fuse into a single composed unit
+	   instead of looking like two separate boxes with awkward whitespace
+	   between them. */
+	margin: 0 auto 0;
+	padding: 0.95rem 1.1rem;
+	border-radius: var(--lms-radius-lg, 12px) var(--lms-radius-lg, 12px) 0 0;
 	border: 1px solid transparent;
+	border-bottom: none;
 	font-size: 0.9rem;
 	line-height: 1.45;
 }
 
 .lms-login-alert strong {
 	display: block;
-	margin-bottom: 0.25rem;
+	margin-bottom: 0.2rem;
 	font-size: 0.95rem;
 }
 
@@ -316,13 +385,37 @@ body.lms-login-page .page-breadcrumbs {
 }
 
 .lms-login-alert--success {
-	background: color-mix(in srgb, var(--lms-success, #22c55e) 12%, var(--lms-surface, #fff));
+	background: color-mix(in srgb, var(--lms-success, #22c55e) 10%, var(--lms-surface, #fff));
 	border-color: color-mix(in srgb, var(--lms-success, #22c55e) 35%, transparent);
 	color: var(--lms-text);
 }
 
 .lms-login-alert--success strong {
 	color: var(--lms-success, #15803d);
+}
+
+/* R45: when the alert is present, the card directly beneath should
+   pick up where the alert ends — no gap, no double border radius.
+   The card's top corners flatten and the top border is hidden where
+   it meets the alert, so the two surfaces read as one continuous
+   "signed-out confirmation + sign-in form" composition. */
+.lms-login-alert + .lms-login-card,
+.lms-login-alert + .login-content.lms-login-card {
+	border-top-left-radius: 0 !important;
+	border-top-right-radius: 0 !important;
+	border-top: none !important;
+	margin-top: 0;
+}
+
+/* R45: the suppressed card-head placeholder still needs to claim its
+   vertical space so the form's vertical rhythm is identical to the
+   pre-logout layout (alert → input → button). Without this the form
+   would jump up the moment the alert disappears on re-login. */
+.lms-login-card-head--hidden {
+	min-height: 0.5rem;
+	padding: 0 !important;
+	margin: 0 !important;
+	border: none !important;
 }
 
 .lms-login-forms {

@@ -129,21 +129,33 @@
 			{# R44: tagline is baked into the lockup SVG; suppress the standalone
 			   paragraph to avoid the "STEWARDSHIP IN EVERY REPAYMENT" double-up. #}
 
-			<ul class="lms-login-brand__features">
-				{% for feature in (lms_login.features if lms_login else []) %}
-				<li>{{ feature }}</li>
-				{% endfor %}
-			</ul>
+			{# R45: group features + routes into a single flex stack so the
+			   flex container (justify-content:space-between) keeps the
+			   disclosure anchored to the bottom while features+routes
+			   stay grouped at the top. Without this wrapper, the
+			   disclosure sits stranded with ~280px of empty brand-panel
+			   space below the route cards on tall viewports. #}
+			<div class="lms-login-brand__stack">
+				<ul class="lms-login-brand__features">
+					{% for feature in (lms_login.features if lms_login else []) %}
+					<li>{{ feature }}</li>
+					{% endfor %}
+				</ul>
 
-			<div class="lms-login-brand__routes">
-				<a class="lms-login-route-card" href="{{ lms_login.staff_url if lms_login and lms_login.staff_url else lms_desk_home }}">
-					<span class="lms-login-route-card__label">{{ lms_login.staff_label if lms_login else _("Staff desk") }}</span>
-					<span class="lms-login-route-card__hint">{{ lms_login.staff_hint if lms_login else _("Operations & compliance") }}</span>
-				</a>
-				<a class="lms-login-route-card" href="/lms">
-					<span class="lms-login-route-card__label">{{ lms_login.borrower_label if lms_login else _("Borrower portal") }}</span>
-					<span class="lms-login-route-card__hint">{{ lms_login.borrower_hint if lms_login else _("Self-service loans") }}</span>
-				</a>
+				<div class="lms-login-brand__routes">
+					<a class="lms-login-route-card" href="{{ lms_login.staff_url if lms_login and lms_login.staff_url else lms_desk_home }}">
+						<span class="lms-login-route-card__text">
+							<span class="lms-login-route-card__label">{{ lms_login.staff_label if lms_login else _("Staff desk") }}</span>
+							<span class="lms-login-route-card__hint">{{ lms_login.staff_hint if lms_login else _("Operations & compliance") }}</span>
+						</span>
+					</a>
+					<a class="lms-login-route-card" href="/lms">
+						<span class="lms-login-route-card__text">
+							<span class="lms-login-route-card__label">{{ lms_login.borrower_label if lms_login else _("Borrower portal") }}</span>
+							<span class="lms-login-route-card__hint">{{ lms_login.borrower_hint if lms_login else _("Self-service loans") }}</span>
+						</span>
+					</a>
+				</div>
 			</div>
 
 			<p class="lms-login-brand__disclosure">
@@ -170,7 +182,14 @@
 			</div>
 			{% endif %}
 			<section class="for-login">
-				{{ logo_section() }}
+				{# R45: when the user is in the post-logout flow, the success
+				   alert already says "Signed out". Repeating the same word as
+				   the card title creates two competing focal points and
+				   breaks visual balance — suppress the card title + icon
+				   while the alert is shown so the form has a single,
+				   anchored headline. The icon returns when the alert is
+				   dismissed (re-login flow). #}
+				{% if not logged_out %}{{ logo_section() }}{% else %}<div class="lms-login-card-head lms-login-card-head--hidden" aria-hidden="true"></div>{% endif %}
 				<div class="login-content page-card lms-login-card">
 					<form class="form-signin form-login" role="form">
 						{%- if social_login or login_with_email_link -%}

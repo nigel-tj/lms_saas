@@ -160,6 +160,10 @@ class TestR48DeployKwargs(unittest.TestCase):
     # R48-C2: the function must retag Employees / Customers / Loans /
     # Loan Applications so any record pointing at the OLD branch
     # name gets re-pointed at the NEW branch name.
+    # R50 refactor: replaced raw SQL UPDATE ... REPLACE() with
+    # frappe.db.bulk_update, which is the idiomatic Frappe way to
+    # bulk-update many rows. The test now checks for bulk_update
+    # instead of raw SQL.
     # --------------------------------------------------------------
     def test_rename_cost_centers_retags_employees_customers_loans(self):
         """After the Cost Center rename, Employee.custom_lms_branch,
@@ -168,16 +172,18 @@ class TestR48DeployKwargs(unittest.TestCase):
         branch name. Without a bulk retag, branch resolution stays
         broken even after the rename."""
         body = _function_body(_read(LIVE_REPAIR), "_rename_cost_centers_for_abbr_change")
+        # Must use frappe.db.bulk_update for the retag (R50 refactor).
+        self.assertIn(
+            "frappe.db.bulk_update",
+            body,
+            msg="must use frappe.db.bulk_update for the retag (idiomatic Frappe pattern)",
+        )
+        # Must iterate over all 4 doctypes.
         for doctype in ("Employee", "Customer", "Loan", "Loan Application"):
             self.assertIn(
-                f"UPDATE `tab{doctype}`",
+                f'"{doctype}"',
                 body,
-                msg=f"must bulk-retag {doctype}.custom_lms_branch",
-            )
-            self.assertIn(
-                "REPLACE(custom_lms_branch",
-                body,
-                msg=f"must use REPLACE() to swap {doctype} branch strings",
+                msg=f"must retag {doctype}.custom_lms_branch",
             )
 
     # --------------------------------------------------------------

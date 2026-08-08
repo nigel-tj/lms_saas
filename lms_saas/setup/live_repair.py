@@ -448,38 +448,38 @@ def _rename_cost_centers_for_abbr_change(
         except Exception as exc:  # noqa: BLE001
             lines.append(f"FAILED {old_name} → {new_name}: {exc}")
 
-    # Retag any Employee/Customer/Loan whose custom_lms_branch still
-    # references the OLD branch name (including the new-but-orphan
-    # case where we just renamed a Cost Center but Employees haven't
-    # been updated yet).
-    frappe.db.sql(
-        """
-        UPDATE `tabEmployee` SET custom_lms_branch = REPLACE(custom_lms_branch, %s, %s)
-        WHERE custom_lms_branch LIKE %s
-        """,
-        (suffix, new_suffix, f"%{suffix}"),
-    )
-    frappe.db.sql(
-        """
-        UPDATE `tabCustomer` SET custom_lms_branch = REPLACE(custom_lms_branch, %s, %s)
-        WHERE custom_lms_branch LIKE %s
-        """,
-        (suffix, new_suffix, f"%{suffix}"),
-    )
-    frappe.db.sql(
-        """
-        UPDATE `tabLoan` SET custom_lms_branch = REPLACE(custom_lms_branch, %s, %s)
-        WHERE custom_lms_branch LIKE %s
-        """,
-        (suffix, new_suffix, f"%{suffix}"),
-    )
-    frappe.db.sql(
-        """
-        UPDATE `tabLoan Application` SET custom_lms_branch = REPLACE(custom_lms_branch, %s, %s)
-        WHERE custom_lms_branch LIKE %s
-        """,
-        (suffix, new_suffix, f"%{suffix}"),
-    )
+    # R50 refactor: use frappe.db.bulk_update instead of raw SQL
+    # UPDATE ... REPLACE(). The idiomatic Frappe pattern is:
+    #   1. Query the rows that need updating.
+    #   2. Build a {docname: {field: new_value}} dict.
+    #   3. Call frappe.db.bulk_update(doctype, updates).
+    # This goes through Frappe's DB layer (parameter binding, cache
+    # invalidation, modified timestamp) instead of bypassing it with
+    # raw SQL. The trade-off is one extra SELECT per doctype, but
+    # the safety + auditability is worth it.
+    for doctype in ("Employee", "Customer", "Loan", "Loan Application"):
+        if not frappe.db.exists("DocType", doctype):
+            continue
+        # Fetch every row whose custom_lms_branch ends with the old
+        # suffix. We need the docname + the current branch value to
+        # compute the new branch value.
+        rows = frappe.get_all(
+            doctype,
+            filters={"custom_lms_branch": ["like", f"%{suffix}"]},
+            fields=["name", "custom_lms_branch"],
+        )
+        if not rows:
+            continue
+        updates = {}
+        for row in rows:
+            old_branch = row.get("custom_lms_branch") or ""
+            new_branch = old_branch.replace(suffix, new_suffix)
+            if new_branch != old_branch:
+                updates[row["name"]] = {"custom_lms_branch": new_branch}
+        if updates:
+            frappe.db.bulk_update(doctype, updates, update_modified=True)
+            lines.append(f"retag {doctype}: {len(updates)} row(s) updated")
+
     frappe.db.commit()
 
     return lines
@@ -584,20 +584,25 @@ def reconcile_company_name(
         except Exception as exc:  # noqa: BLE001
             plan["skipped"].append(f"company rename failed: {exc}")
 
-    # R49 fix: Company.abbr is locked by ERPNext (controller hook raises
-    # "Value cannot be changed for Abbr" on save). We have to bypass
-    # the controller with a direct SQL UPDATE — same approach as
-    # _rename_cost_centers_for_abbr_change. Safe because abbr is
-    # referenced by name (e.g. ``Main Branch - <abbr>``) and we just
-    # renamed every Cost Center to use the new abbr.
+    # R50 refactor: use frappe.db.set_value instead of raw SQL.
+    # ERPNext blocks Company.abbr changes via the controller's on_update
+    # hook (raises "Value cannot be changed for Abbr" on doc.save()).
+    # frappe.db.set_value bypasses controller hooks — it writes directly
+    # to the DB table but still goes through Frappe's DB layer (parameter
+    # binding, cache invalidation, modified timestamp update). This is
+    # the idiomatic Frappe way to do a system-level field update that
+    # intentionally skips business logic. Safe because abbr is referenced
+    # by name (e.g. ``Main Branch - <abbr>``) and we just renamed every
+    # Cost Center to use the new abbr.
     if abbr_change:
         try:
-            frappe.db.sql(
-                "UPDATE `tabCompany` SET abbr = %s WHERE name = %s",
-                (target_abbr, current_name),
+            frappe.db.set_value(
+                "Company", current_name, "abbr", target_abbr,
+                update_modified=True,
             )
-            plan["applied"].append(f"company abbr updated (SQL): {current_abbr} → {target_abbr}")
-            # Invalidate the stale in-memory handle.
+            plan["applied"].append(f"company abbr updated: {current_abbr} → {target_abbr}")
+            # Reload the in-memory handle so subsequent save() calls
+            # don't hit the stale-handle / optimistic-lock error.
             current_doc = frappe.get_doc("Company", current_name)
         except Exception as exc:  # noqa: BLE001
             plan["skipped"].append(f"company abbr update failed: {exc}")

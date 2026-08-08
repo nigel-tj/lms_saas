@@ -83,28 +83,34 @@ class TestR49CompanySaveReload(unittest.TestCase):
 
     # --------------------------------------------------------------
     # R49-A: reconcile_company_name must NOT use doc.save() for the
-    # abbr change — must use direct SQL on tabCompany.
+    # abbr change — must use frappe.db.set_value (bypasses controller).
+    # R50 refactor: replaced raw SQL UPDATE with frappe.db.set_value,
+    # which is the idiomatic Frappe way to do a system-level field
+    # update that intentionally skips business logic.
     # --------------------------------------------------------------
-    def test_reconcile_company_abbr_uses_sql_not_save(self):
+    def test_reconcile_company_abbr_uses_set_value_not_save(self):
         """ERPNext blocks ``Company.abbr`` changes via the controller's
-        on_update hook. The only safe way to bypass is a direct SQL
-        UPDATE on ``tabCompany``. Verify that the abbr-change block
-        contains a SQL UPDATE and does NOT call ``.save()`` on the
-        in-memory doc."""
+        on_update hook (raises "Value cannot be changed for Abbr" on
+        doc.save()). The idiomatic bypass is ``frappe.db.set_value``
+        which writes directly to the DB table through Frappe's DB
+        layer (parameter binding, cache invalidation, modified
+        timestamp) without triggering controller hooks. Verify that
+        the abbr-change block uses ``frappe.db.set_value`` and does
+        NOT call ``.save()`` on the in-memory doc."""
         body = _function_body(_read(LIVE_REPAIR), "reconcile_company_name")
         # Locate the abbr_change block specifically.
         idx = body.find("abbr_change:")
         self.assertNotEqual(idx, -1, msg="abbr_change branch not found")
-        # Take the block until the next if-block / except line.
+        # Take the block until the next if-block.
         end = body.find("\n    if ", idx + 1)
         if end == -1:
             end = len(body)
         abbr_block = body[idx:end]
-        # Must use SQL UPDATE.
+        # Must use frappe.db.set_value (the idiomatic bypass).
         self.assertIn(
-            "UPDATE `tabCompany`",
+            "frappe.db.set_value",
             abbr_block,
-            msg="abbr change must use direct SQL UPDATE on tabCompany",
+            msg="abbr change must use frappe.db.set_value (bypasses ERPNext controller)",
         )
         # Must NOT call .save() for the abbr change.
         self.assertNotIn(
@@ -154,15 +160,17 @@ class TestR49CompanySaveReload(unittest.TestCase):
         )
 
     # --------------------------------------------------------------
-    # R49-A: the result plan must report the SQL abbr update in
+    # R49-A: the result plan must report the abbr update in
     # ``applied`` so operators can see it happened.
+    # R50 refactor: the message changed from "(SQL)" to just the
+    # change description since we now use frappe.db.set_value.
     # --------------------------------------------------------------
-    def test_reconcile_reports_abbr_sql_in_applied(self):
+    def test_reconcile_reports_abbr_update_in_applied(self):
         body = _function_body(_read(LIVE_REPAIR), "reconcile_company_name")
         self.assertIn(
-            "company abbr updated (SQL)",
+            "company abbr updated",
             body,
-            msg="applied[] must include 'company abbr updated (SQL): ...' for operator visibility",
+            msg="applied[] must include 'company abbr updated: ...' for operator visibility",
         )
 
     # --------------------------------------------------------------
