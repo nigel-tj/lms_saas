@@ -20,6 +20,12 @@
 	border-radius: var(--lms-radius);
 	background: var(--lms-surface);
 	overflow: hidden;
+	/* R46-9 fix: the parent .lms-form is `display: flex; flex-direction: column`
+	   inside a constrained-height modal body. Default flex-shrink:1 lets
+	   flex collapse each card to just the header height (54-83px), hiding
+	   the body content (217-341px) under the card's overflow:hidden.
+	   Lock shrink so each card keeps its natural height. */
+	flex-shrink: 0;
 }
 .lms-form-card + .lms-form-card {
 	margin-top: 1.25rem;
