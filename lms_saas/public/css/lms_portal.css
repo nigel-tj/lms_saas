@@ -1351,10 +1351,26 @@ body.lms-portal {
 .lms-loading,
 .lms-error {
 	text-align: center;
-	padding: 3rem 2rem;
+	padding: 1.5rem 1.25rem;
 	border-radius: var(--lms-radius-lg);
 	background: var(--lms-surface);
 	border: 1px dashed var(--lms-border);
+}
+
+/* R46-8: loading state — flex column, content hugs the box. The
+   previous block had padding: 3rem 2rem and no flex alignment, which
+   made the 40x40 spinner + "Loading…" label float in a giant empty
+   box (off-balance). flex layout centers the spinner over the label
+   with a tight gap, and the smaller padding makes the panel feel
+   proportional to its content. */
+.lms-loading {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 0.6rem;
+	color: var(--lms-text-muted);
+	border-style: solid;
 }
 
 .lms-empty h3 {
@@ -1404,17 +1420,16 @@ body.lms-portal {
 	opacity: 0.35;
 }
 
-.lms-loading {
-	color: var(--lms-text-muted);
-	border-style: solid;
-}
-
 .lms-loading p {
-	margin: 0.75rem 0 0;
+	margin: 0;
+	color: var(--lms-text-muted);
+	font-size: 0.85rem;
 }
 
 .lms-brand-loader {
-	display: inline-block;
+	display: block;
+	width: 48px;
+	height: 48px;
 	object-fit: contain;
 	animation: lms-brand-loader-pulse 1.1s ease-in-out infinite;
 }

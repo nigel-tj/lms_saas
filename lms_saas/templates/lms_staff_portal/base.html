@@ -5,7 +5,12 @@
 {% block sidebar %}
 <aside class="lms-sidebar" id="lms-sidebar" aria-label="Staff navigation">
   <div class="lms-sidebar__brand">
-    {% if brand and brand.logo_url %}
+    {# R46-8: prefer the square favicon over the wide logo lockup in
+       the 40x40 sidebar box. See lms_portal/base.html for the same
+       change and rationale. #}
+    {% if brand and brand.favicon_url %}
+    <div class="lms-sidebar__logo"><img src="{{ brand.favicon_url }}" alt="{{ brand.portal_title if brand else 'Kesari' }}"></div>
+    {% elif brand and brand.logo_url %}
     <div class="lms-sidebar__logo"><img src="{{ brand.logo_url }}" alt="{{ brand.portal_title if brand else 'Kesari' }}"></div>
     {% else %}
     <div class="lms-sidebar__logo lms-sidebar__logo--text">K</div>
