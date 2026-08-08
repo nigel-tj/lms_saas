@@ -120,28 +120,54 @@ class TestR49CompanySaveReload(unittest.TestCase):
         )
 
     # --------------------------------------------------------------
-    # R49-B: every save() call in reconcile_company_name must be
-    # preceded (or followed) by a reload via frappe.get_doc() so the
-    # in-memory handle is fresh. This avoids "modified after you
-    # opened it" errors.
+    # R49-B / R53: currency and country changes must use
+    # frappe.db.set_value (NOT doc.save()) to bypass ERPNext's
+    # controller validation chain. The controller validates that
+    # default_cash_account currency matches the Company currency,
+    # which fails on a live site where the Cash Account was created
+    # with the old currency. set_value bypasses the controller.
     # --------------------------------------------------------------
     def test_reconcile_company_reloads_doc_after_each_save(self):
-        """The Company doc's ``modified`` timestamp bumps on every save.
-        Stale in-memory handles raise ``ConcurrencyError`` on the next
-        save. We must reload between saves."""
+        """R53: currency and country changes now use frappe.db.set_value
+        instead of doc.save() — same as the abbr change. This bypasses
+        ERPNext's controller validation (which checks default_cash_account
+        currency, Cost Center references, etc). The test verifies that
+        the currency and country blocks use set_value, not save()."""
         body = _function_body(_read(LIVE_REPAIR), "reconcile_company_name")
-        # Find every ``current_doc.save(`` call.
-        import re
-        save_calls = list(re.finditer(r"current_doc\.save\(", body))
-        self.assertTrue(save_calls, msg="expected at least one current_doc.save() call")
-        # For each save, there must be a reload via frappe.get_doc AFTER it.
-        for m in save_calls:
-            after_save = body[m.end():m.end() + 500]
-            self.assertIn(
-                "frappe.get_doc(",
-                after_save,
-                msg=f"every current_doc.save() must be followed by a reload via frappe.get_doc()",
-            )
+        # The currency_change block must use set_value, not save().
+        idx = body.find("if currency_change:")
+        self.assertNotEqual(idx, -1, msg="currency_change block not found")
+        end = body.find("\n    if ", idx + 1)
+        if end == -1:
+            end = len(body)
+        currency_block = body[idx:end]
+        self.assertIn(
+            "frappe.db.set_value",
+            currency_block,
+            msg="currency change must use frappe.db.set_value (bypasses ERPNext controller)",
+        )
+        self.assertNotIn(
+            "current_doc.save(",
+            currency_block,
+            msg="currency change must NOT call doc.save() (ERPNext controller blocks it)",
+        )
+        # The country_change block must also use set_value, not save().
+        idx = body.find("if country_change:")
+        self.assertNotEqual(idx, -1, msg="country_change block not found")
+        end = body.find("\n    if ", idx + 1)
+        if end == -1:
+            end = len(body)
+        country_block = body[idx:end]
+        self.assertIn(
+            "frappe.db.set_value",
+            country_block,
+            msg="country change must use frappe.db.set_value (bypasses ERPNext controller)",
+        )
+        self.assertNotIn(
+            "current_doc.save(",
+            country_block,
+            msg="country change must NOT call doc.save() (ERPNext controller blocks it)",
+        )
 
     # --------------------------------------------------------------
     # R49-B: after frappe.rename_doc(), the current_doc must be reloaded

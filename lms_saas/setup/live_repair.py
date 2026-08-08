@@ -703,14 +703,21 @@ def reconcile_company_name(
                 frappe.get_doc(
                     {"doctype": "Currency", "currency_name": target_currency, "enabled": 1}
                 ).insert(ignore_permissions=True)
-            # Reload to avoid stale-handle / "modified after you opened
-            # it" errors when an earlier step (rename, abbr) bumped
-            # the modified timestamp.
-            current_doc = frappe.get_doc("Company", current_name)
-            current_doc.default_currency = target_currency
-            current_doc.save(ignore_permissions=True)
+            # R53 fix: use frappe.db.set_value instead of doc.save().
+            # ERPNext's Company controller validates that the
+            # default_cash_account's currency matches the Company's
+            # default_currency. On a live site where the Cash Account
+            # was created with ZAR, changing the Company to USD via
+            # doc.save() fails with "Default Cash Account currency must
+            # be same as company's default currency". set_value bypasses
+            # the controller — the currency change is a system-level
+            # migration, not a user-facing form submission.
+            frappe.db.set_value(
+                "Company", current_name, "default_currency", target_currency,
+                update_modified=True,
+            )
             plan["applied"].append(f"company default_currency: {current_currency} → {target_currency}")
-            # Reload again so subsequent steps use fresh state.
+            # Reload so subsequent steps use fresh state.
             current_doc = frappe.get_doc("Company", current_name)
         except Exception as exc:  # noqa: BLE001
             plan["skipped"].append(f"company currency update failed: {exc}")
@@ -721,9 +728,13 @@ def reconcile_company_name(
                 frappe.get_doc(
                     {"doctype": "Country", "country_name": target_country}
                 ).insert(ignore_permissions=True)
-            current_doc = frappe.get_doc("Company", current_name)
-            current_doc.country = target_country
-            current_doc.save(ignore_permissions=True)
+            # R53 fix: use frappe.db.set_value for the same reason as
+            # currency — doc.save() triggers ERPNext's full validation
+            # chain which may fail on stale account/cost-center refs.
+            frappe.db.set_value(
+                "Company", current_name, "country", target_country,
+                update_modified=True,
+            )
             plan["applied"].append(f"company country: {current_country} → {target_country}")
             current_doc = frappe.get_doc("Company", current_name)
         except Exception as exc:  # noqa: BLE001
