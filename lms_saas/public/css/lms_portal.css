@@ -3036,12 +3036,17 @@ body:not(.lms-portal-borrower):not(.lms-page-loans):not(.lms-page-apply):not(.lm
 	background: var(--lms-surface, #fff);
 }
 
-/* Action cell — keep buttons on one line, no wrap. */
+/* Action cell — keep buttons on one line, no wrap, right-aligned
+   so the buttons hug the right edge of the table (no awkward mid-cell
+   gap). Width 100% on the wrapper so flex-end has something to push
+   against when the cell content is narrower than the column. */
 .lms-data-table__actions {
-	display: inline-flex;
+	display: flex;
 	gap: 0.5rem;
 	flex-wrap: nowrap;
 	white-space: nowrap;
+	justify-content: flex-end;
+	align-items: center;
 }
 
 /* Empty-state inside a data table (e.g. "No applications pending") */
