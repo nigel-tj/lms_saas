@@ -260,23 +260,40 @@ if [[ "${LMS_SKIP_CURRENCY_RESET:-0}" != "1" ]]; then
 	#   LMS_COMPANY_OVERRIDE="company=LMS Demo Co,abbr=LD,currency=USD,country=Zimbabwe"
 	if [[ -n "${LMS_COMPANY_OVERRIDE:-}" ]]; then
 		echo "  → R45: reconcile Company name/currency/country per LMS_COMPANY_OVERRIDE"
-		# Build the kwargs JSON from the comma-separated key=value string.
-		override_kwargs=$(python3 -c '
-import os, json, sys
+		# Build the kwargs as a Python dict LITERAL (not JSON) from the
+		# comma-separated key=value string. R48 lesson:
+		#   - bench execute does `eval(kwargs)` on the --kwargs value.
+		#   - JSON uses double quotes around keys, but bench's argument
+		#     parser would then try to unquote the JSON string and fail.
+		#   - Wrapping the JSON in '...' (the old code) was wrong: the
+		#     wrapping quotes got concatenated into the value, and eval
+		#     failed with "argument after ** must be a mapping, not str"
+		#     — the function was called with no kwargs and the rename
+		#     silently did nothing.
+		# The fix: hand bench a valid Python dict literal directly. Use
+		# single quotes around both keys and values (no spaces in keys,
+		# values are user input — escape any single quotes inside).
+		override_kwargs=$(LMS_COMPANY_OVERRIDE="$LMS_COMPANY_OVERRIDE" python3 -c '
+import os
 raw = os.environ.get("LMS_COMPANY_OVERRIDE", "")
-out = {}
+parts = []
 for kv in raw.split(","):
     kv = kv.strip()
     if not kv or "=" not in kv:
         continue
     k, v = kv.split("=", 1)
-    out[k.strip()] = v.strip()
-out["apply"] = 1
-print(json.dumps(out))
-' 2>/dev/null || echo '{"apply":1}')
+    k = k.strip()
+    v = v.strip()
+    # Escape any single quotes in the value.
+    v_escaped = v.replace("'"'"'", "\\'"'"'")
+    parts.append(f"'"'"'{k}'"'"': '"'"'{v_escaped}'"'"'")
+print("{" + ", ".join(parts) + ", " + "'"'"'apply'"'"': 1}")
+')
+		# Hand the dict literal to bench execute. NO outer quoting — the
+		# entire literal IS the value of --kwargs.
 		run bench --site "$FC_SITE" execute \
 			lms_saas.setup.live_repair.reconcile_company_name \
-			--kwargs "'$override_kwargs'" || true
+			--kwargs "$override_kwargs" || true
 	fi
 	echo "  → R44: sync lms_currency site_config key to match company default_currency"
 	run bench --site "$FC_SITE" execute lms_saas.setup.set_company_currency_country._sync_site_config_currency || true

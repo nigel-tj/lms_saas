@@ -382,6 +382,109 @@ def run_live_repair() -> dict:
 #
 
 
+def _rename_cost_centers_for_abbr_change(
+    company: str, old_abbr: str, new_abbr: str
+) -> list[str]:
+    """Rename Cost Centers that embed ``old_abbr`` to embed ``new_abbr``.
+
+    Cost Center names in lms_saas follow the ``<Label> - <Company Abbr>``
+    convention. When the Company abbr changes (``LS`` → ``SP``), every
+    Cost Center like ``Main Branch - LS`` becomes a phantom — the
+    branch string in the database no longer matches the company it
+    belongs to. ``staff.get_current_user_branch()`` will then return
+    ``Main Branch - LS`` for any Employee that was on the legacy
+    branch, and every data query returns zero rows.
+
+    Implementation note: ERPNext blocks ``frappe.rename_doc("Cost
+    Center", ...)`` ("Cost Center not allowed to be renamed") because
+    Cost Centers can be referenced by GL Entries, Budgets, and
+    Allocation rules. We therefore use a direct SQL UPDATE on the
+    ``tabCost Center`` row — no doc.save, no controller hooks. This
+    is safe IF no GL Entry references the old name (which is true for
+    fresh lms_saas installs and for our demo sites where Cost Centers
+    are used purely as branch tags on Customer/Loan/Employee).
+    Operators on a system with real GL postings on the old branches
+    should run a Journal Entry / GL Entry rename BEFORE this script
+    and then re-run.
+
+    Steps:
+
+      1. List every Cost Center in the company whose name ends with
+         ``- <old_abbr>``.
+      2. Direct-SQL UPDATE each to ``<Label> - <new_abbr>``.
+      3. Bulk-retag any Employee / Customer / Loan whose
+         ``custom_lms_branch`` still references the old branch name.
+
+    Returns a list of human-readable change descriptions. Idempotent.
+    """
+    lines: list[str] = []
+    if not (company and old_abbr and new_abbr and old_abbr != new_abbr):
+        return lines
+
+    suffix = f" - {old_abbr}"
+    new_suffix = f" - {new_abbr}"
+    candidates = frappe.get_all(
+        "Cost Center",
+        filters={"company": company},
+        fields=["name"],
+    )
+
+    for cc in candidates:
+        old_name = cc["name"]
+        if not old_name.endswith(suffix):
+            continue
+        label = old_name[: -len(suffix)]
+        new_name = f"{label} - {new_abbr}"
+        if old_name == new_name:
+            continue
+        try:
+            # Direct SQL rename — see the docstring for why we bypass
+            # frappe.rename_doc here.
+            frappe.db.sql(
+                "UPDATE `tabCost Center` SET name = %s WHERE name = %s",
+                (new_name, old_name),
+            )
+            lines.append(f"{old_name} → {new_name}")
+        except Exception as exc:  # noqa: BLE001
+            lines.append(f"FAILED {old_name} → {new_name}: {exc}")
+
+    # Retag any Employee/Customer/Loan whose custom_lms_branch still
+    # references the OLD branch name (including the new-but-orphan
+    # case where we just renamed a Cost Center but Employees haven't
+    # been updated yet).
+    frappe.db.sql(
+        """
+        UPDATE `tabEmployee` SET custom_lms_branch = REPLACE(custom_lms_branch, %s, %s)
+        WHERE custom_lms_branch LIKE %s
+        """,
+        (suffix, new_suffix, f"%{suffix}"),
+    )
+    frappe.db.sql(
+        """
+        UPDATE `tabCustomer` SET custom_lms_branch = REPLACE(custom_lms_branch, %s, %s)
+        WHERE custom_lms_branch LIKE %s
+        """,
+        (suffix, new_suffix, f"%{suffix}"),
+    )
+    frappe.db.sql(
+        """
+        UPDATE `tabLoan` SET custom_lms_branch = REPLACE(custom_lms_branch, %s, %s)
+        WHERE custom_lms_branch LIKE %s
+        """,
+        (suffix, new_suffix, f"%{suffix}"),
+    )
+    frappe.db.sql(
+        """
+        UPDATE `tabLoan Application` SET custom_lms_branch = REPLACE(custom_lms_branch, %s, %s)
+        WHERE custom_lms_branch LIKE %s
+        """,
+        (suffix, new_suffix, f"%{suffix}"),
+    )
+    frappe.db.commit()
+
+    return lines
+
+
 @frappe.whitelist()
 def reconcile_company_name(
     company: str | None = None,
@@ -515,6 +618,38 @@ def reconcile_company_name(
         )
     except Exception as exc:  # noqa: BLE001
         plan["skipped"].append(f"global_defaults update failed: {exc}")
+
+    # R48 fix: when the Company abbr changes (e.g. "LS" → "SP"), every
+    # Cost Center name that embeds the old abbr (e.g. "Main Branch - LS")
+    # must be renamed too — otherwise the branches are still tagged with
+    # the old company identifier and any branch-resolution code falls
+    # over. We rename Cost Centers, then retag Customers/Loans/Employees
+    # to use the new branch names. Both halves are required for branch
+    # parity after an abbr change.
+    if abbr_change:
+        try:
+            old_abbr, new_abbr = current_abbr, target_abbr
+            renamed_ccs = _rename_cost_centers_for_abbr_change(
+                current_name, old_abbr, new_abbr
+            )
+            for line in renamed_ccs:
+                plan["applied"].append(f"cost_center_rename: {line}")
+        except Exception as exc:  # noqa: BLE001
+            plan["skipped"].append(f"cost_center_rename failed: {exc}")
+    # Always run the retag pass — it normalizes any Customer/Loan/Employee
+    # that ended up on a phantom branch (the R47 scenario) to the fallback
+    # branch, which is the branch that most existing records are tagged
+    # with after the rename. Idempotent.
+    try:
+        branch_repair = reconcile_staff_branches(company=current_name)
+        for line in branch_repair.get("notes", []):
+            plan["applied"].append(f"branch_reconcile: {line}")
+        if branch_repair.get("repaired"):
+            plan["applied"].append(
+                f"branch_reconcile: {len(branch_repair['repaired'])} Employee(s) retagged"
+            )
+    except Exception as exc:  # noqa: BLE001
+        plan["skipped"].append(f"branch_reconcile failed: {exc}")
 
     # Mirror the new currency into site_config.json + frappe.conf so the
     # login page (which reads window.__lms_currency from site_config before
