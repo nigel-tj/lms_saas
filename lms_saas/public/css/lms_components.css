@@ -1896,6 +1896,72 @@ dialog.lms-modal::backdrop {
 	letter-spacing: 0.01em;
 }
 
+/* R46-12: 2-line Company + Branch context chip. Replaces the single-
+   line branch chip when both Company and Branch are available. The
+   Company name sits on top (small + muted, with briefcase icon) and
+   the Branch name sits below (slightly larger + primary colour, with
+   home icon). A subtle vertical divider on the left echoes the brand
+   palette so the chip reads as a single branded unit without
+   competing with the page title to the left. */
+.lms-topbar__org {
+	display: inline-flex;
+	flex-direction: column;
+	justify-content: center;
+	gap: 0.05rem;
+	padding: 0.32rem 0.85rem 0.32rem 0.75rem;
+	border-radius: 0.6rem;
+	background: color-mix(in oklab, var(--lms-primary, #2f4f46) 6%, var(--lms-surface, #fff));
+	border: 1px solid color-mix(in oklab, var(--lms-primary, #2f4f46) 22%, var(--lms-border, #e5e7eb));
+	border-left: 3px solid var(--lms-primary, #2f4f46);
+	color: var(--lms-text, #1f2937);
+	font-size: 0.78rem;
+	line-height: 1.15;
+	white-space: nowrap;
+	max-width: 32ch;
+	margin-right: 0.25rem;
+}
+.lms-topbar__org-company {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.3rem;
+	color: var(--lms-text-muted, #6b7280);
+	font-size: 0.7rem;
+	font-weight: 500;
+	letter-spacing: 0.02em;
+	text-transform: uppercase;
+}
+.lms-topbar__org-company svg {
+	width: 11px;
+	height: 11px;
+	stroke: currentColor;
+	flex-shrink: 0;
+}
+.lms-topbar__org-company-text {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	max-width: 26ch;
+}
+.lms-topbar__org-branch {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.3rem;
+	color: var(--lms-primary, #2f4f46);
+	font-size: 0.85rem;
+	font-weight: 700;
+	letter-spacing: 0.005em;
+}
+.lms-topbar__org-branch svg {
+	width: 12px;
+	height: 12px;
+	stroke: currentColor;
+	flex-shrink: 0;
+}
+.lms-topbar__org-branch-text {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	max-width: 26ch;
+}
+
 /* Generic stack used by officer and manager portal lists. */
 .lms-stack {
 	display: flex;

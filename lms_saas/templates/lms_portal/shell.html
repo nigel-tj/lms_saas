@@ -32,6 +32,8 @@
 	<script>window.__lms_lang = {{ (lms_lang or 'en') | tojson }};</script>
 	{# R43: expose the current user's branch scope so the portal toolbar can render a branch badge. #}
 	<script>window.__lms_branch = {{ (lms_branch or '') | tojson }};</script>
+	{# R46-12: expose the Company name so the topbar can render "Company · Branch". #}
+	<script>window.__lms_company = {{ (lms_company or '') | tojson }};</script>
 
 	{# Frappe web globals — must exist before frappe-web.bundle.js loads #}
 	<script>

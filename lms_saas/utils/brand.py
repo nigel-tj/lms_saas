@@ -578,6 +578,17 @@ def apply_portal_context(context, nav_active="loans", page_js=None):
 		context.lms_branch = _staff.get_current_user_branch() or ""
 	except Exception:
 		context.lms_branch = ""
+	# R46-12: expose the current site's Company so the topbar can show
+	# "Company · Branch" as a single context chip. Resolves through
+	# `lms_company` site_config override, then Global Defaults, then
+	# the first Company record (see lms_saas.api.lms_company for the
+	# full resolution order). Empty string when the site has no Company
+	# yet (e.g. fresh tenant bootstrap).
+	try:
+		from lms_saas.api.lms_company import get_lms_company
+		context.lms_company = get_lms_company() or ""
+	except Exception:
+		context.lms_company = ""
 	# R18-9: full display name (Employee / Customer / email-prefix fallback).
 	context.lms_user_display_name = _resolve_user_display_name(frappe.session.user, context.lms_persona)
 	context.show_sidebar = False
