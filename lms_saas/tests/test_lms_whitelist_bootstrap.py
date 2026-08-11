@@ -135,6 +135,54 @@ class TestR35OnLoginRedirectFix(unittest.TestCase):
         # And must satisfy get_lms_home_page for admin.
         self.assertEqual(target, get_lms_home_page(user="admin@kesari.africa"))
 
+    def test_get_default_path_returns_none_for_portal_users(self):
+        """R54: patched get_default_path returns None for LMS portal users
+        (Customer / LMS Portal Staff) so Frappe's auth.make_session falls
+        through to /" + get_home_page() which calls our hook → /lms."""
+        import frappe
+        import frappe.apps as apps_module
+        from lms_saas import boot
+
+        # Load boot to ensure the patch is applied. (In a test process the
+        # patch fires on first import of lms_saas.boot; in production it
+        # fires via boot_session hook firing get_attr.)
+        boot
+
+        original_user = getattr(frappe.session, "user", None)
+        try:
+            # Borrower: Customer role. Patch should return None.
+            frappe.session.user = "borrower@example.com"
+            self.assertIsNone(apps_module.get_default_path())
+
+            # Loan Officer: LMS Portal Staff role. Patch should return None.
+            frappe.session.user = "officer@kesari.africa"
+            self.assertIsNone(apps_module.get_default_path())
+
+            # System Manager / Administrator: no portal role. Patch should
+            # fall through to the original get_default_path, which returns
+            # a truthy path.
+            frappe.session.user = "admin@kesari.africa"
+            self.assertIsNotNone(apps_module.get_default_path())
+            self.assertTrue(apps_module.get_default_path().startswith("/"))
+        finally:
+            frappe.session.user = original_user or "Administrator"
+
+    def test_get_default_path_returns_none_for_guest(self):
+        """R54: the patch returns None for Guest (no bypass of the /desk
+        fallback for unauthenticated users)."""
+        import frappe
+        import frappe.apps as apps_module
+        from lms_saas import boot
+
+        boot  # ensure patch is applied
+
+        original_user = getattr(frappe.session, "user", None)
+        try:
+            frappe.session.user = "Guest"
+            self.assertIsNone(apps_module.get_default_path())
+        finally:
+            frappe.session.user = original_user or "Administrator"
+
 
 if __name__ == "__main__":
     unittest.main()

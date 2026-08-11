@@ -1216,7 +1216,10 @@ lms_portal.renderPortalHeader = function (shell) {
 		'<a href="/lms"' + (navActive === "loans" ? ' class="is-active"' : "") + ">My Loans</a>" +
 		'<a href="/lms/account"' + (navActive === "account" ? ' class="is-active"' : "") + ">My Account</a>";
 	if (showStaff) {
-		nav += '<a href="' + (window.__lms_desk_home || "/desk/lending") + '">Staff desk</a>';
+		// R54: fallback to "/desk" (always valid) instead of the legacy
+		// "/desk/lending" (404s in v15+). The default `/desk` always renders
+		// for System Manager / Administrator.
+		nav += '<a href="' + (window.__lms_desk_home || "/desk") + '">Staff desk</a>';
 	}
 	nav += '<a href="/?cmd=web_logout">Log out</a>';
 

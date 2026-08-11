@@ -35,7 +35,9 @@
   </nav>
 
   <div class="lms-sidebar__footer">
-    <a href="{{ lms_desk_home or '/desk/lending' }}" class="lms-sidebar__item">
+    {# R54: fallback to /desk (always renders for System Manager /
+       Administrator) instead of the legacy /desk/lending (404s in v15+). #}
+    <a href="{{ lms_desk_home or '/desk' }}" class="lms-sidebar__item">
       <span class="lms-sidebar__icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></span>
       <span class="lms-sidebar__label">Full Desk</span>
     </a>

@@ -1,10 +1,64 @@
 import frappe
+import frappe.apps
+import frappe.auth as _frappe_auth
 
 from lms_saas.utils.brand import enrich_brand, get_brand_favicon_url, get_brand_splash_url, get_lms_theme, resolve_operator_app_name
 from lms_saas.install import LOAN_DASHBOARD_NAME, PORTAL_STAFF_ROLE
 from lms_saas.utils.desk_nav import get_lms_desk_nav
 from lms_saas.utils.frappe_version import LENDING_HOME_SLUG, desk_prefix, get_major_version
 from lms_saas.utils.help import get_lms_help_menu
+
+
+# ---------------------------------------------------------------------------
+# Patch Frappe's get_default_path so LMS portal users (Website Users with the
+# Customer role) bypass the /desk fallback on login.
+#
+# Context (R54 / R35-#24 / R35-#26): Frappe's auth.make_session resolves the
+# post-login home_page for Website Users as
+#
+#     get_default_path() or "/" + get_home_page()
+#
+# For multi-app installs (erpnext + lms_saas + lending + hrms), get_default_path
+# returns /desk unconditionally because is_desk_apps(_apps) is True. That
+# short-circuits the `or` and our get_website_user_home_page hook — wired
+# through get_home_page() — never runs. The borrower (Website User) lands on
+# /desk/loan_management, which is the LMS workspace, NOT the borrower
+# portal at /lms.
+#
+# Fix: monkey-patch get_default_path to return None for LMS portal users. The
+# `or` then falls through to "/" + get_home_page() which calls our hook and
+# returns /lms.
+#
+# This monkey-patch is guarded: it only fires when the session user has a
+# portal role. For System Users (Loan Officers / Managers / Collectors /
+# Admins), the original get_default_path is preserved so the desk behavior
+# is unchanged.
+#
+# `frappe.auth` does `from frappe.apps import get_default_path` at module
+# load time, so it has its OWN reference to the function. We patch both
+# bindings so the patch fires regardless of which module calls it.
+# ---------------------------------------------------------------------------
+_original_get_default_path = frappe.apps.get_default_path
+
+
+def _patched_get_default_path():
+	user = getattr(frappe.session, "user", None)
+	if not user or user == "Guest":
+		return None
+	try:
+		roles = set(frappe.get_roles(user))
+	except Exception:
+		roles = set()
+	# LMS portal users: skip the desk fallback so the home_page resolves
+	# through get_home_page() → get_website_user_home_page hook → /lms.
+	if roles & {"Customer", "LMS Portal Staff"}:
+		return None
+	return _original_get_default_path()
+
+
+frappe.apps.get_default_path = _patched_get_default_path
+# Also patch the local reference in frappe.auth (captured via `from X import Y`)
+_frappe_auth.get_default_path = _patched_get_default_path
 
 # Admin landing workspace (slugified desk route for System Manager / Administrator).
 ADMIN_LANDING_ROUTE = "loan-management"
@@ -167,52 +221,29 @@ def _portal_staff_landing(user: str) -> str:
 
 
 def on_login(login_manager=None):
-    """Frappe ``on_login`` hook — rewrite post-login redirect.
+	"""Frappe ``on_login`` hook — defensive belt-and-braces guard.
 
-    R35-#24 / R35-#26: even with `boot_session` setting ``bootinfo.default_route``
-    for portal users, Frappe's ``auth.LoginManager.make_session`` writes the
-    actual ``frappe.local.response["home_page"]`` from a different chain
-    (``get_home_page()`` / ``get_default_path()``) BEFORE the bootinfo is
-    consumed by the client. That chain fell through to ``/desk/lending`` on
-    v15/v16 because (a) ``lms_saas`` self-registered at that URL via
-    ``add_to_apps_screen``, and (b) Frappe v15+v16 no longer resolves
-    ``/desk/lending`` to a Workspace. The result: every borrower and admin
-    login landed on a "Page lending not found" page.
+	The primary fix for the borrower /desk/lending redirect (issues R35-#24
+	and R35-#26) is the ``get_default_path`` monkey-patch at module import
+	time above. That patch makes ``get_default_path()`` return None for LMS
+	portal users, so the ``or`` in Frappe's ``auth.make_session`` falls
+	through to ``"/" + get_home_page()`` which calls our
+	``get_website_user_home_page`` hook and resolves to ``/lms``.
 
-    This hook fires AFTER the response["home_page"] has been written and
-    OVERRIDES it with the correct persona-based route. It also hard-clears
-    ``User.default_app`` for any LMS-portal user (Customer + LMS Portal Staff
-    roles) so future ``get_default_path()`` calls fall through to our hook
-    rather than re-routing to ``/desk/lending``.
-    """
-    user = getattr(login_manager, "user", None) or frappe.session.user
-    if not user or user == "Guest":
-        return
+	This hook provides an additional safety net: it sets
+	``frappe.local.response["home_page"]`` to the persona-based landing URL
+	in case the response is left at a non-LMS path by some Frappe upgrade.
+	"""
+	user = getattr(login_manager, "user", None) or getattr(frappe.session, "user", None)
+	if not user or user == "Guest":
+		return
 
-    # Defensive: never let the response resolve to the broken /desk/lending
-    # URL — there is no Frappe Workspace at that slug in v15+.
-    current = (frappe.local.response.get("home_page") or "").strip("/")
-    if current == "desk/lending":
-        frappe.local.response["home_page"] = None
+	# Defensive: never let the response resolve to the broken /desk/lending
+	# URL (no Workspace at that slug in v15+). Point at the persona landing.
+	current = (frappe.local.response.get("home_page") or "").strip("/")
+	if current == "desk/lending":
+		frappe.local.response["home_page"] = None
 
-    # Resolve the canonical post-login URL via the same routing logic as
-    # boot_session. If it's a portal user, override Frappe's default
-    # (which often resolves to /desk/lending via add_to_apps_screen).
-    target = get_lms_home_page(user=user)
-    if target:
-        frappe.local.response["home_page"] = target
-
-    # Also clear User.default_app for LMS portal roles so get_default_path()
-    # (called on subsequent logins) does not re-route to the stale
-    # /desk/lending URL.
-    try:
-        roles = set(frappe.get_roles(user))
-        portal_roles = {"Customer", "LMS Portal Staff"}
-        if roles & portal_roles:
-            user_default_app = frappe.db.get_value("User", user, "default_app")
-            if user_default_app:
-                frappe.db.set_value("User", user, "default_app", "")
-    except Exception:
-        # Don't break login if the role/db probes fail — the response is
-        # already in flight. The next login will retry the cleanup.
-        pass
+	target = get_lms_home_page(user=user)
+	if target:
+		frappe.local.response["home_page"] = target
