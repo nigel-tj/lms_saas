@@ -1,4 +1,18 @@
-/* LMS Loan Officer portal — dashboard, applications, assigned loans */
+/* LMS Loan Officer portal — dashboard, applications, assigned loans.
+ *
+ * R54 architecture review: this 3057-line file mixes several concerns:
+ *   - Dashboard rendering (_loadDashboard, _renderAll, _kpiCard)
+ *   - Application review (_reviewApplication, _showApplicationReviewModal)
+ *   - KYC queue (_kycQueue, _showKycModal)
+ *   - Borrower CRUD (_openApplicationModal, _openBorrowerModal)
+ *   - Loan management (_disburseLoan, _recordRepayment)
+ *   - Lead management (_createLead, _convertLead)
+ *
+ * Each concern could be a separate feature module (officer/dashboard.js,
+ * officer/applications.js, officer/kyc.js, etc.) loaded per-page on top
+ * of the shared lms_portal core. For now, the section markers below
+ * document the boundaries so future work can split along them.
+ */
 if (typeof frappe !== "undefined" && typeof frappe.provide === "function") {
 	frappe.provide("lms_officer");
 } else {

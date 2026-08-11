@@ -34,9 +34,10 @@ def _assert_task_branch(task_name):
     A task belongs to a branch via its Project's cost_center (mirrors the
     list scoping in get_task_board). Admins bypass.
     """
-    if "System Manager" in frappe.get_roles(frappe.session.user):
+    from lms_saas.utils.access_control import is_admin, current_branch, FAIL_CLOSED
+    if is_admin():
         return
-    branch = _branch()
+    branch = current_branch()
     if not branch:
         frappe.throw("Not in your branch.", frappe.PermissionError)
     project = frappe.db.get_value("Task", task_name, "project")

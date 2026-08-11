@@ -18,8 +18,8 @@ def _require_appraisals():
 
 
 def _is_admin():
-    roles = set(frappe.get_roles())
-    return bool(roles.intersection({"System Manager", "Administrator"}))
+    from lms_saas.utils.access_control import is_admin
+    return is_admin()
 
 
 def _branch():

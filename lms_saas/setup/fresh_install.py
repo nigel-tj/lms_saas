@@ -276,12 +276,26 @@ def run(**kwargs: Any) -> dict:
     except Exception as exc:  # noqa: BLE001
         result["skipped"].append(f"borrower_link skipped: {exc}")
 
-    # ── 11. Run live_repair self-heal (dashboard, home pages, branding) ─
+    # ── 11. Run live_repair self-heal (user setup, roles, branches) ──
+    # R54: previously this called repair_live_site_state() which calls
+    # after_install() again — but after_install already ran in step 5.
+    # Now we call only the live-repair-specific steps (user setup,
+    # legacy roles, branch reconciliation) that after_install does NOT
+    # cover. The dashboard / home-page / branding steps are already
+    # done by after_install in step 5.
     try:
-        from lms_saas.setup.live_repair import repair_live_site_state
-        repair_live_site_state()
+        from lms_saas.setup.live_repair import (
+            _diagnose_user_setup,
+            _repair_user_setup,
+            _repair_legacy_user_roles,
+            reconcile_staff_branches,
+        )
+        diagnostic = _diagnose_user_setup()
+        _repair_user_setup(diagnostic)
+        _repair_legacy_user_roles()
+        reconcile_staff_branches()
         frappe.db.commit()
-        result["applied"].append("live_repair: dashboard + home pages + branding")
+        result["applied"].append("live_repair: user setup + roles + branches")
     except Exception as exc:  # noqa: BLE001
         result["skipped"].append(f"live_repair skipped: {exc}")
 

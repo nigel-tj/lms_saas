@@ -309,24 +309,30 @@ def _repair_user_setup(diagnostic: dict) -> dict:
 
 
 def repair_live_site_state() -> dict:
-    """Run the live-site self-heal sequence in a safe, idempotent order."""
-    from lms_saas.install import (
-        after_install as run_install_bootstrap,
-        _reconcile_loan_dashboard,
-        _set_admin_home_page,
-        _set_portal_role_home_pages,
-        _setup_navbar_branding,
-    )
+    """Run the live-site self-heal sequence in a safe, idempotent order.
+
+    R54: untangled the circular call pattern. Previously this function
+    called ``after_install()`` (the full 30-step bootstrap) AND then
+    re-called 4 individual steps that are already inside ``after_install``
+    (``_reconcile_loan_dashboard``, ``_set_admin_home_page``,
+    ``_set_portal_role_home_pages``, ``_setup_navbar_branding``). Those
+    4 steps ran twice per live repair.
+
+    Now: ``after_install()`` runs once (it already calls all 4), and
+    only the live-repair-specific steps (user setup, legacy roles,
+    branch reconciliation) run separately. Each step is idempotent so
+    re-running is safe, but we stop doing the same work twice.
+    """
+    from lms_saas.install import after_install as run_install_bootstrap
 
     diagnostic = _diagnose_user_setup()
     repairs = _repair_user_setup(diagnostic)
+    # after_install already calls _reconcile_loan_dashboard,
+    # _set_admin_home_page, _set_portal_role_home_pages, and
+    # _setup_navbar_branding — no need to re-call them here.
     run_install_bootstrap()
     role_repair = _repair_legacy_user_roles()
     branch_repair = reconcile_staff_branches()
-    _reconcile_loan_dashboard()
-    _set_admin_home_page()
-    _set_portal_role_home_pages()
-    _setup_navbar_branding()
 
     frappe.db.commit()
     return {
@@ -336,11 +342,9 @@ def repair_live_site_state() -> dict:
         "role_repair": role_repair,
         "branch_repair": branch_repair,
         "notes": [
-            "Ran after_install bootstrap and self-heal hooks",
+            "Ran after_install bootstrap (includes dashboard, home pages, branding)",
             "Removed retired legacy roles from user assignments",
             "Reconciled staff Employee branches onto valid Cost Centers",
-            "Re-applied admin and portal home-page routing",
-            "Re-applied navbar and branding settings",
             "Captured and repaired user-setup diagnostics",
         ],
     }

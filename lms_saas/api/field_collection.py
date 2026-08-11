@@ -15,20 +15,10 @@ from lms_saas.api.pii_access import mask_mobile, record_pii_access, record_pii_a
 def _require_collector():
 	"""Collector / Loan Officer / Branch Manager (persona-aware).
 
-	Phase 4.4: Borrowers must NOT be able to record field repayments or fetch
-	the collection run sheet. The persona check rejects anyone whose
-	Employee.custom_lms_persona is not in the staff set.
+	Delegates to the shared access-control module.
 	"""
-	if frappe.session.user == "Guest":
-		frappe.throw("Please log in", frappe.PermissionError)
-	roles = set(frappe.get_roles())
-	if roles.intersection({"System Manager", "Administrator"}):
-		return
-	from lms_saas.utils.portal import resolve_portal_persona
-
-	persona = resolve_portal_persona()
-	if persona not in ("Collector", "Loan Officer", "Branch Manager"):
-		frappe.throw("Not permitted", frappe.PermissionError)
+	from lms_saas.utils.access_control import require_persona
+	require_persona("Collector", "Loan Officer", "Branch Manager")
 
 
 @frappe.whitelist()
@@ -138,7 +128,8 @@ def _address_for_applicant(applicant_type, applicant):
 
 
 def _is_admin() -> bool:
-	return bool(set(frappe.get_roles()).intersection({"System Manager", "Administrator"}))
+	from lms_saas.utils.access_control import is_admin
+	return is_admin()
 
 
 def _is_branch_manager() -> bool:

@@ -14,6 +14,26 @@ from frappe.utils import flt, today, cint, getdate
 from lms_saas.install import PORTAL_STAFF_ROLE
 from lms_saas.api.compliance_config import is_sandbox_mode
 from lms_saas.api.crm import _safe_customer_group
+from lms_saas.utils.access_control import (
+	is_admin as _is_admin,
+	current_branch as _officer_branch,
+	current_employee as _officer_employee,
+	require_persona,
+	assert_branch_scope as _assert_branch_scope,
+	FAIL_OPEN_READ,
+)
+from lms_saas.utils.loan_queries import (
+	get_borrower as _get_borrower,
+	get_loan as _get_loan,
+	search_borrowers as _search_borrowers,
+	record_repayment as _record_repayment,
+	get_loan_estimate as _get_loan_estimate,
+)
+from lms_saas.utils.reports import (
+	portfolio_summary as _portfolio_summary,
+	arrears_aging as _arrears_aging,
+	collections_report as _collections_report,
+)
 
 
 # R18-1: in sandbox mode, hide demo seed data from the staff-facing lists so
@@ -44,91 +64,15 @@ def _is_demo_applicant(applicant_name: str) -> bool:
 def _require_officer():
 	"""Loan Officer or Branch Manager only (per Employee.custom_lms_persona).
 
-	Phase 4.4: tightened to persona-aware check. Collectors and Borrowers
-	cannot call officer APIs (onboarding, applications, dashboard).
+	Delegates to the shared access-control module.
 	"""
-	if frappe.session.user == "Guest":
-		frappe.throw("Please log in", frappe.PermissionError)
-	roles = set(frappe.get_roles())
-	if roles.intersection({"System Manager", "Administrator"}):
-		return
-	from lms_saas.utils.portal import resolve_portal_persona
-
-	persona = resolve_portal_persona()
-	if persona not in ("Loan Officer", "Branch Manager"):
-		frappe.throw("Not permitted", frappe.PermissionError)
-	# Portal staff (LMS Portal Staff role) do NOT have read permission on
-	# the Loan / Loan Application / Customer doctypes. The API already
-	# scopes by branch via custom_lms_branch filters, so bypassing
-	# row-level permissions here is safe and necessary for the officer
-	# dashboard, borrower list, and loan list to return data.
-	frappe.flags.ignore_permissions = True
-
-
-def _officer_branch() -> str | None:
-	"""Resolve the officer's branch (Cost Center) for query scoping."""
-	# Top-level import so tests can monkey-patch staff.get_current_user_branch
-	# via the staff module reference (R12 board feedback: late imports defeat
-	# the monkey-patch and break branch-scope unit tests).
-	import lms_saas.api.staff as _staff
-
-	return _staff.get_current_user_branch()
-
-
-def _officer_employee() -> str | None:
-	"""Return the Employee name linked to the current user."""
-	user = frappe.session.user
-	return frappe.db.get_value("Employee", {"user_id": user, "status": "Active"}, "name")
-
-
-def _is_admin() -> bool:
-	return bool(set(frappe.get_roles()).intersection({"System Manager", "Administrator"}))
+	require_persona("Loan Officer", "Branch Manager")
 
 
 def _assert_branch_scope(target_branch: str | None, write: bool = False) -> None:
-	"""Enforce branch-scope on officer actions.
-
-	R25-F5: split read vs write. Branchless officer can read with a
-	soft log (UX) but cannot write (cross-branch write = unsafe).
-
-	Policy:
-	  - Admins (System Manager / Administrator) bypass entirely.
-	  - Officer has a branch + target has a branch + differ → throw.
-	  - Officer has no branch:
-	    - write=True → throw
-	    - write=False → allow with soft log
-	  - Target has no branch → allow with soft log (legacy data).
-	"""
-	if _is_admin():
-		return
-	branch = _officer_branch()
-	if not branch:
-		if write:
-			frappe.throw(
-				_(
-					"Your account is not assigned to a branch. Contact your HR / "
-					"system manager before performing write actions."
-				),
-				frappe.PermissionError,
-			)
-		frappe.log_error(
-			title="LMS branch-scope: officer has no branch (read fallback)",
-			message=(
-				f"officer={frappe.session.user} action=read target_branch={target_branch or '<empty>'}"
-			),
-		)
-		return
-	if not target_branch:
-		frappe.log_error(
-			title="LMS branch-scope: target has no branch",
-			message=(
-				f"officer={frappe.session.user} branch={branch} "
-				f"target_branch=<empty>"
-			),
-		)
-		return
-	if target_branch != branch:
-		frappe.throw("Not in your branch.", frappe.PermissionError)
+	"""Enforce branch-scope on officer actions (fail-open-read)."""
+	from lms_saas.utils.access_control import assert_branch_scope
+	assert_branch_scope(target_branch, write=write, fail_mode=FAIL_OPEN_READ)
 
 
 @frappe.whitelist()
@@ -1780,123 +1724,15 @@ def search_borrowers(query: str = "", limit: int = 50):
 	"""Search borrowers (Customers) by name, mobile, email, or national ID."""
 	_require_officer()
 	branch = _officer_branch()
-	query = (query or "").strip()
-	limit = cint(limit) or 50
-
-	filters = {"disabled": 0}
-	if branch:
-		filters["custom_lms_branch"] = branch
-
-	or_conditions = []
-	if query:
-		or_conditions = [
-			["customer_name", "like", f"%{query}%"],
-			["mobile_no", "like", f"%{query}%"],
-			["email_id", "like", f"%{query}%"],
-			["custom_national_id_number", "like", f"%{query}%"],
-		]
-
-	customers = frappe.get_all(
-		"Customer",
-		filters=filters,
-		or_filters=or_conditions if or_conditions else None,
-		fields=[
-			"name", "customer_name", "email_id", "mobile_no",
-			"custom_lms_branch", "custom_national_id_number",
-		],
-		order_by="customer_name asc",
-		limit_page_length=limit,
-	)
-
-	for c in customers:
-		c["loan_count"] = frappe.db.count("Loan", {"applicant": c.name, "docstatus": 1})
-		c["active_loans"] = frappe.db.count(
-			"Loan",
-			{"applicant": c.name, "docstatus": 1, "status": ("in", ["Disbursed", "Active", "Partially Disbursed"])},
-		)
-		c["kyc_status"] = frappe.db.get_value(
-			"LMS Borrower Compliance", {"customer": c.name}, "kyc_status"
-		) or "Pending"
-
-	return {"borrowers": customers}
+	return _search_borrowers(query, status="active", branch=branch, limit=cint(limit) or 50)
 
 
 @frappe.whitelist()
 def get_borrower_detail(customer_name: str):
 	"""Full borrower profile: contact info, KYC, loans, collateral."""
 	_require_officer()
-	if not frappe.db.exists("Customer", customer_name):
-		frappe.throw(_("Customer {0} not found.").format(customer_name))
-
 	_assert_branch_scope(frappe.db.get_value("Customer", customer_name, "custom_lms_branch"))
-
-	cust = frappe.get_doc("Customer", customer_name)
-	customer = {
-		"name": cust.name,
-		"customer_name": cust.customer_name,
-		"email_id": cust.email_id or "",
-		"mobile_no": cust.mobile_no or "",
-		"custom_lms_branch": cust.get("custom_lms_branch", ""),
-		"custom_national_id_number": cust.get("custom_national_id_number", ""),
-		"customer_group": cust.customer_group or "",
-		"territory": cust.territory or "",
-		"disabled": cust.disabled,
-		# Household / spouse / physical address (LMS custom fields) — surfaced
-		# here so the Loan Application form can pre-fill these fields from
-		# the selected borrower record in one round-trip.
-		"marital_status": cust.get("lms_marital_status") or "",
-		"spouse_name": cust.get("lms_spouse_name") or "",
-		"spouse_dob": cust.get("lms_spouse_dob") or "",
-		"spouse_contact": cust.get("lms_spouse_contact") or "",
-		"physical_address": cust.get("lms_physical_address") or "",
-	}
-
-	# Loans
-	loans = frappe.get_all(
-		"Loan",
-		filters={"applicant": customer_name, "docstatus": 1},
-		fields=[
-			"name", "loan_amount", "total_payment", "total_amount_paid",
-			"status", "rate_of_interest", "repayment_periods",
-			"custom_days_past_due", "disbursed_amount",
-		],
-		order_by="creation desc",
-		limit_page_length=0,
-	)
-	for loan in loans:
-		loan["outstanding"] = flt(loan.total_payment or 0) - flt(loan.total_amount_paid or 0)
-		loan["dpd"] = loan.custom_days_past_due or 0
-	customer["loans"] = loans
-
-	# KYC / Compliance
-	compliance = frappe.db.get_value(
-		"LMS Borrower Compliance",
-		{"customer": customer_name},
-		["name", "kyc_status", "consent_given", "consent_date", "aml_status", "credit_score"],
-		as_dict=True,
-	)
-	customer["compliance"] = compliance or {}
-
-	# Collateral
-	collateral_links = frappe.get_all(
-		"LMS Loan Collateral",
-		filters={"parenttype": "Loan", "parent": ("in", [l["name"] for l in loans])},
-		fields=["collateral", "collateral_type", "allocated_value", "parent"],
-		limit_page_length=0,
-	)
-	customer["collateral"] = collateral_links
-
-	# Recent repayments
-	repayments = frappe.get_all(
-		"Loan Repayment",
-		filters={"applicant": customer_name, "docstatus": 1},
-		fields=["name", "against_loan", "amount_paid", "posting_date"],
-		order_by="posting_date desc",
-		limit_page_length=20,
-	)
-	customer["recent_repayments"] = repayments
-
-	return {"borrower": customer}
+	return _get_borrower(customer_name, include_household=True)
 
 
 @frappe.whitelist()
@@ -1971,209 +1807,38 @@ def update_borrower(
 def get_loan_detail(loan_name: str):
 	"""Full loan detail: schedule, repayments, collateral, borrower info."""
 	_require_officer()
-	if not frappe.db.exists("Loan", loan_name):
-		frappe.throw(_("Loan {0} not found.").format(loan_name))
-
 	_assert_branch_scope(frappe.db.get_value("Loan", loan_name, "custom_lms_branch"))
-
-	loan = frappe.get_doc("Loan", loan_name)
-
-	# Schedule — resolve the Loan Repayment Schedule doc(s) for this loan, then
-	# aggregate their child Repayment Schedule rows (the rows are children of
-	# the LN-RS doc, NOT of the Loan directly).
-	schedule = []
-	for lnrs in frappe.get_all(
-		"Loan Repayment Schedule", filters={"loan": loan_name}, pluck="name"
-	):
-		for row in frappe.get_all(
-			"Repayment Schedule",
-			filters={"parent": lnrs, "parenttype": "Loan Repayment Schedule"},
-			fields=[
-				"payment_date", "principal_amount", "interest_amount",
-				"total_payment", "balance_loan_amount",
-			],
-			order_by="payment_date asc",
-			limit_page_length=0,
-		):
-			schedule.append(row)
-
-	# Repayments (needed before the paid/demand cross-check below)
-	repayments = frappe.get_all(
-		"Loan Repayment",
-		filters={"against_loan": loan_name, "docstatus": 1},
-		fields=["name", "amount_paid", "posting_date"],
-		order_by="posting_date desc",
-		limit_page_length=50,
-	)
-
-	# Cross-check against posted Loan Repayments to mark each installment
-	# paid / demand_generated. This is cheap and avoids the missing `paid`
-	# column on the Repayment Schedule child table.
-	if schedule:
-		paid_amount_by_date: dict = {}
-		for r in repayments:
-			posting = r.get("posting_date")
-			amt = flt(r.get("amount_paid") or 0)
-			if posting:
-				paid_amount_by_date[posting] = paid_amount_by_date.get(posting, 0) + amt
-		for row in schedule:
-			posting = row.get("payment_date")
-			row["paid"] = flt(paid_amount_by_date.get(posting, 0)) >= flt(row.get("total_payment") or 0)
-			row["demand_generated"] = bool(posting) and getdate(posting) < getdate(today()) and not row["paid"]
-
-	# Disbursements
-	disbursements = frappe.get_all(
-		"Loan Disbursement",
-		filters={"against_loan": loan_name, "docstatus": 1},
-		fields=["name", "disbursed_amount", "posting_date", "status"],
-		order_by="posting_date desc",
-		limit_page_length=20,
-	)
-
-	borrower_name = frappe.db.get_value("Customer", loan.applicant, "customer_name") if loan.applicant else ""
-
-	# Collateral
-	collateral = frappe.get_all(
-		"LMS Loan Collateral",
-		filters={"parent": loan_name, "parenttype": "Loan"},
-		fields=["collateral", "collateral_type", "allocated_value"],
-		limit_page_length=0,
-	)
-
-	return {
-		"loan": {
-			"name": loan.name,
-			"applicant": loan.applicant,
-			"applicant_type": loan.applicant_type,
-			"borrower_name": borrower_name,
-			"loan_amount": loan.loan_amount,
-			"rate_of_interest": loan.rate_of_interest,
-			"repayment_periods": loan.repayment_periods,
-			"repayment_method": loan.repayment_method,
-			"total_payment": loan.total_payment,
-			"total_amount_paid": loan.total_amount_paid,
-			"disbursed_amount": loan.disbursed_amount,
-			"status": loan.status,
-			"docstatus": loan.docstatus,
-			"custom_lms_branch": loan.get("custom_lms_branch", ""),
-			"custom_loan_officer": loan.get("custom_loan_officer", ""),
-			"custom_days_past_due": loan.get("custom_days_past_due", 0),
-			"outstanding": flt(loan.total_payment or 0) - flt(loan.total_amount_paid or 0),
-			"dpd": loan.get("custom_days_past_due", 0),
-		},
-		"schedule": schedule,
-		"repayments": repayments,
-		"disbursements": disbursements,
-		"collateral": collateral,
-	}
+	return _get_loan(loan_name, include_paid_flag=True)
 
 
 @frappe.whitelist()
 def record_repayment(loan_name: str, amount: float, payment_mode: str = "Cash", posting_date: str | None = None):
 	"""Record a loan repayment (officer can record on behalf of borrower).
 
-	R12 board: explicit audit event with ``admin_override`` flag (matches the
-	manager path) so the regulator can distinguish officer-recorded from
-	admin-recorded. Also rejects Closed / Written Off / Cancelled loans.
+	Delegates to the shared loan query module with an officer-specific
+	audit event type.
 	"""
 	_require_officer()
-	amount = flt(amount)
-	if amount <= 0:
-		frappe.throw(_("Repayment amount must be positive."))
-
-	if not frappe.db.exists("Loan", loan_name):
-		frappe.throw(_("Loan {0} not found.").format(loan_name))
-
-	_assert_branch_scope(frappe.db.get_value("Loan", loan_name, "custom_lms_branch"))
-
-	loan = frappe.get_doc("Loan", loan_name)
-	# Edge: closed / written-off / cancelled loans cannot accept new repayments.
-	if loan.status in ("Closed", "Written Off", "Cancelled"):
-		frappe.throw(
-			_("Cannot record repayment on a {0} loan.").format(loan.status),
-			frappe.ValidationError,
-		)
-
-	# R12 board: capture admin_override flag for the audit trail.
-	admin_override = _is_admin()
-
-	repayment = frappe.get_doc(
-		{
-			"doctype": "Loan Repayment",
-			"against_loan": loan_name,
-			"applicant_type": loan.applicant_type,
-			"applicant": loan.applicant,
-			"company": loan.company,
-			"posting_date": posting_date or today(),
-			"amount_paid": amount,
-		}
+	_assert_branch_scope(frappe.db.get_value("Loan", loan_name, "custom_lms_branch"), write=True)
+	result = _record_repayment(
+		loan_name, amount,
+		payment_mode=payment_mode,
+		posting_date=posting_date,
+		audit_event_type="Repayment:OfficerRecorded",
+		admin_override=_is_admin(),
 	)
-	repayment.flags.ignore_permissions = True
-	repayment.insert()
-	repayment.submit()
-
-	# R12 board: explicit audit event with admin_override distinction.
-	try:
-		from lms_saas.api.compliance import write_audit_event
-
-		write_audit_event(
-			event_type="Repayment:OfficerRecorded",
-			reference_doctype="Loan Repayment",
-			reference_name=repayment.name,
-			amount=amount,
-			company=loan.company,
-			details=(
-				f"loan={loan_name}; admin_override={admin_override}; "
-				f"loan_status={loan.status}; branch={loan.get('custom_lms_branch') or 'unassigned'}"
-			),
-			critical=True,
-		)
-	except Exception:
-		frappe.log_error(title="officer.record_repayment audit failed", message=frappe.get_traceback())
-
-	return {
-		"status": "recorded",
-		"loan": loan_name,
-		"repayment": repayment.name,
-		"amount": amount,
-		"message": _("Repayment of {0} recorded for loan {1}.").format(amount, loan_name),
-	}
+	result["message"] = _("Repayment of {0} recorded for loan {1}.").format(amount, loan_name)
+	return result
 
 
 @frappe.whitelist()
 def get_loan_estimate(loan_product: str, loan_amount: float, repayment_periods: int = 6):
 	"""Estimate monthly payment for a loan product (officer calculator)."""
 	_require_officer()
-	loan_amount = flt(loan_amount)
-	repayment_periods = cint(repayment_periods)
-	if loan_amount <= 0 or repayment_periods <= 0:
-		frappe.throw(_("Loan amount and repayment periods must be positive."))
-
-	if not frappe.db.exists("Loan Product", loan_product):
-		frappe.throw(_("Loan product {0} not found.").format(loan_product))
-
-	product = frappe.db.get_value(
-		"Loan Product", loan_product, ["rate_of_interest", "maximum_loan_amount"], as_dict=True
-	)
-
-	rate = flt(product.rate_of_interest or 0) / 100 / 12
-	if rate > 0:
-		monthly = loan_amount * rate * (1 + rate) ** repayment_periods / ((1 + rate) ** repayment_periods - 1)
-	else:
-		monthly = loan_amount / repayment_periods
-
-	total_payment = monthly * repayment_periods
-	total_interest = total_payment - loan_amount
-
-	return {
-		"loan_product": loan_product,
-		"loan_amount": loan_amount,
-		"rate_of_interest": flt(product.rate_of_interest or 0),
-		"repayment_periods": repayment_periods,
-		"monthly_payment": round(monthly, 2),
-		"total_payment": round(total_payment, 2),
-		"total_interest": round(total_interest, 2),
-	}
+	estimate = _get_loan_estimate(loan_product, loan_amount, repayment_periods)
+	# Officer variant: use loan_product key for backwards compat.
+	estimate["loan_product"] = loan_product
+	return estimate
 
 
 # ---------------------------------------------------------------------------
@@ -2251,44 +1916,7 @@ def get_my_portfolio_summary():
 	employee = _officer_employee()
 	if not employee:
 		return {"summary": {}}
-
-	loans = frappe.get_all(
-		"Loan",
-		filters={
-			"docstatus": 1,
-			"custom_loan_officer": employee,
-			"status": ("in", ["Disbursed", "Active", "Partially Disbursed"]),
-		},
-		fields=[
-			"name", "loan_amount", "total_payment", "total_amount_paid",
-			"custom_days_past_due", "status",
-		],
-		limit_page_length=0,
-	)
-
-	summary = {
-		"total_loans": len(loans),
-		"total_outstanding": 0,
-		"par30_count": 0,
-		"par60_count": 0,
-		"par90_count": 0,
-		"current_count": 0,
-	}
-
-	for loan in loans:
-		outstanding = flt(loan.total_payment or 0) - flt(loan.total_amount_paid or 0)
-		dpd = flt(loan.custom_days_past_due or 0)
-		summary["total_outstanding"] += outstanding
-		if dpd > 90:
-			summary["par90_count"] += 1
-		elif dpd > 60:
-			summary["par60_count"] += 1
-		elif dpd > 30:
-			summary["par30_count"] += 1
-		else:
-			summary["current_count"] += 1
-
-	return {"summary": summary}
+	return {"summary": _portfolio_summary(officer=employee)}
 
 
 @frappe.whitelist()
@@ -2298,46 +1926,7 @@ def get_my_arrears_report():
 	employee = _officer_employee()
 	if not employee:
 		return {"buckets": {}, "loans": []}
-
-	loans = frappe.get_all(
-		"Loan",
-		filters={
-			"docstatus": 1,
-			"custom_loan_officer": employee,
-			"status": ("in", ["Disbursed", "Active", "Partially Disbursed"]),
-		},
-		fields=[
-			"name", "applicant", "loan_amount", "total_payment", "total_amount_paid",
-			"custom_days_past_due", "status",
-		],
-		limit_page_length=0,
-	)
-
-	buckets = {"current": [], "1_30": [], "31_60": [], "61_90": [], "90_plus": []}
-
-	for loan in loans:
-		outstanding = flt(loan.total_payment or 0) - flt(loan.total_amount_paid or 0)
-		dpd = flt(loan.custom_days_past_due or 0)
-		row = {
-			"loan": loan.name,
-			"applicant": loan.applicant,
-			"customer_name": frappe.db.get_value("Customer", loan.applicant, "customer_name") if loan.applicant else "",
-			"outstanding": outstanding,
-			"dpd": dpd,
-			"status": loan.status,
-		}
-		if dpd == 0:
-			buckets["current"].append(row)
-		elif dpd <= 30:
-			buckets["1_30"].append(row)
-		elif dpd <= 60:
-			buckets["31_60"].append(row)
-		elif dpd <= 90:
-			buckets["61_90"].append(row)
-		else:
-			buckets["90_plus"].append(row)
-
-	return {"buckets": buckets, "total_loans": len(loans)}
+	return _arrears_aging(officer=employee)
 
 
 @frappe.whitelist()
@@ -2347,38 +1936,4 @@ def get_my_collections_report(from_date: str | None = None, to_date: str | None 
 	employee = _officer_employee()
 	if not employee:
 		return {"repayments": [], "total_collected": 0}
-
-	# Get officer's loans
-	loan_names = frappe.get_all(
-		"Loan",
-		filters={"custom_loan_officer": employee, "docstatus": 1},
-		pluck="name",
-	)
-	if not loan_names:
-		return {"repayments": [], "total_collected": 0}
-
-	filters = {"against_loan": ("in", loan_names), "docstatus": 1}
-	if from_date:
-		filters["posting_date"] = (">=", from_date)
-	if to_date:
-		filters["posting_date"] = ("<=", to_date) if "posting_date" not in filters else ("between", [from_date, to_date])
-	if not from_date:
-		filters["posting_date"] = (">=", getdate(today().replace(day=1)))
-
-	repayments = frappe.get_all(
-		"Loan Repayment",
-		filters=filters,
-		fields=["name", "against_loan", "amount_paid", "posting_date", "status"],
-		order_by="posting_date desc",
-		limit_page_length=0,
-	)
-
-	total = sum(flt(r.amount_paid) for r in repayments)
-	for r in repayments:
-		r["customer_name"] = frappe.db.get_value(
-			"Customer",
-			frappe.db.get_value("Loan", r.against_loan, "applicant"),
-			"customer_name",
-		)
-
-	return {"repayments": repayments, "total_collected": total, "count": len(repayments)}
+	return _collections_report(from_date=from_date, to_date=to_date, officer=employee)

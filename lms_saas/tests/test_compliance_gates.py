@@ -154,24 +154,25 @@ class TestComplianceGates(FrappeTestCase):
 		# NOTE: branch-scope checks BYPASS for System Manager / Administrator by
 		# design. The test must use a non-admin LMS Portal Staff user to exercise
 		# the actual branch-scope guard. We monkey-patch both the branch
-		# resolver AND the admin check (via _is_admin) so the guard fires
+		# resolver AND the admin check (via is_admin in utils.access_control,
+		# which is the single source of truth post-R54) so the guard fires
 		# without needing to create a real non-admin user (avoids the email-queue
 		# side-effect that breaks subsequent tests on this site).
 		import lms_saas.api.staff as staff
-		import lms_saas.api.manager as manager
+		from lms_saas.utils import access_control
 
 		original_branch = staff.get_current_user_branch
-		original_is_admin = manager._is_admin
+		original_is_admin = access_control.is_admin
 		try:
 			staff.get_current_user_branch = lambda: "Branch A"
-			manager._is_admin = lambda: False
+			access_control.is_admin = lambda: False
 			with self.assertRaises(frappe.PermissionError):
 				_assert_branch_scope("Branch B")
 			# Same branch -> allowed.
 			_assert_branch_scope("Branch A")
 		finally:
 			staff.get_current_user_branch = original_branch
-			manager._is_admin = original_is_admin
+			access_control.is_admin = original_is_admin
 
 	def _make_staff_user_with_branch(self, branch):
 		"""Create a non-admin LMS Portal Staff user (no System Manager) so the

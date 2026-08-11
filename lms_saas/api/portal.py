@@ -752,40 +752,15 @@ def get_apply_context():
 def get_loan_estimate(loan_product, loan_amount, repayment_periods):
     """Estimate monthly payment, total payable, and total interest for a loan.
 
-    Uses simple amortization: monthly_payment = P * r / (1 - (1+r)^-n)
-    where P = principal, r = monthly rate, n = periods.
+    Delegates to the shared loan query module with max-amount enforcement
+    (portal variant).
     """
-    customer = _require_customer()
-    loan_amount = flt(loan_amount)
-    repayment_periods = int(repayment_periods)
-
-    if loan_amount <= 0:
-        frappe.throw("Loan amount must be positive.")
-    if repayment_periods <= 0:
-        frappe.throw("Repayment periods must be positive.")
-
-    rate = flt(frappe.db.get_value("Loan Product", loan_product, "rate_of_interest") or 0)
-    max_amount = flt(frappe.db.get_value("Loan Product", loan_product, "maximum_loan_amount") or 0)
-    if max_amount and loan_amount > max_amount:
-        frappe.throw(f"Amount exceeds the maximum for this product ({max_amount}).")
-
-    monthly_rate = rate / 100 / 12
-    if monthly_rate > 0:
-        monthly_payment = loan_amount * monthly_rate / (1 - (1 + monthly_rate) ** (-repayment_periods))
-    else:
-        monthly_payment = loan_amount / repayment_periods
-
-    total_payable = monthly_payment * repayment_periods
-    total_interest = total_payable - loan_amount
-
-    return {
-        "monthly_payment": flt(monthly_payment),
-        "total_payable": flt(total_payable),
-        "total_interest": flt(total_interest),
-        "rate_of_interest": rate,
-        "loan_amount": loan_amount,
-        "repayment_periods": repayment_periods,
-    }
+    _require_customer()
+    from lms_saas.utils.loan_queries import get_loan_estimate as _estimate
+    result = _estimate(loan_product, loan_amount, repayment_periods, enforce_max=True)
+    # Portal variant: use total_payable key for backwards compat.
+    result["total_payable"] = result.pop("total_payment")
+    return result
 
 
 @frappe.whitelist()

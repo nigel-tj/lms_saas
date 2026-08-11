@@ -194,23 +194,18 @@ def _reconcile_phantom_branch(user: str, phantom_branch: str) -> str | None:
 
 
 def _is_admin() -> bool:
-    """True for System Manager / Administrator (branch isolation bypass)."""
-    user = frappe.session.user
-    return user == "Administrator" or "System Manager" in frappe.get_roles(user)
+	"""True for System Manager / Administrator (branch isolation bypass).
+
+	Delegates to the shared access-control module.
+	"""
+	from lms_saas.utils.access_control import is_admin
+	return is_admin()
 
 
 def _assert_branch_scope(target_branch: str | None) -> None:
-    """Fail-closed branch scoping for non-manager staff endpoints.
+	"""Fail-closed branch scoping for non-manager staff endpoints.
 
-    Any staffer (helpdesk, collections, tasks, documents, CRM, savings staff)
-    may only act on records in their own branch. Admins bypass. A staffer with
-    no branch assigned is denied (fail closed). Mirrors the officer/manager
-    variants but is role-neutral so it can be reused across all staff modules.
-    """
-    if _is_admin():
-        return
-    branch = get_current_user_branch()
-    if not branch:
-        frappe.throw("Not in your branch.", frappe.PermissionError)
-    if target_branch and target_branch != branch:
-        frappe.throw("Not in your branch.", frappe.PermissionError)
+	Delegates to the shared access-control module with FAIL_CLOSED mode.
+	"""
+	from lms_saas.utils.access_control import assert_branch_scope, FAIL_CLOSED
+	assert_branch_scope(target_branch, write=False, fail_mode=FAIL_CLOSED)

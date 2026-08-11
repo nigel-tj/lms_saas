@@ -1023,9 +1023,15 @@ dialog.lms-modal::backdrop {
 	animation: lms-modal-fade 0.15s ease;
 }
 
-/* The .lms-modal__header is now a solid brand-coloured band (dark
- * green), so the previous 3px gradient ::before stripe is redundant.
- * Removing it keeps the chrome consistent across modals. */
+/* Brand accent stripe across the top of the modal — a 3px gradient bar
+ * gives the dialog a subtle visual identity and helps separate header
+ * from body without adding extra DOM. */
+.lms-modal::before {
+	content: "";
+	display: block;
+	height: 3px;
+	background: linear-gradient(90deg, var(--lms-primary) 0%, var(--lms-accent, var(--lms-primary)) 100%);
+}
 
 .lms-modal--sm {
 	max-width: 420px;
@@ -1179,66 +1185,20 @@ dialog.lms-modal::backdrop {
 	color: var(--lms-accent, var(--lms-primary));
 }
 
-/* Brand-colored header band. The previous 3px gradient stripe left a
- * lot of dead white space above the title; this solid band reclaims
- * that space as visible brand chrome. Title and close button both
- * render in white so they pop against the dark green. */
 .lms-modal__header {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	padding: 0.85rem 1.5rem 1.1rem 1.5rem;
+	padding: 1.25rem 1.5rem 0.5rem 1.5rem;
 	margin: 0;
-	background: var(--lms-primary);
-	color: #fff;
-	border-radius: var(--lms-radius-lg) var(--lms-radius-lg) 0 0;
 }
 
 .lms-modal__header h3 {
 	margin: 0;
-	font-size: 1.05rem;
+	font-size: 1.15rem;
 	font-weight: 700;
-	color: #fff;
+	color: var(--lms-text);
 	letter-spacing: -0.01em;
-}
-
-/* R46-6: structured modal title — icon + main title + optional
-   subject subtitle. The title-row is a flex container so the icon
-   sits next to the title-block; the title-block stacks title-main
-   on top of title-subject. Without the subject, title-subject is
-   omitted and the row collapses cleanly to a single line. */
-.lms-modal__title-row {
-	display: flex;
-	align-items: center;
-	gap: 0.6rem;
-	min-width: 0;
-}
-.lms-modal__title-block {
-	display: flex;
-	flex-direction: column;
-	min-width: 0;
-	line-height: 1.2;
-}
-.lms-modal__title-text {
-	font-size: 1.05rem;
-	font-weight: 700;
-	letter-spacing: -0.01em;
-	color: #fff;
-}
-.lms-modal__title-subject {
-	font-size: 0.78rem;
-	font-weight: 500;
-	color: rgba(255, 255, 255, 0.78);
-	margin-top: 0.1rem;
-	letter-spacing: 0;
-	text-overflow: ellipsis;
-	overflow: hidden;
-	white-space: nowrap;
-	max-width: 60ch;
-}
-.lms-modal__title-icon {
-	color: rgba(255, 255, 255, 0.85);
-	flex: 0 0 auto;
 }
 
 .lms-modal__close {
@@ -1246,7 +1206,7 @@ dialog.lms-modal::backdrop {
 	height: 32px;
 	border: none;
 	background: transparent;
-	color: #fff;
+	color: var(--lms-text-muted);
 	font-size: 1.5rem;
 	cursor: pointer;
 	border-radius: var(--lms-radius-sm);
@@ -1254,18 +1214,15 @@ dialog.lms-modal::backdrop {
 	align-items: center;
 	justify-content: center;
 	line-height: 1;
-	opacity: 0.85;
-	transition: background 0.12s ease, opacity 0.12s ease;
 }
 
 .lms-modal__close:hover {
-	background: rgba(255, 255, 255, 0.15);
-	color: #fff;
-	opacity: 1;
+	background: var(--lms-surface-alt);
+	color: var(--lms-text);
 }
 
 .lms-modal__body {
-	padding: 1.75rem 1.5rem 1.5rem 1.5rem;
+	padding: 0.5rem 1.5rem 1.25rem 1.5rem;
 	margin: 0;
 }
 
@@ -1277,87 +1234,6 @@ dialog.lms-modal::backdrop {
 	border-top: 1px solid var(--lms-border);
 	background: var(--lms-surface-alt, var(--lms-surface));
 	margin: 0;
-}
-
-/* ------------------------------------------------------------------ */
-/* R46-6: Document preview inside modals (KYC review, etc.)           */
-/* ------------------------------------------------------------------ */
-/* Each doc-cell stacks: label row, preview frame, controls row. The
-   preview frame is a fixed-height bordered box that contains either
-   an <img> thumbnail (clipped with object-fit: contain) or a
-   clickable "no preview" fallback. Click the preview to open the
-   full file in an LMSModal lightbox (lms_modal.js handles the
-   second layer). */
-.lms-doc-cell {
-	display: flex;
-	flex-direction: column;
-	gap: 0.5rem;
-	padding: 0.75rem;
-	border: 1px solid var(--lms-border);
-	border-radius: var(--lms-radius-sm);
-	background: var(--lms-surface-alt, var(--lms-surface));
-	min-height: 0;
-}
-.lms-doc-label {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: 0.5rem;
-	font-size: 0.78rem;
-	font-weight: 600;
-	color: var(--lms-text-muted);
-	text-transform: uppercase;
-	letter-spacing: 0.04em;
-}
-.lms-doc-link {
-	color: var(--lms-primary);
-	text-decoration: none;
-	font-size: 0.78rem;
-	font-weight: 600;
-	text-transform: none;
-	letter-spacing: 0;
-}
-.lms-doc-link:hover { text-decoration: underline; }
-.lms-doc-preview {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	min-height: 180px;
-	max-height: 220px;
-	border: 1px dashed var(--lms-border);
-	border-radius: var(--lms-radius-sm);
-	background: var(--lms-surface, #fff);
-	overflow: hidden;
-	cursor: zoom-in;
-	position: relative;
-}
-.lms-doc-preview img {
-	max-width: 100%;
-	max-height: 220px;
-	object-fit: contain;
-	display: block;
-}
-.lms-doc-preview--pdf {
-	font-size: 0.85rem;
-	color: var(--lms-text-muted);
-	text-align: center;
-	padding: 1rem;
-	flex-direction: column;
-	gap: 0.5rem;
-}
-.lms-doc-preview--pdf svg { color: var(--lms-primary); }
-.lms-doc-preview--pdf strong { color: var(--lms-text); font-size: 0.95rem; }
-.lms-doc-preview--empty {
-	font-size: 0.8rem;
-	color: var(--lms-text-muted);
-	font-style: italic;
-	cursor: default;
-}
-.lms-doc-controls {
-	display: flex;
-	gap: 0.4rem;
-	flex-wrap: wrap;
-	align-items: center;
 }
 
 @keyframes lms-modal-fade {
@@ -1894,103 +1770,6 @@ dialog.lms-modal::backdrop {
 }
 .lms-topbar__branch-text {
 	letter-spacing: 0.01em;
-}
-
-/* R46-12: 2-line Company + Branch context chip. Replaces the single-
-   line branch chip when both Company and Branch are available.
-   R46-12a: hierarchy swapped — the Company (tenant) is the prominent
-   row (large + primary colour + brand name) and the Branch (Cost
-   Center) is the secondary row (small + muted). Tenant is the louder
-   of the two because the operator reads "which client am I on?" first
-   and "which branch within that client?" second. The chip carries a
-   3px solid primary left border so it reads as a single branded unit
-   without competing with the page title to the left.
-   R46-12b: the chip is fully width-adaptive — no `max-width` cap, no
-   per-row text-ellipsis. Long names push the chip wider (the topbar
-   flex containers give it room) and the chip wraps text to a second
-   line only when the viewport itself is too narrow to fit one long
-   row. The 3px left border marks the chip's edge so it stays
-   scannable regardless of length. On narrow viewports the chip can
-   drop to a single line so the notification bell stays reachable. */
-.lms-topbar__org {
-	display: inline-flex;
-	flex-direction: column;
-	justify-content: center;
-	gap: 0.05rem;
-	padding: 0.32rem 0.85rem 0.32rem 0.75rem;
-	border-radius: 0.6rem;
-	background: color-mix(in oklab, var(--lms-primary, #2f4f46) 6%, var(--lms-surface, #fff));
-	border: 1px solid color-mix(in oklab, var(--lms-primary, #2f4f46) 22%, var(--lms-border, #e5e7eb));
-	border-left: 3px solid var(--lms-primary, #2f4f46);
-	color: var(--lms-text, #1f2937);
-	line-height: 1.2;
-	/* flex-shrink:0 keeps the chip from getting squeezed under tight
-	   topbar widths; the topbar's own overflow handling lets the chip
-	   push the bell rightward rather than truncate. */
-	flex-shrink: 0;
-	margin-right: 0.25rem;
-}
-.lms-topbar__org-company {
-	display: inline-flex;
-	align-items: center;
-	gap: 0.35rem;
-	color: var(--lms-primary, #2f4f46);
-	font-size: 0.95rem;
-	font-weight: 700;
-	letter-spacing: 0.005em;
-	/* min-width:0 + max-width:none + no whitespace:nowrap → the row
-	   grows horizontally with the content; if the viewport is too
-	   narrow for one long name, the inner span wraps to a second line
-	   while the icon stays on the left. */
-	min-width: 0;
-	max-width: none;
-	word-break: normal;
-	overflow-wrap: anywhere;
-}
-.lms-topbar__org-company svg {
-	width: 14px;
-	height: 14px;
-	stroke: currentColor;
-	flex-shrink: 0;
-}
-.lms-topbar__org-company-text {
-	/* Span grows to fit content. No truncation — the operator asked
-	   for the full company name to be visible without hover. */
-	min-width: 0;
-}
-.lms-topbar__org-branch {
-	display: inline-flex;
-	align-items: center;
-	gap: 0.3rem;
-	color: var(--lms-text-muted, #6b7280);
-	font-size: 0.72rem;
-	font-weight: 500;
-	letter-spacing: 0.02em;
-	min-width: 0;
-	max-width: none;
-	overflow-wrap: anywhere;
-}
-.lms-topbar__org-branch svg {
-	width: 11px;
-	height: 11px;
-	stroke: currentColor;
-	flex-shrink: 0;
-}
-.lms-topbar__org-branch-text {
-	min-width: 0;
-}
-
-/* Narrow viewports — keep the chip usable but allow the right-side
-   cluster (chip + bell + user menu) to wrap to a second topbar row
-   rather than truncate the company name. The topbar's own flex
-   container handles the wrap when the cluster is too wide. */
-@media (max-width: 720px) {
-	.lms-topbar__org {
-		font-size: 0.85rem;
-	}
-	.lms-topbar__org-company {
-		font-size: 0.88rem;
-	}
 }
 
 /* Generic stack used by officer and manager portal lists. */

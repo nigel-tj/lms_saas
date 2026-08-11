@@ -28,26 +28,22 @@ from frappe.utils import cint, flt, getdate, today
 # ---------------------------------------------------------------------------
 
 def _require_manager():
-	"""Branch Manager only; admins allowed for testing and multi-branch BMs."""
-	if frappe.session.user == "Guest":
-		frappe.throw(_("Please log in"), frappe.PermissionError)
-	roles = set(frappe.get_roles())
-	if roles.intersection({"System Manager", "Administrator"}):
-		return
-	from lms_saas.utils.brand import _get_user_persona
+	"""Branch Manager only; admins allowed for testing and multi-branch BMs.
 
-	if _get_user_persona() != "Branch Manager":
-		frappe.throw(_("Not permitted"), frappe.PermissionError)
+	Delegates to the shared access-control module.
+	"""
+	from lms_saas.utils.access_control import require_persona
+	require_persona("Branch Manager")
 
 
 def _manager_branch() -> str | None:
 	from lms_saas.api.staff import get_current_user_branch
-
 	return get_current_user_branch()
 
 
 def _is_admin() -> bool:
-	return bool(set(frappe.get_roles()).intersection({"System Manager", "Administrator"}))
+	from lms_saas.utils.access_control import is_admin
+	return is_admin()
 
 
 def _parse_date(value, default=None):

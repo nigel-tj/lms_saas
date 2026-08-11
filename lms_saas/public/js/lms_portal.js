@@ -1,4 +1,23 @@
-/* LMS borrower portal — UX-focused UI */
+/* LMS portal — shared core + borrower portal UX.
+ *
+ * R54 architecture review: this file has two logical sections:
+ *
+ *   1. Shared core (lines 1–732) — helpers used by every portal page:
+ *      safeCall, guardedCall, escape, formatCurrency, formatDate,
+ *      panel, tabNav, kpiStrip, skeleton, loading, error, etc.
+ *
+ *   2. Borrower portal (lines 733+) — borrower-facing rendering:
+ *      renderLoans, renderLoanDetail, initLoansPage, initApplyPage,
+ *      initPayPage, initAccountOverview, etc.
+ *
+ * The officer and manager portals load this file for the shared core,
+ * then load their own page-specific JS (lms_officer_portal.js,
+ * lms_manager_portal.js) which uses lms_portal.* helpers.
+ *
+ * The modal, toast, and tab-persistence helpers at the tail of this
+ * file are part of the shared core (used by all portals) — they're
+ * defined last because they were added after the initial core.
+ */
 frappe.provide("lms_portal");
 
 /* ------------------------------------------------------------------ */
@@ -729,6 +748,12 @@ lms_portal.simpleBars = function (rows, options) {
 		"</div>"
 	);
 };
+
+/* ================================================================== */
+/* BORROWER PORTAL — rendering + page init.                             */
+/* (Officer / manager portals skip this section — they use the shared  */
+/*  core above and their own page-specific JS files.)                   */
+/* ================================================================== */
 
 lms_portal.renderSummary = function (container, summary) {
 	if (!container || !summary) {
@@ -2610,9 +2635,10 @@ lms_portal.initAccountOverview = function () {
 	});
 };
 
-/* ------------------------------------------------------------------ */
-/* Toast notifications                                                 */
-/* ------------------------------------------------------------------ */
+/* ================================================================== */
+/* SHARED CORE (tail) — modal, toast, tab persistence.                  */
+/* Used by ALL portals (borrower, officer, manager, collector).         */
+/* ================================================================== */
 lms_portal.toast = function (message, type) {
 	type = type || "info"; // success | warning | danger | info
 	var stack = document.getElementById("lms-toast-stack");
