@@ -8,7 +8,7 @@
   "track_changes": 1,
   "fields": [
     {"fieldname": "persona_section", "fieldtype": "Section Break", "label": "1. Who are you onboarding?"},
-    {"fieldname": "persona", "fieldtype": "Select", "label": "Persona", "reqd": 1, "in_list_view": 1, "options": "\nBorrower\nAdmin\nLoan Officer\nCollector\nBranch Manager", "description": "Choose the role this person will have. Borrowers use the portal; Loan Officers, Collectors and Branch Managers use the portal; Admins use the desk.", "default": "Borrower"},
+    {"fieldname": "persona", "fieldtype": "Select", "label": "Persona", "reqd": 1, "in_list_view": 1, "options": "\nBorrower\nAdmin\nLoan Officer\nCollector\nBranch Manager", "description": "Choose the role this person will have. Borrowers use the portal; Loan Officers, Collectors and Branch Managers use the portal; Admins use the desk.", "default": "Borrower", "allow_on_submit": 1},
     {"fieldname": "details_section", "fieldtype": "Section Break", "label": "2. Personal details"},
     {"fieldname": "first_name", "fieldtype": "Data", "label": "First Name", "reqd": 1, "in_list_view": 1, "allow_on_submit": 1},
     {"fieldname": "last_name", "fieldtype": "Data", "label": "Last Name", "allow_on_submit": 1},

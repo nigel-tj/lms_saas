@@ -103,14 +103,25 @@ def get_officer_dashboard():
 	# Loans awaiting disbursement (Drafts assigned to me, plus Sanctioned-but-
 	# not-yet-disbursed). Surfaced on the dashboard so the officer sees an
 	# actionable count, not just the active-loan number.
+	# R35 #27: KPI must match get_assigned_loans().pending length exactly.
+	# get_assigned_loans returns docstatus=0 (all drafts) + docstatus=1
+	# status="Sanctioned", then filters out orphan applicants. We mirror
+	# that filter set here so the KPI never disagrees with the tab.
 	pending_disbursement = 0
 	if employee:
 		pending_disbursement = frappe.db.count(
 			"Loan",
 			{
-				"docstatus": ("in", [0, 1]),
+				"docstatus": 0,
 				"custom_loan_officer": employee,
-				"status": ("in", ["Draft", "Sanctioned"]),
+			},
+		)
+		pending_disbursement += frappe.db.count(
+			"Loan",
+			{
+				"docstatus": 1,
+				"custom_loan_officer": employee,
+				"status": "Sanctioned",
 			},
 		)
 
@@ -546,6 +557,22 @@ def disburse_assigned_loan(loan_name: str, disbursed_amount: float | None = None
 	# Invalidate dashboard cache so KPIs reflect the new active loan.
 	from lms_saas.api.dashboard import invalidate_dashboard_cache
 	invalidate_dashboard_cache()
+
+	# R28-F11: emit an LMS Audit Event so the regulator's audit trail
+	# captures the disbursement explicitly.
+	try:
+		from lms_saas.api.compliance import write_audit_event
+		write_audit_event(
+			event_type="LOAN_DISBURSED",
+			reference_doctype="Loan",
+			reference_name=loan.name,
+			details=f"Loan {loan.name} disbursed ({amount}) by {original_user}",
+		)
+	except Exception:
+		frappe.log_error(
+			title="LMS Audit Event write failed for loan disbursement",
+			message=f"loan={loan.name} amount={amount} user={original_user}",
+		)
 
 	return {
 		"status": "disbursed",

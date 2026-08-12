@@ -358,20 +358,21 @@ class TestR29WriteOffRequiresReason(unittest.TestCase):
 		"""F9: write-off must require a reason for the audit trail."""
 		frappe.set_user(MANAGER_EMAIL)
 		frappe.flags.ignore_permissions = True
+		# Find any disbursed loan in the manager's branch
+		ln = frappe.get_all(
+			"Loan",
+			filters={
+				"docstatus": 1,
+				"status": ("in", ["Disbursed", "Active"]),
+				"custom_lms_branch": BRANCH,
+			},
+			fields=["name"],
+			limit_page_length=1,
+		)
+		if not ln:
+			self.skipTest("No disbursed loan in branch to test write-off rejection")
 		with self.assertRaises(frappe.exceptions.ValidationError):
-			# Find any disbursed loan
-			for ln in frappe.get_all(
-				"Loan",
-				filters={
-					"docstatus": 1,
-					"status": ("in", ["Disbursed", "Active"]),
-					"custom_lms_branch": BRANCH,
-				},
-				fields=["name"],
-				limit_page_length=1,
-			):
-				mgr.write_off_loan(loan_name=ln["name"], reason="")
-				break
+			mgr.write_off_loan(loan_name=ln[0]["name"], reason="")
 
 
 # ---------------------------------------------------------------------------

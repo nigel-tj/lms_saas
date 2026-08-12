@@ -375,6 +375,26 @@ lms_portal.error = function (message, retryFn) {
 	return html;
 };
 
+/* Render a structured error block (used by apply wizard error handler).
+ * This was referenced but never defined — the apply page's error callback
+ * called lms_portal.renderError() which threw, leaving the page blank. */
+lms_portal.renderError = function (opts) {
+	opts = opts || {};
+	var title = opts.title || "Something went wrong";
+	var message = opts.message || "An unexpected error occurred. Please try again.";
+	var home = opts.home || window.__lms_home_route || "/lms";
+	var icon = (window.lms_icons && lms_icons.empty) ? lms_icons.empty("alert") : "";
+	return (
+		'<div class="lms-panel" role="alert">' +
+		'<div class="lms-error">' + icon +
+		"<h3>" + lms_portal.escape(title) + "</h3>" +
+		"<p>" + lms_portal.escape(message) + "</p>" +
+		'<p style="margin-top:1rem;"><a class="lms-btn lms-btn--ghost" href="' +
+		lms_portal.escape(home) + '">Go back</a></p>' +
+		"</div></div>"
+	);
+};
+
 /* Resolve a 403 / missing-customer spinner into a clear empty state (B-08). */
 lms_portal.renderNoAccess = function (opts) {
 	opts = opts || {};

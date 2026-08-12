@@ -1251,8 +1251,9 @@ dialog.lms-modal::backdrop {
 /* ------------------------------------------------------------------ */
 .lms-toast-stack {
 	position: fixed;
-	bottom: 1.5rem;
-	right: 1.5rem;
+	top: 1.5rem;
+	inset-inline: 0;
+	margin: 0 auto;
 	z-index: 1100;
 	display: flex;
 	flex-direction: column;
@@ -1543,9 +1544,8 @@ dialog.lms-modal::backdrop {
 
 @media (max-width: 600px) {
 	.lms-toast-stack {
+		top: auto;
 		bottom: 1rem;
-		right: 1rem;
-		left: 1rem;
 	}
 	.lms-toast {
 		max-width: none;
