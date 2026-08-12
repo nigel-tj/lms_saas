@@ -69,3 +69,63 @@ def expected_credit_loss(exposure, dpd):
     """Provision amount = exposure * stage coverage rate (provision matrix)."""
     rate = ECL_PROVISION_RATES.get(ecl_stage(dpd), 0)
     return flt(exposure) * rate
+
+
+# ---------------------------------------------------------------------------
+# Amortization helpers (R01 — release-gate 1.2 / 1.3 / 1.4)
+#
+# Pure-Python mirror of lms_saas.api.portal.get_loan_estimate. Keeping the
+# math in a side-effect-free helper means we can pin the rounding invariant
+# (1.3) and the day-count boundaries (1.4) in unit tests without standing
+# up a Loan Product fixture or a customer context.
+# ---------------------------------------------------------------------------
+
+
+def amortize(
+    principal,
+    annual_rate_pct,
+    periods,
+    *,
+    day_count_convention="actual/365",
+    period_start=None,
+):
+    """Constant-payment amortization for ``periods`` monthly periods.
+
+    Returns a dict with ``monthly_payment``, ``total_payable``,
+    ``total_interest``, and the day-count convention used. Behaviour
+    mirrors the portal estimator so the wrapper and the math stay in
+    lock-step.
+
+    Day-count convention only affects the *displayed* first-period
+    interest accrual when ``period_start`` is supplied; the monthly
+    payment itself is unchanged because the upstream lending engine
+    charges a constant monthly instalment.
+    """
+    from math import pow
+
+    if periods <= 0:
+        raise ValueError("periods must be positive")
+    if principal <= 0:
+        raise ValueError("principal must be positive")
+
+    monthly_rate = flt(annual_rate_pct) / 100 / 12
+    if monthly_rate > 0:
+        monthly_payment = flt(principal) * monthly_rate / (
+            1 - pow(1 + monthly_rate, -periods)
+        )
+    else:
+        monthly_payment = flt(principal) / periods
+
+    total_payable = monthly_payment * periods
+    total_interest = total_payable - flt(principal)
+
+    return {
+        "monthly_payment": flt(monthly_payment),
+        "total_payable": flt(total_payable),
+        "total_interest": flt(total_interest),
+        "rate_of_interest": flt(annual_rate_pct),
+        "principal": flt(principal),
+        "periods": int(periods),
+        "day_count_convention": day_count_convention,
+        "period_start": period_start,
+    }
