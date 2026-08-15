@@ -101,6 +101,43 @@
 	margin-right: 0.25rem;
 }
 
+/* #47: borrower info summary — a read-only strip that shows the selected
+   borrower's name, mobile, email, national ID, and KYC status so the
+   officer can verify they have the right borrower before filling in
+   the loan terms. */
+.lms-app-borrower-summary {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+	gap: 0.5rem 1rem;
+	padding: 0.75rem 1rem;
+	margin-top: 0.5rem;
+	border: 1px solid var(--lms-border);
+	border-radius: var(--lms-radius-sm);
+	background: var(--lms-surface-alt);
+}
+.lms-app-borrower-summary[hidden] {
+	display: none;
+}
+.lms-app-borrower-summary__row {
+	display: flex;
+	flex-direction: column;
+	gap: 0.15rem;
+	min-width: 0;
+}
+.lms-app-borrower-summary__label {
+	font-size: 0.65rem;
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+	color: var(--lms-text-muted);
+	font-weight: 600;
+}
+.lms-app-borrower-summary__value {
+	font-size: 0.85rem;
+	color: var(--lms-text);
+	font-weight: 500;
+	overflow-wrap: anywhere;
+}
+
 /* ------------------------------------------------------------------ */
 /* ----- Input primitives ----------------------------------------------- */
 

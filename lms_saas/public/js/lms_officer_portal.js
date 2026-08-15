@@ -903,6 +903,12 @@ lms_officer._openApplicationModal = function (customers, products, root) {
 		'<span class="lms-app-product-hint"><strong>Rate:</strong> <span id="lms-app-product-rate">—</span></span>' +
 		'<span class="lms-app-product-hint"><strong>Max amount:</strong> <span id="lms-app-product-max">—</span></span>' +
 		'</div>' +
+		// #47: borrower info summary — a read-only strip that shows the
+		// selected borrower's name, mobile, email, national ID, and KYC
+		// status so the officer can verify they have the right borrower
+		// before filling in the loan terms. Filled by fillHousehold()
+		// when an existing borrower is selected; hidden otherwise.
+		'<div id="lms-app-borrower-summary" class="lms-app-borrower-summary" hidden></div>' +
 		"</div></div></div>" +
 		// R34: the inline "+ New borrower…" picker now shares the full
 		// onboarding form with the topbar "Add Borrower" modal (Identity,
@@ -1035,6 +1041,42 @@ lms_officer._openApplicationModal = function (customers, products, root) {
 		setVal("lms-app-spouse-dob", d.spouse_dob);
 		setVal("lms-app-spouse-contact", d.spouse_contact);
 		setVal("lms-app-physical", d.physical_address);
+
+		// #47: show a borrower info summary so the officer can verify
+		// they have the right borrower before filling in the loan terms.
+		// The summary is a read-only strip below the customer dropdown
+		// that shows name, mobile, email, national ID, and KYC status.
+		var summary = dlg.dialog.querySelector("#lms-app-borrower-summary");
+		if (summary) {
+			if (d.name || d.customer_name) {
+				var kycStatus = d.kyc_status || (d.compliance && d.compliance.kyc_status) || "—";
+				var kycBadge = kycStatus === "Approved" ? "lms-badge--success" : (kycStatus === "Rejected" ? "lms-badge--danger" : "lms-badge--muted");
+				summary.innerHTML =
+					'<div class="lms-app-borrower-summary__row">' +
+						'<span class="lms-app-borrower-summary__label">Name</span>' +
+						'<span class="lms-app-borrower-summary__value">' + lms_portal.escape(d.customer_name || d.name || "—") + '</span>' +
+					'</div>' +
+					'<div class="lms-app-borrower-summary__row">' +
+						'<span class="lms-app-borrower-summary__label">Mobile</span>' +
+						'<span class="lms-app-borrower-summary__value">' + lms_portal.escape(d.mobile_no || "—") + '</span>' +
+					'</div>' +
+					'<div class="lms-app-borrower-summary__row">' +
+						'<span class="lms-app-borrower-summary__label">Email</span>' +
+						'<span class="lms-app-borrower-summary__value">' + lms_portal.escape(d.email_id || "—") + '</span>' +
+					'</div>' +
+					'<div class="lms-app-borrower-summary__row">' +
+						'<span class="lms-app-borrower-summary__label">National ID</span>' +
+						'<span class="lms-app-borrower-summary__value">' + lms_portal.escape(d.custom_national_id_number || "—") + '</span>' +
+					'</div>' +
+					'<div class="lms-app-borrower-summary__row">' +
+						'<span class="lms-app-borrower-summary__label">KYC</span>' +
+						'<span class="lms-badge ' + kycBadge + '">' + lms_portal.escape(kycStatus) + '</span>' +
+					'</div>';
+				summary.hidden = false;
+			} else {
+				summary.hidden = true;
+			}
+		}
 	};
 	// R34: wire the inline borrower's file-upload widgets ONCE the picker
 	// is unhidden. The picker is hidden on initial render (DOM hidden=true)
