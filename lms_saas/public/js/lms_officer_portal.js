@@ -969,7 +969,11 @@ lms_officer._openApplicationModal = function (customers, products, root) {
 		"</div></div></div>" +
 
 		// --- Household / Spouse (pre-fills from selected borrower) ---
-		'<div class="lms-form-card">' +
+		// #45 fix: give this card an ID so the toggle handler can hide
+		// it when the inline "+ New borrower" form is visible — the
+		// inline form has its own Household & Spouse section, so showing
+		// both creates a confusing duplicate.
+		'<div class="lms-form-card" id="lms-app-household-card">' +
 		'<div class="lms-form-card__head"><span class="lms-form-card__stripe"></span><h4>Household &amp; Spouse</h4></div>' +
 		'<div class="lms-form-card__body">' +
 		'<p class="lms-muted" style="margin:0 0 0.5rem;font-size:0.8rem;">Pre-filled from the borrower record; edit here if anything has changed.</p>' +
@@ -1060,10 +1064,19 @@ lms_officer._openApplicationModal = function (customers, products, root) {
 		// "First name is required" toast on inline failure.
 	};
 	if (customerSelect && newBorrowerFields) {
+		// #45 fix: grab the main Household & Spouse card so we can hide
+		// it when the inline new-borrower form is visible (the inline
+		// form has its own Household & Spouse section — showing both is
+		// a confusing duplicate).
+		var householdCard = dlg.dialog.querySelector("#lms-app-household-card");
 		customerSelect.addEventListener("change", function () {
 			var v = customerSelect.value;
-			newBorrowerFields.hidden = v !== "__new__";
-			if (v === "__new__") {
+			var isNewBorrower = v === "__new__";
+			newBorrowerFields.hidden = !isNewBorrower;
+			// Hide the main Household card when the inline form is
+			// visible; show it when an existing borrower is selected.
+			if (householdCard) householdCard.hidden = isNewBorrower;
+			if (isNewBorrower) {
 				bindNewBorrowerWidgets();
 			}
 			if (v && v !== "__new__") {
@@ -1358,6 +1371,29 @@ lms_officer._openApplicationModal = function (customers, products, root) {
 			spouseDob = newBorrowerFields.spouse_dob || "";
 			spouseContact = newBorrowerFields.spouse_contact || "";
 			physical = newBorrowerFields.physical_address || "";
+		}
+
+		// #46 fix: validate required loan-terms fields BEFORE attempting
+		// to submit. The previous code only checked customer selection
+		// and inline-borrower first name — loan amount, product, rate,
+		// and periods were silently passed through as 0 / empty,
+		// causing the backend to either throw a generic ValidationError
+		// or create a loan with nonsensical terms.
+		if (!product) {
+			lms_portal.toast("Please select a loan product.", "danger");
+			return;
+		}
+		if (!amount || amount <= 0) {
+			lms_portal.toast("Loan amount must be a positive number.", "danger");
+			return;
+		}
+		if (!rate || rate <= 0) {
+			lms_portal.toast("Rate of interest must be a positive number.", "danger");
+			return;
+		}
+		if (!periods || periods < 1) {
+			lms_portal.toast("Repayment periods must be at least 1 month.", "danger");
+			return;
 		}
 
 		if (customerVal === "__new__") {
