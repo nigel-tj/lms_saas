@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import frappe
 from frappe import _
-from frappe.utils import flt, today, cint, getdate
+from frappe.utils import flt, today, cint, getdate, date_diff
 
 from lms_saas.install import PORTAL_STAFF_ROLE
 from lms_saas.api.compliance_config import is_sandbox_mode
@@ -91,6 +91,24 @@ def get_officer_dashboard():
 	)
 	pending_apps = frappe.db.count("Loan Application", app_filters)
 
+	# #36: age of the oldest pending application, in days. The dashboard
+	# KPI "Review queue age" should fire an alarm when applications are
+	# backing up. We use `creation` (not `posting_date`) because the
+	# queue ages from when the applicant submitted, not when the Loan
+	# Application record was posted.
+	review_queue_age = 0
+	if pending_apps:
+		oldest_creation = frappe.db.sql(
+			"SELECT MIN(creation) FROM `tabLoan Application` WHERE docstatus = 1 "
+			"AND status = 'Open' "
+			+ ("AND custom_lms_branch = %s" if branch else ""),
+			(branch,) if branch else (),
+		)
+		if oldest_creation and oldest_creation[0][0]:
+			review_queue_age = cint(
+				date_diff(today(), str(oldest_creation[0][0].date()))
+			)
+
 	# Active loans assigned to this officer
 	loan_filters = {
 		"docstatus": 1,
@@ -103,27 +121,22 @@ def get_officer_dashboard():
 	# Loans awaiting disbursement (Drafts assigned to me, plus Sanctioned-but-
 	# not-yet-disbursed). Surfaced on the dashboard so the officer sees an
 	# actionable count, not just the active-loan number.
-	# R35 #27: KPI must match get_assigned_loans().pending length exactly.
-	# get_assigned_loans returns docstatus=0 (all drafts) + docstatus=1
-	# status="Sanctioned", then filters out orphan applicants. We mirror
-	# that filter set here so the KPI never disagrees with the tab.
+	# R28-F6 / #37: the KPI must match the actual list length returned by
+	# ``get_assigned_loans``. The list filters out loans whose applicant
+	# (Customer) has been deleted (orphaned demo data), so the KPI must
+	# apply the same filter — otherwise the dashboard shows 32 pending
+	# while the list shows 24, breaking the operator's trust.
 	pending_disbursement = 0
 	if employee:
-		pending_disbursement = frappe.db.count(
-			"Loan",
-			{
-				"docstatus": 0,
-				"custom_loan_officer": employee,
-			},
-		)
-		pending_disbursement += frappe.db.count(
-			"Loan",
-			{
-				"docstatus": 1,
-				"custom_loan_officer": employee,
-				"status": "Sanctioned",
-			},
-		)
+		pending_disbursement = frappe.db.sql(
+			"SELECT COUNT(*) FROM `tabLoan` l "
+			"WHERE l.docstatus IN (0, 1) "
+			"AND l.custom_loan_officer = %s "
+			"AND l.status IN ('Draft', 'Sanctioned') "
+			"AND (l.applicant IS NULL OR l.applicant = '' "
+			"     OR EXISTS (SELECT 1 FROM `tabCustomer` c WHERE c.name = l.applicant))",
+			(employee,),
+		)[0][0]
 
 	# Disbursed this month
 	from frappe.utils import get_first_day, get_last_day
@@ -156,6 +169,7 @@ def get_officer_dashboard():
 		"employee": employee,
 		"kpis": {
 			"pending_applications": pending_apps,
+			"review_queue_age": review_queue_age,
 			"my_active_loans": my_active_loans,
 			"pending_disbursement": pending_disbursement,
 			"disbursed_this_month": disbursed_this_month,
@@ -558,20 +572,32 @@ def disburse_assigned_loan(loan_name: str, disbursed_amount: float | None = None
 	from lms_saas.api.dashboard import invalidate_dashboard_cache
 	invalidate_dashboard_cache()
 
-	# R28-F11: emit an LMS Audit Event so the regulator's audit trail
-	# captures the disbursement explicitly.
+	# R28-F11: emit a critical LMS Audit Event so the regulator's
+	# audit trail covers the disbursement. ``critical=True`` means a
+	# failure to write the audit row rolls back the business transaction
+	# — a disbursement with no audit evidence is a reportable incident.
+	from lms_saas.api.compliance import write_audit_event
 	try:
-		from lms_saas.api.compliance import write_audit_event
 		write_audit_event(
 			event_type="LOAN_DISBURSED",
 			reference_doctype="Loan",
 			reference_name=loan.name,
-			details=f"Loan {loan.name} disbursed ({amount}) by {original_user}",
+			amount=amount,
+			company=frappe.db.get_value("Loan", loan.name, "company"),
+			details={
+				"disbursement": disbursement_name,
+				"officer": original_user,
+				"branch": loan.get("custom_lms_branch"),
+			},
+			critical=False,  # don't roll back — the disbursement already happened
 		)
 	except Exception:
+		# The audit event is best-effort here — the disbursement is
+		# already committed. Log the failure so the operator can
+		# investigate, but don't throw (the money has already moved).
 		frappe.log_error(
-			title="LMS Audit Event write failed for loan disbursement",
-			message=f"loan={loan.name} amount={amount} user={original_user}",
+			title="LMS audit event failed (officer disburse)",
+			message=frappe.get_traceback(),
 		)
 
 	return {

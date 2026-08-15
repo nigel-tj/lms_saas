@@ -116,23 +116,6 @@ def _ensure_test_borrower(suffix: str) -> str:
     if cust.meta.has_field("custom_lms_branch"):
         cust.custom_lms_branch = BRANCH
     cust.save(ignore_permissions=True)
-    # Ensure LMS Borrower Compliance exists with consent + KYC approved
-    # so submit_application_on_behalf doesn't reject for missing consent.
-    if not frappe.db.exists("LMS Borrower Compliance", {"customer": cust_id}):
-        comp = frappe.get_doc(
-            {
-                "doctype": "LMS Borrower Compliance",
-                "customer": cust_id,
-                "kyc_status": "Approved",
-                "aml_status": "Clear",
-                "consent_given": 1,
-                "consent_date": today(),
-                "national_id_number": "8501011234089",
-                "id_document_proof": "NID-PDF",
-                "proof_of_address": "UTILITY-PDF",
-            }
-        )
-        comp.insert(ignore_permissions=True)
     return cust_id
 
 
@@ -346,16 +329,18 @@ class TestOfficerLoanDetail(unittest.TestCase):
         _set_user(OFFICER_EMAIL)
 
     def test_get_loan_detail_does_not_throw(self):
-        # Find an existing active loan in the officer's branch.
+        # Find an existing active loan the officer can view. Use one of
+        # the officer's own loans seeded in earlier test runs (e.g. the
+        # `Officer Test Borrower 4` / `Officer Test Borrower 5` loans).
         candidates = frappe.get_all(
             "Loan",
-            filters={"docstatus": 1, "status": "Disbursed", "custom_lms_branch": BRANCH},
+            filters={"docstatus": 1, "status": "Disbursed"},
             fields=["name"],
             order_by="creation desc",
             limit_page_length=5,
         )
         if not candidates:
-            self.skipTest("No disbursed loans in officer's branch — cannot test loan detail.")
+            self.skipTest("No disbursed loans on this site — cannot test loan detail.")
         ln_name = candidates[0]["name"]
 
         # This MUST not throw. Before the R14 fix it 500'd with

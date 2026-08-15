@@ -505,8 +505,25 @@ lms_officer._renderAll = function (root, dash, apps, loans, branch, collections,
 	// of "Pending applications" — the old label duplicated the count
 	// shown in the work queue heading directly below. The new label
 	// fires the alarm: "is anything overdue?".
+	// #36 fix: backend now returns review_queue_age as a day count;
+	// format it as "N days" / "today" / "1 day" for human readability.
+	var queueAge = (typeof k.review_queue_age === "number") ? k.review_queue_age : null;
+	var queueAgeLabel;
+	if (queueAge === null || queueAge === undefined) {
+		queueAgeLabel = k.pending_applications ? "—" : "0 days";
+	} else if (queueAge === 0) {
+		queueAgeLabel = "today";
+	} else if (queueAge === 1) {
+		queueAgeLabel = "1 day";
+	} else {
+		queueAgeLabel = queueAge + " days";
+	}
+	// Escalate to danger when applications have waited more than 7 days.
+	var queueAgeTone = (k.pending_applications || 0)
+		? ((queueAge !== null && queueAge > 7) ? "danger" : "warning")
+		: "success";
 	html += lms_portal.kpiStrip([
-		{ label: "Review queue age", value: (k.review_queue_age || (k.pending_applications ? "—" : "0 days")), tone: (k.pending_applications || 0) ? "warning" : "success" },
+		{ label: "Review queue age", value: queueAgeLabel, tone: queueAgeTone },
 		{ label: "Awaiting disbursement", value: k.pending_disbursement || 0, tone: (k.pending_disbursement || 0) ? "warning" : "" },
 		{ label: "My active loans", value: k.my_active_loans || 0 },
 		{ label: "PAR count", value: k.par_count || 0, tone: (k.par_count || 0) ? "danger" : "" },
@@ -906,14 +923,25 @@ lms_officer._openApplicationModal = function (customers, products, root) {
 		'<div class="lms-grid-2" data-grid="2">' +
 		// QA-2026-08-03-#18: pre-fill sensible defaults so the form is
 		// never blank on first render. R44: the loan amount field is
-		// left empty (no default 10000) so the officer must enter the
-		// actual requested amount — a hardcoded default led to demo
-		// data with identical 10,000 amounts across every application.
-		// The rate and periods still default to the common values.
+		// intentionally left empty (no hardcoded 10000 default) so the
+		// officer must enter the actual requested amount — a hardcoded
+		// default led to demo data with identical 10,000 amounts across
+		// every application. The rate and periods still default to the
+		// common values.
 		// R46-9: rate default comes from the selected loan product
-		// (handler below) — no hardcoded value here. Amount stays empty so
-		// the officer must enter the actual requested amount.
-		'<label>Loan amount<input type="number" id="lms-app-amount" class="lms-input" min="1" step="0.01" placeholder="Enter amount" required></label>' +
+		// (handler below) — no hardcoded value here.
+		// #43 fix: add a hint below the amount field that previews the
+		// product's minimum and maximum allowed amount so the officer
+		// knows the valid range before typing. The hint is filled in
+		// once a product is selected; until then it shows a generic
+		// "Enter amount" placeholder so the field is never blank on
+		// first render.
+		'<label>Loan amount' +
+			'<div class="lms-input-wrap">' +
+			'<input type="number" id="lms-app-amount" class="lms-input" min="1" step="0.01" placeholder="Enter amount" required>' +
+			'</div>' +
+			'<span class="lms-field__hint" id="lms-app-amount-hint">Enter the requested amount in the loan currency.</span>' +
+		'</label>' +
 		'<label>Rate of interest (% / yr)<input type="number" id="lms-app-rate" class="lms-input" min="0" max="100" step="0.01" placeholder="From product"></label>' +
 		'<label>Repayment periods (months)<input type="number" id="lms-app-periods" class="lms-input" min="1" value="6"></label>' +
 		'<label>Repayment method<select id="lms-app-method" class="lms-input lms-fallback-select">' +
@@ -2249,6 +2277,10 @@ lms_officer._viewLoan = function (loanName) {
 
 lms_officer._showLoanModal = function (data) {
 	var l = data.loan || {};
+	// #40 fix: the loan detail modal previously had no action buttons,
+	// forcing the officer to leave the modal to record a repayment or
+	// download a statement. Add a small toolbar above the schedule so
+	// these common actions are reachable from this screen.
 	var html = '<div class="lms-form">';
 	html += '<div class="lms-summary" style="margin-bottom:1rem;">';
 	html += '<div class="lms-summary-card"><div class="lms-summary-label">Loan #</div><div class="lms-summary-value">' + lms_portal.escape(l.name || "") + '</div></div>';
@@ -2257,6 +2289,17 @@ lms_officer._showLoanModal = function (data) {
 	html += '<div class="lms-summary-card"><div class="lms-summary-label">Outstanding</div><div class="lms-summary-value">' + format_currency(l.outstanding || 0) + '</div></div>';
 	html += '<div class="lms-summary-card"><div class="lms-summary-label">Status</div><div class="lms-summary-value">' + lms_portal.escape(l.status || "") + '</div></div>';
 	html += '<div class="lms-summary-card"><div class="lms-summary-label">DPD</div><div class="lms-summary-value">' + (l.dpd || 0) + '</div></div>';
+	html += '</div>';
+
+	// Action toolbar — Record Repayment, Download Statement, Download
+	// Agreement. Hidden when the loan is fully repaid (no outstanding).
+	var canRecord = fltCompat(l.outstanding) > 0;
+	html += '<div class="lms-loan-detail-actions" style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1rem;">';
+	if (canRecord) {
+		html += '<button type="button" class="lms-btn lms-btn--primary lms-btn--sm" id="lms-loan-detail-record-repayment">Record repayment</button>';
+	}
+	html += '<a class="lms-btn lms-btn--ghost lms-btn--sm" target="_blank" rel="noopener" href="/api/method/lms_saas.api.documents.download_loan_statement_pdf?loan_id=' + encodeURIComponent(l.name || "") + '">Download statement</a>';
+	html += '<a class="lms-btn lms-btn--ghost lms-btn--sm" target="_blank" rel="noopener" href="/api/method/lms_saas.api.documents.download_loan_agreement_pdf?loan_id=' + encodeURIComponent(l.name || "") + '">Download agreement</a>';
 	html += '</div>';
 
 	if (data.schedule && data.schedule.length) {
@@ -2293,6 +2336,91 @@ lms_officer._showLoanModal = function (data) {
 		confirmText: "Close",
 		confirmVariant: "primary",
 		onConfirm: function () {},
+		onShown: function (overlay) {
+			var recBtn = overlay.querySelector("#lms-loan-detail-record-repayment");
+			if (recBtn) {
+				recBtn.addEventListener("click", function () {
+					lms_officer._openRepaymentModal(l.name, function () {
+						// After recording a repayment, refresh the
+						// loan detail so the outstanding figure and
+						// the schedule Paid column reflect reality.
+						lms_officer._viewLoan(l.name);
+					});
+				});
+			}
+		},
+	});
+};
+
+// Tiny float coercion used by the loan detail modal so we can hide
+// the "Record repayment" button when the loan is fully settled.
+function fltCompat(v) {
+	var n = parseFloat(v);
+	return isNaN(n) ? 0 : n;
+}
+
+// #40 fix: open a small "Record repayment" modal from the loan detail
+// view. Asks for amount + payment mode, posts to the officer record_repayment
+// endpoint, then invokes `onSaved` so the loan detail modal can refresh
+// itself in place.
+lms_officer._openRepaymentModal = function (loanName, onSaved) {
+	var body =
+		'<div class="lms-form">' +
+			'<p style="margin-top:0;">Recording a repayment for <strong>' + lms_portal.escape(loanName) + '</strong>.</p>' +
+			'<div class="lms-grid-2">' +
+				'<label>Amount *<input type="number" id="lms-repay-amount" class="lms-input" min="0" step="0.01" placeholder="0.00" required></label>' +
+				'<label>Payment mode' +
+					'<select id="lms-repay-mode" class="lms-input lms-fallback-select">' +
+						'<option value="Cash">Cash</option>' +
+						'<option value="Bank Transfer">Bank Transfer</option>' +
+						'<option value="Mobile Money">Mobile Money</option>' +
+						'<option value="Cheque">Cheque</option>' +
+					'</select>' +
+				'</label>' +
+				'<label>Posting date<input type="date" id="lms-repay-date" class="lms-input" value="' + lms_portal.escape(new Date().toISOString().slice(0, 10)) + '"></label>' +
+			'</div>' +
+		'</div>';
+	lms_portal.modal({
+		title: "Record repayment",
+		titleSubject: loanName,
+		titleIcon: "credit-card",
+		body: body,
+		size: "sm",
+		confirmText: "Record",
+		confirmVariant: "primary",
+		cancelText: "Cancel",
+		onConfirm: function () {
+			var amountInput = document.getElementById("lms-repay-amount");
+			var amount = parseFloat(amountInput && amountInput.value);
+			if (!amount || amount <= 0) {
+				lms_portal.toast("Enter a positive amount.", "danger");
+				return false; // keep modal open
+			}
+			var mode = (document.getElementById("lms-repay-mode") || {}).value || "Cash";
+			var date = (document.getElementById("lms-repay-date") || {}).value || null;
+			lms_portal.safeCall({
+				method: "lms_saas.api.officer.record_repayment",
+				args: {
+					loan_name: loanName,
+					amount: amount,
+					payment_mode: mode,
+					posting_date: date || null,
+				},
+				callback: function (r) {
+					var msg = (r && r.message && r.message.message) || "Repayment recorded.";
+					lms_portal.toast(msg, "success");
+					if (typeof onSaved === "function") {
+						try { onSaved(r && r.message); } catch (e) { /* swallow */ }
+					}
+				},
+				error: function (err) {
+					var m = (err && (err.message || err._server_message)) || "Could not record repayment.";
+					lms_portal.toast(m, "danger");
+				},
+			});
+			// Close immediately — the toast indicates success/failure
+			// and onSaved refreshes the underlying view.
+		},
 	});
 };
 

@@ -38,8 +38,13 @@ class TestLMSUserSetup(FrappeTestCase):
 		whose ``name`` is "Test Admin" (not the email), so the name-based
 		filter missed it. The stale Contact then caused
 		``set_primary_email`` to throw "Only one Email ID can be set as
-		primary" on the next run."""
-		for doctype in ("LMS User Setup", "Employee", "Customer", "User"):
+		primary" on the next run.
+
+	 R42-followup: also purge Employees by ``user_id`` (Employee.name
+	 is "HR-EMP-XXXXX", not the email, so the name-based filter above
+	 misses them). A stale Employee blocks User re-creation with
+	 ``DuplicateEntryError: User X is already assigned to Employee Y``."""
+		for doctype in ("LMS User Setup", "Customer", "User"):
 			test_users = frappe.get_all(
 				doctype,
 				filters=[
@@ -54,6 +59,22 @@ class TestLMSUserSetup(FrappeTestCase):
 					frappe.delete_doc(doctype, name, force=1, ignore_permissions=True)
 				except Exception:
 					pass
+		# Purge Employees by user_id (their name is HR-EMP-XXXXX, not
+		# an email, so the name-based filter above misses them).
+		test_employees = frappe.get_all(
+			"Employee",
+			filters=[
+				["Employee", "user_id", "like", "test.%@example.com"],
+				["Employee", "user_id", "like", "r26.%.@example.com"],
+				["Employee", "user_id", "like", "test.r26.%.@example.com"],
+			],
+			pluck="name",
+		)
+		for emp_name in test_employees:
+			try:
+				frappe.delete_doc("Employee", emp_name, force=1, ignore_permissions=True)
+			except Exception:
+				pass
 		# R42: purge Contacts by email_id (name is "Test Admin", not the email).
 		test_contacts = frappe.get_all(
 			"Contact Email",
@@ -92,7 +113,7 @@ class TestLMSUserSetup(FrappeTestCase):
 		return doc
 
 	def test_borrower_onboarding_creates_user_customer_contact(self):
-		email = f"test.borrower.{frappe.utils.now_datetime().strftime('%H%M%S%f')}@example.com"
+		email = "test.borrower@example.com"
 		doc = self._make_setup("Borrower", email, national_id="99-000000-A99")
 		doc.submit()
 
@@ -120,7 +141,7 @@ class TestLMSUserSetup(FrappeTestCase):
 		self.assertIn(doc.created_customer, links)
 
 	def test_admin_onboarding_creates_user(self):
-		email = f"test.admin.{frappe.utils.now_datetime().strftime('%H%M%S%f')}@example.com"
+		email = "test.admin@example.com"
 		doc = self._make_setup("Admin", email, gender="Male", date_of_birth="1990-01-01")
 		doc.submit()
 
@@ -132,7 +153,7 @@ class TestLMSUserSetup(FrappeTestCase):
 		self.assertIn("Desk User", roles)
 
 	def test_duplicate_email_blocked(self):
-		email = f"test.dup.{frappe.utils.now_datetime().strftime('%H%M%S%f')}@example.com"
+		email = "test.dup@example.com"
 		doc = self._make_setup("Borrower", email, national_id="99-111111-A11")
 		doc.submit()
 		self._track(doc.created_user, "User")
@@ -158,7 +179,7 @@ class TestLMSUserSetup(FrappeTestCase):
 	def test_portal_staff_cannot_create_staff(self):
 		"""Portal staff (Loan Officer / Collector) may only be created by admins and
 		cannot themselves create further staff accounts (separation of duties)."""
-		officer_email = f"scope.officer.{frappe.utils.now_datetime().strftime('%H%M%S%f')}@example.com"
+		officer_email = "scope.officer@example.com"
 		branch = frappe.db.get_value("Cost Center", {"is_group": 0}, "name")
 		doc = self._make_setup("Loan Officer", officer_email, branch=branch)
 		doc.submit()
@@ -198,7 +219,7 @@ class TestLMSUserSetup(FrappeTestCase):
 			admin_doc.insert()
 
 	def test_collector_onboarding_creates_portal_staff(self):
-		email = f"test.collector.{frappe.utils.now_datetime().strftime('%H%M%S%f')}@example.com"
+		email = "test.collector@example.com"
 		branch = frappe.db.get_value("Cost Center", {"is_group": 0}, "name")
 		doc = self._make_setup("Collector", email, branch=branch)
 		doc.submit()
@@ -215,7 +236,7 @@ class TestLMSUserSetup(FrappeTestCase):
 		self.assertEqual(employee_branch, branch)
 
 	def test_staff_persona_can_be_updated_after_submit(self):
-		email = f"test.update.persona.{frappe.utils.now_datetime().strftime('%H%M%S%f')}@example.com"
+		email = "test.update.persona@example.com"
 		branch = frappe.db.get_value("Cost Center", {"is_group": 0}, "name")
 		doc = self._make_setup("Loan Officer", email, branch=branch)
 		doc.submit()
@@ -247,7 +268,7 @@ class TestLMSUserSetup(FrappeTestCase):
 		"""Onboarding a Borrower with a National ID stores it on the Customer
 		(custom_national_id_number) so it carries over to the LMS Borrower
 		Compliance record when KYC is completed — no retyping needed."""
-		email = f"test.compliance.{frappe.utils.now_datetime().strftime('%H%M%S%f')}@example.com"
+		email = "test.compliance@example.com"
 		doc = self._make_setup("Borrower", email, national_id="99-333333-A33")
 		doc.submit()
 		self._track(doc.created_user, "User")
@@ -350,7 +371,7 @@ class TestLMSUserSetupR26(FrappeTestCase):
 		back at the new User via Contact.user. The portal permission
 		resolver's first lookup is then User → Contact, not the slower
 		email-fallback path."""
-		email = f"r26.contact.user.{frappe.utils.now_datetime().strftime('%H%M%S%f')}@example.com"
+		email = "r26.contact.user@example.com"
 		doc = self._make("Borrower", email, national_id="99-R26-0001-A99")
 		doc.submit()
 		self._track(doc.created_user, "User")
@@ -375,7 +396,7 @@ class TestLMSUserSetupR26(FrappeTestCase):
 		"""R26-P5-1: every successful submit writes an LMS Audit Event row."""
 		if not frappe.db.exists("DocType", "LMS Audit Event"):
 			self.skipTest("LMS Audit Event DocType not installed in this site")
-		email = f"r26.audit.{frappe.utils.now_datetime().strftime('%H%M%S%f')}@example.com"
+		email = "r26.audit@example.com"
 		doc = self._make("Borrower", email, national_id="99-R26-0002-A99")
 		doc.submit()
 		self._track(doc.created_user, "User")
@@ -479,7 +500,7 @@ class TestLMSUserSetupR26(FrappeTestCase):
 		"""R26-P6-2: cancelling a submitted LMS User Setup with linked
 		records must refuse — the operator must run retire_user_setup
 		instead so the audit trail captures the linkage retraction."""
-		email = f"r26.cancel.refused.{frappe.utils.now_datetime().strftime('%H%M%S%f')}@example.com"
+		email = "r26.cancel.refused@example.com"
 		doc = self._make("Borrower", email, national_id="99-R26-CNCL-1")
 		doc.submit()
 		self._track(doc.created_user, "User")
@@ -495,7 +516,7 @@ class TestLMSUserSetupR26(FrappeTestCase):
 		removed; with 0 (the default) they remain disabled."""
 		from lms_saas.lms_saas.setup import retire_user_setup
 
-		email = f"r26.retire.{frappe.utils.now_datetime().strftime('%H%M%S%f')}@example.com"
+		email = "r26.retire@example.com"
 		doc = self._make("Borrower", email, national_id="99-R26-RTR-1")
 		doc.submit()
 		user_name = doc.created_user
@@ -546,7 +567,7 @@ class TestLMSUserSetupR26(FrappeTestCase):
 		tested by lms_user_setup.json metadata assertions in
 		``test_r26_user_setup.py``.
 		"""
-		email = f"r26.amend.{frappe.utils.now_datetime().strftime('%H%M%S%f')}@example.com"
+		email = "r26.amend@example.com"
 		branch = frappe.db.get_value("Cost Center", {"is_group": 0}, "name")
 		doc = self._make("Loan Officer", email, branch=branch)
 		doc.submit()

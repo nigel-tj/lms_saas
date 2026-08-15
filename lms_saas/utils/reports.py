@@ -77,6 +77,7 @@ def portfolio_summary(
 		"par60_outstanding": 0,
 		"par90_count": 0,
 		"par90_outstanding": 0,
+		"current_count": 0,
 		"current_outstanding": 0,
 		"npa_count": 0,
 	}
@@ -96,6 +97,14 @@ def portfolio_summary(
 			summary["par30_count"] += 1
 			summary["par30_outstanding"] += outstanding
 		else:
+			# #37 fix: the officer's Portfolio Summary "Current" KPI
+			# expects a loan count, not a dollar amount. The dollar
+			# amount is preserved as current_outstanding so the
+			# outstanding tile still totals correctly. R35-#27 lesson:
+			# keep the KPI definition single-source-of-truth across the
+			# dashboard and the tab so a refactor cannot reintroduce the
+			# split.
+			summary["current_count"] += 1
 			summary["current_outstanding"] += outstanding
 
 	summary["par_ratio"] = (

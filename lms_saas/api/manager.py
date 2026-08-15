@@ -479,21 +479,13 @@ def reject_application(application_name: str, reason: str = ""):
 	if not reason:
 		frappe.throw(_("Rejection reason is required for the audit trail."))
 
-	# R55: reject must accept the same canonical states as approve
-	# (R37: ds=0 Draft OR ds=1 + status='Open'). The previous code
-	# rejected anything past Draft — which locked managers out of
-	# rejecting officer-submitted applications (the common case in R37+).
-	if app.docstatus not in (0, 1) or (app.docstatus == 1 and app.status != "Open"):
-		frappe.throw(
-			_("Only draft or submitted applications can be rejected (current: docstatus={0}, status={1}).").format(
-				app.docstatus, app.status
-			)
-		)
+	if app.docstatus != 0:
+		frappe.throw(_("Only draft applications can be rejected (current status: {0}).").format(app.docstatus))
 
-	# R29-F11 / R55: audit the rejection BEFORE the destructive op so the
-	# audit row references a still-existing doc. ``reference_name`` retains
-	# the application name — the LMS Audit Event reference stays valid
-	# (the audit table is a regulator-grade immutable log).
+	# R29-F11: audit the rejection BEFORE the delete so the row is
+	# not orphaned. ``reference_name`` retains the application name —
+	# the LMS Audit Event reference stays valid even though the source
+	# doc is gone (the audit table is a regulator-grade immutable log).
 	original_user = frappe.session.user
 	try:
 		from lms_saas.api.compliance import write_audit_event
@@ -505,8 +497,7 @@ def reject_application(application_name: str, reason: str = ""):
 			details=(
 				f"application={application_name} manager={original_user} "
 				f"branch={app.get('custom_lms_branch') or 'unassigned'} "
-				f"reason={reason} applicant={app.applicant} loan_amount={app.loan_amount} "
-				f"docstatus_before={app.docstatus} status_before={app.status}"
+				f"reason={reason} applicant={app.applicant} loan_amount={app.loan_amount}"
 			),
 			critical=True,
 		)
@@ -516,60 +507,48 @@ def reject_application(application_name: str, reason: str = ""):
 			message=frappe.get_traceback(),
 		)
 
-	# R55: branch on docstatus. Drafts (ds=0) get deleted (Frappe forbids
-	# cancelling a draft, only deleting is allowed). Submitted apps (ds=1,
-	# status='Open') get cancelled (docstatus=2) — the regulator-grade
-	# record stays in the DB so it can be inspected by the supervisor
-	# dashboards and reported in the regulator's audit walk-through.
+	# Add a comment with the rejection reason (kept for the desk-side
+	# visible trail — operators want to see "why was this killed?" in
+	# the doc's Comments tab).
+	frappe.get_doc(
+		{
+			"doctype": "Comment",
+			"comment_type": "Info",
+			"reference_doctype": "Loan Application",
+			"reference_name": application_name,
+			"content": f"Application rejected: {reason}",
+		}
+	).insert(ignore_permissions=True)
+
+	# Delete the draft application (drafts cannot be cancelled, only deleted).
+	# R34-QA: `app.delete()` enqueues `frappe.model.delete_doc.delete_dynamic_links`
+	# via `enqueue_after_commit=True`. The background worker runs after the
+	# current transaction commits — by then our `frappe.set_user("Administrator")`
+	# has been undone by the `finally` block, so the background worker runs as
+	# the manager and trips the same Frappe-version-specific gate
+	# (`_check_queue_size` → `has_permission("System Health Report")` →
+	# `only_for("System Manager")`). We can't `set_user` for a deferred worker.
+	#
+	# Fix: do the delete manually as Administrator. The audit row + comment
+	# above were already written as the manager so the regulator trail is
+	# unchanged. We skip the dynamic-link cleanup (View Log / Comment /
+	# Version entries) — these are non-critical audit noise for a draft;
+	# Frappe's `add_to_deleted_document` recovery option is also skipped
+	# (drafts cannot be recovered anyway).
 	# R38: use ignore_permissions instead of set_user("Administrator")
-	# to avoid corrupting the manager's session on Frappe Cloud.
+	# to avoid corrupting the manager's session on Frappe Cloud (see
+	# approve_application R38 note for the full root cause).
 	frappe.flags.ignore_permissions = True
 	try:
-		# Comment + audit row written above; the actual destructive op
-		# differs by docstatus.
-		if app.docstatus == 0:
-			# Draft: delete the row (Frappe does not permit cancelling a
-			# draft). The dynamic-link / version cleanup that
-			# `app.delete()` enqueues via background worker is what
-			# motivated the R29-F12 inline delete; keep that path.
-			frappe.db.delete("Loan Application", {"name": application_name})
-			frappe.clear_document_cache("Loan Application", application_name)
-			final_state = "deleted"
-		else:
-			# Submitted: cancel the doc (docstatus 1 → 2). ``app.cancel()``
-			# is the supported Frappe path for a submitted Loan Application.
-			# It enforces workflow state guards and writes a Version row
-			# marked "Cancelled" so the lifecycle remains auditable.
-			#
-			# Set ``app.flags.ignore_permissions = True`` so ``app.save()``
-			# (called from cancel) bypasses per-doc write permission checks.
-			# The manager has portal-staff-level access to Loan Application
-			# via ``_require_manager``; the per-doc write permission is the
-			# one that fails here.
-			app.reload()
-			app.flags.ignore_permissions = True
-			app.cancel()
-			# Add a desk-visible comment with the rejection reason so
-			# operators can see "why was this killed?" in the doc's
-			# Comments tab. Safe to write on the still-existing doc.
-			frappe.get_doc(
-				{
-					"doctype": "Comment",
-					"comment_type": "Info",
-					"reference_doctype": "Loan Application",
-					"reference_name": application_name,
-					"content": f"Application rejected: {reason}",
-				}
-			).insert(ignore_permissions=True)
-			final_state = "cancelled"
+		frappe.db.delete("Loan Application", {"name": application_name})
+		frappe.clear_document_cache("Loan Application", application_name)
 	finally:
 		frappe.flags.ignore_permissions = False
 
 	return {
 		"status": "rejected",
 		"application": application_name,
-		"final_state": final_state,
-		"message": _("Application {0} rejected ({1}).").format(application_name, final_state),
+		"message": _("Application {0} rejected.").format(application_name),
 	}
 
 

@@ -7,21 +7,6 @@ from frappe.tests.utils import FrappeTestCase
 class TestFieldCollection(FrappeTestCase):
 	def setUp(self):
 		frappe.set_user("Administrator")
-		# Fix the company's default cost center if it points to a
-		# non-existent record (data drift from company abbr changes).
-		company = frappe.db.get_single_value("Global Defaults", "default_company")
-		if company:
-			cc = frappe.db.get_value("Company", company, "cost_center")
-			if cc and not frappe.db.exists("Cost Center", cc):
-				real_cc = frappe.db.get_value(
-					"Cost Center",
-					{"company": company, "is_group": 0},
-					"name",
-					order_by="name asc",
-				)
-				if real_cc:
-					frappe.db.set_value("Company", company, "cost_center", real_cc)
-					frappe.db.commit()
 
 	def test_field_collection_api_surface(self):
 		"""New field collection API methods exist and are callable."""
@@ -70,15 +55,17 @@ class TestFieldCollection(FrappeTestCase):
 		from lms_saas.api.field_collection import record_field_repayment
 		from frappe.utils import now_datetime
 
-		loan = frappe.db.get_value("Loan", {"docstatus": 1, "status": "Disbursed"}, "name")
+		loan = frappe.db.get_value("Loan", {"docstatus": 1}, "name")
 		if not loan:
-			self.skipTest("No submitted disbursed loan found for test")
+			self.skipTest("No submitted loan found for test")
 
-		# Verify the applicant (Customer) still exists before proceeding —
-		# some seeded loans may point at deleted/renamed customers.
+		# R34-QA: some loans in the test bench have orphaned applicants
+		# (the Customer was deleted after the loan was created). The
+		# Loan Repayment insert validates the applicant link, so we skip
+		# if the applicant doesn't exist.
 		applicant = frappe.db.get_value("Loan", loan, "applicant")
 		if not applicant or not frappe.db.exists("Customer", applicant):
-			self.skipTest("Loan's applicant Customer no longer exists — skipping idempotency test")
+			self.skipTest("Loan applicant (Customer) does not exist — orphaned loan")
 
 		# R12 board: the lending module requires `Collection Offset Sequence for
 		# Standard Asset` to be set on the Company before Loan Repayment.validate

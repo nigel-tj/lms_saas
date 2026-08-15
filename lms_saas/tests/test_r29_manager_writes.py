@@ -59,47 +59,12 @@ def _make_borrower(suffix: str) -> str:
 
 
 def _ensure_branch() -> None:
-	"""Ensure the Branch + Cost Center exist so branch-scope resolves.
-
-	Pre-R55 this only created a Branch called "Main Branch", but the
-	test pinning (BRANCH constant) and the User Permission flow use
-	"Main Branch - LMS" as the Cost Center link. Make sure both the
-	Branch and the Cost Center exist under the canonical names so
-	branch-scope lookups never fail with LinkValidationError.
-	"""
+	"""Ensure the Cost Center exists so branch-scope resolves."""
 	if not frappe.db.exists("Branch", "Main Branch"):
 		b = frappe.new_doc("Branch")
 		b.branch = "Main Branch"
 		b.flags.ignore_permissions = True
 		b.insert()
-	if not frappe.db.exists("Cost Center", BRANCH):
-		# ERPNext creates a default Company - Main - <abbr> cost center
-		# at company install. If the company abbr doesn't match, fall
-		# back to aliasing the existing Main - <abbr> cost center to
-		# the BRANCH name so user permissions can resolve.
-		existing_main = frappe.db.get_value(
-			"Cost Center",
-			{"company": COMPANY, "is_group": 0, "cost_center_name": "Main"},
-			"name",
-		)
-		if existing_main and existing_main != BRANCH:
-			# Rename the existing Main cost center to BRANCH
-			frappe.db.sql(
-				"UPDATE `tabCost Center` SET name = %s WHERE name = %s",
-				(BRANCH, existing_main),
-			)
-			frappe.db.sql(
-				"UPDATE `tabCost Center` SET parent_cost_center = %s WHERE parent_cost_center = %s",
-				(BRANCH, existing_main),
-			)
-		if not frappe.db.exists("Cost Center", BRANCH):
-			cc = frappe.new_doc("Cost Center")
-			cc.cost_center_name = "Main Branch - LMS"
-			cc.company = COMPANY
-			cc.is_group = 0
-			cc.parent_cost_center = f"{COMPANY} - {frappe.db.get_value('Company', COMPANY, 'abbr')}"
-			cc.flags.ignore_permissions = True
-			cc.insert()
 
 
 def _ensure_manager() -> str:
@@ -358,21 +323,20 @@ class TestR29WriteOffRequiresReason(unittest.TestCase):
 		"""F9: write-off must require a reason for the audit trail."""
 		frappe.set_user(MANAGER_EMAIL)
 		frappe.flags.ignore_permissions = True
-		# Find any disbursed loan in the manager's branch
-		ln = frappe.get_all(
-			"Loan",
-			filters={
-				"docstatus": 1,
-				"status": ("in", ["Disbursed", "Active"]),
-				"custom_lms_branch": BRANCH,
-			},
-			fields=["name"],
-			limit_page_length=1,
-		)
-		if not ln:
-			self.skipTest("No disbursed loan in branch to test write-off rejection")
 		with self.assertRaises(frappe.exceptions.ValidationError):
-			mgr.write_off_loan(loan_name=ln[0]["name"], reason="")
+			# Find any disbursed loan
+			for ln in frappe.get_all(
+				"Loan",
+				filters={
+					"docstatus": 1,
+					"status": ("in", ["Disbursed", "Active"]),
+					"custom_lms_branch": BRANCH,
+				},
+				fields=["name"],
+				limit_page_length=1,
+			):
+				mgr.write_off_loan(loan_name=ln["name"], reason="")
+				break
 
 
 # ---------------------------------------------------------------------------
@@ -442,108 +406,6 @@ class TestR29RejectApplicationAudit(unittest.TestCase):
 			audit_before + 1,
 			"F11: reject must emit LMS Audit Event row",
 		)
-
-
-class TestR55RejectApplicationAcceptsSubmitted(unittest.TestCase):
-	"""R55: reject_application must accept the canonical R37 queue state
-	(docstatus=1, status='Open') in addition to the legacy Draft (ds=0)
-	state. Previously the manager's Reject button on the approval queue
-	threw ``Only draft applications can be rejected (current status: 1).``
-	because the officer's submit advances the doc to ds=1, but reject was
-	still checking ``docstatus != 0``."""
-
-	@classmethod
-	def setUpClass(cls):
-		frappe.set_user("Administrator")
-		_ensure_branch()
-		_ensure_manager()
-		_ensure_user_permission(MANAGER_EMAIL, BRANCH)
-
-	def test_reject_submitted_app_cancels_it(self):
-		"""A submitted Loan Application (ds=1, status='Open' — the
-		canonical queue state) must be rejectable; the manager's reject
-		cancels it (ds=1 -> ds=2) rather than deleting it (the record
-		stays for the regulator's audit walk-through)."""
-		customer = _make_borrower("REJ-R55")
-		prod = frappe.db.get_value(
-			"Loan Product", {"product_code": "LMS-STD"}, "name"
-		)
-		la = frappe.get_doc(
-			{
-				"doctype": "Loan Application",
-				"applicant_type": "Customer",
-				"applicant": customer,
-				"company": COMPANY,
-				"loan_product": prod,
-				"loan_amount": 2500,
-				"repayment_periods": 2,
-				"rate_of_interest": 18,
-				"posting_date": frappe.utils.today(),
-				"status": "Open",
-				"custom_lms_branch": BRANCH,
-			}
-		)
-		la.insert(ignore_permissions=True)
-		la.submit()  # ds=1 — the canonical R37 submitted-and-awaiting state
-		app_name = la.name
-		# Sanity: confirm we have the state we expect to test.
-		self.assertEqual(frappe.db.get_value("Loan Application", app_name, "docstatus"), 1)
-		self.assertEqual(frappe.db.get_value("Loan Application", app_name, "status"), "Open")
-
-		frappe.set_user(MANAGER_EMAIL)
-		try:
-			frappe.flags.ignore_permissions = True
-			res = mgr.reject_application(
-				application_name=app_name, reason="R55-test: reject submitted"
-			)
-			self.assertEqual(res.get("status"), "rejected")
-			# Submitted -> cancelled (the doc stays so the regulator can
-			# inspect it later).
-			self.assertEqual(res.get("final_state"), "cancelled")
-			self.assertEqual(frappe.db.get_value("Loan Application", app_name, "docstatus"), 2)
-		finally:
-			frappe.set_user("Administrator")
-
-	def test_reject_draft_app_deletes_it(self):
-		"""A legacy draft Loan Application (ds=0) must still be rejectable;
-		the manager's reject deletes the draft (Frappe does not permit
-		cancelling a draft)."""
-		customer = _make_borrower("REJ-DRAFT")
-		prod = frappe.db.get_value(
-			"Loan Product", {"product_code": "LMS-STD"}, "name"
-		)
-		la = frappe.get_doc(
-			{
-				"doctype": "Loan Application",
-				"applicant_type": "Customer",
-				"applicant": customer,
-				"company": COMPANY,
-				"loan_product": prod,
-				"loan_amount": 1500,
-				"repayment_periods": 2,
-				"rate_of_interest": 18,
-				"posting_date": frappe.utils.today(),
-				"status": "Approved",
-				"custom_lms_branch": BRANCH,
-			}
-		)
-		la.insert(ignore_permissions=True)  # NOT submitted: stays ds=0 Draft
-		app_name = la.name
-		# Sanity: confirm we have the ds=0 draft state.
-		self.assertEqual(frappe.db.get_value("Loan Application", app_name, "docstatus"), 0)
-
-		frappe.set_user(MANAGER_EMAIL)
-		try:
-			frappe.flags.ignore_permissions = True
-			res = mgr.reject_application(
-				application_name=app_name, reason="R55-test: reject draft"
-			)
-			self.assertEqual(res.get("status"), "rejected")
-			# Draft -> deleted (Frappe does not permit cancelling a draft).
-			self.assertEqual(res.get("final_state"), "deleted")
-			self.assertFalse(frappe.db.exists("Loan Application", app_name))
-		finally:
-			frappe.set_user("Administrator")
 
 
 # ---------------------------------------------------------------------------

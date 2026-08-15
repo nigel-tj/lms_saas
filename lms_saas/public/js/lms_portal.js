@@ -375,26 +375,6 @@ lms_portal.error = function (message, retryFn) {
 	return html;
 };
 
-/* Render a structured error block (used by apply wizard error handler).
- * This was referenced but never defined — the apply page's error callback
- * called lms_portal.renderError() which threw, leaving the page blank. */
-lms_portal.renderError = function (opts) {
-	opts = opts || {};
-	var title = opts.title || "Something went wrong";
-	var message = opts.message || "An unexpected error occurred. Please try again.";
-	var home = opts.home || window.__lms_home_route || "/lms";
-	var icon = (window.lms_icons && lms_icons.empty) ? lms_icons.empty("alert") : "";
-	return (
-		'<div class="lms-panel" role="alert">' +
-		'<div class="lms-error">' + icon +
-		"<h3>" + lms_portal.escape(title) + "</h3>" +
-		"<p>" + lms_portal.escape(message) + "</p>" +
-		'<p style="margin-top:1rem;"><a class="lms-btn lms-btn--ghost" href="' +
-		lms_portal.escape(home) + '">Go back</a></p>' +
-		"</div></div>"
-	);
-};
-
 /* Resolve a 403 / missing-customer spinner into a clear empty state (B-08). */
 lms_portal.renderNoAccess = function (opts) {
 	opts = opts || {};
@@ -2251,9 +2231,15 @@ lms_portal._initNotificationCenter = function () {
 	if (!bell || !panel) return;
 
 	var previouslyFocused = null;
+	// #44 fix: when the panel is closed, fully remove it from the
+	// accessibility tree with `display: none` (in addition to the
+	// `aria-hidden="true"` attribute). Without this, screen readers
+	// still expose the panel because the element remains `display:flex`
+	// (only visually translated off-screen via CSS transform).
 	function closePanel() {
 		panel.setAttribute("aria-hidden", "true");
 		panel.classList.remove("is-open");
+		panel.style.display = "none";
 		document.removeEventListener("keydown", trapFocus, true);
 		if (previouslyFocused && typeof previouslyFocused.focus === "function") {
 			try { previouslyFocused.focus(); } catch (e) { /* ignore */ }
@@ -2279,6 +2265,9 @@ lms_portal._initNotificationCenter = function () {
 		previouslyFocused = document.activeElement;
 		panel.setAttribute("aria-hidden", "false");
 		panel.classList.add("is-open");
+		// Restore display before showing so the CSS transform animation
+		// can play. The closed state (closePanel) sets display:none.
+		panel.style.display = "";
 		document.addEventListener("keydown", trapFocus, true);
 		if (closeBtn) {
 			try { closeBtn.focus(); } catch (e) { /* ignore */ }
@@ -2758,8 +2747,13 @@ lms_portal.modal = function (opts) {
 		var titleSub = opts.titleSubject
 			? '<span class="lms-modal__title-subject">' + lms_portal.escape(opts.titleSubject) + "</span>"
 			: "";
+		// Insert an em-dash separator with surrounding whitespace when
+		// both title and subject are rendered so headings like
+		// "Borrower ProfileFelistas Chico" read as "Borrower Profile —
+		// Felistas Chico". Skipped when only one of the two is present.
+		var titleSep = (titleMain && titleSub) ? ' <span class="lms-modal__title-sep" aria-hidden="true">\u2014</span> ' : "";
 		var titleBlock = (titleMain || titleSub)
-			? '<div class="lms-modal__title-block">' + titleMain + titleSub + "</div>"
+			? '<div class="lms-modal__title-block">' + titleMain + titleSep + titleSub + "</div>"
 			: "";
 		titleHtml = (iconSvg || titleBlock)
 			? '<h3 class="lms-modal__title"><span class="lms-modal__title-row">' +
@@ -2817,5 +2811,31 @@ lms_portal.modal = function (opts) {
 	overlay.addEventListener("click", function (e) {
 		if (e.target === overlay && opts.dismissOnOverlay !== false) close();
 	});
+	// #41 fix: pressing Escape should close the modal. We register a
+	// document-level keydown listener while the modal is open and remove
+	// it on close so we never leak listeners or accidentally close the
+	// wrong modal. The Escape handler also respects `dismissOnEscape`
+	// (default true) so a caller can opt out for modals that need a
+	// deliberate choice.
+	if (opts.dismissOnEscape !== false) {
+		var escHandler = function (e) {
+			if (e.key !== "Escape") return;
+			// Stop other handlers (e.g. user menu / notification
+			// panel close) from also firing — only the topmost modal
+			// should respond to Escape.
+			e.stopPropagation();
+			close();
+		};
+		document.addEventListener("keydown", escHandler);
+		// Remove the listener when the overlay is detached so closing
+		// one modal does not affect subsequent modals.
+		var observer = new MutationObserver(function () {
+			if (!overlay.isConnected) {
+				document.removeEventListener("keydown", escHandler);
+				observer.disconnect();
+			}
+		});
+		observer.observe(document.body, { childList: true, subtree: true });
+	}
 	return { close: close, el: overlay };
 };

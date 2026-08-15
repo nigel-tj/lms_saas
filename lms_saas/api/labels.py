@@ -45,14 +45,36 @@ def officer_label(officer_name: Optional[str], days_past_due: Optional[int] = No
 	"""Return the chart-friendly label for a loan officer.
 
 	- A real officer name → returned unchanged (after sanitisation).
+	- An Employee record ID (e.g. "HR-EMP-00003") → resolved to the
+	  employee's ``employee_name`` via the Employee DocType.
 	- An empty / None officer and DPD > threshold → "⚠ Needs assignment".
 	- Otherwise → "🕒 Awaiting officer".
 
 	Use this anywhere a chart series or table row would otherwise render
-	`"Unassigned"` to the user.
+	`"Unassigned"` or a raw Employee ID to the user.
+
+	#38 fix: the previous implementation returned the raw Employee record
+	ID ("HR-EMP-00003") whenever ``custom_loan_officer`` was set, which
+	leaked an internal identifier into the officer performance chart on
+	the Loan Officer dashboard. Now we look up the Employee record and
+	return ``employee_name`` when available.
 	"""
 	clean = _sanitise_label(officer_name)
 	if clean:
+		# Heuristic: if the value looks like an Employee record ID
+		# ("HR-EMP-XXXXX"), resolve it to employee_name. Otherwise
+		# treat it as already being a human-readable name.
+		if frappe and clean.startswith("HR-EMP-"):
+			try:
+				resolved = frappe.db.get_value(
+					"Employee", clean, "employee_name"
+				)
+				if resolved:
+					return _sanitise_label(resolved)
+			except Exception:
+				# Fall through to returning the raw ID — better than
+				# an empty label on a transient DB error.
+				pass
 		return clean
 	try:
 		dpd = int(days_past_due or 0)

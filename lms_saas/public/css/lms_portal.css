@@ -2642,6 +2642,23 @@ body.lms-portal-borrower .form-control:focus {
 	color: var(--lms-danger);
 	font-weight: 600;
 }
+
+/* #42 fix: an explicit "OVERDUE" badge so the alarm is impossible to
+   miss in the dashboard work queue. Renders as a small red pill before
+   the due date when the task is flagged is_overdue by the backend. */
+.lms-tasks-card__row.is-overdue .lms-tasks-card__due::before {
+	content: "OVERDUE";
+	display: inline-block;
+	margin-right: 0.4rem;
+	padding: 0.05rem 0.45rem;
+	font-size: 0.625rem;
+	font-weight: 700;
+	letter-spacing: 0.06em;
+	color: #fff;
+	background: var(--lms-danger);
+	border-radius: 999px;
+	vertical-align: middle;
+}
 .lms-tasks-card__priority {
 	font-size: 0.65rem;
 	font-weight: 700;

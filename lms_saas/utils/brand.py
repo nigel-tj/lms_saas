@@ -725,8 +725,13 @@ def _lms_page_title(nav_active, context):
 		"manager_books": "Books & Import",
 		"collect": "Field Collection",
 		# ── Addon page titles ──
+		# #35 fix: include both the addon registry keys (e.g.
+		# "field_visits") AND the human-friendly nav keys (e.g. "visits")
+		# so get_lms_page_context's default ``nav_key = addon`` does not
+		# fall through to the brand name on /lms/visits and /lms/tasks.
 		"announcements": "Announcements",
 		"tasks": "Tasks",
+		"task_management": "Tasks",
 		"documents": "Document Center",
 		"support": "Support",
 		"hr": "HR Management",
@@ -740,6 +745,7 @@ def _lms_page_title(nav_active, context):
 		"savings": "Savings Club",
 		"feedback": "Customer Feedback",
 		"visits": "Field Visits",
+		"field_visits": "Field Visits",
 		"inventory": "Inventory & Assets",
 		"budgeting": "Budgeting",
 		"insurance": "Insurance",
