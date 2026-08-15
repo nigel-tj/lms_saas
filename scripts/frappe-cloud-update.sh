@@ -37,7 +37,14 @@
 #                                          the desk chrome reflects the
 #                                          current lms_brand_portal_title
 #                                          in site_config. Idempotent.
-#    9. verify_spec.run_all_checks       — the operator's verification
+#   10. configure_live_email.run        — reconcile the live outgoing Email
+#                                          Account from lms_live_smtp_* keys
+#                                          in site_config. No-op when SMTP
+#                                          keys are absent; creates/updates
+#                                          the default outgoing account and
+#                                          retries the stuck Email Queue
+#                                          when they are present. Idempotent.
+#   11. verify_spec.run_all_checks       — the operator's verification
 #                                          suite. Catches workspace drift,
 #                                          role-home desync, audit pipeline
 #                                          gaps, and brand-chain leaks.
@@ -303,6 +310,19 @@ print("{" + ", ".join(parts) + ", " + "'"'"'apply'"'"': 1}")
 	run bench --site "$FC_SITE" execute lms_saas.setup.live_repair.provision_test_users || true
 else
 	echo "  LMS_SKIP_CURRENCY_RESET=1 — skipping currency sync + provision"
+fi
+
+# R48: reconcile the live outgoing Email Account from site_config SMTP keys.
+# configure_live_email.run is idempotent and returns {ok: False, reason: ...}
+# when lms_live_smtp_* keys are absent — so this is a safe no-op on sites
+# that haven't configured SMTP yet, and a one-shot fix on sites that have.
+# Without this step, every deploy ships with no outgoing Email Account and
+# every frappe.sendmail call lands in the Email Queue as 'Error'.
+echo "  → R48: reconcile live outgoing Email Account (SMTP)…"
+if [[ "$DRY_RUN" -eq 1 ]]; then
+	echo "  would run: bench --site $FC_SITE execute lms_saas.setup.configure_live_email.run"
+else
+	bench --site "$FC_SITE" execute lms_saas.setup.configure_live_email.run 2>&1 | sed 's/^/    /' || true
 fi
 
 # verify_spec is the smoke detector — capture its output separately so we can
