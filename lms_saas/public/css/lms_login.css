@@ -354,6 +354,7 @@ body.lms-login-page .page-breadcrumbs {
 	overflow-x: hidden;
 	overflow-y: auto;
 	width: 100%;
+	position: relative;
 	/* R45: visual balance — the panel background used to be the same
 	   neutral as the brand panel which made the form card "float".
 	   Subtle accent gives the panel a soft, calm backdrop that
@@ -363,6 +364,31 @@ body.lms-login-page .page-breadcrumbs {
 		color-mix(in srgb, var(--lms-canvas) 88%, var(--lms-surface-alt) 12%) 0%,
 		var(--lms-canvas) 100%
 	);
+}
+
+/* Subtle diagonal monogram watermark on the form panel.
+   Sits BEHIND the white card via z-index, and is rotated/-15%
+   oversized so tiles are clipped at the panel edges (not centered).
+   Fill is driven by `color` so it tracks the theme's --lms-accent;
+   no hardcoded brand hex (R23 rebrand-safety). Opacity 0.10 keeps it
+   quiet against the R45 gradient underneath — both backgrounds are
+   preserved. */
+.lms-login-panel::before {
+	content: "";
+	position: absolute;
+	inset: -15%;
+	background: url("/assets/lms_saas/images/lms-monogram.svg") repeat;
+	background-size: 240px 240px;
+	transform: rotate(-32deg);
+	color: var(--lms-accent);
+	opacity: 0.10;
+	z-index: 0;
+	pointer-events: none;
+}
+
+.lms-login-forms {
+	position: relative;
+	z-index: 1;
 }
 
 .lms-login-alert {

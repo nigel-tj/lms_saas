@@ -494,3 +494,123 @@ class TestR32AppNameOverride(FrappeTestCase):
             boot_mod._apply_operator_app_name(fake_bootinfo)
             # The build-time value is unchanged.
             self.assertEqual(fake_bootinfo.app_name, "Kesari")
+
+
+# ---------------------------------------------------------------------------
+# R23 follow-on: login page watermark pattern. Pins the diagonal
+# monogram background on the form panel so a future refactor can't
+# silently drop it (or accidentally hardcode a brand hex).
+# ---------------------------------------------------------------------------
+class TestLoginPageWatermark(FrappeTestCase):
+    """Login form panel has a subtle diagonal monogram watermark
+    (R23 follow-on). The pattern must be:
+
+      1. Defined on .lms-login-panel (the right form panel only — the
+         brand panel stays clean so the wordmark stays the anchor).
+      2. Rotated (the pattern must read as a flow, not a grid).
+      3. Tiled (background-repeat set so the pattern extends past
+         viewport edges).
+      4. Opacity < 0.20 (visible but never competes with the form).
+      5. NOT using a hardcoded hex brand color — the R23 brand chain
+         fix would silently regress if a hex were hardcoded here.
+    """
+
+    CSS_FILE = (
+        Path(__file__).resolve().parent.parent.parent
+        / "lms_saas" / "public" / "css" / "lms_login.css"
+    )
+    SVG_FILE = (
+        Path(__file__).resolve().parent.parent.parent
+        / "lms_saas" / "public" / "images" / "lms-monogram.svg"
+    )
+
+    def _css(self) -> str:
+        return self.CSS_FILE.read_text()
+
+    def test_panel_has_watermark_pseudo(self):
+        """The .lms-login-panel must carry the ::before watermark rule."""
+        css = self._css()
+        self.assertIn(".lms-login-panel::before", css)
+        # Must point at the monogram asset.
+        self.assertIn("lms-monogram.svg", css)
+
+    def test_watermark_is_rotated_and_tiled(self):
+        """Rotation + background-repeat keeps the pattern reading
+        as a watermark rather than a centered stamp."""
+        css = self._css()
+        # Find the ::before block.
+        start = css.find(".lms-login-panel::before")
+        self.assertNotEqual(start, -1, "::before block missing")
+        block = css[start:start + 600]
+        self.assertIn("repeat", block, "background-repeat must be set")
+        self.assertIn("rotate", block, "transform: rotate(...) must be set")
+
+    def test_watermark_opacity_is_quiet(self):
+        """Opacity must be < 0.20 so the pattern never competes with
+        the white form card."""
+        import re
+        css = self._css()
+        start = css.find(".lms-login-panel::before")
+        block = css[start:start + 600]
+        m = re.search(r"opacity:\s*([0-9.]+)", block)
+        self.assertIsNotNone(m, "opacity declaration missing on ::before")
+        opacity = float(m.group(1))
+        self.assertGreaterEqual(opacity, 0.05)
+        self.assertLess(opacity, 0.20)
+
+    def test_watermark_uses_css_token_no_hardcoded_brand_hex(self):
+        """R23 regression guard: the watermark color MUST be driven by
+        a CSS token (var(--lms-accent)), never a hardcoded hex. A
+        hardcoded hex here would re-leak an operator brand color onto
+        a fresh install."""
+        import re
+        css = self._css()
+        start = css.find(".lms-login-panel::before")
+        block = css[start:start + 600]
+        # Allow the token (currentColor path or explicit var(--lms-accent)).
+        uses_token = (
+            "currentColor" in block
+            or "var(--lms-accent)" in block
+            or "color-mix" in block
+        )
+        self.assertTrue(
+            uses_token,
+            "watermark color must be theme-driven (currentColor / "
+            "var(--lms-accent) / color-mix), not a hardcoded hex",
+        )
+        # Disallow any #xxxxxx literal inside the ::before block.
+        hex_matches = re.findall(r"#[0-9a-fA-F]{6}\b", block)
+        self.assertEqual(
+            hex_matches,
+            [],
+            f"hardcoded brand hex in watermark block: {hex_matches}",
+        )
+
+    def test_watermark_does_not_bleed_through_form_card(self):
+        """The .lms-login-forms wrapper must sit ABOVE the ::before
+        watermark via z-index, so the white card has a clean surface."""
+        css = self._css()
+        # Look for the forms rule after the ::before block.
+        idx_forms = css.find(".lms-login-forms")
+        self.assertNotEqual(idx_forms, -1, ".lms-login-forms rule missing")
+        block = css[idx_forms:idx_forms + 200]
+        self.assertIn("z-index", block)
+        # Must be relative so z-index takes effect.
+        self.assertIn("position: relative", block)
+
+    def test_monogram_svg_uses_currentColor(self):
+        """The monogram SVG must use currentColor so the CSS can drive
+        the fill. A hardcoded fill="#xxxxxx" here would defeat the
+        rebrand-safety contract."""
+        svg = self.SVG_FILE.read_text()
+        self.assertIn("currentColor", svg)
+        # Disallow any hardcoded fill attribute (other than currentColor).
+        import re
+        bad_fills = re.findall(
+            r'fill\s*=\s*"(#[0-9a-fA-F]{6})"', svg
+        )
+        self.assertEqual(
+            bad_fills,
+            [],
+            f"monogram SVG has hardcoded fill hex: {bad_fills}",
+        )
