@@ -1,0 +1,14 @@
+{# R49: LMS-branded override of Frappe's default verification_code email.
+   Context: code.
+   Brand tokens from get_email_brand_context() — no hardcoded values. #}
+{% set brand = get_email_brand_context() %}
+<p>{{_("Your verification code is:")}}</p>
+<p style="text-align:center;margin:24px 0;">
+  <span style="display:inline-block;padding:16px 40px;background:#f1f5f9;border-radius:8px;font-size:28px;font-weight:700;letter-spacing:0.1em;color:#0f172a;">{{ code }}</span>
+</p>
+<p>{{_("Enter this code to complete your verification. It will expire shortly.")}}</p>
+<p>{{_("If you did not request this code, you can safely ignore this email.")}}</p>
+<p>
+  {{_("Thank you")}},<br>
+  {{ brand.company_name }} {{_("Support")}}
+</p>

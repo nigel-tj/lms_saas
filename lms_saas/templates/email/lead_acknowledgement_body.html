@@ -1,4 +1,12 @@
-<p style="margin:0 0 12px;">{{ _("Hello") }} <strong>{{ lead_name }}</strong>,</p>
-<p style="margin:0 0 12px;">{{ _("Thank you for your interest in") }} {{ company_name }}.</p>
-<p style="margin:0 0 12px;">{{ _("A member of our team will contact you shortly about your loan enquiry.") }}</p>
-<p style="margin:0;">{{ _("This email confirms we received your details and your consent to be contacted.") }}</p>
+<p style="margin:0 0 16px;">{{ _("Hello") }} <strong>{{ lead_name }}</strong>,</p>
+<p style="margin:0 0 16px;">{{ _("Thank you for your interest in {0}.").format(company_name) }}</p>
+<p style="margin:0 0 16px;">{{ _("A member of our lending team will contact you within 1–2 business days to discuss your loan enquiry and guide you through the next steps.") }}</p>
+
+<p style="margin:0 0 8px;font-size:14px;font-weight:600;">{{ _("What to prepare:") }}</p>
+<ul style="margin:0 0 20px;padding-left:20px;font-size:14px;line-height:1.8;color:#475569;">
+  <li>{{ _("Valid national ID or passport") }}</li>
+  <li>{{ _("Proof of income or recent bank statements") }}</li>
+  <li>{{ _("Details of the loan amount and purpose") }}</li>
+</ul>
+
+<p style="margin:0 0 16px;">{{ _("This email confirms we received your details and your consent to be contacted. We look forward to helping you.") }}</p>

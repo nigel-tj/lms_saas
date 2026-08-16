@@ -1,0 +1,39 @@
+{# R49: Loan application approved email.
+   Sent to the borrower when their loan application is approved.
+   Context: customer_name, loan_name, approved_amount, loan_type,
+            first_due_date, branch_name. #}
+<p style="margin:0 0 16px;">{{ _("Hello") }} <strong>{{ customer_name }}</strong>,</p>
+<p style="margin:0 0 20px;">{{ _("Great news — your loan application has been approved.") }}</p>
+
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:0 0 20px;background:#f8fafc;border-radius:8px;">
+  <tr>
+    <td style="padding:14px 18px;">
+      <p style="margin:0 0 4px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;">{{ _("Loan reference") }}</p>
+      <p style="margin:0 0 12px;font-size:16px;font-weight:700;color:#0f172a;">{{ loan_name }}</p>
+      <p style="margin:0 0 4px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;">{{ _("Approved amount") }}</p>
+      <p style="margin:0 0 12px;font-size:20px;font-weight:700;color:{{ primary_color }};">{{ approved_amount }}</p>
+      {% if loan_type %}
+      <p style="margin:0 0 4px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;">{{ _("Loan type") }}</p>
+      <p style="margin:0 0 12px;font-size:14px;font-weight:600;color:#0f172a;">{{ loan_type }}</p>
+      {% endif %}
+      {% if first_due_date %}
+      <p style="margin:0 0 4px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;">{{ _("First payment due") }}</p>
+      <p style="margin:0;font-size:14px;font-weight:600;color:#0f172a;">{{ first_due_date }}</p>
+      {% endif %}
+    </td>
+  </tr>
+</table>
+
+<p style="margin:0 0 16px;">{{ _("The funds will be disbursed to your account shortly. You will receive a separate confirmation once the disbursement is complete.") }}</p>
+
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+  <tr>
+    <td align="center" style="padding:8px 0;">
+      <a href="{{ site_url | safe }}/lms/loan?name={{ loan_name | urlencode }}" style="display:inline-block;padding:14px 32px;background:{{ primary_color }};color:#ffffff;font-weight:600;font-size:15px;border-radius:8px;text-decoration:none;">{{ _("View loan details") }}</a>
+    </td>
+  </tr>
+</table>
+
+{% if branch_name %}
+<p style="margin:16px 0 0;font-size:13px;color:#64748b;">{{ _("Your branch:") }} <strong>{{ branch_name }}</strong></p>
+{% endif %}

@@ -325,6 +325,16 @@ else
 	bench --site "$FC_SITE" execute lms_saas.setup.configure_live_email.run 2>&1 | sed 's/^/    /' || true
 fi
 
+# R49: clear the Email Account footer so "Sent via ERPNext" (or any other
+# stale third-party footer) doesn't leak below the LMS branded footer.
+# Idempotent — no-op when the footer is already empty.
+echo "  → R49: reconcile Email Account footer (clear stale branding)…"
+if [[ "$DRY_RUN" -eq 1 ]]; then
+	echo "  would run: bench --site $FC_SITE execute lms_saas.setup.configure_live_email.reconcile_email_footer"
+else
+	bench --site "$FC_SITE" execute lms_saas.setup.configure_live_email.reconcile_email_footer 2>&1 | sed 's/^/    /' || true
+fi
+
 # verify_spec is the smoke detector — capture its output separately so we can
 # set the right exit code (3 = drift) without poisoning the dry-run path.
 verify_log=$(mktemp)

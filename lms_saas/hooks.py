@@ -21,8 +21,15 @@ app_email = "admin@3dprintingvillage.co.za"
 app_license = "mit"
 
 # Server-side SVG icon helper for Jinja templates (mirror of lms_icons in JS).
+# R49: also expose get_email_brand_context so Frappe-default email template
+# overrides (password_reset, new_user, etc.) can access brand tokens without
+# hardcoding operator names or colors. DRY — single source of truth via
+# utils.brand.enrich_brand → site_config lms_brand_*.
 jinja = {
-    "methods": ["lms_saas.utils.brand.lms_icon_svg"],
+    "methods": [
+        "lms_saas.utils.brand.lms_icon_svg",
+        "lms_saas.utils.email.get_email_brand_context",
+    ],
 }
 
 after_install = "lms_saas.install.after_install"

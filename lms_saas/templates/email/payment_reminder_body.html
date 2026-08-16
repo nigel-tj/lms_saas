@@ -1,14 +1,25 @@
-<p style="margin:0 0 12px;">{{ _("Hello") }}{% if customer_name %}, <strong>{{ customer_name }}</strong>{% endif %},</p>
-<p style="margin:0 0 12px;">{{ message }}</p>
+<p style="margin:0 0 16px;">{{ _("Hello") }}{% if customer_name %}, <strong>{{ customer_name }}</strong>{% endif %},</p>
+<p style="margin:0 0 16px;">{{ message }}</p>
+
 {% if loan_name %}
-<p style="margin:0 0 12px;">{{ _("Loan reference") }}: <strong>{{ loan_name }}</strong></p>
-{% endif %}
-<p style="margin:0 0 16px;">{{ _("Please ensure funds are available before the due date.") }}</p>
-<table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:0 0 20px;background:#f8fafc;border-radius:8px;">
   <tr>
-    <td align="center" style="padding:8px 0;">
-      <a href="{{ site_url | safe }}/lms/pay?loan={{ loan_name | urlencode }}" style="display:inline-block;padding:12px 28px;background:{{ primary_color }};color:#ffffff;font-weight:600;font-size:15px;border-radius:8px;text-decoration:none;">{{ _("Pay now") }}</a>
+    <td style="padding:14px 18px;">
+      <p style="margin:0 0 4px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;">{{ _("Loan reference") }}</p>
+      <p style="margin:0;font-size:16px;font-weight:700;color:#0f172a;">{{ loan_name }}</p>
     </td>
   </tr>
 </table>
-<p style="margin:16px 0 0;">{{ _("You can also view your full schedule and payment history from your portal.") }}</p>
+{% endif %}
+
+<p style="margin:0 0 16px;">{{ _("Please ensure funds are available before the due date to avoid late fees.") }}</p>
+
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+  <tr>
+    <td align="center" style="padding:8px 0;">
+      <a href="{{ site_url | safe }}/lms/pay?loan={{ loan_name | urlencode }}" style="display:inline-block;padding:14px 32px;background:{{ primary_color }};color:#ffffff;font-weight:600;font-size:15px;border-radius:8px;text-decoration:none;">{{ _("Pay now") }}</a>
+    </td>
+  </tr>
+</table>
+
+<p style="margin:16px 0 0;font-size:13px;color:#64748b;">{{ _("You can also view your full schedule and payment history from your borrower portal.") }}</p>

@@ -1,0 +1,15 @@
+{# R49: LMS-branded override of Frappe's default user_invitation email.
+   Context: title, invite_link.
+   Brand tokens from get_email_brand_context() — no hardcoded values. #}
+{% set brand = get_email_brand_context() %}
+<p style="display:block;margin-bottom:1.5rem;">{{_("Hello,")}}</p>
+<p style="display:block;margin-bottom:1rem;">{{_("You've been invited to join {0}.").format(brand.company_name)}}</p>
+<p style="display:block;margin-bottom:0.5rem;">{{_("Click below to get started:")}}</p>
+<p style="text-align:center;margin:24px 0;">
+  <a href="{{ invite_link }}" target="_blank" class="btn btn-primary" style="display:inline-block;padding:12px 32px;background:{{ brand.primary_color }};color:#ffffff;font-weight:600;font-size:15px;border-radius:8px;text-decoration:none;">{{ _("Accept Invitation") }}</a>
+</p>
+<p>{{_("If you have any questions, reach out to your system administrator.")}}</p>
+<p>
+  {{_("Thank you")}},<br>
+  {{ brand.company_name }} {{_("Support")}}
+</p>

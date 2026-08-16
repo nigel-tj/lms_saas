@@ -1,0 +1,18 @@
+{# R49: LMS-branded override of Frappe's default new_user welcome email.
+   Context: first_name, last_name, user, link, site_url, created_by.
+   We ignore created_by to avoid leaking the operator's personal name.
+   Brand tokens from get_email_brand_context() — no hardcoded values. #}
+{% set brand = get_email_brand_context() %}
+<p>
+  {{_("Hello")}} {{ first_name | e }}{% if last_name %} {{ last_name | e }}{% endif %},
+</p>
+<p>{{_("A new account has been created for you at {0}.").format(brand.company_name)}}</p>
+<p>{{_("Your login ID is")}}: <b>{{ user }}</b></p>
+<p>{{_("Click the button below to complete your registration and set a new password:")}}</p>
+<p style="text-align:center;margin:24px 0;">
+  <a href="{{ link }}" rel="nofollow" class="btn btn-primary" style="display:inline-block;padding:12px 32px;background:{{ brand.primary_color }};color:#ffffff;font-weight:600;font-size:15px;border-radius:8px;text-decoration:none;">{{ _("Complete Registration") }}</a>
+</p>
+<p>
+  {{_("Thank you")}},<br>
+  {{ brand.company_name }} {{_("Support")}}
+</p>

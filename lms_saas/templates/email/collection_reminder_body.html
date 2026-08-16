@@ -1,0 +1,40 @@
+{# R49: Collection reminder email for overdue borrowers.
+   Sent to borrowers whose repayment is past due.
+   Context: customer_name, loan_name, overdue_amount, days_past_due,
+            branch_name, officer_name, officer_contact. #}
+<p style="margin:0 0 16px;">{{ _("Hello") }} <strong>{{ customer_name }}</strong>,</p>
+<p style="margin:0 0 16px;">{{ _("This is a reminder that your loan repayment is overdue. Please make a payment as soon as possible to avoid additional fees.") }}</p>
+
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:0 0 20px;background:#fef2f2;border-radius:8px;border:1px solid #fecaca;">
+  <tr>
+    <td style="padding:14px 18px;">
+      <p style="margin:0 0 4px;font-size:11px;color:#991b1b;text-transform:uppercase;letter-spacing:0.05em;">{{ _("Loan reference") }}</p>
+      <p style="margin:0 0 12px;font-size:16px;font-weight:700;color:#0f172a;">{{ loan_name }}</p>
+      <p style="margin:0 0 4px;font-size:11px;color:#991b1b;text-transform:uppercase;letter-spacing:0.05em;">{{ _("Overdue amount") }}</p>
+      <p style="margin:0 0 12px;font-size:20px;font-weight:700;color:#dc2626;">{{ overdue_amount }}</p>
+      <p style="margin:0 0 4px;font-size:11px;color:#991b1b;text-transform:uppercase;letter-spacing:0.05em;">{{ _("Days past due") }}</p>
+      <p style="margin:0;font-size:14px;font-weight:600;color:#0f172a;">{{ days_past_due }}</p>
+    </td>
+  </tr>
+</table>
+
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+  <tr>
+    <td align="center" style="padding:8px 0;">
+      <a href="{{ site_url | safe }}/lms/pay?loan={{ loan_name | urlencode }}" style="display:inline-block;padding:14px 32px;background:{{ primary_color }};color:#ffffff;font-weight:600;font-size:15px;border-radius:8px;text-decoration:none;">{{ _("Pay now") }}</a>
+    </td>
+  </tr>
+</table>
+
+{% if officer_name %}
+<p style="margin:20px 0 8px;font-size:14px;font-weight:600;">{{ _("Need help or a payment plan?") }}</p>
+<p style="margin:0 0 4px;font-size:14px;color:#475569;">{{ _("Contact your loan officer:") }}</p>
+<p style="margin:0 0 4px;font-size:14px;color:#0f172a;font-weight:600;">{{ officer_name }}</p>
+{% if officer_contact %}
+<p style="margin:0;font-size:14px;color:#475569;">{{ officer_contact }}</p>
+{% endif %}
+{% endif %}
+
+{% if branch_name %}
+<p style="margin:16px 0 0;font-size:13px;color:#64748b;">{{ _("Branch:") }} {{ branch_name }}</p>
+{% endif %}

@@ -3,48 +3,86 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="x-apple-disable-message-reformatting">
   <title>{{ subject or company_name }}</title>
+  <!--[if mso]>
+  <style type="text/css">
+    .body-table { background-color: #f4f8fa !important; }
+    .email-card { border-radius: 0 !important; }
+  </style>
+  <![endif]-->
 </head>
-<body style="margin:0;padding:0;background:#f4f8fa;font-family:Inter,Segoe UI,Helvetica,Arial,sans-serif;color:#0f172a;">
-  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f4f8fa;padding:24px 12px;">
+<body style="margin:0;padding:0;background:#f4f8fa;font-family:Inter,'Segoe UI',Helvetica,Arial,sans-serif;color:#0f172a;-webkit-font-smoothing:antialiased;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f4f8fa;padding:32px 12px;">
     <tr>
       <td align="center">
-        <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="max-width:600px;width:100%;background:#ffffff;border:1px solid #d7e3ea;border-radius:12px;overflow:hidden;">
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="max-width:600px;width:100%;background:#ffffff;border:1px solid #d7e3ea;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(15,23,42,0.06);">
+
+          {# ── Brand header — green band with mark + wordmark ── #}
           <tr>
-            <td style="background:{{ primary_color }};padding:20px 24px;">
+            <td style="background:{{ primary_color }};padding:24px 28px;">
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
                 <tr>
                   {% if logo_url %}
-                  <td width="48" valign="middle" style="padding-right:12px;">
-                    <img src="{{ logo_url }}" alt="{{ company_name }}" width="40" height="40" style="display:block;border-radius:8px;object-fit:contain;">
+                  <td width="52" valign="middle" style="padding-right:14px;">
+                    <img src="{{ logo_url }}" alt="{{ company_name }}" width="44" height="44" style="display:block;border-radius:8px;object-fit:contain;background:#ffffff;padding:4px;">
                   </td>
                   {% endif %}
                   <td valign="middle">
-                    <p style="margin:0;font-size:18px;font-weight:700;color:#ffffff;line-height:1.3;">{{ company_name }}</p>
+                    <p style="margin:0;font-size:20px;font-weight:700;color:#ffffff;line-height:1.2;letter-spacing:-0.01em;">{{ company_name }}</p>
                     {% if tagline %}
-                    <p style="margin:4px 0 0;font-size:12px;color:#c8e6ef;line-height:1.4;">{{ tagline }}</p>
+                    <p style="margin:4px 0 0;font-size:12px;color:rgba(255,255,255,0.85);line-height:1.4;">{{ tagline }}</p>
                     {% endif %}
                   </td>
                 </tr>
               </table>
             </td>
           </tr>
+
+          {# ── Body content ── #}
           <tr>
-            <td style="padding:24px;font-size:15px;line-height:1.6;color:#0f172a;">
+            <td style="padding:32px 28px 24px;font-size:15px;line-height:1.65;color:#0f172a;">
               {{ body_content | safe }}
             </td>
           </tr>
+
+          {# ── Support callout (only when support_email is set) ── #}
+          {% if support_email %}
           <tr>
-            <td style="padding:16px 24px 20px;border-top:1px solid #e2e8f0;background:#f8fafc;font-size:12px;line-height:1.5;color:#64748b;">
-              <p style="margin:0 0 8px;">{{ footer_text }}</p>
+            <td style="padding:0 28px 24px;">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f1f5f9;border-radius:8px;">
+                <tr>
+                  <td style="padding:14px 18px;font-size:13px;color:#475569;line-height:1.5;">
+                    <strong style="color:#0f172a;">Need help?</strong> Reply to this email or contact
+                    <a href="mailto:{{ support_email }}" style="color:{{ primary_color }};font-weight:600;text-decoration:none;">{{ support_email }}</a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          {% endif %}
+
+          {# ── Footer ── #}
+          <tr>
+            <td style="padding:18px 28px 24px;border-top:1px solid #e2e8f0;background:#f8fafc;">
+              <p style="margin:0 0 6px;font-size:13px;font-weight:600;color:#0f172a;">{{ company_name }}</p>
+              {% if footer_text %}
+              <p style="margin:0 0 4px;font-size:12px;color:#64748b;line-height:1.5;">{{ footer_text }}</p>
+              {% endif %}
               {% if support_email %}
-              <p style="margin:0 0 8px;">{{ _("Questions?") }} <a href="mailto:{{ support_email }}" style="color:{{ primary_color }};">{{ support_email }}</a></p>
+              <p style="margin:0 0 4px;font-size:12px;color:#64748b;line-height:1.5;">{{ support_email }}</p>
+              {% endif %}
+              {% if site_url %}
+              <p style="margin:8px 0 0;font-size:11px;color:#94a3b8;">
+                <a href="{{ site_url }}" style="color:#94a3b8;text-decoration:underline;">{{ site_url }}</a>
+              </p>
               {% endif %}
               {% if legal_footer %}
-              <p style="margin:0;font-size:11px;color:#94a3b8;">{{ legal_footer }}</p>
+              <p style="margin:8px 0 0;font-size:11px;color:#94a3b8;line-height:1.5;">{{ legal_footer }}</p>
               {% endif %}
             </td>
           </tr>
+
         </table>
       </td>
     </tr>

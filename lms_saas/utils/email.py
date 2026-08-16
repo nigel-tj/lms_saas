@@ -24,6 +24,11 @@ EMAIL_BODY_TEMPLATES = {
 	"lead_acknowledgement": "templates/email/lead_acknowledgement_body.html",
 	"morning_digest": "templates/email/morning_digest_body.html",
 	"kpi_pack": "templates/email/kpi_pack_body.html",
+	# R49: new templates for the full loan lifecycle.
+	"loan_approved": "templates/email/loan_approved_body.html",
+	"loan_rejected": "templates/email/loan_rejected_body.html",
+	"collection_reminder": "templates/email/collection_reminder_body.html",
+	"kyc_expiring": "templates/email/kyc_expiring_body.html",
 }
 
 EMAIL_TEMPLATE_NAMES = {
@@ -34,6 +39,11 @@ EMAIL_TEMPLATE_NAMES = {
 	"lead_acknowledgement": "LMS Lead Acknowledgement",
 	"morning_digest": "LMS Morning Digest",
 	"kpi_pack": "LMS Sandbox Weekly KPI",
+	# R49: new templates for the full loan lifecycle.
+	"loan_approved": "LMS Loan Approved",
+	"loan_rejected": "LMS Loan Application Update",
+	"collection_reminder": "LMS Collection Reminder",
+	"kyc_expiring": "LMS KYC Expiring Soon",
 }
 
 
@@ -153,6 +163,16 @@ def send_branded_email(
 		reference_doctype=reference_doctype,
 		reference_name=reference_name,
 		attachments=attachments,
+		# R49: lms_email_base.html is already a complete HTML document.
+		# Without raw_html=True, Frappe's QueueBuilder wraps it AGAIN in
+		# standard.html, producing a double-<html> document with two
+		# <body> tags, two sets of inline styles, and the Frappe default
+		# footer ("Sent via ERPNext") appended below the LMS footer.
+		# raw_html=True tells Frappe to treat the message as-is.
+		raw_html=True,
+		# add_css=False: the LMS wrapper already has all its styles
+		# inlined; Frappe's email.css would add conflicting defaults.
+		add_css=False,
 	)
 	queue_name = queue.name if queue else None
 
@@ -361,6 +381,51 @@ def _sample_subject_and_context(body_key: str) -> tuple[str, dict]:
 				"incident_chart_html": "",
 			},
 		)
+	if body_key == "loan_approved":
+		return (
+			_("Your loan has been approved — {{ loan_name }}"),
+			{
+				"customer_name": "Jane Borrower",
+				"loan_name": "LOAN-00001",
+				"approved_amount": "25,000.00",
+				"loan_type": "Personal Loan",
+				"first_due_date": "2026-09-01",
+				"branch_name": "Main Branch",
+			},
+		)
+	if body_key == "loan_rejected":
+		return (
+			_("Update on your loan application"),
+			{
+				"customer_name": "Jane Borrower",
+				"loan_name": "LOAN-APP-00001",
+				"rejection_reason": _("Insufficient credit history for the requested amount."),
+				"branch_name": "Main Branch",
+			},
+		)
+	if body_key == "collection_reminder":
+		return (
+			_("Your repayment is overdue — {{ loan_name }}"),
+			{
+				"customer_name": "Jane Borrower",
+				"loan_name": "LOAN-00001",
+				"overdue_amount": "1,200.00",
+				"days_past_due": 15,
+				"branch_name": "Main Branch",
+				"officer_name": "John Officer",
+				"officer_contact": "+263 77 123 4567",
+			},
+		)
+	if body_key == "kyc_expiring":
+		return (
+			_("Your KYC documents are expiring soon"),
+			{
+				"customer_name": "Jane Borrower",
+				"expiry_date": "2026-09-15",
+				"document_type": _("National ID"),
+				"branch_name": "Main Branch",
+			},
+		)
 	return (
 		_("Thank you for contacting us"),
 		{"lead_name": "Prospect"},
@@ -377,6 +442,11 @@ def seed_email_templates():
 		("lead_acknowledgement", _("Thank you for your enquiry")),
 		("morning_digest", _("LMS morning digest — {{ report_date }}")),
 		("kpi_pack", _("LMS sandbox weekly KPI")),
+		# R49: new templates for the full loan lifecycle.
+		("loan_approved", _("Your loan has been approved — {{ loan_name }}")),
+		("loan_rejected", _("Update on your loan application")),
+		("collection_reminder", _("Your repayment is overdue — {{ loan_name }}")),
+		("kyc_expiring", _("Your KYC documents are expiring soon")),
 	)
 	for body_key, subject in specs:
 		name = EMAIL_TEMPLATE_NAMES[body_key]

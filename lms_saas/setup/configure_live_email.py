@@ -77,6 +77,17 @@ def run() -> dict:
 			"always_use_account_email_id_as_sender": 1,
 			"track_email_status": 0,
 			"add_signature": 0,
+			# R49: clear the Email Account footer so Frappe doesn't append
+			# "Sent via ERPNext" (or any other default) below the LMS
+			# branded footer. The LMS email wrapper (lms_email_base.html)
+			# already renders a brand-aware footer with the operator's
+			# name, support email, and legal disclaimer. For Frappe
+			# default emails (password reset etc.), the LMS override
+			# templates include their own brand closing. Setting footer
+			# to empty + send_unsubscribe_message=0 ensures no stale
+			# third-party branding leaks through.
+			"footer": "",
+			"send_unsubscribe_message": 0,
 		}
 	)
 	if password:
@@ -98,6 +109,51 @@ def run() -> dict:
 		"email_account": doc.name,
 		"smtp": f"{server}:{port} (ssl={use_ssl})",
 		"flushed": flushed,
+	}
+
+
+def reconcile_email_footer() -> dict:
+	"""Clear the default outgoing Email Account's footer so no stale
+	third-party branding ("Sent via ERPNext") leaks below the LMS
+	branded footer.
+
+	Idempotent — safe to call on every deploy. No-op when no default
+	outgoing Email Account exists. Can be called independently of
+	``run()`` (e.g. from frappe-cloud-update.sh) to reconcile the
+	footer without touching SMTP credentials.
+
+	R49: this is the fix for the "Sent via ERPNext" footer that
+	appeared below LMS branded emails. The LMS wrapper
+	(lms_email_base.html) already renders a brand-aware footer; the
+	Email Account footer was duplicating it with Frappe's default.
+	"""
+	existing = frappe.db.get_value(
+		"Email Account",
+		{"enable_outgoing": 1, "default_outgoing": 1},
+		["name", "footer", "send_unsubscribe_message"],
+		as_dict=True,
+	)
+	if not existing:
+		return {"ok": False, "reason": "no default outgoing Email Account"}
+
+	changed = False
+	if existing.get("footer"):
+		frappe.db.set_value("Email Account", existing["name"], "footer", "", update_modified=False)
+		changed = True
+	if existing.get("send_unsubscribe_message"):
+		frappe.db.set_value(
+			"Email Account", existing["name"], "send_unsubscribe_message", 0, update_modified=False
+		)
+		changed = True
+
+	if changed:
+		frappe.db.commit()
+
+	return {
+		"ok": True,
+		"email_account": existing["name"],
+		"cleared_footer": bool(existing.get("footer")),
+		"cleared_unsubscribe": bool(existing.get("send_unsubscribe_message")),
 	}
 
 
