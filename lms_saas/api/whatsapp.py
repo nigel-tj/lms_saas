@@ -97,9 +97,22 @@ def send_whatsapp(recipient, message, template_name=None, loan=None, reference_d
 def _send_via_provider(recipient, message):
     """Send via the configured WhatsApp provider.
 
-    Reads provider config from ``frappe.conf.lms_whatsapp``.
-    Raises on failure.
+    Reads provider config from ``frappe.conf.lms_whatsapp``:
+        {
+            "provider": "twilio" | "meta" | "africa_stalking",
+            "api_key": "...",
+            "api_secret": "...",       # Twilio auth_token / Meta app secret
+            "account_sid": "...",      # Twilio only
+            "phone_number_id": "...",  # Meta only
+            "sender": "whatsapp:+...", # Twilio / Africa's Talking
+            "from": "...",             # Meta sender ID
+        }
+
+    Raises on failure so the caller can catch and log to the
+    Notification Log with status='Failed'.
     """
+    import requests
+
     conf = frappe.conf.get("lms_whatsapp") or {}
     provider = conf.get("provider")
 
@@ -108,10 +121,116 @@ def _send_via_provider(recipient, message):
         frappe.log_error(title="WhatsApp: no provider configured", message="Recipient: " + recipient)
         return
 
-    # Provider implementations would go here (Twilio, Meta, Africa's Talking, etc.)
-    # For now, this is a stub that logs the attempt.
-    # In production, integrate with the actual provider API.
+    sender = conf.get("sender") or conf.get("from") or ""
+    api_key = conf.get("api_key") or ""
+    api_secret = conf.get("api_secret") or ""
+
+    if provider == "twilio":
+        _send_via_twilio(recipient, message, conf, sender, api_key, api_secret, requests)
+    elif provider == "meta":
+        _send_via_meta(recipient, message, conf, sender, api_key, api_secret, requests)
+    elif provider == "africa_stalking":
+        _send_via_africas_talking(recipient, message, conf, sender, api_key, api_secret, requests)
+    else:
+        frappe.throw(_("Unknown WhatsApp provider: {0}").format(provider))
+
     frappe.logger().info("WhatsApp send via %s to %s: %s", provider, recipient, message[:100])
+
+
+def _send_via_twilio(recipient, message, conf, sender, api_key, api_secret, requests):
+    """Send WhatsApp via Twilio's WhatsApp API.
+
+    Uses the same Messages endpoint as SMS, but the From/To numbers
+    must be prefixed with ``whatsapp:``.
+    """
+    account_sid = conf.get("account_sid") or api_key
+    if not account_sid or not api_secret:
+        frappe.throw(_("Twilio WhatsApp: account_sid and api_secret are required."))
+
+    from_number = sender if sender.startswith("whatsapp:") else f"whatsapp:{sender}"
+    to_number = recipient if recipient.startswith("whatsapp:") else f"whatsapp:{recipient}"
+
+    url = f"https://api.twilio.com/2010-04-01/Accounts/{account_sid}/Messages.json"
+    resp = requests.post(
+        url,
+        auth=(account_sid, api_secret),
+        data={"To": to_number, "From": from_number, "Body": message},
+        timeout=15,
+    )
+    if resp.status_code >= 300:
+        frappe.throw(
+            _("Twilio WhatsApp send failed (HTTP {0}): {1}").format(
+                resp.status_code, resp.text[:500]
+            )
+        )
+
+
+def _send_via_meta(recipient, message, conf, sender, api_key, api_secret, requests):
+    """Send WhatsApp via Meta Cloud API.
+
+    ``api_key`` is the access token, ``conf.phone_number_id`` is the
+    Meta phone number ID. The recipient must be a bare international
+    number (no ``whatsapp:`` prefix).
+    """
+    phone_number_id = conf.get("phone_number_id")
+    if not phone_number_id or not api_key:
+        frappe.throw(_("Meta WhatsApp: phone_number_id and api_key are required."))
+
+    # Strip whatsapp: prefix if present — Meta wants bare numbers.
+    to_number = recipient.replace("whatsapp:", "")
+
+    url = f"https://graph.facebook.com/v18.0/{phone_number_id}/messages"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "messaging_product": "whatsapp",
+        "to": to_number,
+        "type": "text",
+        "text": {"body": message},
+    }
+    resp = requests.post(url, headers=headers, json=payload, timeout=15)
+    if resp.status_code >= 300:
+        frappe.throw(
+            _("Meta WhatsApp send failed (HTTP {0}): {1}").format(
+                resp.status_code, resp.text[:500]
+            )
+        )
+
+
+def _send_via_africas_talking(recipient, message, conf, sender, api_key, api_secret, requests):
+    """Send WhatsApp via Africa's Talking.
+
+    ``api_key`` is the AT API key, ``sender`` is the short code or
+    alphanumeric sender ID.
+    """
+    if not api_key:
+        frappe.throw(_("Africa's Talking WhatsApp: api_key is required."))
+
+    # AT expects bare international numbers.
+    to_number = recipient.replace("whatsapp:", "")
+
+    url = "https://api.africastalking.com/version1/messaging"
+    headers = {
+        "apiKey": api_key,
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Accept": "application/json",
+    }
+    payload = {
+        "username": conf.get("username") or "",
+        "to": to_number,
+        "message": message,
+        "from": sender,
+        "bulkSMSMode": "0",
+    }
+    resp = requests.post(url, headers=headers, data=payload, timeout=15)
+    if resp.status_code >= 300:
+        frappe.throw(
+            _("Africa's Talking WhatsApp send failed (HTTP {0}): {1}").format(
+                resp.status_code, resp.text[:500]
+            )
+        )
 
 
 # ---------------------------------------------------------------------------
