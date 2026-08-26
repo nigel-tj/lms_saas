@@ -411,12 +411,18 @@ def approve_application(application_name: str):
 		)
 		# validate() would otherwise rebuild the schedule from a (non-existent)
 		# disbursement and wipe the rows we just built; skip that one step.
+		# R53-T6 / #58: extend the patch to cover submit() too — submitting the
+		# schedule triggers validate() again, which would re-wipe the rows. The
+		# schedule MUST land in docstatus=1 so the loan's on_submit hooks (and
+		# the downstream disbursement flow) can find it, AND so the regression
+		# test can assert the closed-balance invariant against a submitted doc.
 		_schedule_cls = type(rs)
 		_orig_rebuild = _schedule_cls.make_customer_repayment_schedule
 		_schedule_cls.make_customer_repayment_schedule = lambda self: None
 		rs.flags.ignore_permissions = True
 		try:
 			rs.insert()
+			rs.submit()
 		finally:
 			_schedule_cls.make_customer_repayment_schedule = _orig_rebuild
 	except Exception as e:  # schedule is non-blocking for approval; log and continue
