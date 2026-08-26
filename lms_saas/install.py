@@ -71,6 +71,18 @@ PERSONA_CONFIG = {
         "desk": False,
         "landing_workspace": None,  # portal-only staff
     },
+    # R52: Operations Manager — new persona for loan catalogue + operational
+    # config. Company-scoped (not branch-scoped). Portal-only. Lands on
+    # /lms/setup. Permissions are gated server-side via _require_ops_manager
+    # in lms_saas.api.setup — the LMS Portal Staff role alone is not
+    # sufficient.
+    "Operations Manager": {
+        "roles": [PORTAL_STAFF_ROLE],
+        "create_customer": False,
+        "create_employee": True,
+        "desk": False,
+        "landing_workspace": None,  # portal-only staff — /lms/setup
+    },
 }
 
 # Native Number Cards (type=Custom) backed by lms_saas.api.dashboard.get_kpi_card.
@@ -252,6 +264,7 @@ def after_install():
     _seed_addon_settings()
     _setup_twilio_defaults()
     _backfill_collateral_loan_application_links()
+    _backfill_employee_persona_from_user_setup()
 
 
 # R35: link every LMS Collateral doc that exists with an empty
@@ -271,6 +284,73 @@ def _backfill_collateral_loan_application_links():
         frappe.log_error(
             title="R35 collateral loan_application backfill",
             message=frappe.get_traceback(),
+        )
+
+
+# R52: backfill Employee.custom_lms_persona from existing LMS User Setup
+# rows. Pre-R52 Employees were created via the LMS User Setup onboarding
+# flow, which already wrote the persona to Employee.custom_lms_persona on
+# submit. But:
+#   * Employees created manually (no LMS User Setup) have NULL persona.
+#   * Some bench data pre-dates the persona field entirely.
+#
+# This backfill walks every Employee whose persona is missing/empty and,
+# if a corresponding LMS User Setup row exists with a non-empty persona,
+# propagates the persona to the Employee. This is best-effort and
+# idempotent — it never overwrites a non-empty persona. Runs at the
+# tail of after_install / after_migrate so historical installs self-heal
+# on the next framework update.
+def _backfill_employee_persona_from_user_setup():
+    if not frappe.db.has_column("Employee", "custom_lms_persona"):
+        return  # fixture not yet applied — defer to next migrate
+    if not frappe.db.exists("DocType", "LMS User Setup"):
+        return  # lms_saas User Setup doctype not installed
+
+    # Build a {user_id → persona} map from submitted LMS User Setup rows
+    # (latest wins, mirroring amend behaviour).
+    rows = frappe.db.sql(
+        """
+        SELECT created_user, persona
+        FROM   `tabLMS User Setup`
+        WHERE  docstatus = 1
+          AND  created_user IS NOT NULL
+          AND  created_user != ''
+          AND  persona IS NOT NULL
+          AND  persona != ''
+        ORDER BY creation DESC
+        """,
+        as_dict=True,
+    )
+    persona_by_user = {}
+    for r in rows:
+        persona_by_user.setdefault(r.created_user, r.persona)
+
+    if not persona_by_user:
+        return
+
+    # Find Employees whose persona is empty AND whose user_id has a known
+    # persona. db_set bypasses the read_only meta flag (lms_user_setup
+    # owns the canonical write, but the backfill is a one-shot heal).
+    targets = frappe.db.sql(
+        """
+        SELECT name, user_id
+        FROM   `tabEmployee`
+        WHERE  user_id IN %(users)s
+          AND  (custom_lms_persona IS NULL OR custom_lms_persona = '')
+        """,
+        {"users": tuple(persona_by_user)},
+        as_dict=True,
+    )
+    for t in targets:
+        persona = persona_by_user.get(t.user_id)
+        if not persona:
+            continue
+        frappe.db.set_value(
+            "Employee",
+            t.name,
+            "custom_lms_persona",
+            persona,
+            update_modified=True,
         )
 
 

@@ -1,0 +1,171 @@
+{
+ "doctype": "DocType",
+ "name": "LMS Setup Change Request",
+ "module": "Lms Saas",
+ "custom": 0,
+ "autoname": "LMS-SCR-.YYYY.-.####",
+ "track_changes": 1,
+ "fields": [
+  {
+   "fieldname": "section_break_target",
+   "fieldtype": "Section Break",
+   "label": "Target"
+  },
+  {
+   "fieldname": "target_doctype",
+   "fieldtype": "Select",
+   "label": "Target DocType",
+   "options": "\nLoan Product\nLMS Credit Policy",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "target_name",
+   "fieldtype": "Dynamic Link",
+   "label": "Target Name",
+   "options": "target_doctype",
+   "description": "Name of the target document. For change_type=Create, populated by apply (the new doc's name). For Edit / Disable, the existing doc's name."
+  },
+  {
+   "fieldname": "change_type",
+   "fieldtype": "Select",
+   "label": "Change Type",
+   "options": "\nCreate\nEdit\nDisable",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "column_break_target_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "\nPending\nPending — Missing GL Accounts\nApproved\nRejected\nApplied\nCancelled",
+   "reqd": 1,
+   "in_list_view": 1,
+   "default": "Pending"
+  },
+  {
+   "fieldname": "section_break_request",
+   "fieldtype": "Section Break",
+   "label": "Request"
+  },
+  {
+   "fieldname": "requested_by",
+   "fieldtype": "Link",
+   "label": "Requested By",
+   "options": "User",
+   "in_list_view": 1,
+   "reqd": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "requested_at",
+   "fieldtype": "Datetime",
+   "label": "Requested At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_request_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "proposed_fields",
+   "fieldtype": "Code",
+   "label": "Proposed Fields (JSON)",
+   "options": "JSON",
+   "description": "JSON object mapping fieldname → proposed value. For Credit Policy, includes the rules child table as a list of dicts under the `rules` key."
+  },
+  {
+   "fieldname": "old_values",
+   "fieldtype": "Code",
+   "label": "Old Values (JSON)",
+   "options": "JSON",
+   "description": "JSON snapshot of the target doc's current state at the time the change was proposed. Empty for change_type=Create."
+  },
+  {
+   "fieldname": "section_break_gl",
+   "fieldtype": "Section Break",
+   "label": "GL Wiring"
+  },
+  {
+   "fieldname": "gl_wiring_notes",
+   "fieldtype": "Text",
+   "label": "GL Wiring Notes",
+   "description": "Notes for the admin when the change request is flagged Pending — Missing GL Accounts. Lists which required accounts are missing on the company Chart of Accounts."
+  },
+  {
+   "fieldname": "section_break_review",
+   "fieldtype": "Section Break",
+   "label": "Review"
+  },
+  {
+   "fieldname": "approved_by",
+   "fieldtype": "Link",
+   "label": "Approved By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "approved_at",
+   "fieldtype": "Datetime",
+   "label": "Approved At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "applied_at",
+   "fieldtype": "Datetime",
+   "label": "Applied At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_review_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "rejection_reason",
+   "fieldtype": "Text",
+   "label": "Rejection Reason"
+  },
+  {
+   "fieldname": "audit_event_ref",
+   "fieldtype": "Link",
+   "label": "Audit Event",
+   "options": "LMS Audit Event",
+   "read_only": 1,
+   "description": "Reference to the LMS Audit Event row written when the change was applied. NULL while still pending."
+  }
+ ],
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "submit": 0,
+   "cancel": 0,
+   "amend": 0,
+   "report": 1,
+   "export": 1,
+   "if_owner": 0,
+   "select": 1
+  },
+  {
+   "role": "LMS Portal Staff",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 0,
+   "submit": 0,
+   "cancel": 0,
+   "amend": 0,
+   "report": 0,
+   "export": 0,
+   "if_owner": 0,
+   "select": 1
+  }
+ ]
+}

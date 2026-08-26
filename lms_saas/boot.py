@@ -216,6 +216,11 @@ def _portal_staff_landing(user: str) -> str:
         "Loan Officer": "/lms/officer",
         "Branch Manager": "/lms/manager",
         "Collector": "/lms/collect",
+        # R52: Operations Manager → /lms/setup (loan catalogue +
+        # operational config). Falls through to /lms/collect only when the
+        # persona is missing or unknown (e.g. legacy users without the
+        # custom_lms_persona backfill).
+        "Operations Manager": "/lms/setup",
     }
     return routes.get(persona, "/lms/collect")
 

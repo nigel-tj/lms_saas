@@ -201,6 +201,11 @@ PERSONA_LANDING = {
 	"Loan Officer": "/lms/officer",
 	"Branch Manager": "/lms/manager",
 	"Collector": "/lms/collect",
+	# R52: Operations Manager → /lms/setup (loan catalogue + operational config).
+	# Without this entry the persona guard falls back to /lms/manager and
+	# the ops manager hits a redirect loop (they can't access the manager
+	# portal, and the fallback sends them back to it).
+	"Operations Manager": "/lms/setup",
 }
 
 

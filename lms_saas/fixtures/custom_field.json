@@ -223,10 +223,10 @@
     "fieldname": "custom_lms_persona",
     "fieldtype": "Select",
     "label": "LMS Persona",
-    "options": "\nLoan Officer\nCollector\nBranch Manager",
+    "options": "\nLoan Officer\nCollector\nBranch Manager\nOperations Manager",
     "insert_after": "department",
     "read_only": 1,
-    "description": "Set by LMS User Setup onboarding. Controls portal landing page."
+    "description": "Set by LMS User Setup onboarding. Controls portal landing page. Operations Manager routes to /lms/setup (R52)."
   },
   {
     "doctype": "Custom Field",

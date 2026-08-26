@@ -1,0 +1,18 @@
+{% extends "templates/lms_portal/base.html" %}
+
+{% block title %}Setup Portal{% endblock %}
+
+{% block lms_content %}
+<div id="lms-setup-root" aria-live="polite"></div>
+{% endblock %}
+
+{% block sidebar_script %}
+{{ super() }}
+<script>
+frappe.ready(function() {
+	if (typeof lms_setup !== "undefined") {
+		lms_setup.init();
+	}
+});
+</script>
+{% endblock %}

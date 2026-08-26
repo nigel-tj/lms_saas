@@ -70,7 +70,7 @@ def _get_user_permissions(persona: str | None, roles: set) -> dict:
 		admin_roles = DESK_ADMIN_ROLES
 	is_admin = bool(roles & admin_roles)
 	is_borrower = "Customer" in roles and not is_admin
-	is_staff = bool(persona in {"Loan Officer", "Branch Manager", "Collector"}) and not is_admin
+	is_staff = bool(persona in {"Loan Officer", "Branch Manager", "Collector", "Operations Manager"}) and not is_admin
 
 	return {
 		"is_admin": is_admin,
@@ -80,6 +80,9 @@ def _get_user_permissions(persona: str | None, roles: set) -> dict:
 		"can_officer": (persona in {"Loan Officer", "Branch Manager"}) or is_admin,
 		"can_manager": (persona == "Branch Manager") or is_admin,
 		"can_collect": (persona in {"Loan Officer", "Branch Manager", "Collector"}) or is_admin,
+		# R52: Operations Manager — portal-staff persona for loan catalogue +
+		# operational config. Gates the /lms/setup route + the api.setup guard.
+		"can_setup": (persona == "Operations Manager") or is_admin,
 		"can_admin": is_admin,
 		"persona": persona,
 	}
@@ -692,6 +695,11 @@ def _build_lms_nav(context):
 		elif persona == "Branch Manager":
 			items.append({"key": "manager", "label": "Manager", "route": "/lms/manager", "icon": "manager", "requires_perm": "can_manager"})
 			items.append({"key": "manager_books", "label": "Books & Import", "route": "/lms/manager-books", "icon": "books", "requires_perm": "can_manager"})
+		elif persona == "Operations Manager":
+			# R52: Operations Manager — setup portal for loan catalogue +
+			# operational config. The only nav item; the setup portal is
+			# their entire surface (no portfolio / approvals / collections).
+			items.append({"key": "setup", "label": "Setup", "route": "/lms/setup", "icon": "settings", "requires_perm": "can_setup"})
 		# R18-17: the page, title, nav item, and Help link all use the single
 	# string "Field Collection" — matches /lms/collect (page title) and
 	# /lms-help/collector (nav label).

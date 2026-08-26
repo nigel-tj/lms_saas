@@ -90,7 +90,7 @@ def write_audit_event(event_type, reference_doctype, reference_name, amount=None
 	event_hash = hashlib.sha256(canonical.encode()).hexdigest()
 
 	try:
-		frappe.get_doc(
+		event_doc = frappe.get_doc(
 			{
 				"doctype": "LMS Audit Event",
 				"event_time": now_datetime(),
@@ -107,7 +107,9 @@ def write_audit_event(event_type, reference_doctype, reference_name, amount=None
 				"custom_operator_mode": op["mode"],
 				"custom_event_hash": event_hash,
 			}
-		).insert(ignore_permissions=True)
+		)
+		event_doc.insert(ignore_permissions=True)
+		return event_doc.name
 	except Exception:  # noqa: BLE001
 		try:
 			frappe.log_error(title="LMS audit event failed", message=frappe.get_traceback())
