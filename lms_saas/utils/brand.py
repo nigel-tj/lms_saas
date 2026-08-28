@@ -592,6 +592,31 @@ def apply_portal_context(context, nav_active="loans", page_js=None):
 		context.lms_company = get_lms_company() or ""
 	except Exception:
 		context.lms_company = ""
+	# R58: topbar company-chip popover metadata (country / abbr / tax_id /
+	# default_currency). One row, one query — loaded up front so the popover
+	# is instant on click. Falls back to "—" silently if Company isn't yet
+	# wired (admins on a fresh tenant) — never raise into the page render.
+	try:
+		if context.lms_company:
+			_meta = frappe.db.get_value(
+				"Company",
+				context.lms_company,
+				["country", "abbr", "tax_id", "default_currency", "name"],
+				as_dict=True,
+			) or {}
+			context.lms_company_country = _meta.get("country") or "—"
+			context.lms_company_abbr = _meta.get("abbr") or "—"
+			context.lms_company_tax_id = _meta.get("tax_id") or ""
+			if _meta.get("default_currency"):
+				context.lms_currency = _meta["default_currency"]
+		else:
+			context.lms_company_country = "—"
+			context.lms_company_abbr = "—"
+			context.lms_company_tax_id = ""
+	except Exception:
+		context.lms_company_country = "—"
+		context.lms_company_abbr = "—"
+		context.lms_company_tax_id = ""
 	# R18-9: full display name (Employee / Customer / email-prefix fallback).
 	context.lms_user_display_name = _resolve_user_display_name(frappe.session.user, context.lms_persona)
 	context.show_sidebar = False

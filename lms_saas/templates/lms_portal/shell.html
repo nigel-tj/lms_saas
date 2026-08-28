@@ -36,6 +36,15 @@
 	<script>window.__lms_branch = {{ (lms_branch or '') | tojson }};</script>
 	{# R46-12: expose the Company name so the topbar can render "Company · Branch". #}
 	<script>window.__lms_company = {{ (lms_company or '') | tojson }};</script>
+	{# R58: expose company metadata so the topbar org-chip popover can
+	   hydrate country / abbr / tax_id without a server round-trip. #}
+	<script>
+		window.__lms_company_meta = {
+			country: {{ (lms_company_country or '') | tojson }},
+			abbr:    {{ (lms_company_abbr or '')    | tojson }},
+			tax_id:  {{ (lms_company_tax_id or '')  | tojson }},
+		};
+	</script>
 
 	{# Frappe web globals — must exist before frappe-web.bundle.js loads #}
 	<script>

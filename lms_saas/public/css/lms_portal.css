@@ -775,6 +775,284 @@ body.lms-portal {
 	line-height: 1;
 }
 
+/* ------------------------------------------------------------------ */
+/* R58: Topbar organization chip (Company + Branch context)          */
+/* ------------------------------------------------------------------ */
+.lms-topbar__org-wrap {
+	position: relative;
+	display: inline-flex;
+	align-items: center;
+}
+
+.lms-topbar__org {
+	--chip-pad-y: 0.34rem;
+	--chip-pad-x: 0.85rem 0.7rem;
+	display: inline-flex;
+	align-items: center;
+	gap: 0.5rem;
+	max-width: 320px;
+	padding: var(--chip-pad-y) var(--chip-pad-x);
+	background: var(--lms-surface);
+	border: 1px solid var(--lms-border);
+	border-radius: 999px;
+	color: var(--lms-text);
+	font-family: inherit;
+	cursor: pointer;
+	transition:
+		background 0.15s ease,
+		border-color 0.15s ease,
+		box-shadow 0.15s ease,
+		transform 0.15s ease;
+	text-align: left;
+	line-height: 1.1;
+	white-space: nowrap;
+	box-shadow: 0 1px 0 var(--lms-border);
+}
+
+.lms-topbar__org:hover {
+	background: var(--lms-surface-alt);
+	border-color: color-mix(in oklab, var(--lms-primary) 32%, var(--lms-border));
+	box-shadow: 0 2px 6px color-mix(in oklab, var(--lms-primary) 10%, transparent);
+}
+
+.lms-topbar__org:focus-visible {
+	outline: 2px solid color-mix(in oklab, var(--lms-primary) 50%, transparent);
+	outline-offset: 2px;
+}
+
+.lms-topbar__org[aria-expanded="true"] {
+	background: var(--lms-surface-alt);
+	border-color: color-mix(in oklab, var(--lms-primary) 50%, var(--lms-border));
+}
+
+.lms-topbar__org-text {
+	display: inline-flex;
+	flex-direction: column;
+	min-width: 0;
+	gap: 0.02rem;
+	font-size: 0.78rem;
+	line-height: 1.18;
+}
+
+.lms-topbar__org-company {
+	font-weight: 600;
+	color: var(--lms-text);
+	max-width: 200px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	letter-spacing: -0.005em;
+	line-height: 1.2;
+}
+
+.lms-topbar__org-branch {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.25rem;
+	font-weight: 500;
+	color: var(--lms-text-muted);
+	font-size: 0.7rem;
+	max-width: 200px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	line-height: 1.2;
+}
+
+.lms-topbar__org-branch-icon {
+	flex: 0 0 auto;
+	opacity: 0.85;
+}
+
+.lms-topbar__org-chevron {
+	flex: 0 0 auto;
+	color: var(--lms-text-muted);
+	opacity: 0.6;
+	transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+.lms-topbar__org[aria-expanded="true"] .lms-topbar__org-chevron {
+	transform: rotate(180deg);
+	opacity: 1;
+	color: var(--lms-primary);
+}
+
+/* Chip → single-line mode (only branch set, no company) — collapse the
+   vertical stack so the chip doesn't look hollow next to the bell. */
+.lms-topbar__org:has(.lms-topbar__org-branch:only-child) .lms-topbar__org-text,
+.lms-topbar__org:not(:has(.lms-topbar__org-company)) .lms-topbar__org-text {
+	flex-direction: row;
+	align-items: center;
+	gap: 0.3rem;
+}
+
+/* The popover — anchored to the chip, right-aligned (the chip sits in
+   the right side of the topbar so left-aligning would push it offscreen
+   on narrow viewports). */
+.lms-topbar__org-popover {
+	position: absolute;
+	top: calc(100% + 8px);
+	right: 0;
+	z-index: var(--lms-z-popover, 1100);
+	width: min(320px, calc(100vw - 2rem));
+	background: var(--lms-surface);
+	border: 1px solid var(--lms-border);
+	border-radius: var(--lms-radius);
+	box-shadow:
+		0 1px 2px color-mix(in oklab, #000 8%, transparent),
+		0 8px 24px color-mix(in oklab, #000 12%, transparent);
+	padding: 0;
+	opacity: 0;
+	transform: translateY(-4px) scale(0.98);
+	transform-origin: top right;
+	pointer-events: none;
+	transition:
+		opacity 0.16s var(--lms-ease-out-quart, ease),
+		transform 0.16s var(--lms-ease-out-quart, ease);
+	overflow: hidden;
+}
+
+.lms-topbar__org-popover.is-open {
+	opacity: 1;
+	transform: translateY(0) scale(1);
+	pointer-events: auto;
+}
+
+.lms-topbar__org-popover[hidden] {
+	display: none;
+}
+
+.lms-topbar__org-popover-header {
+	display: flex;
+	align-items: center;
+	gap: 0.85rem;
+	padding: 1rem 1.1rem 0.85rem;
+	background: linear-gradient(
+		180deg,
+		color-mix(in oklab, var(--lms-primary) 5%, var(--lms-surface)) 0%,
+		var(--lms-surface) 100%
+	);
+	border-bottom: 1px solid var(--lms-border);
+}
+
+.lms-topbar__org-popover-titles {
+	display: flex;
+	flex-direction: column;
+	gap: 0.15rem;
+	min-width: 0;
+}
+
+.lms-topbar__org-popover-eyebrow {
+	font-size: 0.62rem;
+	font-weight: 600;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--lms-text-muted);
+}
+
+.lms-topbar__org-popover-company {
+	font-size: 1rem;
+	font-weight: 700;
+	color: var(--lms-text);
+	letter-spacing: -0.01em;
+	max-width: 220px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.lms-topbar__org-popover-branch {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.3rem;
+	font-size: 0.78rem;
+	font-weight: 500;
+	color: var(--lms-text-muted);
+}
+
+.lms-topbar__org-popover-meta {
+	margin: 0;
+	padding: 0.75rem 1.1rem 0.85rem;
+	display: flex;
+	flex-direction: column;
+	gap: 0.45rem;
+}
+
+.lms-topbar__org-popover-meta-row {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 0.75rem;
+	font-size: 0.78rem;
+	margin: 0;
+}
+
+.lms-topbar__org-popover-meta-row dt {
+	color: var(--lms-text-muted);
+	font-weight: 500;
+	margin: 0;
+}
+
+.lms-topbar__org-popover-meta-row dd {
+	color: var(--lms-text);
+	font-weight: 600;
+	margin: 0;
+	text-align: right;
+	max-width: 65%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.lms-topbar__org-popover-footnote {
+	padding: 0.65rem 1.1rem 0.85rem;
+	border-top: 1px solid var(--lms-border);
+	background: var(--lms-surface-alt);
+	font-size: 0.7rem;
+	color: var(--lms-text-muted);
+	line-height: 1.5;
+}
+
+.lms-topbar__org-popover-footnote a {
+	color: var(--lms-primary);
+	text-decoration: none;
+	font-weight: 600;
+}
+
+.lms-topbar__org-popover-footnote a:hover {
+	text-decoration: underline;
+}
+
+/* Responsive: on very narrow viewports the chip collapses to just the
+   monogram so it still fits between the hamburger and the bell. */
+@media (max-width: 640px) {
+	.lms-topbar__org {
+		padding: 0.25rem;
+		gap: 0;
+	}
+	.lms-topbar__org-text,
+	.lms-topbar__org-chevron {
+		display: none;
+	}
+	.lms-topbar__org-popover {
+		right: -8px;
+		width: min(300px, calc(100vw - 1.5rem));
+	}
+}
+
+/* Theme overrides: midnight + dark themes use a darker surface, so the
+   chip needs slightly higher contrast to stand out. The default theme
+   already looks correct with no overrides. */
+[data-lms-theme="midnight"] .lms-topbar__org,
+[data-lms-theme="dark"] .lms-topbar__org {
+	background: color-mix(in oklab, var(--lms-surface) 80%, transparent);
+	backdrop-filter: blur(8px);
+	-webkit-backdrop-filter: blur(8px);
+}
+
+[data-lms-theme="midnight"] .lms-topbar__org:hover,
+[data-lms-theme="dark"] .lms-topbar__org:hover {
+	background: color-mix(in oklab, var(--lms-surface-alt) 90%, transparent);
+}
+
 .lms-user-menu__trigger {
 	display: flex;
 	align-items: center;

@@ -2118,6 +2118,7 @@ frappe.ready(function () {
 	}
 	lms_portal._initNotificationCenter();
 	lms_portal._initFourEyesBadge();
+	lms_portal._initOrgChip();
 	lms_portal._initMobileMenu();
 	lms_portal._initUserMenu();
 	lms_portal._initNavSearch();
@@ -2159,6 +2160,67 @@ lms_portal._initFourEyesBadge = function () {
 /* User menu (topbar avatar button) — toggles a small dropdown with
    the current user's name + Logout link. Previously the button rendered
    but had no click handler, so it was inert. */
+lms_portal._initOrgChip = function () {
+	/* R58: topbar organization chip → popover with company + branch
+	   metadata. Toggles on click, closes on outside-click / Escape /
+	   clicking the trigger again. Hydrates the popover from the
+	   pre-rendered DOM (server-side lms_company / lms_branch / currency /
+	   country / abbr) — no AJAX round-trip, the popover is instant. */
+	var trigger = document.getElementById("lms-topbar-org");
+	var popover = document.getElementById("lms-topbar-org-popover");
+	if (!trigger || !popover) return;
+
+	function open() {
+		popover.hidden = false;
+		// next frame so the [hidden]→[visible] transition can play
+		requestAnimationFrame(function () {
+			popover.classList.add("is-open");
+			popover.setAttribute("aria-hidden", "false");
+		});
+		trigger.setAttribute("aria-expanded", "true");
+	}
+	function close() {
+		popover.classList.remove("is-open");
+		popover.setAttribute("aria-hidden", "true");
+		// Defer the [hidden] attribute so the CSS transition can finish
+		// before the element is removed from the accessibility tree.
+		setTimeout(function () {
+			if (!popover.classList.contains("is-open")) popover.hidden = true;
+		}, 180);
+		trigger.setAttribute("aria-expanded", "false");
+	}
+	function isOpen() {
+		return popover.classList.contains("is-open");
+	}
+
+	trigger.addEventListener("click", function (e) {
+		e.preventDefault();
+		e.stopPropagation();
+		if (isOpen()) close();
+		else open();
+	});
+	document.addEventListener("click", function (e) {
+		if (!isOpen()) return;
+		if (trigger.contains(e.target) || popover.contains(e.target)) return;
+		close();
+	});
+	document.addEventListener("keydown", function (e) {
+		if (e.key === "Escape" && isOpen()) {
+			close();
+			try { trigger.focus(); } catch (err) { /* ignore */ }
+		}
+	});
+
+	// Close on viewport resize so the popover doesn't end up orphaned
+	// (e.g. when the user rotates a tablet).
+	var resizeRaf = null;
+	window.addEventListener("resize", function () {
+		if (!isOpen()) return;
+		if (resizeRaf) cancelAnimationFrame(resizeRaf);
+		resizeRaf = requestAnimationFrame(close);
+	});
+};
+
 lms_portal._initUserMenu = function () {
 	var trigger = document.querySelector(".lms-user-menu__trigger");
 	var wrap = document.getElementById("lms-user-menu");
