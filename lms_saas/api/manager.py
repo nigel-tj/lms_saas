@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import frappe
 from frappe import _
-from frappe.utils import flt, getdate, today, add_days, cint
+from frappe.utils import flt, getdate, today, add_days, cint, rounded
 
 from lms_saas.install import PORTAL_STAFF_ROLE
 from lms_saas.api.compliance_config import is_sandbox_mode
@@ -490,7 +490,7 @@ def reject_application(application_name: str, reason: str = ""):
 	# so the old ``docstatus != 0`` guard made the manager's Reject button
 	# throw "Only draft applications can be rejected (current status: 1)"
 	# on every queued application. Accept both states:
-	#   ds=1 (submitted) → cancel (ds=2); the record stays for the
+	#   ds=1 (submitted) → cancel (ds=1 → ds=2); the record stays for the
 	#     regulator's audit walk-through.
 	#   ds=0 (legacy draft) → delete (Frappe does not permit cancelling
 	#     a draft).
@@ -1716,3 +1716,245 @@ def get_collateral_register(loan_status: str | None = None):
 		result.append({**c, "linked_loans": linked_loans})
 
 	return {"collateral": result}
+
+
+# ---------------------------------------------------------------------------
+# Early settlement (R53-T9 / #61 — pre-demo test plan section A4)
+# ---------------------------------------------------------------------------
+
+@frappe.whitelist()
+def get_settlement_quote(loan_name: str, posting_date: str | None = None):
+    """Quote the early-settlement figure for a loan.
+
+    Reducing-balance: Lending's ``calculate_amounts(payment_type="Full
+    Settlement")`` — outstanding principal + ACCRUED interest. Unearned
+    future interest is never charged (A4's 'the system does not simply
+    sum the remaining instalments').
+
+    Flat (per #53): Rule of 78 rebate on the contracted total interest;
+    the rebate is deducted from the naive remaining-instalments figure.
+
+    Returns { method, rebate, settlement_amount, disclosure, ... }.
+    """
+    _require_manager()
+    if not frappe.db.exists("Loan", loan_name):
+        frappe.throw(_("Loan {0} not found.").format(loan_name))
+    _assert_branch_scope(frappe.db.get_value("Loan", loan_name, "custom_lms_branch"))
+
+    from lending.loan_management.doctype.loan_repayment.loan_repayment import (
+        calculate_amounts,
+    )
+    from lms_saas.utils.settlement import rule_of_78_rebate, settlement_method_for
+
+    loan = frappe.get_doc("Loan", loan_name)
+    as_on = posting_date or today()
+
+    amounts = calculate_amounts(loan.name, as_on, payment_type="Full Settlement")
+    payable_principal = flt(amounts.get("payable_principal_amount"))
+    accrued_interest = flt(amounts.get("interest_amount"))
+    penalty = flt(amounts.get("penalty_amount"))
+    accrual_figure = payable_principal + accrued_interest + penalty
+
+    method = settlement_method_for(
+        frappe.db.get_value(
+            "Loan Product", loan.loan_product, "repayment_schedule_type"
+        )
+        or ""
+    )
+
+    # Naive remaining-instalments sum (the value A4 forbids charging).
+    schedule_name = frappe.db.get_value(
+        "Loan Repayment Schedule", {"loan": loan.name}, "name"
+    )
+    remaining_instalments = 0.0
+    if schedule_name:
+        rows = frappe.get_all(
+            "Repayment Schedule",
+            filters={"parent": schedule_name},
+            fields=["total_payment"],
+        )
+        remaining_instalments = flt(sum(flt(r.total_payment or 0) for r in rows))
+
+    if method == "Rule of 78":
+        schedule = frappe.get_doc("Loan Repayment Schedule", {"loan": loan.name})
+        rows = schedule.repayment_schedule or []
+        periods = len(rows)
+        # Lending tracks paid instalments on Loan Demand rows (the schedule
+        # child rows carry no paid_amount). A fully-settled demand is one
+        # with paid_amount > 0 and outstanding_amount == 0.
+        settled_demands = frappe.get_all(
+            "Loan Demand",
+            filters={
+                "loan": loan.name,
+                "docstatus": 1,
+                "paid_amount": (">", 0),
+                "outstanding_amount": 0,
+            },
+            pluck="name",
+        )
+        instalments_paid = min(len(settled_demands), periods)
+        contracted_total_interest = flt(
+            sum(flt(row.interest_amount) for row in rows)
+        )
+        rebate = rule_of_78_rebate(
+            total_interest=contracted_total_interest,
+            periods=periods,
+            instalments_paid=instalments_paid,
+        )
+        # Flat-loan settlement per Rule of 78 (A4 / #53):
+        #   figure = outstanding principal (books) + EARNED interest
+        # where earned = contracted total interest − Rule-of-78 rebate.
+        # Accrual books show 0 accrued interest on flat loans (interest is
+        # schedule-row interest, not accrued), so the earned share must come
+        # from the contract, not the books.
+        earned_interest = max(contracted_total_interest - rebate, 0.0)
+        settlement_amount = rounded(payable_principal + earned_interest + penalty, 2)
+        disclosure = _(
+            "Early settlement rebate: {0} applied per Rule of 78 "
+            "(sum-of-digits method)."
+        ).format(f"{rebate:.2f}")
+    else:
+        rebate = 0.0
+        settlement_amount = max(accrual_figure, payable_principal)
+        disclosure = _(
+            "Settlement figure = outstanding principal plus interest accrued "
+            "to date. Interest for future months is not charged."
+        )
+
+    return {
+        "loan": loan.name,
+        "as_on": str(as_on),
+        "method": method,
+        "rebate": rebate,
+        "payable_principal": payable_principal,
+        "accrued_interest": accrued_interest,
+        "penalty": penalty,
+        "remaining_instalments_naive": remaining_instalments,
+        "settlement_amount": settlement_amount,
+        "disclosure": disclosure,
+    }
+
+
+@frappe.whitelist()
+def settle_loan(
+    loan_name: str,
+    settlement_amount: float,
+    payment_mode: str = "Cash",
+    posting_date: str | None = None,
+):
+    """Execute an early settlement (manager action, A4 / #61).
+
+    Records the settlement repayment via Lending's 'Full Settlement'
+    payment type, stamps ``rebate_method`` + ``early_settlement_rebate``
+    on the repayment (flat loans only, per #53), and emits a
+    ``LoanSettlement:ManagerRecorded`` audit event.
+    """
+    _require_manager()
+    if not frappe.db.exists("Loan", loan_name):
+        frappe.throw(_("Loan {0} not found.").format(loan_name))
+
+    loan = frappe.get_doc("Loan", loan_name)
+    _assert_branch_scope(loan.get("custom_lms_branch"), write=True)
+
+    if loan.status in ("Closed", "Written Off", "Cancelled", "Settled"):
+        frappe.throw(
+            _("Cannot settle a {0} loan.").format(loan.status),
+            frappe.ValidationError,
+        )
+
+    quote = get_settlement_quote(loan_name=loan_name, posting_date=posting_date)
+    method = quote["method"]
+    rebate = flt(quote["rebate"])
+
+    from lending.loan_management.doctype.loan_repayment.loan_repayment import (
+        calculate_amounts,
+    )
+
+    as_on = posting_date or today()
+    amounts = calculate_amounts(loan.name, as_on, payment_type="Full Settlement")
+
+    frappe.flags.ignore_permissions = True
+    try:
+        repayment = frappe.new_doc("Loan Repayment")
+        repayment.against_loan = loan.name
+        repayment.posting_date = as_on
+        repayment.entry_type = "Full Settlement"
+        repayment.payment_type = "Full Settlement"
+        repayment.amount_paid = flt(settlement_amount)
+        repayment.payment_mode = payment_mode
+        # A4 + #53 stamp: which method, and how much was rebated.
+        if repayment.meta.has_field("rebate_method"):
+            repayment.rebate_method = method
+        if repayment.meta.has_field("early_settlement_rebate"):
+            repayment.early_settlement_rebate = rebate
+        repayment.insert()
+        repayment.submit()
+        repayment_name = repayment.name
+    finally:
+        frappe.flags.ignore_permissions = False
+
+    try:
+        from lms_saas.api.compliance import write_audit_event
+
+        write_audit_event(
+            event_type="LoanSettlement:ManagerRecorded",
+            reference_doctype="Loan Repayment",
+            reference_name=repayment_name,
+            amount=flt(settlement_amount),
+            company=loan.company,
+            details=(
+                f"loan={loan_name}; method={method}; rebate={rebate}; "
+                f"settlement_amount={flt(settlement_amount)}; "
+                f"branch={loan.get('custom_lms_branch') or 'unassigned'}"
+            ),
+            critical=True,
+        )
+    except Exception:
+        frappe.log_error(
+            title="settle_loan audit failed",
+            message=frappe.get_traceback(),
+        )
+
+    return {
+        "status": "settled",
+        "loan": loan_name,
+        "repayment": repayment_name,
+        "method": method,
+        "rebate": rebate,
+        "settlement_amount": flt(settlement_amount),
+        "message": _("Loan {0} settled for {1} (rebate {2} per {3}).").format(
+            loan_name, flt(settlement_amount), rebate, method
+        ),
+    }
+
+
+def _audit_manager_disbursement(
+	loan_name: str, disbursement_name: str, amount: float, manager_user: str
+) -> None:
+	"""R29-F11 sibling: emit an LMS Audit Event on manager.disburse_loan.
+
+	Mirrors the officer-side R28-F11 so the regulator's audit trail has
+	every disbursement labelled by who actually clicked the button.
+	Audit-write failure must never block the business action.
+	"""
+	try:
+		if not frappe.db.exists("DocType", "LMS Audit Event"):
+			return
+		from lms_saas.api.compliance import write_audit_event
+
+		write_audit_event(
+			event_type="LoanDisbursement:ManagerRecorded",
+			reference_doctype="Loan Disbursement",
+			reference_name=disbursement_name,
+			amount=amount,
+			details=(
+				f"loan={loan_name} disbursement={disbursement_name} "
+				f"amount={amount} actor={manager_user} role=manager"
+			),
+			critical=True,
+		)
+	except Exception:
+		frappe.log_error(
+			title="disburse_loan audit failed",
+			message=frappe.get_traceback(),
+		)

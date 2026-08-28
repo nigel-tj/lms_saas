@@ -296,10 +296,30 @@ lms_collect._revealPii = function (loan, btn, root) {
 lms_collect._openCollectModal = function (loan, fullAmount, root) {
 	// R18-6: TWO-STEP COLLECT.
 	// Step 1: enter amount + payment mode + note.
-	// Step 2: confirm "I've counted ZAR X in hand" before submission.
+	// Step 2: confirm "I've counted {currency} X in hand" before submission.
 	// A typo of "2000" when "200" was meant loses the customer's money;
 	// the explicit confirm sentence + checkbox is the cheapest defense
 	// that does not require a network round-trip.
+	// R57: read the company currency from window.__lms_currency (set by
+	// shell.html from site_config) so the confirm sentence reads in the
+	// operator's currency (USD, ZAR, KES, NGN, …) rather than the
+	// hard-coded ZAR that the demo started with. Fall back to
+	// frappe.boot.sysdefaults.currency and finally to the literal "USD"
+	// if neither is set yet.
+	var confirmCurrency =
+		window.__lms_currency ||
+		(typeof frappe !== "undefined" &&
+			frappe.boot &&
+			frappe.boot.sysdefaults &&
+			frappe.boot.sysdefaults.currency) ||
+		"USD";
+	var formatMoney = function (v) {
+		try {
+			return lms_portal.formatCurrency(v, confirmCurrency);
+		} catch (e) {
+			return confirmCurrency + " " + Number(v || 0).toFixed(2);
+		}
+	};
 	var body =
 		'<div class="lms-form">' +
 		'<label>Amount<input type="number" id="lms-collect-amount" class="lms-input" value="' +
@@ -316,10 +336,14 @@ lms_collect._openCollectModal = function (loan, fullAmount, root) {
 		// R18-6: confirm checkbox. The Collect button stays disabled until
 		// the collector ticks this — this is the intentional friction that
 		// catches a mis-typed amount on the first try.
+		// R57: the placeholder is rendered immediately so the first frame
+		// already shows the correct currency, not the previous "ZAR 0.00".
 		'<label class="lms-collect-confirm" style="margin-top:0.75rem;display:flex;align-items:flex-start;gap:0.5rem;font-weight:500;">' +
 		'<input type="checkbox" id="lms-collect-confirm" style="margin-top:0.2rem;">' +
-		'<span>I have <strong id="lms-collect-confirm-amount">ZAR 0.00</strong> in hand and confirm this amount is correct.</span>' +
-		'</label>' +
+		'<span>I have <strong id="lms-collect-confirm-amount">' +
+		formatMoney(0) +
+		"</strong> in hand and confirm this amount is correct.</span>" +
+		"</label>" +
 		"</div>";
 	var dlg = LMSModal.open({
 		title: "Collect payment",
@@ -349,7 +373,9 @@ lms_collect._openCollectModal = function (loan, fullAmount, root) {
 	var confirmAmount = dlgRoot.querySelector("#lms-collect-confirm-amount");
 	var syncConfirm = function () {
 		var amount = parseFloat((amountInput && amountInput.value) || "0") || 0;
-		if (confirmAmount) confirmAmount.textContent = "ZAR " + amount.toFixed(2);
+		// R57: use the same currency-aware formatter as the initial render
+		// so the placeholder text and the live preview stay in lockstep.
+		if (confirmAmount) confirmAmount.textContent = formatMoney(amount);
 		var ok = confirmBox && confirmBox.checked && amount > 0;
 		if (collectBtn) {
 			collectBtn.disabled = !ok;

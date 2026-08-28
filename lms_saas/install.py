@@ -631,6 +631,18 @@ def _lending_doctypes():
         "Loan Disbursement",
         "Loan Product",
         "Loan Repayment Schedule",
+        # R57: Lending's Loan Repayment.on_submit hook calls
+        # update_demands / reverse_demands / make_new_demand, which
+        # load and write Loan Demand / Loan Interest Accrual rows.
+        # Without perm on these, every field collection
+        # (record_field_repayment) blows up with
+        # "officer@… does not have doctype access via role permission
+        # for document Loan Demand" — see R57 board report. The
+        # field-collection path itself uses ignore_permissions=True on
+        # the Loan Repayment insert, but the on_submit hook runs in
+        # the officer's session and still hits the perm check.
+        "Loan Demand",
+        "Loan Interest Accrual",
     ]
 
 
@@ -801,6 +813,24 @@ def _ensure_lending_permissions():
         "read": 1, "write": 0, "create": 0,
         "report": 0, "export": 0, "delete": 0,
     })
+
+    # R57: field collection (record_field_repayment → Loan Repayment.submit)
+    # triggers Lending's update_demands / reverse_demands / make_new_demand
+    # hooks, which load and write Loan Demand / Loan Interest Accrual
+    # rows in the *officer's* session. Without these perms, every
+    # collection attempt is rejected with
+    # "officer@… does not have doctype access via role permission for
+    # document Loan Demand". Read + write + create + submit + report is
+    # the minimum the hook needs; we explicitly leave delete / cancel /
+    # amend off so the officer cannot desynchronise the audit trail by
+    # hand. Branch scope is still enforced server-side in
+    # _assert_loan_in_scope.
+    lending_hook_perm = {
+        "read": 1, "write": 1, "create": 1, "submit": 1, "report": 1,
+        "export": 0, "delete": 0, "cancel": 0, "amend": 0, "email": 0,
+    }
+    for dt in ("Loan Demand", "Loan Interest Accrual", "Loan Repayment Schedule"):
+        _ensure_role_perm("LMS Portal Staff", dt, lending_hook_perm)
 
 
 def _ensure_role_perm(role, doctype, extra_perm=None):

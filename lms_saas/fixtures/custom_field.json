@@ -1,552 +1,575 @@
 [
-  {
-    "doctype": "Custom Field",
-    "name": "Loan-custom_days_past_due",
-    "dt": "Loan",
-    "fieldname": "custom_days_past_due",
-    "fieldtype": "Int",
-    "label": "Days Past Due (LMS)",
-    "insert_after": "days_past_due",
-    "read_only": 1,
-    "allow_on_submit": 1,
-    "search_index": 1
-  },
-  {
-    "doctype": "Custom Field",
-    "name": "Loan-custom_asset_classification",
-    "dt": "Loan",
-    "fieldname": "custom_asset_classification",
-    "fieldtype": "Select",
-    "label": "Asset Classification (LMS)",
-    "insert_after": "custom_days_past_due",
-    "options": "\nSub-Standard/Watchlist\nNon-Performing Asset (NPA)",
-    "allow_on_submit": 1
-  },
-  {
-    "doctype": "Custom Field",
-    "name": "Loan-custom_lms_branch",
-    "dt": "Loan",
-    "fieldname": "custom_lms_branch",
-    "fieldtype": "Link",
-    "label": "Branch",
-    "options": "Cost Center",
-    "insert_after": "cost_center",
-    "search_index": 1
-  },
-  {
-    "doctype": "Custom Field",
-    "name": "Loan Application-custom_lms_branch",
-    "dt": "Loan Application",
-    "fieldname": "custom_lms_branch",
-    "fieldtype": "Link",
-    "label": "Branch",
-    "options": "Cost Center",
-    "insert_after": "company"
-  },
-  {
-    "doctype": "Custom Field",
-    "name": "Loan-custom_loan_officer",
-    "dt": "Loan",
-    "fieldname": "custom_loan_officer",
-    "fieldtype": "Link",
-    "label": "Loan Officer",
-    "options": "Employee",
-    "insert_after": "custom_lms_branch",
-    "search_index": 1
-  },
-  {
-    "doctype": "Custom Field",
-    "name": "Loan-custom_approved_by",
-    "dt": "Loan",
-    "fieldname": "custom_approved_by",
-    "fieldtype": "Link",
-    "label": "Approved By (LMS)",
-    "options": "User",
-    "insert_after": "custom_loan_officer",
-    "read_only": 1,
-    "allow_on_submit": 1,
-    "description": "Portal four-eyes: the user who approved the Loan Application. Cannot also disburse when lms_enforce_four_eyes is on."
-  },
-  {
-    "doctype": "Custom Field",
-    "name": "Loan-custom_lms_loan_application",
-    "dt": "Loan",
-    "fieldname": "custom_lms_loan_application",
-    "fieldtype": "Link",
-    "label": "Originating Loan Application (LMS)",
-    "options": "Loan Application",
-    "insert_after": "custom_approved_by",
-    "description": "R21-C1: direct link from Loan to its originating Loan Application. The four-eyes resolver reads this field to determine the application owner, so a maker self-origination (same user creates the app AND the Loan) is blocked at submit time."
-  },
-  {
-    "doctype": "Custom Field",
-    "name": "Loan Application-custom_loan_officer",
-    "dt": "Loan Application",
-    "fieldname": "custom_loan_officer",
-    "fieldtype": "Link",
-    "label": "Loan Officer",
-    "options": "Employee",
-    "insert_after": "custom_lms_branch"
-  },
-  {
-    "doctype": "Custom Field",
-    "name": "Customer-custom_lms_branch",
-    "dt": "Customer",
-    "fieldname": "custom_lms_branch",
-    "fieldtype": "Link",
-    "label": "Branch",
-    "options": "Cost Center",
-    "insert_after": "customer_group"
-  },
-  {
-    "doctype": "Custom Field",
-    "name": "Customer-custom_national_id_number",
-    "dt": "Customer",
-    "fieldname": "custom_national_id_number",
-    "fieldtype": "Data",
-    "label": "National ID Number",
-    "insert_after": "custom_lms_branch",
-    "description": "Captured at onboarding (LMS User Setup) and carried over to the LMS Borrower Compliance record for KYC."
-  },
-  {
-    "doctype": "Custom Field",
-    "name": "Loan Application-custom_collateral_section",
-    "dt": "Loan Application",
-    "fieldname": "custom_collateral_section",
-    "fieldtype": "Section Break",
-    "label": "Collateral / Security",
-    "insert_after": "custom_loan_officer"
-  },
-  {
-    "doctype": "Custom Field",
-    "name": "Loan Application-custom_collateral",
-    "dt": "Loan Application",
-    "fieldname": "custom_collateral",
-    "fieldtype": "Table",
-    "label": "Collateral",
-    "options": "LMS Loan Collateral",
-    "insert_after": "custom_collateral_section"
-  },
-  {
-    "doctype": "Custom Field",
-    "name": "Loan-custom_collateral_section",
-    "dt": "Loan",
-    "fieldname": "custom_collateral_section",
-    "fieldtype": "Section Break",
-    "label": "Collateral / Security",
-    "insert_after": "custom_loan_officer"
-  },
-  {
-    "doctype": "Custom Field",
-    "name": "Loan-custom_collateral",
-    "dt": "Loan",
-    "fieldname": "custom_collateral",
-    "fieldtype": "Table",
-    "label": "Collateral",
-    "options": "LMS Loan Collateral",
-    "insert_after": "custom_collateral_section",
-    "allow_on_submit": 1
-  },
-  {
-    "doctype": "Custom Field",
-    "name": "Lead-custom_lms_branch",
-    "dt": "Lead",
-    "fieldname": "custom_lms_branch",
-    "fieldtype": "Link",
-    "label": "Branch",
-    "options": "Cost Center",
-    "insert_after": "mobile_no"
-  },
-  {
-    "doctype": "Custom Field",
-    "name": "Lead-custom_loan_officer",
-    "dt": "Lead",
-    "fieldname": "custom_loan_officer",
-    "fieldtype": "Link",
-    "label": "Loan Officer",
-    "options": "Employee",
-    "insert_after": "custom_lms_branch"
-  },
-  {
-    "doctype": "Custom Field",
-    "name": "Lead-custom_national_id_number",
-    "dt": "Lead",
-    "fieldname": "custom_national_id_number",
-    "fieldtype": "Data",
-    "label": "National ID Number",
-    "insert_after": "custom_loan_officer"
-  },
-  {
-    "doctype": "Custom Field",
-    "name": "Lead-custom_consent_given",
-    "dt": "Lead",
-    "fieldname": "custom_consent_given",
-    "fieldtype": "Check",
-    "label": "Customer Consent Given",
-    "description": "Prospect consented to be contacted and received product risk disclosure.",
-    "insert_after": "custom_national_id_number"
-  },
-  {
-    "doctype": "Custom Field",
-    "name": "Lead-custom_consent_date",
-    "dt": "Lead",
-    "fieldname": "custom_consent_date",
-    "fieldtype": "Datetime",
-    "label": "Consent Date",
-    "depends_on": "custom_consent_given",
-    "insert_after": "custom_consent_given"
-  },
-  {
-    "doctype": "Custom Field",
-    "name": "Opportunity-custom_lms_branch",
-    "dt": "Opportunity",
-    "fieldname": "custom_lms_branch",
-    "fieldtype": "Link",
-    "label": "Branch",
-    "options": "Cost Center",
-    "insert_after": "company"
-  },
-  {
-    "doctype": "Custom Field",
-    "name": "Loan Application-custom_lending_group",
-    "dt": "Loan Application",
-    "fieldname": "custom_lending_group",
-    "fieldtype": "Link",
-    "label": "Lending Group",
-    "options": "LMS Lending Group",
-    "insert_after": "applicant"
-  },
-  {
-    "doctype": "Custom Field",
-    "name": "Employee-custom_lms_persona",
-    "dt": "Employee",
-    "fieldname": "custom_lms_persona",
-    "fieldtype": "Select",
-    "label": "LMS Persona",
-    "options": "\nLoan Officer\nCollector\nBranch Manager\nOperations Manager",
-    "insert_after": "department",
-    "read_only": 1,
-    "description": "Set by LMS User Setup onboarding. Controls portal landing page. Operations Manager routes to /lms/setup (R52)."
-  },
-  {
-    "doctype": "Custom Field",
-    "name": "Employee-custom_lms_branch",
-    "dt": "Employee",
-    "fieldname": "custom_lms_branch",
-    "fieldtype": "Link",
-    "label": "LMS Branch (Cost Center)",
-    "options": "Cost Center",
-    "insert_after": "custom_lms_persona",
-    "description": "Cost Center / branch the employee is scoped to in the LMS portal. Drives the Loan Officer dashboard, Application queue, and Leads filter. Preferred over the HRMS `branch` field because the rest of the LMS data is keyed on Cost Center (Loan.custom_lms_branch, Loan Application.custom_lms_branch, Lead.custom_lms_branch, Customer.custom_lms_branch)."
-  },
-  {
-    "doctype": "Custom Field",
-    "name": "LMS Audit Event-operator_legal_name",
-    "dt": "LMS Audit Event",
-    "fieldname": "custom_operator_legal_name",
-    "fieldtype": "Data",
-    "label": "Operator Legal Name",
-    "insert_after": "details",
-    "read_only": 1,
-    "search_index": 1
-  },
-  {
-    "doctype": "Custom Field",
-    "name": "LMS Audit Event-operator_licence",
-    "dt": "LMS Audit Event",
-    "fieldname": "custom_operator_licence_number",
-    "fieldtype": "Data",
-    "label": "Operator Licence #",
-    "insert_after": "custom_operator_legal_name",
-    "read_only": 1,
-    "search_index": 1
-  },
-  {
-    "doctype": "Custom Field",
-    "name": "LMS Audit Event-operator_regulator",
-    "dt": "LMS Audit Event",
-    "fieldname": "custom_operator_regulator",
-    "fieldtype": "Data",
-    "label": "Regulator",
-    "insert_after": "custom_operator_licence_number",
-    "read_only": 1
-  },
-  {
-    "doctype": "Custom Field",
-    "name": "LMS Audit Event-operator_mode",
-    "dt": "LMS Audit Event",
-    "fieldname": "custom_operator_mode",
-    "fieldtype": "Select",
-    "label": "Operator Mode",
-    "options": "\nsandbox\nproduction",
-    "insert_after": "custom_operator_regulator",
-    "read_only": 1,
-    "search_index": 1
-  },
-  {
-    "doctype": "Custom Field",
-    "name": "LMS Audit Event-event_hash",
-    "dt": "LMS Audit Event",
-    "fieldname": "custom_event_hash",
-    "fieldtype": "Data",
-    "label": "Event Hash (tamper-evidence)",
-    "insert_after": "custom_operator_mode",
-    "read_only": 1,
-    "search_index": 1
-  },
-  {
-    "doctype": "Custom Field",
-    "name": "Customer-lms_marital_status",
-    "dt": "Customer",
-    "fieldname": "lms_marital_status",
-    "fieldtype": "Select",
-    "label": "Marital Status",
-    "options": "\nSingle\nMarried\nWidowed\nDivorced\nSeparated",
-    "insert_after": "custom_national_id_number"
-  },
-  {
-    "doctype": "Custom Field",
-    "name": "Customer-lms_spouse_name",
-    "dt": "Customer",
-    "fieldname": "lms_spouse_name",
-    "fieldtype": "Data",
-    "label": "Name of Spouse",
-    "insert_after": "lms_marital_status"
-  },
-  {
-    "doctype": "Custom Field",
-    "name": "Customer-lms_spouse_dob",
-    "dt": "Customer",
-    "fieldname": "lms_spouse_dob",
-    "fieldtype": "Date",
-    "label": "Spouse Date of Birth",
-    "insert_after": "lms_spouse_name"
-  },
-  {
-    "doctype": "Custom Field",
-    "name": "Customer-lms_spouse_contact",
-    "dt": "Customer",
-    "fieldname": "lms_spouse_contact",
-    "fieldtype": "Data",
-    "label": "Spouse Contact Details",
-    "insert_after": "lms_spouse_dob"
-  },
-  {
-    "doctype": "Custom Field",
-    "name": "Customer-lms_physical_address",
-    "dt": "Customer",
-    "fieldname": "lms_physical_address",
-    "fieldtype": "Small Text",
-    "label": "Applicant's Physical Address",
-    "insert_after": "lms_spouse_contact"
-  },
-  {
-    "doctype": "Custom Field",
-    "name": "Loan Application-lms_expiry_date",
-    "dt": "Loan Application",
-    "fieldname": "lms_expiry_date",
-    "fieldtype": "Date",
-    "label": "Expiry Date",
-    "insert_after": "custom_lending_group"
-  },
-  {
-    "doctype": "Custom Field",
-    "name": "Loan Application-lms_max_enforceable_amount",
-    "dt": "Loan Application",
-    "fieldname": "lms_max_enforceable_amount",
-    "fieldtype": "Currency",
-    "label": "Maximum Enforceable Amount",
-    "insert_after": "lms_expiry_date",
-    "description": "Statutory cap on what can be recovered (e.g. bound by the credit agreement / consumer law)."
-  },
-  {
-    "doctype": "Custom Field",
-    "name": "Loan Application-lms_security_interest_nature",
-    "dt": "Loan Application",
-    "fieldname": "lms_security_interest_nature",
-    "fieldtype": "Small Text",
-    "label": "Nature / Type of Security Interest",
-    "insert_after": "lms_max_enforceable_amount"
-  },
-  {
-    "doctype": "Custom Field",
-    "name": "Loan Application-lms_loan_type",
-    "dt": "Loan Application",
-    "fieldname": "lms_loan_type",
-    "fieldtype": "Select",
-    "label": "Loan Type",
-    "options": "\nTerm Loan\nRevolving / Overdraft\nHire Purchase\nAsset Finance\nEmergency / Top-up\nWorking Capital",
-    "insert_after": "lms_security_interest_nature"
-  },
-  {
-    "doctype": "Custom Field",
-    "name": "Loan Application-lms_loan_start_date",
-    "dt": "Loan Application",
-    "fieldname": "lms_loan_start_date",
-    "fieldtype": "Date",
-    "label": "Loan Start Date",
-    "insert_after": "lms_loan_type"
-  },
-  {
-    "doctype": "Custom Field",
-    "name": "Loan Application-lms_application_date",
-    "dt": "Loan Application",
-    "fieldname": "lms_application_date",
-    "fieldtype": "Date",
-    "label": "Application Date",
-    "insert_after": "posting_date"
-  },
-  {
-    "doctype": "Custom Field",
-    "name": "LMS Collateral-lms_grantor",
-    "dt": "LMS Collateral",
-    "fieldname": "lms_grantor",
-    "fieldtype": "Data",
-    "label": "Name of Grantor(s)",
-    "insert_after": "reference_no"
-  },
-  {
-    "doctype": "Custom Field",
-    "name": "LMS Collateral-lms_brand",
-    "dt": "LMS Collateral",
-    "fieldname": "lms_brand",
-    "fieldtype": "Data",
-    "label": "Brand",
-    "insert_after": "lms_grantor"
-  },
-  {
-    "doctype": "Custom Field",
-    "name": "LMS Collateral-lms_model",
-    "dt": "LMS Collateral",
-    "fieldname": "lms_model",
-    "fieldtype": "Data",
-    "label": "Model",
-    "insert_after": "lms_brand"
-  },
-  {
-    "doctype": "Custom Field",
-    "name": "LMS Collateral-lms_engine_number",
-    "dt": "LMS Collateral",
-    "fieldname": "lms_engine_number",
-    "fieldtype": "Data",
-    "label": "Engine Number",
-    "insert_after": "lms_model"
-  },
-  {
-    "doctype": "Custom Field",
-    "name": "LMS Collateral-lms_vehicle_registration",
-    "dt": "LMS Collateral",
-    "fieldname": "lms_vehicle_registration",
-    "fieldtype": "Data",
-    "label": "Vehicle Registration Number",
-    "insert_after": "lms_engine_number"
-  },
-  {
-    "doctype": "Custom Field",
-    "name": "LMS Collateral-lms_stand_plot_number",
-    "dt": "LMS Collateral",
-    "fieldname": "lms_stand_plot_number",
-    "fieldtype": "Data",
-    "label": "Stand / Plot Number",
-    "insert_after": "lms_vehicle_registration"
-  },
-  {
-    "doctype": "Custom Field",
-    "name": "LMS Collateral-lms_area_sqm",
-    "dt": "LMS Collateral",
-    "fieldname": "lms_area_sqm",
-    "fieldtype": "Data",
-    "label": "Area (sqm)",
-    "insert_after": "lms_stand_plot_number"
-  },
-  {
-    "doctype": "Custom Field",
-    "name": "LMS Collateral-lms_manufacturer_year",
-    "dt": "LMS Collateral",
-    "fieldname": "lms_manufacturer_year",
-    "fieldtype": "Int",
-    "label": "Year of Manufacture",
-    "insert_after": "lms_area_sqm"
-  },
-  {
-    "doctype": "Custom Field",
-    "name": "LMS Collateral-lms_inventory_sku",
-    "dt": "LMS Collateral",
-    "fieldname": "lms_inventory_sku",
-    "fieldtype": "Data",
-    "label": "SKU / Lot Code",
-    "insert_after": "lms_manufacturer_year"
-  },
-  {
-    "doctype": "Custom Field",
-    "name": "LMS Collateral-lms_inventory_quantity",
-    "dt": "LMS Collateral",
-    "fieldname": "lms_inventory_quantity",
-    "fieldtype": "Int",
-    "label": "Quantity",
-    "insert_after": "lms_inventory_sku"
-  },
-  {
-    "doctype": "Custom Field",
-    "name": "LMS Collateral-lms_cash_bank_name",
-    "dt": "LMS Collateral",
-    "fieldname": "lms_cash_bank_name",
-    "fieldtype": "Data",
-    "label": "Bank Name",
-    "insert_after": "lms_inventory_quantity"
-  },
-  {
-    "doctype": "Custom Field",
-    "name": "LMS Collateral-lms_cash_account_number",
-    "dt": "LMS Collateral",
-    "fieldname": "lms_cash_account_number",
-    "fieldtype": "Data",
-    "label": "Account Number",
-    "insert_after": "lms_cash_bank_name"
-  },
-  {
-    "doctype": "Custom Field",
-    "name": "LMS Collateral-lms_security_certificate",
-    "dt": "LMS Collateral",
-    "fieldname": "lms_security_certificate",
-    "fieldtype": "Data",
-    "label": "Share Certificate No",
-    "insert_after": "lms_cash_account_number"
-  },
-  {
-    "doctype": "Custom Field",
-    "name": "LMS Collateral-lms_security_units",
-    "dt": "LMS Collateral",
-    "fieldname": "lms_security_units",
-    "fieldtype": "Int",
-    "label": "Number of Units / Shares",
-    "insert_after": "lms_security_certificate"
-  },
-  {
-    "doctype": "Custom Field",
-    "name": "LMS Collateral-lms_guarantor_name",
-    "dt": "LMS Collateral",
-    "fieldname": "lms_guarantor_name",
-    "fieldtype": "Data",
-    "label": "Guarantor Full Name",
-    "insert_after": "lms_security_units"
-  },
-  {
-    "doctype": "Custom Field",
-    "name": "LMS Collateral-lms_guarantor_id",
-    "dt": "LMS Collateral",
-    "fieldname": "lms_guarantor_id",
-    "fieldtype": "Data",
-    "label": "Guarantor National ID",
-    "insert_after": "lms_guarantor_name"
-  },
-  {
-    "doctype": "Custom Field",
-    "name": "LMS Collateral-lms_guarantor_relationship",
-    "dt": "LMS Collateral",
-    "fieldname": "lms_guarantor_relationship",
-    "fieldtype": "Data",
-    "label": "Relationship to Borrower",
-    "insert_after": "lms_guarantor_id"
-  }
+ {
+  "doctype": "Custom Field",
+  "name": "Loan-custom_days_past_due",
+  "dt": "Loan",
+  "fieldname": "custom_days_past_due",
+  "fieldtype": "Int",
+  "label": "Days Past Due (LMS)",
+  "insert_after": "days_past_due",
+  "read_only": 1,
+  "allow_on_submit": 1,
+  "search_index": 1
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Loan-custom_asset_classification",
+  "dt": "Loan",
+  "fieldname": "custom_asset_classification",
+  "fieldtype": "Select",
+  "label": "Asset Classification (LMS)",
+  "insert_after": "custom_days_past_due",
+  "options": "\nSub-Standard/Watchlist\nNon-Performing Asset (NPA)",
+  "allow_on_submit": 1
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Loan-custom_lms_branch",
+  "dt": "Loan",
+  "fieldname": "custom_lms_branch",
+  "fieldtype": "Link",
+  "label": "Branch",
+  "options": "Cost Center",
+  "insert_after": "cost_center",
+  "search_index": 1
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Loan Application-custom_lms_branch",
+  "dt": "Loan Application",
+  "fieldname": "custom_lms_branch",
+  "fieldtype": "Link",
+  "label": "Branch",
+  "options": "Cost Center",
+  "insert_after": "company"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Loan-custom_loan_officer",
+  "dt": "Loan",
+  "fieldname": "custom_loan_officer",
+  "fieldtype": "Link",
+  "label": "Loan Officer",
+  "options": "Employee",
+  "insert_after": "custom_lms_branch",
+  "search_index": 1
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Loan-custom_approved_by",
+  "dt": "Loan",
+  "fieldname": "custom_approved_by",
+  "fieldtype": "Link",
+  "label": "Approved By (LMS)",
+  "options": "User",
+  "insert_after": "custom_loan_officer",
+  "read_only": 1,
+  "allow_on_submit": 1,
+  "description": "Portal four-eyes: the user who approved the Loan Application. Cannot also disburse when lms_enforce_four_eyes is on."
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Loan-custom_lms_loan_application",
+  "dt": "Loan",
+  "fieldname": "custom_lms_loan_application",
+  "fieldtype": "Link",
+  "label": "Originating Loan Application (LMS)",
+  "options": "Loan Application",
+  "insert_after": "custom_approved_by",
+  "description": "R21-C1: direct link from Loan to its originating Loan Application. The four-eyes resolver reads this field to determine the application owner, so a maker self-origination (same user creates the app AND the Loan) is blocked at submit time."
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Loan Application-custom_loan_officer",
+  "dt": "Loan Application",
+  "fieldname": "custom_loan_officer",
+  "fieldtype": "Link",
+  "label": "Loan Officer",
+  "options": "Employee",
+  "insert_after": "custom_lms_branch"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Customer-custom_lms_branch",
+  "dt": "Customer",
+  "fieldname": "custom_lms_branch",
+  "fieldtype": "Link",
+  "label": "Branch",
+  "options": "Cost Center",
+  "insert_after": "customer_group"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Customer-custom_national_id_number",
+  "dt": "Customer",
+  "fieldname": "custom_national_id_number",
+  "fieldtype": "Data",
+  "label": "National ID Number",
+  "insert_after": "custom_lms_branch",
+  "description": "Captured at onboarding (LMS User Setup) and carried over to the LMS Borrower Compliance record for KYC."
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Loan Application-custom_collateral_section",
+  "dt": "Loan Application",
+  "fieldname": "custom_collateral_section",
+  "fieldtype": "Section Break",
+  "label": "Collateral / Security",
+  "insert_after": "custom_loan_officer"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Loan Application-custom_collateral",
+  "dt": "Loan Application",
+  "fieldname": "custom_collateral",
+  "fieldtype": "Table",
+  "label": "Collateral",
+  "options": "LMS Loan Collateral",
+  "insert_after": "custom_collateral_section"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Loan-custom_collateral_section",
+  "dt": "Loan",
+  "fieldname": "custom_collateral_section",
+  "fieldtype": "Section Break",
+  "label": "Collateral / Security",
+  "insert_after": "custom_loan_officer"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Loan-custom_collateral",
+  "dt": "Loan",
+  "fieldname": "custom_collateral",
+  "fieldtype": "Table",
+  "label": "Collateral",
+  "options": "LMS Loan Collateral",
+  "insert_after": "custom_collateral_section",
+  "allow_on_submit": 1
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Lead-custom_lms_branch",
+  "dt": "Lead",
+  "fieldname": "custom_lms_branch",
+  "fieldtype": "Link",
+  "label": "Branch",
+  "options": "Cost Center",
+  "insert_after": "mobile_no"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Lead-custom_loan_officer",
+  "dt": "Lead",
+  "fieldname": "custom_loan_officer",
+  "fieldtype": "Link",
+  "label": "Loan Officer",
+  "options": "Employee",
+  "insert_after": "custom_lms_branch"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Lead-custom_national_id_number",
+  "dt": "Lead",
+  "fieldname": "custom_national_id_number",
+  "fieldtype": "Data",
+  "label": "National ID Number",
+  "insert_after": "custom_loan_officer"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Lead-custom_consent_given",
+  "dt": "Lead",
+  "fieldname": "custom_consent_given",
+  "fieldtype": "Check",
+  "label": "Customer Consent Given",
+  "description": "Prospect consented to be contacted and received product risk disclosure.",
+  "insert_after": "custom_national_id_number"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Lead-custom_consent_date",
+  "dt": "Lead",
+  "fieldname": "custom_consent_date",
+  "fieldtype": "Datetime",
+  "label": "Consent Date",
+  "depends_on": "custom_consent_given",
+  "insert_after": "custom_consent_given"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Opportunity-custom_lms_branch",
+  "dt": "Opportunity",
+  "fieldname": "custom_lms_branch",
+  "fieldtype": "Link",
+  "label": "Branch",
+  "options": "Cost Center",
+  "insert_after": "company"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Loan Application-custom_lending_group",
+  "dt": "Loan Application",
+  "fieldname": "custom_lending_group",
+  "fieldtype": "Link",
+  "label": "Lending Group",
+  "options": "LMS Lending Group",
+  "insert_after": "applicant"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Employee-custom_lms_persona",
+  "dt": "Employee",
+  "fieldname": "custom_lms_persona",
+  "fieldtype": "Select",
+  "label": "LMS Persona",
+  "options": "\nLoan Officer\nCollector\nBranch Manager\nOperations Manager",
+  "insert_after": "department",
+  "read_only": 1,
+  "description": "Set by LMS User Setup onboarding. Controls portal landing page. Operations Manager routes to /lms/setup (R52)."
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Employee-custom_lms_branch",
+  "dt": "Employee",
+  "fieldname": "custom_lms_branch",
+  "fieldtype": "Link",
+  "label": "LMS Branch (Cost Center)",
+  "options": "Cost Center",
+  "insert_after": "custom_lms_persona",
+  "description": "Cost Center / branch the employee is scoped to in the LMS portal. Drives the Loan Officer dashboard, Application queue, and Leads filter. Preferred over the HRMS `branch` field because the rest of the LMS data is keyed on Cost Center (Loan.custom_lms_branch, Loan Application.custom_lms_branch, Lead.custom_lms_branch, Customer.custom_lms_branch)."
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "LMS Audit Event-operator_legal_name",
+  "dt": "LMS Audit Event",
+  "fieldname": "custom_operator_legal_name",
+  "fieldtype": "Data",
+  "label": "Operator Legal Name",
+  "insert_after": "details",
+  "read_only": 1,
+  "search_index": 1
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "LMS Audit Event-operator_licence",
+  "dt": "LMS Audit Event",
+  "fieldname": "custom_operator_licence_number",
+  "fieldtype": "Data",
+  "label": "Operator Licence #",
+  "insert_after": "custom_operator_legal_name",
+  "read_only": 1,
+  "search_index": 1
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "LMS Audit Event-operator_regulator",
+  "dt": "LMS Audit Event",
+  "fieldname": "custom_operator_regulator",
+  "fieldtype": "Data",
+  "label": "Regulator",
+  "insert_after": "custom_operator_licence_number",
+  "read_only": 1
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "LMS Audit Event-operator_mode",
+  "dt": "LMS Audit Event",
+  "fieldname": "custom_operator_mode",
+  "fieldtype": "Select",
+  "label": "Operator Mode",
+  "options": "\nsandbox\nproduction",
+  "insert_after": "custom_operator_regulator",
+  "read_only": 1,
+  "search_index": 1
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "LMS Audit Event-event_hash",
+  "dt": "LMS Audit Event",
+  "fieldname": "custom_event_hash",
+  "fieldtype": "Data",
+  "label": "Event Hash (tamper-evidence)",
+  "insert_after": "custom_operator_mode",
+  "read_only": 1,
+  "search_index": 1
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Customer-lms_marital_status",
+  "dt": "Customer",
+  "fieldname": "lms_marital_status",
+  "fieldtype": "Select",
+  "label": "Marital Status",
+  "options": "\nSingle\nMarried\nWidowed\nDivorced\nSeparated",
+  "insert_after": "custom_national_id_number"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Customer-lms_spouse_name",
+  "dt": "Customer",
+  "fieldname": "lms_spouse_name",
+  "fieldtype": "Data",
+  "label": "Name of Spouse",
+  "insert_after": "lms_marital_status"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Customer-lms_spouse_dob",
+  "dt": "Customer",
+  "fieldname": "lms_spouse_dob",
+  "fieldtype": "Date",
+  "label": "Spouse Date of Birth",
+  "insert_after": "lms_spouse_name"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Customer-lms_spouse_contact",
+  "dt": "Customer",
+  "fieldname": "lms_spouse_contact",
+  "fieldtype": "Data",
+  "label": "Spouse Contact Details",
+  "insert_after": "lms_spouse_dob"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Customer-lms_physical_address",
+  "dt": "Customer",
+  "fieldname": "lms_physical_address",
+  "fieldtype": "Small Text",
+  "label": "Applicant's Physical Address",
+  "insert_after": "lms_spouse_contact"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Loan Application-lms_expiry_date",
+  "dt": "Loan Application",
+  "fieldname": "lms_expiry_date",
+  "fieldtype": "Date",
+  "label": "Expiry Date",
+  "insert_after": "custom_lending_group"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Loan Application-lms_max_enforceable_amount",
+  "dt": "Loan Application",
+  "fieldname": "lms_max_enforceable_amount",
+  "fieldtype": "Currency",
+  "label": "Maximum Enforceable Amount",
+  "insert_after": "lms_expiry_date",
+  "description": "Statutory cap on what can be recovered (e.g. bound by the credit agreement / consumer law)."
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Loan Application-lms_security_interest_nature",
+  "dt": "Loan Application",
+  "fieldname": "lms_security_interest_nature",
+  "fieldtype": "Small Text",
+  "label": "Nature / Type of Security Interest",
+  "insert_after": "lms_max_enforceable_amount"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Loan Application-lms_loan_type",
+  "dt": "Loan Application",
+  "fieldname": "lms_loan_type",
+  "fieldtype": "Select",
+  "label": "Loan Type",
+  "options": "\nTerm Loan\nRevolving / Overdraft\nHire Purchase\nAsset Finance\nEmergency / Top-up\nWorking Capital",
+  "insert_after": "lms_security_interest_nature"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Loan Application-lms_loan_start_date",
+  "dt": "Loan Application",
+  "fieldname": "lms_loan_start_date",
+  "fieldtype": "Date",
+  "label": "Loan Start Date",
+  "insert_after": "lms_loan_type"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Loan Application-lms_application_date",
+  "dt": "Loan Application",
+  "fieldname": "lms_application_date",
+  "fieldtype": "Date",
+  "label": "Application Date",
+  "insert_after": "posting_date"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "LMS Collateral-lms_grantor",
+  "dt": "LMS Collateral",
+  "fieldname": "lms_grantor",
+  "fieldtype": "Data",
+  "label": "Name of Grantor(s)",
+  "insert_after": "reference_no"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "LMS Collateral-lms_brand",
+  "dt": "LMS Collateral",
+  "fieldname": "lms_brand",
+  "fieldtype": "Data",
+  "label": "Brand",
+  "insert_after": "lms_grantor"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "LMS Collateral-lms_model",
+  "dt": "LMS Collateral",
+  "fieldname": "lms_model",
+  "fieldtype": "Data",
+  "label": "Model",
+  "insert_after": "lms_brand"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "LMS Collateral-lms_engine_number",
+  "dt": "LMS Collateral",
+  "fieldname": "lms_engine_number",
+  "fieldtype": "Data",
+  "label": "Engine Number",
+  "insert_after": "lms_model"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "LMS Collateral-lms_vehicle_registration",
+  "dt": "LMS Collateral",
+  "fieldname": "lms_vehicle_registration",
+  "fieldtype": "Data",
+  "label": "Vehicle Registration Number",
+  "insert_after": "lms_engine_number"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "LMS Collateral-lms_stand_plot_number",
+  "dt": "LMS Collateral",
+  "fieldname": "lms_stand_plot_number",
+  "fieldtype": "Data",
+  "label": "Stand / Plot Number",
+  "insert_after": "lms_vehicle_registration"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "LMS Collateral-lms_area_sqm",
+  "dt": "LMS Collateral",
+  "fieldname": "lms_area_sqm",
+  "fieldtype": "Data",
+  "label": "Area (sqm)",
+  "insert_after": "lms_stand_plot_number"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "LMS Collateral-lms_manufacturer_year",
+  "dt": "LMS Collateral",
+  "fieldname": "lms_manufacturer_year",
+  "fieldtype": "Int",
+  "label": "Year of Manufacture",
+  "insert_after": "lms_area_sqm"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "LMS Collateral-lms_inventory_sku",
+  "dt": "LMS Collateral",
+  "fieldname": "lms_inventory_sku",
+  "fieldtype": "Data",
+  "label": "SKU / Lot Code",
+  "insert_after": "lms_manufacturer_year"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "LMS Collateral-lms_inventory_quantity",
+  "dt": "LMS Collateral",
+  "fieldname": "lms_inventory_quantity",
+  "fieldtype": "Int",
+  "label": "Quantity",
+  "insert_after": "lms_inventory_sku"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "LMS Collateral-lms_cash_bank_name",
+  "dt": "LMS Collateral",
+  "fieldname": "lms_cash_bank_name",
+  "fieldtype": "Data",
+  "label": "Bank Name",
+  "insert_after": "lms_inventory_quantity"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "LMS Collateral-lms_cash_account_number",
+  "dt": "LMS Collateral",
+  "fieldname": "lms_cash_account_number",
+  "fieldtype": "Data",
+  "label": "Account Number",
+  "insert_after": "lms_cash_bank_name"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "LMS Collateral-lms_security_certificate",
+  "dt": "LMS Collateral",
+  "fieldname": "lms_security_certificate",
+  "fieldtype": "Data",
+  "label": "Share Certificate No",
+  "insert_after": "lms_cash_account_number"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "LMS Collateral-lms_security_units",
+  "dt": "LMS Collateral",
+  "fieldname": "lms_security_units",
+  "fieldtype": "Int",
+  "label": "Number of Units / Shares",
+  "insert_after": "lms_security_certificate"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "LMS Collateral-lms_guarantor_name",
+  "dt": "LMS Collateral",
+  "fieldname": "lms_guarantor_name",
+  "fieldtype": "Data",
+  "label": "Guarantor Full Name",
+  "insert_after": "lms_security_units"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "LMS Collateral-lms_guarantor_id",
+  "dt": "LMS Collateral",
+  "fieldname": "lms_guarantor_id",
+  "fieldtype": "Data",
+  "label": "Guarantor National ID",
+  "insert_after": "lms_guarantor_name"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "LMS Collateral-lms_guarantor_relationship",
+  "dt": "LMS Collateral",
+  "fieldname": "lms_guarantor_relationship",
+  "fieldtype": "Data",
+  "label": "Relationship to Borrower",
+  "insert_after": "lms_guarantor_id"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Loan Repayment-custom_rebate_method",
+  "dt": "Loan Repayment",
+  "fieldname": "custom_rebate_method",
+  "fieldtype": "Select",
+  "label": "Early Settlement Rebate Method (LMS)",
+  "options": "\nRule of 78\nNone",
+  "insert_after": "amount_paid",
+  "read_only": 1,
+  "allow_on_submit": 1
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Loan Repayment-custom_early_settlement_rebate",
+  "dt": "Loan Repayment",
+  "fieldname": "custom_early_settlement_rebate",
+  "fieldtype": "Currency",
+  "label": "Early Settlement Rebate (LMS)",
+  "insert_after": "custom_rebate_method",
+  "read_only": 1,
+  "allow_on_submit": 1
+ }
 ]
