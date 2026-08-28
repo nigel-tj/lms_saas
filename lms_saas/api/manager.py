@@ -485,8 +485,19 @@ def reject_application(application_name: str, reason: str = ""):
 	if not reason:
 		frappe.throw(_("Rejection reason is required for the audit trail."))
 
-	if app.docstatus != 0:
-		frappe.throw(_("Only draft applications can be rejected (current status: {0}).").format(app.docstatus))
+	# R55: the canonical R37 queue state is SUBMITTED (docstatus=1,
+	# status='Open') — the officer's submit advances the doc out of draft,
+	# so the old ``docstatus != 0`` guard made the manager's Reject button
+	# throw "Only draft applications can be rejected (current status: 1)"
+	# on every queued application. Accept both states:
+	#   ds=1 (submitted) → cancel (ds=2); the record stays for the
+	#     regulator's audit walk-through.
+	#   ds=0 (legacy draft) → delete (Frappe does not permit cancelling
+	#     a draft).
+	if app.docstatus == 2:
+		frappe.throw(_("Application {0} is already cancelled/rejected.").format(application_name))
+	if app.docstatus not in (0, 1):
+		frappe.throw(_("Application {0} is in an unrejectable state.").format(application_name))
 
 	# R29-F11: audit the rejection BEFORE the delete so the row is
 	# not orphaned. ``reference_name`` retains the application name —
@@ -546,14 +557,31 @@ def reject_application(application_name: str, reason: str = ""):
 	# approve_application R38 note for the full root cause).
 	frappe.flags.ignore_permissions = True
 	try:
-		frappe.db.delete("Loan Application", {"name": application_name})
-		frappe.clear_document_cache("Loan Application", application_name)
+		if app.docstatus == 1:
+			# R55: submitted application → cancel (ds=1 → ds=2). The
+			# record stays in the table so the regulator's audit
+			# walk-through can inspect the full lifecycle later.
+			# ignore_permissions is set on the DOC (not just the global
+			# flag) because Document.cancel() → save() re-checks the
+			# per-doc cancel permission, and the manager persona has no
+			# direct DocPerm on Loan Application (portal guard pattern).
+			app.flags.ignore_permissions = True
+			app.cancel()
+			final_state = "cancelled"
+		else:
+			# Legacy draft (ds=0) → delete (drafts cannot be cancelled).
+			# R34-QA / R38 notes above explain why this is a manual
+			# Administrator-privileged delete rather than app.delete().
+			frappe.db.delete("Loan Application", {"name": application_name})
+			frappe.clear_document_cache("Loan Application", application_name)
+			final_state = "deleted"
 	finally:
 		frappe.flags.ignore_permissions = False
 
 	return {
 		"status": "rejected",
 		"application": application_name,
+		"final_state": final_state,
 		"message": _("Application {0} rejected.").format(application_name),
 	}
 

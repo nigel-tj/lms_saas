@@ -966,7 +966,7 @@ lms_manager._showBorrowerModal = function (b) {
 
 	if (b.loans && b.loans.length) {
 		html += '<h4>Loans (' + b.loans.length + ')</h4>';
-		html += '<div class="lms-data-table__wrap"><table class="lms-data-table"><thead><tr><th>Loan</th><th>Amount</th><th>Outstanding</th><th>Status</th><th>DPD</th></tr></thead><tbody>';
+		html += '<div class="lms-data-table__wrap"><table class="lms-data-table"><thead><tr><th>Loan</th><th>Amount</th><th>Outstanding</th><th>Status</th><th>Days Late</th></tr></thead><tbody>';
 		b.loans.forEach(function (l) {
 			html += "<tr><td><strong>" + lms_portal.escape(l.name) + "</strong></td>";
 			html += "<td>" + format_currency(l.loan_amount || 0) + "</td>";
@@ -1067,7 +1067,7 @@ lms_manager._renderLoanTable = function (el, loans) {
 		return;
 	}
 	var html = '<div class="lms-data-table__wrap"><table class="lms-data-table">';
-	html += "<thead><tr><th>Loan #</th><th>Borrower</th><th>Amount</th><th>Outstanding</th><th>Status</th><th>DPD</th><th>Officer</th><th>Actions</th></tr></thead><tbody>";
+	html += "<thead><tr><th>Loan #</th><th>Borrower</th><th>Amount</th><th>Outstanding</th><th>Status</th><th>Days Late</th><th>Officer</th><th>Actions</th></tr></thead><tbody>";
 	loans.forEach(function (l) {
 		html += "<tr>";
 		html += "<td><strong>" + lms_portal.escape(l.name) + "</strong></td>";
@@ -1126,7 +1126,7 @@ lms_manager._showLoanModal = function (data) {
 	html += '<div class="lms-summary-card"><div class="lms-summary-label">Borrower</div><div class="lms-summary-value">' + lms_portal.escape(l.borrower_name || "") + '</div></div>';
 	html += '<div class="lms-summary-card"><div class="lms-summary-label">Status</div><div class="lms-summary-value">' + lms_portal.escape(l.status || "") + '</div></div>';
 	html += '<div class="lms-summary-card"><div class="lms-summary-label">Rate</div><div class="lms-summary-value">' + (l.rate_of_interest || 0) + '%</div></div>';
-	html += '<div class="lms-summary-card"><div class="lms-summary-label">DPD</div><div class="lms-summary-value">' + (l.dpd || 0) + '</div></div>';
+	html += '<div class="lms-summary-card"><div class="lms-summary-label">Days Late</div><div class="lms-summary-value">' + (l.dpd || 0) + '</div></div>';
 	html += '</div>';
 
 	if (data.schedule && data.schedule.length) {
@@ -1255,7 +1255,7 @@ lms_manager._renderArrearsReport = function (el, data) {
 		var rows = b[key] || [];
 		if (!rows.length) return;
 		html += '<h5 style="margin-top:1rem;">' + bucketLabels[key] + ' (' + rows.length + ' loans)</h5>';
-		html += '<div class="lms-data-table__wrap"><table class="lms-data-table"><thead><tr><th>Loan</th><th>Borrower</th><th>Outstanding</th><th>DPD</th><th>Status</th></tr></thead><tbody>';
+		html += '<div class="lms-data-table__wrap"><table class="lms-data-table"><thead><tr><th>Loan</th><th>Borrower</th><th>Outstanding</th><th>Days Late</th><th>Status</th></tr></thead><tbody>';
 		rows.forEach(function (r) {
 			html += "<tr><td>" + lms_portal.escape(r.loan) + "</td>";
 			html += "<td>" + lms_portal.escape(r.customer_name || "") + "</td>";

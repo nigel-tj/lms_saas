@@ -1984,7 +1984,7 @@ lms_officer._showBorrowerModal = function (b) {
 	html += '<input class="lms-input" id="lms-brw-email" name="email_id" type="email" value="' + lms_portal.escape(b.email_id || "") + '" maxlength="120" />';
 	html += '</div>';
 	html += '<div class="lms-form-row"><label class="lms-form-label" for="lms-brw-nid">National ID</label>';
-	html += '<input class="lms-input" id="lms-brw-nid" name="national_id" type="text" value="' + lms_portal.escape(b.custom_national_id_number || "") + '" maxlength="32" />';
+	html += '<input class="lms-input" id="lms-brw-nid" name="national_id" type="text" value="' + lms_portal.escape(b.custom_national_id_number || "") + '" maxlength="32" placeholder="e.g. 63-000000-A99" />';
 	html += '</div>';
 	html += '</div></div>';
 
@@ -2013,7 +2013,7 @@ lms_officer._showBorrowerModal = function (b) {
 
 	if (b.loans && b.loans.length) {
 		html += '<h4 style="margin-top:1.5rem;">Loans (' + b.loans.length + ')</h4>';
-		html += '<div class="lms-data-table__wrap"><table class="lms-data-table"><thead><tr><th>Loan</th><th>Amount</th><th>Outstanding</th><th>Status</th><th>DPD</th></tr></thead><tbody>';
+		html += '<div class="lms-data-table__wrap"><table class="lms-data-table"><thead><tr><th>Loan</th><th>Amount</th><th>Outstanding</th><th>Status</th><th>Days Late</th></tr></thead><tbody>';
 		b.loans.forEach(function (l) {
 			html += "<tr><td><strong>" + lms_portal.escape(l.name) + "</strong></td>";
 			html += "<td>" + format_currency(l.loan_amount || 0) + "</td>";
@@ -2231,7 +2231,7 @@ lms_officer._renderLoansTab = function (el, pending, active) {
 	// Active loans section — already disbursed, in repayment.
 	if (active.length) {
 		var activeBody = '<div class="lms-data-table__wrap"><table class="lms-data-table">' +
-			"<thead><tr><th>Loan #</th><th>Borrower</th><th>Amount</th><th>Outstanding</th><th>Status</th><th>DPD</th><th>Actions</th></tr></thead><tbody>";
+			"<thead><tr><th>Loan #</th><th>Borrower</th><th>Amount</th><th>Outstanding</th><th>Status</th><th>Days Late</th><th>Actions</th></tr></thead><tbody>";
 		active.forEach(function (l) {
 			activeBody += "<tr>";
 			activeBody += "<td><strong>" + lms_portal.escape(l.name) + "</strong></td>";
@@ -2366,7 +2366,7 @@ lms_officer._showLoanModal = function (data) {
 	html += '<div class="lms-summary-card"><div class="lms-summary-label">Amount</div><div class="lms-summary-value">' + format_currency(l.loan_amount || 0) + '</div></div>';
 	html += '<div class="lms-summary-card"><div class="lms-summary-label">Outstanding</div><div class="lms-summary-value">' + format_currency(l.outstanding || 0) + '</div></div>';
 	html += '<div class="lms-summary-card"><div class="lms-summary-label">Status</div><div class="lms-summary-value">' + lms_portal.escape(l.status || "") + '</div></div>';
-	html += '<div class="lms-summary-card"><div class="lms-summary-label">DPD</div><div class="lms-summary-value">' + (l.dpd || 0) + '</div></div>';
+	html += '<div class="lms-summary-card"><div class="lms-summary-label">Days Late</div><div class="lms-summary-value">' + (l.dpd || 0) + '</div></div>';
 	html += '</div>';
 
 	// Action toolbar — Record Repayment, Download Statement, Download
@@ -2749,14 +2749,14 @@ lms_officer._renderKycQueue = function (el, data) {
 			'<h3>No KYC records</h3>' +
 			'<p>There are no KYC records matching the current filter in your branch.</p>' +
 			(counts.no_kyc ? '<p class="lms-muted">' + counts.no_kyc +
-				' borrower(s) in your branch have no KYC started yet — open them from the Borrowers tab and click <strong>Start KYC</strong>.</p>' : '') +
+				' borrowers in your branch have no KYC started yet — open them from the Borrowers tab and click <strong>Start KYC</strong>.</p>' : '') +
 			'</div>';
 	} else {
 		body =
 			'<div class="lms-data-table__wrap"><table class="lms-data-table">' +
 			"<thead><tr>" +
-			"<th>Borrower</th><th>Status</th><th>Consent</th><th>ID Doc</th><th>POA</th>" +
-			"<th>NID</th><th>AML</th><th>Updated</th><th>Actions</th>" +
+			"<th>Borrower</th><th>Status</th><th>Consent</th><th>ID Document</th><th>Proof of Address</th>" +
+			"<th>National ID</th><th>AML Check</th><th>Updated</th><th>Actions</th>" +
 			"</tr></thead><tbody>";
 		queue.forEach(function (r) {
 			var statusBadge = lms_portal.badgeClass(0, r.kyc_status);
@@ -2784,7 +2784,7 @@ lms_officer._renderKycQueue = function (el, data) {
 		{ label: "Rejected", value: counts.rejected || 0, tone: "danger" },
 	];
 	if (counts.no_kyc) {
-		kpis.push({ label: "Borrowers w/o KYC", value: counts.no_kyc, tone: "muted" });
+		kpis.push({ label: "No KYC yet", value: counts.no_kyc, tone: "muted" });
 	}
 
 	var html = lms_portal.pageStart() +
@@ -3218,7 +3218,7 @@ lms_officer._loadReport = function (content, reportType) {
 					var rows = b[key] || [];
 					if (!rows.length) return;
 					html += '<h5 style="margin-top:1rem;">' + bucketLabels[key] + ' (' + rows.length + ' loans)</h5>';
-					html += '<div class="lms-data-table__wrap"><table class="lms-data-table"><thead><tr><th>Loan</th><th>Borrower</th><th>Outstanding</th><th>DPD</th><th>Status</th></tr></thead><tbody>';
+					html += '<div class="lms-data-table__wrap"><table class="lms-data-table"><thead><tr><th>Loan</th><th>Borrower</th><th>Outstanding</th><th>Days Late</th><th>Status</th></tr></thead><tbody>';
 					rows.forEach(function (r) {
 						html += "<tr><td>" + lms_portal.escape(r.loan) + "</td>";
 						html += "<td>" + lms_portal.escape(r.customer_name || "") + "</td>";

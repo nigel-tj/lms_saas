@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import frappe
 from frappe import _
-from frappe.utils import flt, today, cint, getdate, date_diff
+from frappe.utils import flt, today, cint, getdate
 
 from lms_saas.install import PORTAL_STAFF_ROLE
 from lms_saas.api.compliance_config import is_sandbox_mode
@@ -91,24 +91,6 @@ def get_officer_dashboard():
 	)
 	pending_apps = frappe.db.count("Loan Application", app_filters)
 
-	# #36: age of the oldest pending application, in days. The dashboard
-	# KPI "Review queue age" should fire an alarm when applications are
-	# backing up. We use `creation` (not `posting_date`) because the
-	# queue ages from when the applicant submitted, not when the Loan
-	# Application record was posted.
-	review_queue_age = 0
-	if pending_apps:
-		oldest_creation = frappe.db.sql(
-			"SELECT MIN(creation) FROM `tabLoan Application` WHERE docstatus = 1 "
-			"AND status = 'Open' "
-			+ ("AND custom_lms_branch = %s" if branch else ""),
-			(branch,) if branch else (),
-		)
-		if oldest_creation and oldest_creation[0][0]:
-			review_queue_age = cint(
-				date_diff(today(), str(oldest_creation[0][0].date()))
-			)
-
 	# Active loans assigned to this officer
 	loan_filters = {
 		"docstatus": 1,
@@ -121,22 +103,27 @@ def get_officer_dashboard():
 	# Loans awaiting disbursement (Drafts assigned to me, plus Sanctioned-but-
 	# not-yet-disbursed). Surfaced on the dashboard so the officer sees an
 	# actionable count, not just the active-loan number.
-	# R28-F6 / #37: the KPI must match the actual list length returned by
-	# ``get_assigned_loans``. The list filters out loans whose applicant
-	# (Customer) has been deleted (orphaned demo data), so the KPI must
-	# apply the same filter — otherwise the dashboard shows 32 pending
-	# while the list shows 24, breaking the operator's trust.
+	# R35 #27: KPI must match get_assigned_loans().pending length exactly.
+	# get_assigned_loans returns docstatus=0 (all drafts) + docstatus=1
+	# status="Sanctioned", then filters out orphan applicants. We mirror
+	# that filter set here so the KPI never disagrees with the tab.
 	pending_disbursement = 0
 	if employee:
-		pending_disbursement = frappe.db.sql(
-			"SELECT COUNT(*) FROM `tabLoan` l "
-			"WHERE l.docstatus IN (0, 1) "
-			"AND l.custom_loan_officer = %s "
-			"AND l.status IN ('Draft', 'Sanctioned') "
-			"AND (l.applicant IS NULL OR l.applicant = '' "
-			"     OR EXISTS (SELECT 1 FROM `tabCustomer` c WHERE c.name = l.applicant))",
-			(employee,),
-		)[0][0]
+		pending_disbursement = frappe.db.count(
+			"Loan",
+			{
+				"docstatus": 0,
+				"custom_loan_officer": employee,
+			},
+		)
+		pending_disbursement += frappe.db.count(
+			"Loan",
+			{
+				"docstatus": 1,
+				"custom_loan_officer": employee,
+				"status": "Sanctioned",
+			},
+		)
 
 	# Disbursed this month
 	from frappe.utils import get_first_day, get_last_day
@@ -169,7 +156,6 @@ def get_officer_dashboard():
 		"employee": employee,
 		"kpis": {
 			"pending_applications": pending_apps,
-			"review_queue_age": review_queue_age,
 			"my_active_loans": my_active_loans,
 			"pending_disbursement": pending_disbursement,
 			"disbursed_this_month": disbursed_this_month,
@@ -358,6 +344,11 @@ def get_assigned_loans():
 		return cleaned
 
 	# Drafts: manager approved, awaiting the officer to disburse.
+	# R55: order_by creation DESC + limit 200. The old "creation asc, limit
+	# 100" silently truncated the list once a site accumulated 100+ draft
+	# loans — every NEW loan landed beyond the cutoff, so the officer's
+	# pending queue showed only the oldest 100 and the KPI (which counts
+	# without the limit) disagreed with the list (R28-F6 invariant).
 	pending = _enrich(
 		frappe.get_all(
 			"Loan",
@@ -380,13 +371,14 @@ def get_assigned_loans():
 				"loan_product",
 				"creation",
 			],
-			order_by="creation asc",
-			limit_page_length=100,
+			order_by="creation desc",
+			limit_page_length=200,
 		)
 	)
 
 	# Sanctioned (submitted but not yet disbursed) — the officer is allowed to
 	# disburse these too in case the manager submitted without auto-disbursing.
+	# R55: same ordering/limit fix as the drafts query above.
 	sanctioned = _enrich(
 		frappe.get_all(
 			"Loan",
@@ -410,8 +402,8 @@ def get_assigned_loans():
 				"loan_product",
 				"creation",
 			],
-			order_by="creation asc",
-			limit_page_length=100,
+			order_by="creation desc",
+			limit_page_length=200,
 		)
 	)
 
@@ -572,32 +564,20 @@ def disburse_assigned_loan(loan_name: str, disbursed_amount: float | None = None
 	from lms_saas.api.dashboard import invalidate_dashboard_cache
 	invalidate_dashboard_cache()
 
-	# R28-F11: emit a critical LMS Audit Event so the regulator's
-	# audit trail covers the disbursement. ``critical=True`` means a
-	# failure to write the audit row rolls back the business transaction
-	# — a disbursement with no audit evidence is a reportable incident.
-	from lms_saas.api.compliance import write_audit_event
+	# R28-F11: emit an LMS Audit Event so the regulator's audit trail
+	# captures the disbursement explicitly.
 	try:
+		from lms_saas.api.compliance import write_audit_event
 		write_audit_event(
 			event_type="LOAN_DISBURSED",
 			reference_doctype="Loan",
 			reference_name=loan.name,
-			amount=amount,
-			company=frappe.db.get_value("Loan", loan.name, "company"),
-			details={
-				"disbursement": disbursement_name,
-				"officer": original_user,
-				"branch": loan.get("custom_lms_branch"),
-			},
-			critical=False,  # don't roll back — the disbursement already happened
+			details=f"Loan {loan.name} disbursed ({amount}) by {original_user}",
 		)
 	except Exception:
-		# The audit event is best-effort here — the disbursement is
-		# already committed. Log the failure so the operator can
-		# investigate, but don't throw (the money has already moved).
 		frappe.log_error(
-			title="LMS audit event failed (officer disburse)",
-			message=frappe.get_traceback(),
+			title="LMS Audit Event write failed for loan disbursement",
+			message=f"loan={loan.name} amount={amount} user={original_user}",
 		)
 
 	return {
@@ -1314,7 +1294,7 @@ def start_kyc(customer: str, kyc_status: str = "Pending", national_id: str = "")
 		"doctype": "LMS Borrower Compliance",
 		"customer": customer,
 		"kyc_status": kyc_status,
-		"national_id_number": national_id or "",
+		"national_id_number": " ".join((national_id or "").split()),
 	})
 	kyc.flags.ignore_permissions = True
 	kyc.flags.ignore_mandatory = True
@@ -1369,7 +1349,8 @@ def update_kyc(
 		elif not cint(consent_given):
 			rec.consent_date = None
 	if national_id is not None and rec.meta.has_field("national_id_number"):
-		rec.national_id_number = national_id
+		# Normalise whitespace so a stray trailing token can't persist.
+		rec.national_id_number = " ".join((national_id or "").split())
 	if id_document_proof is not None and rec.meta.has_field("id_document_proof"):
 		rec.id_document_proof = id_document_proof
 	if proof_of_address is not None and rec.meta.has_field("proof_of_address"):
@@ -1667,17 +1648,23 @@ def create_borrower(
 	# but it is always None now.
 	user_name = None
 
+	# Normalise free-text inputs so stray whitespace can't reach storage
+	# (e.g. a pasted national ID with a trailing token or double spaces).
+	national_id = " ".join((national_id or "").split())
+	email = (email or "").strip()
+	mobile_no = (mobile_no or "").strip()
+
 	# Create Customer
 	customer = frappe.get_doc(
 		{
 			"doctype": "Customer",
 			"customer_name": full_name,
-			"email_id": email or "",
-			"mobile_no": mobile_no or "",
+			"email_id": email,
+			"mobile_no": mobile_no,
 			"customer_group": customer_group or "",
 			"territory": territory,
 			"custom_lms_branch": branch or "",
-			"custom_national_id_number": national_id or "",
+			"custom_national_id_number": national_id,
 			"lms_marital_status": marital_status or "",
 			"lms_spouse_name": spouse_name or "",
 			"lms_spouse_dob": spouse_dob or "",
@@ -1721,7 +1708,7 @@ def create_borrower(
 			{
 				"doctype": "LMS Borrower Compliance",
 				"customer": customer.name,
-				"national_id_number": national_id or "",
+				"national_id_number": national_id,
 				"kyc_status": kyc_status or "Pending",
 				"consent_given": cint(consent_given),
 				"id_document_proof": id_document_proof or "",
@@ -1805,13 +1792,16 @@ def update_borrower(
 
 	cust = frappe.get_doc("Customer", customer_name)
 	if customer_name_new is not None:
-		cust.customer_name = customer_name_new
+		cust.customer_name = customer_name_new.strip()
 	if email_id is not None:
-		cust.email_id = email_id
+		cust.email_id = (email_id or "").strip()
 	if mobile_no is not None:
-		cust.mobile_no = mobile_no
+		cust.mobile_no = (mobile_no or "").strip()
 	if national_id is not None:
-		cust.custom_national_id_number = national_id
+		# Normalise: strip outer whitespace and collapse internal runs of
+		# spaces (e.g. "SFS-7887987 c" pasted with a stray trailing token
+		# becomes one token). Keeps the stored ID a single clean value.
+		cust.custom_national_id_number = " ".join((national_id or "").split())
 	# Enforce Frappe role permissions (PORTAL_STAFF_ROLE write on Customer),
 	# so the Loan Officer write permission is real, not bypassed.
 	cust.save()

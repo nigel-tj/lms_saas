@@ -413,13 +413,13 @@ lms_portal.isForbiddenError = function (err) {
 
 lms_portal.forbiddenOrError = function (err, fallbackMsg, retryFn) {
 	if (lms_portal.isForbiddenError(err)) {
-		var msg = "This page is for borrowers with a linked Customer record.";
+		var msg = "You don't have access to this page.";
 		if (err && /no customer linked/i.test(String(err.message || ""))) {
-			msg = "No Customer is linked to your portal account. Ask your branch to link your Portal User on the Customer record.";
+			msg = "Your account isn't linked to a borrower record yet. Please contact your loan officer or branch to complete the setup.";
 		}
 		return lms_portal.renderNoAccess({ title: "Access denied", message: msg });
 	}
-	return lms_portal.error(fallbackMsg || "Something went wrong.", retryFn);
+	return lms_portal.error(fallbackMsg || "Something went wrong. Please try again.", retryFn);
 };
 
 /* ------------------------------------------------------------------ */
@@ -528,8 +528,8 @@ lms_portal.moduleUnavailable = function (opts) {
 	opts = opts || {};
 	var icon = opts.icon || "package";
 	var title = opts.title || "Module unavailable";
-	var message = opts.message || "This feature is not installed on this site yet.";
-	var hint = opts.hint || "Ask a System Manager to run a standard bench migrate after installing the required app, then refresh this page.";
+	var message = opts.message || "This feature isn't available yet.";
+	var hint = opts.hint || "Please check back later, or contact support if you need help.";
 	var home = opts.ctaHref || window.__lms_home_route || "/lms";
 	var ctaLabel = opts.ctaLabel || "Back to dashboard";
 	var iconHtml = (window.lms_icons && lms_icons.empty)
@@ -2132,16 +2132,16 @@ lms_portal._initFourEyesBadge = function () {
 	if (!badge) return;
 	badge.addEventListener("click", function () {
 		var body =
-			"<p><strong>Four-eyes (maker–checker)</strong> is enforced on this site.</p>" +
+			"<p><strong>Dual approval (maker–checker)</strong> is enforced on this site.</p>" +
 			"<ul style=\"margin:.75rem 0 0 1.1rem;padding:0;line-height:1.5;\">" +
-			"<li>The person who creates a disbursement or write-off cannot be the same person who submits it.</li>" +
-			"<li>Approving a loan application and disbursing that loan may also be separated when four-eyes is on.</li>" +
-			"<li>All high-impact money movements remain auditable (who / when / what).</li>" +
+			"<li>The person who prepares a disbursement or write-off cannot be the one who approves it.</li>" +
+			"<li>Approving a loan application and disbursing that loan are also kept separate when dual approval is on.</li>" +
+			"<li>Every high-impact payment stays fully auditable (who, when, and what).</li>" +
 			"</ul>" +
-			"<p class=\"lms-muted\" style=\"margin-top:1rem;\">Configured via <code>lms_enforce_four_eyes</code> in site_config.</p>";
+			"<p class=\"lms-muted\" style=\"margin-top:1rem;\">This control is configured by your system administrator.</p>";
 		if (window.LMSModal && typeof LMSModal.open === "function") {
 			LMSModal.open({
-				title: "Four-eyes control",
+				title: "Dual approval control",
 				titleIcon: "shield",
 				titleIcon: "shield",
 					size: "lg",
@@ -2151,7 +2151,7 @@ lms_portal._initFourEyesBadge = function () {
 			return;
 		}
 		if (typeof lms_portal.toast === "function") {
-			lms_portal.toast("Four-eyes is on: submitter must differ from document owner.", "info");
+			lms_portal.toast("Dual approval is on: the person who submits must differ from the document owner.", "info");
 		}
 	});
 };

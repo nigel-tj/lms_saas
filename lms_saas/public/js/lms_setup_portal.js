@@ -30,15 +30,15 @@ if (typeof frappe !== "undefined" && typeof frappe.provide === "function") {
 lms_setup._currentTab = "loan_products";
 lms_setup._TAB_TIMEOUT_MS = 6000;
 lms_setup._tabs = [
-	{ id: "loan_products",        label: "Loan Products",        icon: "briefcase",  kind: "tierA" },
-	{ id: "credit_policies",      label: "Credit Policies",      icon: "shield",     kind: "tierA" },
-	{ id: "loan_purposes",        label: "Loan Purposes",        icon: "tag",        kind: "tierB" },
-	{ id: "centers",              label: "Centers",              icon: "map-pin",    kind: "tierB" },
-	{ id: "lending_groups",       label: "Lending Groups",       icon: "users",      kind: "tierB" },
-	{ id: "announcements",        label: "Announcements",        icon: "bell",       kind: "tierB" },
-	{ id: "document_categories",  label: "Document Categories",  icon: "file-text",  kind: "tierB" },
-	{ id: "payment_providers",    label: "Payment Providers",    icon: "credit-card", kind: "tierB" },
-	{ id: "change_requests",      label: "Change Requests",      icon: "inbox",      kind: "tierA" },
+	{ id: "loan_products",        label: "Loan Products",       singular: "Loan Product",      icon: "briefcase",   kind: "tierA" },
+	{ id: "credit_policies",      label: "Credit Policies",     singular: "Credit Policy",     icon: "shield",      kind: "tierA" },
+	{ id: "loan_purposes",        label: "Loan Purposes",       singular: "Loan Purpose",      icon: "tag",         kind: "tierB" },
+	{ id: "centers",              label: "Centers",             singular: "Center",            icon: "map-pin",     kind: "tierB" },
+	{ id: "lending_groups",       label: "Lending Groups",      singular: "Lending Group",     icon: "users",       kind: "tierB" },
+	{ id: "announcements",        label: "Announcements",       singular: "Announcement",      icon: "bell",        kind: "tierB" },
+	{ id: "document_categories",  label: "Document Categories", singular: "Document Category", icon: "file-text",   kind: "tierB" },
+	{ id: "payment_providers",    label: "Payment Providers",   singular: "Payment Provider",  icon: "credit-card", kind: "tierB" },
+	{ id: "change_requests",      label: "Change Requests",     singular: "Change Request",    icon: "inbox",       kind: "tierA" },
 ];
 
 lms_setup.init = function () {
@@ -57,9 +57,12 @@ lms_setup.init = function () {
 };
 
 lms_setup._header = function () {
+	// Two-line header: title + helper. The badge on each panel shows
+	// whether changes need approval; the subtitle explains the split in
+	// plain language without internal release terminology.
 	return '<div class="lms-setup-header">' +
 		'<h1 class="lms-setup-title">Operations Manager Setup</h1>' +
-		'<p class="lms-setup-subtitle lms-muted">Loan products, credit policies, and operational configuration. Money-adjacent changes require admin approval.</p>' +
+		'<p class="lms-setup-subtitle lms-muted">Configure loan products, credit policies, and operational settings. Loan products and credit policies need administrator approval before changes take effect; everything else on this page updates immediately.</p>' +
 		'</div>';
 };
 
@@ -124,10 +127,10 @@ lms_setup._tabHandlers.loan_products = function (content) {
 	lms_setup._loadTierAList(content, {
 		tabId: "loan_products",
 		title: "Loan Products",
-		subtitle: "Products the company offers. Edits require admin approval.",
+		subtitle: "Products the company offers to borrowers. Any change you make here is sent to an administrator for approval before it takes effect.",
 		listMethod: "lms_saas.api.setup.list_loan_products",
 		listKey: "products",
-		emptyMessage: "No loan products configured yet. Use Propose New Product to add one.",
+		emptyMessage: "No loan products configured yet. Use Propose New Product to draft the first one.",
 		columns: [
 			{ key: "name",              label: "Name",           render: function (r) { return lms_portal.escape(r.name || ""); } },
 			{ key: "product_code",      label: "Code" },
@@ -157,11 +160,44 @@ lms_setup._tabHandlers.loan_products = function (content) {
 	});
 };
 
+lms_setup._tabLabel = function (tab) {
+	return (tab && tab.singular) ? tab.singular : ((tab && tab.label) ? tab.label.replace(/s$/, "") : "");
+};
+
 lms_setup._tabHandlers.credit_policies = function (content) {
 	content.innerHTML = lms_portal.panel({
 		title: "Credit Policies",
-		body: '<p class="lms-muted">Credit Policy editor (Tier A) ships in T3. The change-request queue is already wired — propose a draft from this tab in the next release.</p>',
+		body:
+			'<div class="lms-empty">' +
+			(lms_icons.empty ? lms_icons.empty("shield") : '<div class="lms-empty-icon">◇</div>') +
+			'<h3>Credit policy editor coming soon</h3>' +
+			'<p>You will be able to draft credit policies here for administrator approval. In the meantime, you can review existing proposals under Change Requests.</p>' +
+			'<p style="margin-top:0.75rem;"><a class="lms-btn lms-btn--primary" href="#" role="button" data-lms-setup-jump-tab="change_requests">View change requests</a></p>' +
+			'</div>',
 	});
+	// Bind the jump link inside the panel so the empty state actually
+	// takes the user somewhere. Falls back to no-op if the element is
+	// removed by a future editor implementation.
+	var jumpBtn = content.querySelector("[data-lms-setup-jump-tab]");
+	if (jumpBtn) {
+		jumpBtn.addEventListener("click", function (e) {
+			e.preventDefault();
+			var root = document.getElementById("lms-setup-root");
+			if (root) {
+				var target = jumpBtn.getAttribute("data-lms-setup-jump-tab");
+				root.querySelectorAll(".lms-tab").forEach(function (b) {
+					var match = b.getAttribute("data-tab") === target;
+					b.classList.toggle("is-active", match);
+					b.setAttribute("aria-selected", match ? "true" : "false");
+				});
+				lms_setup._currentTab = target;
+				if (typeof lms_portal.saveActiveTab === "function") {
+					lms_portal.saveActiveTab("setup", target);
+				}
+				lms_setup._showTab(target);
+			}
+		});
+	}
 };
 
 lms_setup._loadTierAList = function (content, opts) {
@@ -190,10 +226,20 @@ lms_setup._loadTierAList = function (content, opts) {
 				rowKey: opts.rowKey || "name",
 			});
 		}
+		// Panel header carries the title, an approval-status badge (so the
+		// user knows edits need sign-off before they take effect), and
+		// the subtitle rendered as a faint paragraph inside the body. Uses
+		// the shared .lms-section-header classes so it matches other portals.
+		var header = '<div class="lms-section-header">' +
+			'<div class="lms-section-header__title"><h3>' + lms_portal.escape(opts.title || "") +
+			' <span class="lms-badge lms-badge--watch" title="Changes made here are sent for administrator approval before they take effect">Approval required</span></h3></div>' +
+			(headerActions ? '<div class="lms-section-header__controls">' + headerActions + '</div>' : '') +
+			'</div>';
+		var headerBlock = (opts.subtitle
+			? header + '<p class="lms-muted" style="margin: 0 0 1rem 0; font-size: 0.875rem;">' + lms_portal.escape(opts.subtitle) + '</p>'
+			: header);
 		content.innerHTML = lms_portal.panel({
-			title: opts.title,
-			controls: headerActions,
-			body: body,
+			body: headerBlock + body,
 		});
 
 		if (opts.primaryAction) {
@@ -257,7 +303,11 @@ lms_setup._handleTierARowAction = function (content, opts, row, actionKind) {
 lms_setup._openTierAFormModal = function (opts, row, onSuccess) {
 	var schema = opts.draftSchema || { fields: [] };
 	var isEdit = !!row;
-	var title = isEdit ? "Edit " + opts.title.slice(0, -1) : "Propose New " + opts.title.slice(0, -1);
+	// opts.singular comes from the tab config so compound plurals like
+	// "Credit Policies" render as "Credit Policy" instead of "Credit
+	// Policie" (which the old opts.title.slice(0, -1) trick produced).
+	var singular = opts.singular || (opts.title || "").replace(/s$/, "");
+	var title = isEdit ? "Edit " + singular : "Propose New " + singular;
 	var formHtml = '<form class="lms-form" id="lms-setup-form">';
 	schema.fields.forEach(function (f) {
 		var val = row ? (row[f.key] != null ? row[f.key] : "") : "";
@@ -276,7 +326,7 @@ lms_setup._openTierAFormModal = function (opts, row, onSuccess) {
 		}
 		formHtml += '</div>';
 	});
-	formHtml += '<div class="lms-callout lms-callout--info" style="margin-top: 1rem;"><p style="margin: 0; font-size: 0.85rem;">A change request will be created for admin approval before any of these values are applied to the live loan product.</p></div>';
+	formHtml += '<div class="lms-callout lms-callout--info" style="margin-top: 1rem;"><p style="margin: 0; font-size: 0.85rem;">These details are not applied immediately. Your submission goes to an administrator for approval, and the loan product only changes once they approve it.</p></div>';
 	formHtml += '</form>';
 
 	lms_portal.modal({
@@ -300,7 +350,7 @@ lms_setup._openTierAFormModal = function (opts, row, onSuccess) {
 					lms_portal.toast(r.payload.message || "Could not submit change request", "error");
 					return false;
 				}
-				lms_portal.toast("Change request submitted — admin approval required.", "success");
+				lms_portal.toast("Submitted for approval. An administrator will review your changes.", "success");
 				setTimeout(function () { if (typeof onSuccess === "function") onSuccess(); }, 200);
 				return true;
 			});
@@ -310,10 +360,11 @@ lms_setup._openTierAFormModal = function (opts, row, onSuccess) {
 };
 
 lms_setup._confirmAndDisable = function (opts, row) {
+	var singular = opts.singular || (opts.title || "").replace(/s$/, "");
 	lms_portal.modal({
-		title: "Disable " + opts.title.slice(0, -1),
+		title: "Disable " + singular,
 		size: "sm",
-		body: '<p>Disabling <strong>' + lms_portal.escape(row.name) + '</strong> will prevent new loans from being created against it. Existing loans are not affected. Admin approval is required.</p>',
+		body: '<p>Disabling <strong>' + lms_portal.escape(row.name) + '</strong> will stop new loans being created with this product. Existing loans are not affected. Your request will be reviewed by an administrator before the product is disabled.</p>',
 		confirmText: "Submit Disable Request",
 		confirmVariant: "danger",
 		onConfirm: function () {
@@ -322,7 +373,7 @@ lms_setup._confirmAndDisable = function (opts, row) {
 				args: { name: row.name },
 			}).then(function (r) {
 				if (!r.ok) { lms_portal.toast(r.payload.message || "Could not submit disable request", "error"); return false; }
-				lms_portal.toast("Disable request submitted.", "success");
+				lms_portal.toast("Disable request submitted for review.", "success");
 				setTimeout(function () { lms_setup._showTab(lms_setup._currentTab); }, 200);
 				return true;
 			});
@@ -338,10 +389,11 @@ lms_setup._confirmAndDisable = function (opts, row) {
 lms_setup._tierBTabs = {
 	loan_purposes: {
 		title: "Loan Purposes",
+		singular: "Loan Purpose",
 		listMethod: "lms_saas.api.setup.list_loan_purposes",
 		listKey: "purposes",
 		itemKey: "purpose",
-		emptyMessage: "No loan purposes defined. Add one to start categorising loans.",
+		emptyMessage: "No loan purposes defined yet. Add one to start categorising loans on the loan application form.",
 		columns: [
 			{ key: "name", label: "Purpose" },
 		],
@@ -352,10 +404,11 @@ lms_setup._tierBTabs = {
 	},
 	centers: {
 		title: "Centers",
+		singular: "Center",
 		listMethod: "lms_saas.api.setup.list_centers",
 		listKey: "centers",
 		itemKey: "center",
-		emptyMessage: "No centers configured yet.",
+		emptyMessage: "No centers configured yet. Centers group borrowers for branch collection meetings.",
 		columns: [
 			{ key: "name",         label: "Name" },
 			{ key: "center_name",  label: "Display Name" },
@@ -368,10 +421,11 @@ lms_setup._tierBTabs = {
 	},
 	lending_groups: {
 		title: "Lending Groups",
+		singular: "Lending Group",
 		listMethod: "lms_saas.api.setup.list_lending_groups",
 		listKey: "groups",
 		itemKey: "group",
-		emptyMessage: "No lending groups yet.",
+		emptyMessage: "No lending groups yet. Lending groups sit inside Centers and are used for joint-liability microloans.",
 		columns: [
 			{ key: "name",        label: "Name" },
 			{ key: "group_name",  label: "Display Name" },
@@ -386,10 +440,11 @@ lms_setup._tierBTabs = {
 	},
 	announcements: {
 		title: "Announcements",
+		singular: "Announcement",
 		listMethod: "lms_saas.api.setup.list_announcements",
 		listKey: "announcements",
 		itemKey: "announcement",
-		emptyMessage: "No announcements configured.",
+		emptyMessage: "No announcements configured. Use this tab to broadcast policy changes or downtime notices to staff portals.",
 		columns: [
 			{ key: "name",      label: "Title" },
 			{ key: "audience",  label: "Audience" },
@@ -404,10 +459,11 @@ lms_setup._tierBTabs = {
 	},
 	document_categories: {
 		title: "Document Categories",
+		singular: "Document Category",
 		listMethod: "lms_saas.api.setup.list_document_categories",
 		listKey: "categories",
 		itemKey: "category",
-		emptyMessage: "No document categories configured.",
+		emptyMessage: "No document categories configured. Categories drive which KYC documents are requested on new loan applications.",
 		columns: [
 			{ key: "name",          label: "Name" },
 			{ key: "category_name", label: "Display Name" },
@@ -420,10 +476,11 @@ lms_setup._tierBTabs = {
 	},
 	payment_providers: {
 		title: "Payment Providers",
+		singular: "Payment Provider",
 		listMethod: "lms_saas.api.setup.list_payment_providers",
 		listKey: "providers",
 		itemKey: "provider",
-		emptyMessage: "No payment providers configured.",
+		emptyMessage: "No payment providers configured. Enable a provider to start accepting mobile-money or card repayments.",
 		columns: [
 			{ key: "name",     label: "Provider" },
 			{ key: "provider_name", label: "Display Name" },
@@ -453,10 +510,15 @@ lms_setup._loadTierBList = function (content, tabId) {
 		var body = rows.length
 			? lms_setup._renderTable({ rows: rows, columns: cfg.columns, rowKey: "name", rowActions: lms_setup._tierBRowActions(tabId) })
 			: '<div class="lms-callout lms-callout--info"><p>' + lms_portal.escape(cfg.emptyMessage) + '</p></div>';
+		// Panel: title + badge so the user knows these records save
+		// instantly. Identical layout to the approval-required header.
+		var header = '<div class="lms-section-header">' +
+			'<div class="lms-section-header__title"><h3>' + lms_portal.escape(cfg.title) +
+			' <span class="lms-badge lms-badge--current" title="Changes made here take effect immediately">Applies instantly</span></h3></div>' +
+			'<div class="lms-section-header__controls"><button type="button" class="lms-btn lms-btn--primary" data-lms-setup-tierb-add>Add New</button></div>' +
+			'</div>';
 		content.innerHTML = lms_portal.panel({
-			title: cfg.title,
-			controls: '<button type="button" class="lms-btn lms-btn--primary" data-lms-setup-tierb-add>Add New</button>',
-			body: body,
+			body: header + body,
 		});
 		var addBtn = content.querySelector("[data-lms-setup-tierb-add]");
 		if (addBtn) addBtn.addEventListener("click", function () { lms_setup._openTierBCreate(content, tabId); });
@@ -483,10 +545,11 @@ lms_setup._tierBRowActions = function (tabId) {
 
 lms_setup._openTierBCreate = function (content, tabId) {
 	var cfg = lms_setup._tierBTabs[tabId];
-	lms_setup._openTierBFormModal("Add " + cfg.title.slice(0, -1), cfg.createFields, function (values) {
+	var singular = cfg.singular || (cfg.title || "").replace(/s$/, "");
+	lms_setup._openTierBFormModal("Add " + singular, cfg.createFields, function (values) {
 		lms_setup._guardedCall({ method: cfg.createMethod, args: values }).then(function (r) {
-			if (!r.ok) { lms_portal.toast(r.payload.message || "Could not create record", "error"); return false; }
-			lms_portal.toast("Created.", "success");
+			if (!r.ok) { lms_portal.toast(r.payload.message || "Could not create " + singular.toLowerCase(), "error"); return false; }
+			lms_portal.toast(singular + " created.", "success");
 			setTimeout(function () { lms_setup._showTab(lms_setup._currentTab); }, 200);
 			return true;
 		});
@@ -497,11 +560,12 @@ lms_setup._openTierBCreate = function (content, tabId) {
 lms_setup._openTierBEdit = function (content, tabId, row) {
 	var cfg = lms_setup._tierBTabs[tabId];
 	if (!cfg.editMethod || !row) return;
-	lms_setup._openTierBFormModal("Edit " + cfg.title.slice(0, -1), cfg.editFields, function (values) {
+	var singular = cfg.singular || (cfg.title || "").replace(/s$/, "");
+	lms_setup._openTierBFormModal("Edit " + singular, cfg.editFields, function (values) {
 		var args = Object.assign({ name: row.name }, values);
 		lms_setup._guardedCall({ method: cfg.editMethod, args: args }).then(function (r) {
-			if (!r.ok) { lms_portal.toast(r.payload.message || "Could not update record", "error"); return false; }
-			lms_portal.toast("Updated.", "success");
+			if (!r.ok) { lms_portal.toast(r.payload.message || "Could not update " + singular.toLowerCase(), "error"); return false; }
+			lms_portal.toast(singular + " updated.", "success");
 			setTimeout(function () { lms_setup._showTab(lms_setup._currentTab); }, 200);
 			return true;
 		});
@@ -514,7 +578,7 @@ lms_setup._toggleTierB = function (content, tabId, row) {
 	var next = !row.enabled;
 	lms_setup._guardedCall({ method: cfg.toggleMethod, args: { name: row.name, enabled: next ? 1 : 0 } }).then(function (r) {
 		if (!r.ok) { lms_portal.toast(r.payload.message || "Could not toggle provider", "error"); return; }
-		lms_portal.toast(next ? "Enabled." : "Disabled.", "success");
+		lms_portal.toast(next ? "Provider enabled." : "Provider disabled.", "success");
 		setTimeout(function () { lms_setup._showTab(lms_setup._currentTab); }, 200);
 	});
 };
@@ -566,13 +630,17 @@ lms_setup._tabHandlers.change_requests = function (content) {
 		var rows = (r.payload.message && r.payload.message.change_requests) || [];
 		var body = rows.length
 			? lms_setup._renderChangeRequestTable(rows)
-			: '<div class="lms-callout lms-callout--info"><p>No change requests yet. Propose one from the Loan Products or Credit Policies tab.</p></div>';
+			: lms_setup._changeRequestsEmpty();
 		content.innerHTML = lms_portal.panel({
 			title: "Change Requests",
-			controls: '<span class="lms-muted" style="font-size: 0.85rem;">Money-adjacent changes waiting for admin approval.</span>',
+			controls: '<span class="lms-muted" style="font-size: 0.85rem;">Changes waiting for an administrator to review.</span>',
 			body: body,
 		});
 	});
+};
+
+lms_setup._changeRequestsEmpty = function () {
+	return '<div class="lms-callout lms-callout--info"><p>No change requests yet. To propose a change, open the <strong>Loan Products</strong> tab and use <strong>Propose New Product</strong> or <strong>Edit</strong>.</p></div>';
 };
 
 lms_setup._renderChangeRequestTable = function (rows) {
@@ -580,10 +648,19 @@ lms_setup._renderChangeRequestTable = function (rows) {
 		'<th>Request</th><th>Target</th><th>Type</th><th>Status</th><th>Proposed By</th><th>Created</th>' +
 		'</tr></thead><tbody>';
 	rows.forEach(function (cr) {
-		var statusBadge = lms_setup._statusBadge(cr.status);
+		var statusBadge = lms_setup._statusBadge(cr);
+		// Compose Target cell as "Loan Product · LMS-STD" so the parent
+		// doctype reads as a label, not just smashed next to the name.
+		var targetLabel = cr.target_doctype || "";
+		var targetName = cr.target_name || "—";
+		var targetCell = targetName
+			? (targetLabel
+				? '<span class="lms-muted">' + lms_portal.escape(targetLabel) + '</span> &middot; <strong>' + lms_portal.escape(targetName) + '</strong>'
+				: '<strong>' + lms_portal.escape(targetName) + '</strong>')
+			: '<span class="lms-muted">—</span>';
 		html += '<tr>' +
 			'<td>' + lms_portal.escape(cr.name || "") + '</td>' +
-			'<td>' + lms_portal.escape((cr.target_doctype || "") + " " + (cr.target_name || "")) + '</td>' +
+			'<td>' + targetCell + '</td>' +
 			'<td>' + lms_portal.escape(cr.change_type || "") + '</td>' +
 			'<td>' + statusBadge + '</td>' +
 			'<td>' + lms_portal.escape(cr.requested_by || "") + '</td>' +
@@ -591,16 +668,32 @@ lms_setup._renderChangeRequestTable = function (rows) {
 			'</tr>';
 	});
 	html += '</tbody></table></div>';
-	html += '<p class="lms-muted" style="margin-top: 1rem; font-size: 0.85rem;">Approve / reject from the Admin Console → Setup Change Requests list view. Pending GL-missing entries show their wiring notes inline.</p>';
+	html += '<p class="lms-muted" style="margin-top: 1rem; font-size: 0.85rem;">Requests are approved or rejected by an administrator (Admin Console &rarr; Setup Change Requests). Requests marked <strong>Missing account details</strong> include notes explaining what must be set up first.</p>';
 	return html;
 };
 
-lms_setup._statusBadge = function (status) {
+lms_setup._statusBadge = function (cr) {
+	// Badge text is shortened so the pill stays readable. The full
+	// status is preserved in the title attribute for hover detail.
+	// "Missing GL Accounts" (server-side status) is shown to users as
+	// "Missing account details" — plain language, no ledger jargon.
+	var status = cr && cr.status ? cr.status : "";
+	var short = status;
+	var title = "";
+	if (status === "Pending") { short = "Pending review"; }
+	else if (status === "Pending — Missing GL Accounts") {
+		short = "Missing account details";
+		title = "Pending — Missing GL Accounts (needs ledger setup by an administrator first)";
+	}
+	else if (status === "Approved") { short = "Approved"; title = "Approved"; }
+	else if (status === "Applied") { short = "Applied"; title = "Approved and applied to the live record"; }
+	else if (status === "Rejected") { short = "Rejected"; }
+	else if (status === "Cancelled") { short = "Cancelled"; }
 	var cls = "lms-badge--default";
 	if (status === "Pending") cls = "lms-badge--watch";
-	else if (status === "Approved") cls = "lms-badge--current";
+	else if (status === "Approved" || status === "Applied") cls = "lms-badge--current";
 	else if (status === "Pending — Missing GL Accounts") cls = "lms-badge--npa";
 	else if (status === "Rejected" || status === "Cancelled") cls = "lms-badge--npa";
-	else if (status === "Applied") cls = "lms-badge--current";
-	return '<span class="lms-badge ' + cls + '">' + lms_portal.escape(status || "") + '</span>';
+	var titleAttr = title ? ' title="' + lms_portal.escape(title) + '"' : ' title="' + lms_portal.escape(status) + '"';
+	return '<span class="lms-badge ' + cls + '"' + titleAttr + '>' + lms_portal.escape(short) + '</span>';
 };
