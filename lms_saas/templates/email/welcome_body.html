@@ -1,23 +1,16 @@
 <p style="margin:0 0 16px;">{{ _("Hello") }} <strong>{{ customer_name }}</strong>,</p>
-<p style="margin:0 0 16px;">{{ _("Welcome to {0}. Your account has been created and you can now access the borrower portal.").format(company_name) }}</p>
-
-<p style="margin:0 0 8px;font-size:14px;font-weight:600;">{{ _("What you can do:") }}</p>
-<ul style="margin:0 0 20px;padding-left:20px;font-size:14px;line-height:1.8;color:#475569;">
-  <li>{{ _("View your active loans and repayment schedule") }}</li>
-  <li>{{ _("Make payments online") }}</li>
-  <li>{{ _("Track your payment history and outstanding balance") }}</li>
-</ul>
+<p style="margin:0 0 16px;">{{ _("Welcome to {0}. Your account is ready — sign in to see your loans and make payments.").format(company_name) }}</p>
 
 <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
   <tr>
     <td align="center" style="padding:8px 0;">
-      <a href="{{ site_url | safe }}/lms" style="display:inline-block;padding:14px 32px;background:{{ primary_color }};color:#ffffff;font-weight:600;font-size:15px;border-radius:8px;text-decoration:none;">{{ _("Go to my account") }}</a>
+      <a href="{{ site_url | safe }}/lms" style="display:inline-block;padding:14px 32px;background:{{ primary_color }};color:#ffffff;font-weight:600;font-size:15px;border-radius:8px;text-decoration:none;">{{ _("Open my account") }}</a>
     </td>
   </tr>
 </table>
 
 <p style="margin:20px 0 8px;font-size:14px;font-weight:600;">{{ _("Set your password") }}</p>
-<p style="margin:0 0 12px;font-size:14px;color:#475569;">{{ _("Use the link below to choose your sign-in password. The link expires in 24 hours.") }}</p>
+<p style="margin:0 0 12px;font-size:14px;color:#475569;">{{ _("This link expires in 24 hours.") }}</p>
 <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
   <tr>
     <td align="center" style="padding:4px 0;">
@@ -25,4 +18,4 @@
     </td>
   </tr>
 </table>
-<p style="margin:16px 0 0;font-size:13px;color:#64748b;">{{ _("If you did not expect this email, you can safely ignore it.") }}</p>
+<p style="margin:16px 0 0;font-size:13px;color:#64748b;">{{ _("If you didn’t ask for this, ignore the email.") }}</p>

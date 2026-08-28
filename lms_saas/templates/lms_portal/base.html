@@ -270,7 +270,11 @@
         </dl>
 
         <div class="lms-topbar__org-popover-footnote">
-          {{ _("Context is set per site. Admins can change the brand and the default company in ") }}<a href="/desk/lms-brand-settings">{{ _("LMS Brand Settings") }}</a>{{ _(".") }}
+          {% if lms_show_staff_desk %}
+          <a href="/desk/lms-brand-settings">{{ _("Edit brand and company") }}</a>
+          {% else %}
+          {{ _("Set by your office. Ask them to update if anything’s wrong.") }}
+          {% endif %}
         </div>
       </div>
     </div>
@@ -296,9 +300,8 @@
 <div class="lms-sandbox-banner" role="status" aria-live="polite" id="lms-sandbox-banner">
   <span class="lms-sandbox-banner__icon" aria-hidden="true">⚠</span>
   <span class="lms-sandbox-banner__text">
-    <strong>Sandbox / demonstration mode.</strong>
-    No real money is processed. To exit sandbox, an operator licence must be configured and the
-    <code>lms_sandbox_end_date</code> site-config key removed.
+    <strong>Demo mode.</strong>
+    No real money is processed.
   </span>
   <button type="button" class="lms-sandbox-banner__dismiss" aria-label="Dismiss banner" id="lms-sandbox-dismiss">×</button>
 </div>
