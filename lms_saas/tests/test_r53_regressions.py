@@ -28,12 +28,24 @@ from frappe.utils import add_months, today, now_datetime
 from lms_saas.api import manager as manager_api
 
 # Reuse the helpers from test_release_gate_money so we don't duplicate fixture code.
-from test_release_gate_money import (
-    _resolve_branch,
-    _seed_branch,
-    _seed_officer,
-    _ensure_loan_product,
-)
+# Import style: try the package-qualified path first (works under the canonical
+# run_lms_tests.py runner, which imports modules as lms_saas.tests.*), then fall
+# back to the bare sibling import (works when the tests directory itself is on
+# sys.path, e.g. running this file directly ad-hoc).
+try:
+    from lms_saas.tests.test_release_gate_money import (
+        _resolve_branch,
+        _seed_branch,
+        _seed_officer,
+        _ensure_loan_product,
+    )
+except ImportError:  # pragma: no cover - fallback for ad-hoc invocation
+    from test_release_gate_money import (  # type: ignore[no-redef]
+        _resolve_branch,
+        _seed_branch,
+        _seed_officer,
+        _ensure_loan_product,
+    )
 
 
 COMPANY = "LMS Demo Co"
