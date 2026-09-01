@@ -820,16 +820,22 @@ def _ensure_lending_permissions():
     # rows in the *officer's* session. Without these perms, every
     # collection attempt is rejected with
     # "officer@… does not have doctype access via role permission for
-    # document Loan Demand". Read + write + create + submit + report is
-    # the minimum the hook needs; we explicitly leave delete / cancel /
-    # amend off so the officer cannot desynchronise the audit trail by
-    # hand. Branch scope is still enforced server-side in
-    # _assert_loan_in_scope.
+    # document Loan Demand" (or Loan Repayment itself). Read + write +
+    # create + submit + report is the minimum the hook needs; we
+    # explicitly leave delete / cancel / amend off so the officer
+    # cannot desynchronise the audit trail by hand. Branch scope is
+    # still enforced server-side in _assert_loan_in_scope.
     lending_hook_perm = {
         "read": 1, "write": 1, "create": 1, "submit": 1, "report": 1,
         "export": 0, "delete": 0, "cancel": 0, "amend": 0, "email": 0,
     }
-    for dt in ("Loan Demand", "Loan Interest Accrual", "Loan Repayment Schedule"):
+    for dt in (
+        "Loan Repayment",
+        "Loan Demand",
+        "Loan Interest Accrual",
+        "Loan Repayment Schedule",
+        "Loan",
+    ):
         _ensure_role_perm("LMS Portal Staff", dt, lending_hook_perm)
 
 

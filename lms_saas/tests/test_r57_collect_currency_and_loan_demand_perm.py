@@ -25,16 +25,19 @@ flipped from ZAR (Kesari) to USD (LMS Demo Co):
    Lending's ``Loan Repayment.on_submit`` hook fires
    ``update_demands`` / ``reverse_demands`` / ``make_new_demand``,
    which load and write ``Loan Demand`` / ``Loan Interest Accrual``
-   rows in the *officer's* session. ``Loan Demand`` wasn't in
-   ``_lending_doctypes()`` so the perm grant skipped it, and
-   ``LMS Portal Staff`` had no Custom DocPerm on it either.
+   rows in the *officer's* session. Worse, ``LMS Portal Staff`` had
+   no DocPerm at all on ``Loan Repayment`` or ``Loan`` itself, so
+   even a basic ``frappe.has_permission(..., throw=True)`` inside
+   the hook / child-table loader rejected the officer with
+   "Not permitted" before the hook could run.
 
    Fix: add ``Loan Demand`` + ``Loan Interest Accrual`` to
    ``_lending_doctypes()`` so System Manager / Administrator get the
    full perm, and grant ``LMS Portal Staff`` the minimum perm the
    submit hook needs (read + write + create + submit + report, but
    NOT delete / cancel / amend so the officer can't desync the
-   audit trail by hand).
+   audit trail by hand). Loan Repayment and Loan are also included
+   so the field-collection path can read + submit its own records.
 
 These tests pin both invariants so a future refactor cannot
 reintroduce the hardcoded ZAR or strip the perm grant.
@@ -51,7 +54,13 @@ from frappe.tests.utils import FrappeTestCase
 
 COMPANY = "LMS Demo Co"
 PERSONA_ROLE = "LMS Portal Staff"
-LENDING_HOOK_DOCTYPES = ("Loan Demand", "Loan Interest Accrual", "Loan Repayment Schedule")
+LENDING_HOOK_DOCTYPES = (
+    "Loan Repayment",
+    "Loan Demand",
+    "Loan Interest Accrual",
+    "Loan Repayment Schedule",
+    "Loan",
+)
 
 
 # --- Fix 1: no hardcoded ZAR anywhere in the collect modal JS -----------

@@ -1090,6 +1090,65 @@ def _reconcile_seeded_branches(target_branch: str) -> dict:
 		per_table[table] = int(count)
 		reassigned += int(count)
 
+	# R57: ALSO reconcile the standard ``cost_center`` field on the
+	# same tables. Loans created before the company abbr change carry a
+	# stale ``cost_center`` (``Main Branch - LD`` / ``Main - LD``) while
+	# every staff User Permission points at the live branch Cost Center
+	# (``Main Branch - LMS``). Lending's Loan Demand inherits the loan's
+	# cost_center, so a field collection on such a loan fails the
+	# officer's Cost Center user-permission check with a bare
+	# "Not permitted" — even though the DocPerm rows are correct.
+	# Normalizing cost_center to the branch the data already belongs to
+	# removes the drift at the source.
+	for table in ("Loan", "Loan Application"):
+		if not frappe.db.table_exists(table):
+			continue
+		meta = frappe.get_meta(table)
+		if not meta.has_field("cost_center"):
+			continue
+		stale = frappe.db.sql(
+			f"""
+			SELECT COUNT(*)
+			FROM `tab{table}`
+			WHERE cost_center IS NOT NULL
+			  AND cost_center != ''
+			  AND cost_center != %s
+			  AND custom_lms_branch = %s
+			""",
+			(target_branch, target_branch),
+		)[0][0]
+		# Also retag rows whose cost_center references a Cost Center that
+		# no longer exists (phantom ``Main - LD`` rows from the abbr change).
+		orphaned = frappe.db.sql(
+			f"""
+			SELECT COUNT(*)
+			FROM `tab{table}` t
+			WHERE t.cost_center IS NOT NULL
+			  AND t.cost_center != ''
+			  AND NOT EXISTS (SELECT 1 FROM `tabCost Center` cc WHERE cc.name = t.cost_center)
+			""",
+		)[0][0]
+		count = int(stale) + int(orphaned)
+		if not count:
+			continue
+		# Point every in-branch row at the target branch's Cost Center;
+		# point orphaned rows (dead cost_center) at the target as well —
+		# they have no other home and their custom_lms_branch is already
+		# the target branch from the loop above.
+		frappe.db.sql(
+			f"""
+			UPDATE `tab{table}`
+			SET cost_center = %s
+			WHERE (custom_lms_branch = %s AND (cost_center IS NOT NULL AND cost_center != %s))
+			   OR (cost_center IS NOT NULL
+			       AND cost_center != ''
+			       AND NOT EXISTS (SELECT 1 FROM `tabCost Center` cc WHERE cc.name = `tab{table}`.cost_center))
+			""",
+			(target_branch, target_branch, target_branch),
+		)
+		per_table[f"{table}.cost_center"] = count
+		reassigned += count
+
 	return {"reassigned": reassigned, "per_table": per_table, "target": target_branch}
 
 
