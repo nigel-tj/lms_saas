@@ -300,25 +300,15 @@ lms_collect._openCollectModal = function (loan, fullAmount, root) {
 	// A typo of "2000" when "200" was meant loses the customer's money;
 	// the explicit confirm sentence + checkbox is the cheapest defense
 	// that does not require a network round-trip.
-	// R57: read the company currency from window.__lms_currency (set by
-	// shell.html from site_config) so the confirm sentence reads in the
-	// operator's currency (USD, ZAR, KES, NGN, …) rather than the
-	// hard-coded ZAR that the demo started with. Fall back to
-	// frappe.boot.sysdefaults.currency and finally to the literal "USD"
-	// if neither is set yet.
-	var confirmCurrency =
-		window.__lms_currency ||
-		(typeof frappe !== "undefined" &&
-			frappe.boot &&
-			frappe.boot.sysdefaults &&
-			frappe.boot.sysdefaults.currency) ||
-		"USD";
+	// R57: the confirm sentence reads in the company's currency (USD,
+	// ZAR, KES, NGN, …) rather than the hard-coded ZAR that the demo
+	// started with. The currency resolution chain lives in ONE place —
+	// lms_portal.resolveCurrency() — which the formatCurrency helper
+	// also uses, so this modal and every other currency display on the
+	// portal can never disagree about which currency is in play.
+	var confirmCurrency = lms_portal.resolveCurrency();
 	var formatMoney = function (v) {
-		try {
-			return lms_portal.formatCurrency(v, confirmCurrency);
-		} catch (e) {
-			return confirmCurrency + " " + Number(v || 0).toFixed(2);
-		}
+		return lms_portal.formatCurrency(v, confirmCurrency);
 	};
 	var body =
 		'<div class="lms-form">' +

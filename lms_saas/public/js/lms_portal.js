@@ -267,14 +267,27 @@ lms_portal.formatDate = function (value) {
 	return String(value).slice(0, 10);
 };
 
+/* Single source of truth for the portal's display currency. Reads
+ * window.__lms_currency (set by shell.html from site_config), falls
+ * back to frappe.boot.sysdefaults.currency, then to "USD". Callers
+ * should use this instead of inlining the chain so the resolution
+ * logic lives in exactly one place (R57 DRY review). */
+lms_portal.resolveCurrency = function () {
+	return (
+		window.__lms_currency ||
+		(typeof frappe !== "undefined" &&
+			frappe.boot &&
+			frappe.boot.sysdefaults &&
+			frappe.boot.sysdefaults.currency) ||
+		"USD"
+	);
+};
+
 /* Format a currency value using the browser's Intl.NumberFormat so the
  * display adapts to the user's locale (ZAR, KES, NGN, USD, etc.). Falls
  * back to Frappe's format_currency if available, then to a plain number. */
 lms_portal.formatCurrency = function (value, currency) {
-	currency = currency
-		|| window.__lms_currency
-		|| (typeof frappe !== "undefined" && frappe.boot && frappe.boot.sysdefaults && frappe.boot.sysdefaults.currency)
-		|| "USD";
+	currency = currency || lms_portal.resolveCurrency();
 	var locale = window.__lms_lang || undefined;
 	if (typeof Intl !== "undefined" && Intl.NumberFormat) {
 		try {

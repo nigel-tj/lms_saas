@@ -107,26 +107,56 @@ class TestCollectModalCurrency(FrappeTestCase):
         )
 
     def test_confirm_uses_currency_helper(self):
-        """The collect modal should call the currency-aware formatter
-        (lms_portal.formatCurrency) so the operator sees the right
-        symbol + grouping + fraction digits for the company's currency.
+        """The collect modal should delegate currency resolution to
+        lms_portal.resolveCurrency() and formatting to
+        lms_portal.formatCurrency() — NOT inline its own fallback
+        chain. If the chain were inlined here AND in lms_portal.js,
+        the two could drift apart and the modal would disagree with
+        every other currency display on the portal (the exact bug the
+        DRY review caught: modal said ZAR while rows said $).
         """
         src = self._read_collect_js()
-        # The function must reference both window.__lms_currency and
-        # lms_portal.formatCurrency. If either is missing, a future
-        # refactor that reverts to a hardcoded string will pass the
-        # ZAR test above but still break the symbol/grouping.
         self.assertIn(
-            "window.__lms_currency",
+            "lms_portal.resolveCurrency",
             src,
-            "Collect modal should read window.__lms_currency so the "
-            "company's site_config currency is honoured.",
+            "Collect modal must call lms_portal.resolveCurrency() so the "
+            "currency fallback chain lives in one place.",
         )
         self.assertIn(
             "lms_portal.formatCurrency",
             src,
             "Collect modal should call lms_portal.formatCurrency for "
             "locale-aware symbol + grouping (Intl.NumberFormat).",
+        )
+        # The old inline chain must not reappear in this file.
+        self.assertNotIn(
+            "frappe.boot.sysdefaults.currency",
+            src,
+            "Collect modal must not inline the currency fallback chain — "
+            "use lms_portal.resolveCurrency().",
+        )
+
+    def test_resolve_currency_is_single_source_of_truth(self):
+        """lms_portal.js must define resolveCurrency() and its
+        formatCurrency must consume it — this is what makes the chain
+        single-sourced across the whole portal.
+        """
+        import os
+
+        app_root = frappe.get_app_path("lms_saas")
+        with open(os.path.join(app_root, "public", "js", "lms_portal.js")) as f:
+            portal_src = f.read()
+        self.assertIn(
+            "lms_portal.resolveCurrency = function",
+            portal_src,
+            "lms_portal.js must define resolveCurrency as the single "
+            "source of truth for the display currency.",
+        )
+        self.assertIn(
+            "currency = currency || lms_portal.resolveCurrency()",
+            portal_src,
+            "formatCurrency must resolve via resolveCurrency(), not its "
+            "own inline fallback chain.",
         )
 
 
