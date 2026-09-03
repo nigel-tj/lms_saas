@@ -327,14 +327,20 @@ def undo_collection(loan: str, repayment: str):
 		r.delete()
 
 	# R18-6: money-event audit row so the operator can prove the reversal.
-	from lms_saas.api.compliance import record_money_event
+	# R58-sweep fix: record_money_event is a doc_event hook (doc, method) —
+	# the audit row goes through write_audit_event directly. The old call
+	# passed event_type=/amount= kwargs that the hook never accepted, so
+	# UNDO crashed with TypeError AFTER the cancel — the repayment was
+	# reversed but the collector saw a 500 and the audit trail lost the
+	# reversal event.
+	from lms_saas.api.compliance import write_audit_event
 
-	record_money_event(
-		event_type="Loan Repayment Cancelled",
+	write_audit_event(
+		event_type="Loan Repayment:Cancelled",
 		reference_doctype="Loan Repayment",
 		reference_name=repayment,
 		amount=-flt(r.amount_paid or 0),
-		details=f"Undone by collector via R18-6 Undo toast within 5 min of creation.",
+		details="Undone by collector via R18-6 Undo toast within 5 min of creation.",
 	)
 
 	return {"loan": loan, "repayment": repayment, "status": "cancelled"}
