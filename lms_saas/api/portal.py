@@ -869,7 +869,7 @@ def mark_notifications_read():
     # datetime value: ''" (1292). IS NULL alone is the exact
     # semantics for an unset datetime and is plan-stable.
     now = frappe.utils.now_datetime()
-    updated = frappe.db.sql(
+    frappe.db.sql(
         """update `tabLMS Notification Log`
            set read_on = %(read_on)s, modified = %(modified)s, modified_by = %(user)s
            where loan in %(loans)s
@@ -883,8 +883,9 @@ def mark_notifications_read():
             "statuses": tuple(visible_statuses),
         },
     )
+    marked = frappe.db._cursor.rowcount if getattr(frappe.db, "_cursor", None) else 0
     frappe.db.commit()
-    return {"marked": updated}
+    return {"marked": max(marked, 0)}
 
 
 def _notification_loan_scope(visible_statuses=("Sent", "Dev-Sent", "Queued")):
