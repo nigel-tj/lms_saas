@@ -808,50 +808,9 @@ def get_portal_notifications():
     """
     if frappe.session.user == "Guest":
         frappe.throw("Please log in", frappe.PermissionError)
-    from lms_saas.install import PORTAL_STAFF_ROLE
 
-    roles = set(frappe.get_roles(frappe.session.user))
-    is_admin = bool(roles.intersection({"System Manager", "Administrator"}))
-    is_staff = (PORTAL_STAFF_ROLE in roles and "Customer" not in roles) and not is_admin
-    is_borrower = "Customer" in roles and not is_staff
-
-    # R41: include all delivery-shaped statuses (Sent, Dev-Sent, Queued)
-    # so the bell surfaces real activity, not just perfectly-delivered
-    # emails. Failed/Skipped rows stay hidden — they are operational
-    # signal, not user-facing notifications.
     visible_statuses = ("Sent", "Dev-Sent", "Queued")
-
-    loan_names: list[str] = []
-
-    if is_borrower:
-        customer = _require_customer()
-        loan_names = frappe.get_all(
-            "Loan",
-            filters={"applicant_type": "Customer", "applicant": customer, "docstatus": 1},
-            pluck="name",
-        )
-    elif is_staff:
-        # R43: portal staff see notifications for loans in their branch.
-        # This surfaces e.g. SMS/email delivery confirmations and PIN
-        # failures on loans the officer is responsible for so they can
-        # proactively re-engage the borrower. Branch is resolved via the
-        # same resolver the rest of the staff APIs use so scope is
-        # consistent across tabs. Admins still get empty (no branch).
-        from lms_saas.api.staff import get_current_user_branch
-
-        branch = get_current_user_branch()
-        if not branch:
-            return {"notifications": [], "unread_count": 0}
-        loan_names = frappe.get_all(
-            "Loan",
-            filters={"custom_lms_branch": branch, "docstatus": 1},
-            pluck="name",
-        )
-    else:
-        # Plain admin / no persona — return empty so the bell is silent
-        # rather than surfacing a "Not permitted" dialog.
-        return {"notifications": [], "unread_count": 0}
-
+    loan_names = _notification_loan_scope(visible_statuses)
     if not loan_names:
         return {"notifications": [], "unread_count": 0}
 
@@ -886,29 +845,93 @@ def get_portal_notifications():
 
 @frappe.whitelist()
 def mark_notifications_read():
-    """Mark all the borrower's unread notifications as read (bell open = seen)."""
-    customer = _require_customer()
-    loan_names = frappe.get_all(
-        "Loan",
-        filters={"applicant_type": "Customer", "applicant": customer, "docstatus": 1},
-        pluck="name",
-    )
+    """Mark all the caller's unread notifications as read (bell open = seen).
+
+    R58: resolve the caller through the same shared scope the list side
+    of the bell uses (borrower → own loans, portal staff → branch loans,
+    admin → silence). The previous borrower-only resolution queued the
+    "No account on file yet" msgprint for every staff persona — the
+    modal staff saw on each bell open — and marked nothing, so the
+    unread badge could never clear.
+    """
+    visible_statuses = ("Sent", "Dev-Sent", "Queued")
+    loan_names = _notification_loan_scope(visible_statuses)
     if not loan_names:
         return {"marked": 0}
 
+    # R58: update via SQL with an explicit IS NULL instead of
+    # db.set_value's ("is", "not set") filter. set_value builds
+    # `(read_on IS NULL OR read_on='')`; the empty-string half is a
+    # varchar-era shim that is meaningless for the datetime(6)
+    # read_on column, and MariaDB's optimizer flips to a plan that
+    # evaluates `read_on = ''` against datetime rows once the IN list
+    # grows past ~70 loans — surfacing as "Truncated incorrect
+    # datetime value: ''" (1292). IS NULL alone is the exact
+    # semantics for an unset datetime and is plan-stable.
     now = frappe.utils.now_datetime()
-    updated = frappe.db.set_value(
-        "LMS Notification Log",
+    updated = frappe.db.sql(
+        """update `tabLMS Notification Log`
+           set read_on = %(read_on)s, modified = %(modified)s, modified_by = %(user)s
+           where loan in %(loans)s
+             and status in %(statuses)s
+             and read_on is null""",
         {
-            "loan": ("in", loan_names),
-            "status": ("in", ("Sent", "Dev-Sent", "Queued")),
-            "read_on": ("is", "not set"),
+            "read_on": now,
+            "modified": now,
+            "user": frappe.session.user,
+            "loans": tuple(loan_names),
+            "statuses": tuple(visible_statuses),
         },
-        "read_on",
-        now,
     )
     frappe.db.commit()
     return {"marked": updated}
+
+
+def _notification_loan_scope(visible_statuses=("Sent", "Dev-Sent", "Queued")):
+    """Shared caller resolution for both sides of the notification bell.
+
+    Single source of truth (R58): borrower → their own loans; portal
+    staff → loans in their branch (R43); admin / no persona → empty so
+    the bell stays silent. Returns loan names for scoping
+    LMS Notification Log queries, and never raises for staff — the
+    borrower-account message must not fire for personas that have no
+    Customer record by design.
+    """
+    from lms_saas.install import PORTAL_STAFF_ROLE
+
+    roles = set(frappe.get_roles(frappe.session.user))
+    is_admin = bool(roles.intersection({"System Manager", "Administrator"}))
+    is_staff = (PORTAL_STAFF_ROLE in roles and "Customer" not in roles) and not is_admin
+    is_borrower = "Customer" in roles and not is_staff
+
+    if is_borrower:
+        customer = _require_customer(raise_exception=False)
+        if not customer:
+            return []
+        return frappe.get_all(
+            "Loan",
+            filters={"applicant_type": "Customer", "applicant": customer, "docstatus": 1},
+            pluck="name",
+        )
+
+    if is_staff:
+        # R43: portal staff see notifications for loans in their branch.
+        # Branch resolves via the same resolver the rest of the staff
+        # APIs use so scope is consistent across tabs.
+        from lms_saas.api.staff import get_current_user_branch
+
+        branch = get_current_user_branch()
+        if not branch:
+            return []
+        return frappe.get_all(
+            "Loan",
+            filters={"custom_lms_branch": branch, "docstatus": 1},
+            pluck="name",
+        )
+
+    # Plain admin / no persona — silent rather than a "Not permitted"
+    # or borrower-account dialog.
+    return []
 
 
 @frappe.whitelist()
@@ -925,10 +948,14 @@ def backfill_portal_notifications():
     gates on ``frappe.db.exists`` of any log row for the loan).
 
     Safe for borrowers to call themselves — only writes rows for their
-    own loans.
+    own loans. R58: staff callers resolve through the shared bell scope
+    (branch loans) instead of the borrower-only Customer link; the
+    borrower-account message must not fire for staff personas.
     """
     customer = _require_customer(raise_exception=False)
     if not customer:
+        # R58: staff / admins have no Customer by design — skip silently
+        # (the shared bell scope handles their branch-scoped path).
         return {"created": 0, "skipped": "no_customer"}
 
     loans = frappe.get_all(

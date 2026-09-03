@@ -77,7 +77,30 @@ def get_collection_run_sheet(days_ahead=7, company=None, reveal=False):
 		"columns": columns,
 		"rows": data,
 		"pii_revealed": bool(reveal_flag),
+		# R58: per-bucket KPI totals computed FROM the scoped rows so the
+		# KPI strip and the run sheet can never disagree (R35-#27).
+		"kpis": _bucket_kpis(data),
 	}
+
+
+def _bucket_kpis(rows):
+	"""Recompute per-bucket totals from the final row list.
+
+	Takes the post-scope rows (what the page will actually render) so the
+	KPI strip always agrees with the visible list — the totals are derived
+	from the same data, not a parallel query.
+	"""
+	kpis = {
+		"overdue": {"count": 0, "amount": 0.0},
+		"upcoming": {"count": 0, "amount": 0.0},
+	}
+	for row in rows:
+		bucket = row.get("bucket") or "upcoming"
+		if bucket not in kpis:
+			continue
+		kpis[bucket]["count"] += 1
+		kpis[bucket]["amount"] += flt(row.get("amount") or 0)
+	return kpis
 
 
 @frappe.whitelist()
