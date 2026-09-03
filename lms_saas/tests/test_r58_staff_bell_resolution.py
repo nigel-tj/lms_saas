@@ -76,9 +76,9 @@ class TestStaffBellMarkRead(FrappeTestCase):
         Pins the R58 fix. Before the fix, staff hit the borrower-only
         ``_require_customer()`` resolution which queued the orange
         "No account on file yet" msgprint — the modal every staff
-        persona saw on bell open. The queued server messages are the
-        exact user-visible symptom: if they come back, the modal is
-        back.
+        persona saw on bell open. The whole message log must be empty:
+        ANY queued message would render as a modal in the browser, not
+        just the borrower one.
         """
         from lms_saas.api.portal import mark_notifications_read
 
@@ -86,15 +86,15 @@ class TestStaffBellMarkRead(FrappeTestCase):
             if not _user_exists(email):
                 self.skipTest(f"test user {email} not provisioned on this bench")
             _as(email)
-            # msgprint queues into frappe.message_log; capture and assert empty.
+            # msgprint queues into frappe.message_log; assert nothing queued.
             frappe.local.message_log = []
             result = mark_notifications_read()
             self.assertIsInstance(result, dict, email)
             self.assertIn("marked", result, email)
             self.assertEqual(
                 [],
-                [m for m in frappe.local.message_log if m.get("title") == "No account on file yet"],
-                f"staff {email} got the borrower 'No account on file yet' msgprint",
+                frappe.local.message_log,
+                f"staff {email} got queued server messages: {frappe.local.message_log}",
             )
 
     def test_mark_read_clears_branch_unread_count(self):
@@ -103,7 +103,9 @@ class TestStaffBellMarkRead(FrappeTestCase):
         The badge count comes from get_portal_notifications (branch-scoped
         for staff). The bell contract: badge > 0 → open bell → mark-read
         fires → badge drops to 0. Before the fix the count stayed put for
-        staff, so the modal re-fired on every open.
+        staff, so the modal re-fired on every open. If the branch has no
+        unread rows on this bench, the contract is pinned with a seeded
+        notification log row instead of passing vacuously.
         """
         from lms_saas.api.portal import get_portal_notifications, mark_notifications_read
 
@@ -114,7 +116,31 @@ class TestStaffBellMarkRead(FrappeTestCase):
         _as(email)
         before = get_portal_notifications()
         unread_before = before.get("unread_count", 0)
-        if unread_before:
+        seed_name = None
+        if not unread_before:
+            # Seed one unread row for a branch loan so the contract is
+            # actually exercised (not a vacuous pass on an empty bench).
+            branch = self._staff_branch(email)
+            loan = frappe.db.get_value(
+                "Loan", {"custom_lms_branch": branch, "docstatus": 1}, "name"
+            ) if branch else None
+            if not loan:
+                self.skipTest("no branch loans to seed a notification row against")
+            seed_name = frappe.get_doc({
+                "doctype": "LMS Notification Log",
+                "loan": loan,
+                "reminder_type": "loan_activated",
+                "channel": "Bell",
+                "status": "Sent",
+                "recipient": email,
+                "message_preview": "R58 badge-clear contract seed",
+                "notification_date": frappe.utils.today(),
+            }).insert(ignore_permissions=True).name
+            frappe.db.commit()
+            before = get_portal_notifications()
+            self.assertGreater(before.get("unread_count", 0), 0, "seed did not register as unread")
+
+        try:
             mark_notifications_read()
             after = get_portal_notifications()
             self.assertEqual(
@@ -122,6 +148,17 @@ class TestStaffBellMarkRead(FrappeTestCase):
                 after.get("unread_count"),
                 "staff mark-as-read must clear the branch unread count",
             )
+        finally:
+            if seed_name:
+                frappe.set_user("Administrator")
+                frappe.delete_doc("LMS Notification Log", seed_name, force=True, ignore_permissions=True)
+                frappe.db.commit()
+
+    def _staff_branch(self, email):
+        from lms_saas.api.staff import get_current_user_branch
+
+        _as(email)
+        return get_current_user_branch()
 
     def test_borrower_mark_read_still_scopes_to_own_loans(self):
         """A borrower marks only their own loans' rows — unchanged behavior."""
@@ -150,11 +187,9 @@ class TestStaffBellMarkRead(FrappeTestCase):
         result = mark_notifications_read()
         self.assertIsInstance(result, dict)
         self.assertIn("marked", result)
-        # No borrower-facing error for a properly linked borrower.
-        self.assertEqual(
-            [],
-            [m for m in frappe.local.message_log if m.get("title") == "No account on file yet"],
-        )
+        # No borrower-facing error for a properly linked borrower —
+        # the whole log must be empty (any message renders as a modal).
+        self.assertEqual([], frappe.local.message_log)
 
 
 class TestStaffBellBackfill(FrappeTestCase):
@@ -177,13 +212,10 @@ class TestStaffBellBackfill(FrappeTestCase):
             frappe.local.message_log = []
             result = backfill_portal_notifications()
             self.assertIsInstance(result, dict, email)
-            self.assertNotIn(
-                None,
-                [result],
-                "backfill must return a dict for staff",
-            )
+            # R58: backfill rides the shared bell scope — the borrower
+            # account message must never queue for staff (whole log empty).
             self.assertEqual(
                 [],
-                [m for m in frappe.local.message_log if m.get("title") == "No account on file yet"],
-                f"staff {email} got the borrower msgprint from backfill",
+                frappe.local.message_log,
+                f"staff {email} got queued server messages from backfill: {frappe.local.message_log}",
             )

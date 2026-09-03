@@ -167,6 +167,46 @@ class TestCollectionSheetBuckets(FrappeTestCase):
             [], mine, "paid installment must not appear in the upcoming bucket"
         )
 
+    def test_fully_paid_overdue_installment_excluded(self):
+        """A fully-repaid loan's past installments must not surface as overdue.
+
+        The paid filter applies to BOTH buckets: a collector must never be
+        sent to a stop whose installment has already been collected, even
+        when the installment date is in the past.
+        """
+        from lms_saas.lms_saas.report.collection_sheet.collection_sheet import execute
+        from frappe.utils import add_days, today
+
+        past = add_days(today(), -10)
+        _make_loan_with_schedule(
+            loan_name=self.LOAN,
+            installments=[{"payment_date": past, "total_payment": 500.0}],
+            total_paid=500.0,
+        )
+
+        _columns, data = execute({"days_ahead": 14})
+        mine = [r for r in data if r["loan"] == self.LOAN]
+        self.assertEqual(
+            [], mine, "fully-paid overdue installment must not appear as overdue"
+        )
+
+    def test_partially_paid_overdue_installment_still_shown(self):
+        """An overdue installment only partly covered by repayments still shows."""
+        from lms_saas.lms_saas.report.collection_sheet.collection_sheet import execute
+        from frappe.utils import add_days, today
+
+        past = add_days(today(), -10)
+        _make_loan_with_schedule(
+            loan_name=self.LOAN,
+            installments=[{"payment_date": past, "total_payment": 500.0}],
+            total_paid=200.0,
+        )
+
+        _columns, data = execute({"days_ahead": 14})
+        mine = [r for r in data if r["loan"] == self.LOAN]
+        self.assertEqual(1, len(mine), "partially-paid overdue row must remain visible")
+        self.assertEqual("overdue", mine[0]["bucket"])
+
     def test_future_unpaid_installment_is_upcoming(self):
         """A future unpaid installment stays in the upcoming bucket (unchanged)."""
         from lms_saas.lms_saas.report.collection_sheet.collection_sheet import execute

@@ -66,6 +66,15 @@ def execute(filters=None):
 	columns = _columns()
 	data = []
 
+	# R58: pre-group the report's schedule rows by LOAN (a loan may have
+	# several schedules). The paid-progress check below needs the loan's
+	# own installment history, not other loans' rows.
+	rows_by_loan = {}
+	for r in rows:
+		loan_name = parent_to_loan.get(r.parent)
+		if loan_name:
+			rows_by_loan.setdefault(loan_name, []).append(r)
+
 	for row in rows:
 		loan_name = parent_to_loan.get(row.parent)
 		if not loan_name:
@@ -77,15 +86,16 @@ def execute(filters=None):
 		if company and loan.company != company:
 			continue
 
-		amount = row.total_payment or (row.principal_amount or 0) + (row.interest_amount or 0)
+		amount = _installment_amount(row)
 
 		# R58 bucket: overdue = payment date before today AND not yet covered by
 		# repayments; upcoming = today or later, unpaid. An installment whose
 		# amount has already been collected (the loan's paid total has moved
 		# past this row's cumulative position) is excluded entirely — the
-		# collector must not be sent to a borrower who already paid.
+		# collector must not be sent to a borrower who already paid, whether
+		# the installment is overdue or upcoming.
 		is_overdue = getdate(row.payment_date) < getdate(today())
-		if not is_overdue and _installment_covered(loan, rows, row):
+		if _installment_covered(loan, rows_by_loan.get(loan_name) or [], row):
 			continue
 
 		mobile = customer_mobiles.get(loan.applicant, "") if loan.applicant_type == "Customer" else ""
@@ -108,29 +118,36 @@ def execute(filters=None):
 	return columns, data
 
 
-def _installment_covered(loan, all_schedule_rows, current_row):
+def _installment_covered(loan, loan_schedule_rows, current_row):
 	"""True when the loan's repayments have already covered this installment.
 
-	Paid-progress check: cumulative amount of THIS SCHEDULE's installments up
-	to and including the current row vs the loan's total_amount_paid. When
-	paid >= cumulative, the collector no longer needs this stop. Uses the
-	batch-loaded loan fields — no per-row queries.
+	Paid-progress check over the loan's OWN installments (all of its
+	schedules, passed pre-grouped by the caller): cumulative amount of
+	installments strictly before the current row's payment date, PLUS the
+	full group sharing that date — compared against total_amount_paid. The
+	same-date group falls due together, so it counts as covered only when
+	paid reaches the whole group's cumulative amount (no partial group
+	coverage). Uses the batch-loaded loan fields — no per-row queries.
 	"""
 	total_paid = loan.total_amount_paid or 0
 	if not total_paid:
 		return False
-	cumulative = 0.0
-	for r in all_schedule_rows:
-		# Cumulative position is per-schedule: other loans' installments
-		# must not pollute the total this row is compared against.
-		if r.parent != current_row.parent:
-			continue
-		amt = r.total_payment or (r.principal_amount or 0) + (r.interest_amount or 0)
-		cumulative += amt or 0
-		if r.payment_date == current_row.payment_date:
-			# reached the current row: covered when paid has moved past it
-			return total_paid >= cumulative - 0.005
-	return False
+
+	current_date = getdate(current_row.payment_date)
+	cumulative_before = 0.0
+	group_total = 0.0
+	for r in loan_schedule_rows:
+		amt = _installment_amount(r) or 0
+		d = getdate(r.payment_date)
+		if d < current_date:
+			cumulative_before += amt
+		elif d == current_date:
+			group_total += amt
+	return total_paid >= (cumulative_before + group_total) - 0.005
+
+
+def _installment_amount(row):
+	return row.total_payment or (row.principal_amount or 0) + (row.interest_amount or 0)
 
 
 def _columns():

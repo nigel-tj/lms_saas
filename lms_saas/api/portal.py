@@ -948,19 +948,36 @@ def backfill_portal_notifications():
     gates on ``frappe.db.exists`` of any log row for the loan).
 
     Safe for borrowers to call themselves — only writes rows for their
-    own loans. R58: staff callers resolve through the shared bell scope
-    (branch loans) instead of the borrower-only Customer link; the
-    borrower-account message must not fire for staff personas.
+    own loans. R58: caller resolution goes through the shared bell
+    scope (`_notification_loan_scope`) so this endpoint can never drift
+    from the list/mark-read sides again — staff resolve to branch loans
+    (no backfill rows are written for staff scope, since the backfill
+    seeds per-borrower-loan rows only), and no persona is shown the
+    borrower-account message.
     """
-    customer = _require_customer(raise_exception=False)
+    loan_names = _notification_loan_scope()
+    if not loan_names:
+        # Staff/admin scope resolves to nothing backfillable here; the
+        # borrower-with-no-Customer case also lands here silently.
+        return {"created": 0, "skipped": "no_customer"}
+
+    # Backfill seeds per-borrower-loan rows only, so restrict the scan to
+    # loans the caller OWNS (a staff scope's branch loans are never
+    # backfilled — those notifications come from the nightly cron).
+    from lms_saas.permissions import _portal_customer
+
+    customer = _portal_customer(frappe.session.user)
     if not customer:
-        # R58: staff / admins have no Customer by design — skip silently
-        # (the shared bell scope handles their branch-scoped path).
         return {"created": 0, "skipped": "no_customer"}
 
     loans = frappe.get_all(
         "Loan",
-        filters={"applicant_type": "Customer", "applicant": customer, "docstatus": 1},
+        filters={
+            "applicant_type": "Customer",
+            "applicant": customer,
+            "docstatus": 1,
+            "name": ("in", loan_names),
+        },
         fields=["name", "loan_amount", "repayment_periods", "rate_of_interest", "posting_date", "modified"],
     )
 
@@ -1034,6 +1051,10 @@ def get_account_overview():
         return {"account_type": "borrower", "compliance": compliance, "customer": customer_doc}
 
     # No Customer linked — try staff (Employee) profile.
+    # NOTE: this persona check deliberately differs from the bell's
+    # `_notification_loan_scope` — account OVERVIEW includes System
+    # Manager / Administrator (admins have a staff profile page), while
+    # the bell is a user-facing surface that stays silent for admins.
     from lms_saas.utils.portal import resolve_portal_persona
     from lms_saas.api.staff import get_current_user_branch
     from lms_saas.install import PORTAL_STAFF_ROLE
