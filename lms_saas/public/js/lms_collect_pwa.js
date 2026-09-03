@@ -35,7 +35,11 @@ lms_collect._loadRunSheet = function (root) {
 		method: "lms_saas.api.field_collection.get_collection_run_sheet",
 		callback: function (r) {
 			var rows = (r.message && r.message.rows) || [];
-			lms_collect._renderRunSheet(root, rows);
+			// R58: per-bucket KPI totals come from the server (#80), derived
+			// from the same scoped rows the page renders — the strip and the
+			// lists cannot disagree (R35-#27).
+			var kpis = (r.message && r.message.kpis) || null;
+			lms_collect._renderRunSheet(root, rows, kpis);
 		},
 		error: function () {
 			root.innerHTML = lms_portal.error("Could not load run sheet.", function () {
@@ -145,65 +149,97 @@ lms_collect._queuedLoanSet = function () {
 	return set;
 };
 
-lms_collect._renderRunSheet = function (root, rows) {
+/* R58: shared row builder for both bucket lists. One function means
+ * Collect / Call / Promise / Reveal / pending-sync behave identically on
+ * an overdue row and an upcoming row. Overdue rows get a red-tinted
+ * "Overdue" eyebrow instead of the plain "Due" label. */
+lms_collect._runSheetRowHtml = function (row, queued, isOverdue) {
+	// R18-4: mobile is masked by default. Show a Reveal button that
+	// hits `reveal_borrower_pii` (which writes one audit-log row).
+	var mobile = row.borrower_mobile || "";
+	var masked = !!row.borrower_mobile_masked;
+	var callBtn = (mobile && !masked)
+		? '<a class="lms-btn lms-btn--ghost lms-btn--sm" href="tel:' + lms_portal.escape(mobile) + '">Call</a>'
+		: "";
+	var revealBtn = masked
+		? '<button type="button" class="lms-pii-reveal lms-reveal-pii-btn" data-loan="' + lms_portal.escape(row.loan) + '" title="Tap to reveal the full mobile number. This is recorded for audit.">Reveal mobile</button>'
+		: "";
+	var pending = !!queued[row.loan];
+	var syncBadge = pending
+		? '<span class="lms-badge lms-badge--warning" title="Queued on this device — tap Sync">Pending sync</span>'
+		: '<span class="lms-badge lms-badge--success" title="No offline queue for this stop">Synced</span>';
+	var dueLabel = isOverdue ? "Overdue" : "Due";
+	var dueTone = isOverdue ? ' style="color:#b3261e;"' : "";
+	return (
+		'<li class="lms-queue-list__item' + (pending ? " is-pending-sync" : "") + (isOverdue ? " is-overdue" : "") + '">' +
+		'<div class="lms-queue-list__main">' +
+		'<div class="lms-queue-list__head">' +
+		'<span class="lms-queue-list__name">' + lms_portal.escape(row.borrower) + '</span>' +
+		syncBadge +
+		'</div>' +
+		'<div class="lms-queue-list__sub">' +
+		'<span' + dueTone + '>' + lms_portal.escape(dueLabel + " " + lms_portal.formatDate(row.due_date)) + '</span>' +
+		'</div>' +
+		'<div class="lms-pii-mobile" data-loan="' + lms_portal.escape(row.loan) + '" style="margin-top:0.15rem;font-size:0.8rem;">' +
+		(mobile ? (masked ? '<span class="lms-pii-masked">' + lms_portal.escape(mobile) + '</span> ' + revealBtn : '<span>' + lms_portal.escape(mobile) + '</span>') : '<span class="lms-muted">No mobile on file</span>') +
+		'</div>' +
+		'</div>' +
+		'<div class="lms-queue-list__amount">' +
+		'<span class="lms-queue-list__amount-label"' + dueTone + '>' + lms_portal.escape(dueLabel) + '</span>' +
+		'<span class="lms-queue-list__amount-value">' + format_currency(row.amount) + '</span>' +
+		'</div>' +
+		'<div class="lms-queue-list__action">' +
+		callBtn +
+		'<button type="button" class="lms-btn lms-btn--primary lms-btn--sm lms-collect-btn" data-loan="' +
+		lms_portal.escape(row.loan) +
+		'" data-amount="' +
+		lms_portal.escape(String(row.amount)) +
+		'">Collect</button>' +
+		'<button type="button" class="lms-btn lms-btn--ghost lms-btn--sm lms-promise-btn" data-loan="' +
+		lms_portal.escape(row.loan) +
+		'">Promise</button>' +
+		'</div></li>'
+	);
+};
+
+lms_collect._renderRunSheet = function (root, rows, kpis) {
+	kpis = kpis || null;
 	var queueCount = lms_collect._offlineQueueCount();
 	var queued = lms_collect._queuedLoanSet();
-	var totalDue = 0;
-	rows.forEach(function (row) { totalDue += parseFloat(row.amount) || 0; });
+
+	// R58: split the server's bucket-tagged rows into two lists. The same
+	// row builder serves both, so Collect / Call / Promise / Reveal /
+	// pending-sync badges behave identically on overdue rows.
+	var overdueRows = [];
+	var upcomingRows = [];
+	(rows || []).forEach(function (row) {
+		if (row.bucket === "overdue") overdueRows.push(row);
+		else if (row.bucket === "upcoming") upcomingRows.push(row);
+		else upcomingRows.push(row); // legacy/untagged rows stay upcoming
+	});
 
 	var listBody = "";
-	if (!rows.length) {
-		listBody = '<p class="lms-muted">No dues in range.</p>';
+
+	// Overdue first — the riskiest stops lead the page.
+	listBody += '<h3 class="lms-section-title lms-overdue-heading">Overdue</h3>';
+	if (!overdueRows.length) {
+		listBody += '<p class="lms-muted lms-overdue-empty">No arrears — nothing overdue.</p>';
 	} else {
-		// R46: use the .lms-queue-list card-row shape (consistent with the
-		// Officer Work Queue). 3-column grid: borrower+sub ┃ amount ┃
-		// action. The "Due" eyebrow + tabular-numeric amount replace the
-		// old em-dash text. is-pending-sync becomes a soft yellow tint.
-		listBody = '<ul class="lms-list lms-queue-list">';
-		rows.forEach(function (row) {
-			// R18-4: mobile is masked by default. Show a Reveal button that
-			// hits `reveal_borrower_pii` (which writes one audit-log row).
-			var mobile = row.borrower_mobile || "";
-			var masked = !!row.borrower_mobile_masked;
-			var callBtn = (mobile && !masked)
-				? '<a class="lms-btn lms-btn--ghost lms-btn--sm" href="tel:' + lms_portal.escape(mobile) + '">Call</a>'
-				: "";
-			var revealBtn = masked
-				? '<button type="button" class="lms-pii-reveal lms-reveal-pii-btn" data-loan="' + lms_portal.escape(row.loan) + '" title="Tap to reveal the full mobile number. This is recorded for audit.">Reveal mobile</button>'
-				: "";
-			var pending = !!queued[row.loan];
-			var syncBadge = pending
-				? '<span class="lms-badge lms-badge--warning" title="Queued on this device — tap Sync">Pending sync</span>'
-				: '<span class="lms-badge lms-badge--success" title="No offline queue for this stop">Synced</span>';
-			listBody +=
-				'<li class="lms-queue-list__item' + (pending ? " is-pending-sync" : "") + '">' +
-				'<div class="lms-queue-list__main">' +
-				'<div class="lms-queue-list__head">' +
-				'<span class="lms-queue-list__name">' + lms_portal.escape(row.borrower) + '</span>' +
-				syncBadge +
-				'</div>' +
-				'<div class="lms-queue-list__sub">' +
-				lms_portal.escape("Due " + lms_portal.formatDate(row.due_date)) +
-				'</div>' +
-				'<div class="lms-pii-mobile" data-loan="' + lms_portal.escape(row.loan) + '" style="margin-top:0.15rem;font-size:0.8rem;">' +
-				(mobile ? (masked ? '<span class="lms-pii-masked">' + lms_portal.escape(mobile) + '</span> ' + revealBtn : '<span>' + lms_portal.escape(mobile) + '</span>') : '<span class="lms-muted">No mobile on file</span>') +
-				'</div>' +
-				'</div>' +
-				'<div class="lms-queue-list__amount">' +
-				'<span class="lms-queue-list__amount-label">Due</span>' +
-				'<span class="lms-queue-list__amount-value">' + format_currency(row.amount) + '</span>' +
-				'</div>' +
-				'<div class="lms-queue-list__action">' +
-				callBtn +
-				'<button type="button" class="lms-btn lms-btn--primary lms-btn--sm lms-collect-btn" data-loan="' +
-				lms_portal.escape(row.loan) +
-				'" data-amount="' +
-				lms_portal.escape(String(row.amount)) +
-				'">Collect</button>' +
-				'<button type="button" class="lms-btn lms-btn--ghost lms-btn--sm lms-promise-btn" data-loan="' +
-				lms_portal.escape(row.loan) +
-				'">Promise</button>' +
-				'</div></li>';
+		listBody += '<ul class="lms-list lms-queue-list lms-overdue-list">';
+		overdueRows.forEach(function (row) {
+			listBody += lms_collect._runSheetRowHtml(row, queued, true);
+		});
+		listBody += "</ul>";
+	}
+
+	// Upcoming: today and the forward window.
+	listBody += '<h3 class="lms-section-title lms-upcoming-heading">Due today &amp; upcoming</h3>';
+	if (!upcomingRows.length) {
+		listBody += '<p class="lms-muted lms-upcoming-empty">No upcoming dues in range.</p>';
+	} else {
+		listBody += '<ul class="lms-list lms-queue-list lms-upcoming-list">';
+		upcomingRows.forEach(function (row) {
+			listBody += lms_collect._runSheetRowHtml(row, queued, false);
 		});
 		listBody += "</ul>";
 	}
@@ -214,14 +250,23 @@ lms_collect._renderRunSheet = function (root, rows) {
 		(queueCount > 0 ? ' <span class="lms-badge lms-badge--watch">' + queueCount + "</span>" : "") +
 		"</button></div>";
 
+	// R58 KPI strip: Stops/Amount describe the UPCOMING stops; Overdue is
+	// its own headline number fed straight from the server's kpis payload
+	// (never recounted here — R35-#27 single source of truth).
+	var kpiOverdueCount = kpis && kpis.overdue ? (kpis.overdue.count || 0) : 0;
+	var kpiOverdueAmount = kpis && kpis.overdue ? (kpis.overdue.amount || 0) : 0;
+	var kpiUpcomingCount = kpis && kpis.upcoming ? (kpis.upcoming.count || 0) : upcomingRows.length;
+	var kpiUpcomingAmount = kpis && kpis.upcoming ? (kpis.upcoming.amount || 0) : 0;
+
 	var html = lms_portal.pageStart() +
 		lms_portal.connectivityBanner() +
 		lms_portal.kpiStrip([
-			{ label: "Stops today", value: rows.length },
-			{ label: "Amount due", value: format_currency(totalDue) },
+			{ label: "Overdue", value: format_currency(kpiOverdueAmount) + " (" + kpiOverdueCount + ")", tone: kpiOverdueCount ? "warning" : "success" },
+			{ label: "Stops today", value: kpiUpcomingCount },
+			{ label: "Amount due", value: format_currency(kpiUpcomingAmount) },
 			{ label: "Offline queue", value: queueCount, tone: queueCount ? "warning" : "success" },
 		]) +
-		lms_portal.panel({ title: "Due today & upcoming", body: listBody + syncControls }) +
+		lms_portal.panel({ title: "Run sheet", body: listBody + syncControls }) +
 		lms_portal.pageEnd();
 
 	root.innerHTML = html;
