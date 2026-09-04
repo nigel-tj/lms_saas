@@ -3,16 +3,18 @@
 {% block title %}Field Collection{% endblock %}
 
 {% block lms_content %}
-{# R59 board polish: one compact meta row replaces the three stacked
-   lines (lender note / subtitle / connectivity pill) — ~28px instead
-   of ~120px above the tabs. #}
+{# R59 board polish: one compact meta row — subtitle left, live status
+   right. The lender eyebrow stays inline with the subtitle (both are
+   context), while the connectivity pill anchors right where status
+   affordances belong. #}
 <div class="lms-collect-meta">
-  <span class="lms-secure-note" role="note">
-    Collecting for <strong>{{ lms_brand_lender_legal_name or 'Kesari' }}</strong>
+  <span class="lms-collect-meta__text">
+    <span class="lms-secure-note" role="note">
+      Collecting for <strong>{{ lms_brand_lender_legal_name or 'Kesari' }}</strong>
+    </span>
+    <span class="lms-meta-sep" aria-hidden="true">·</span>
+    <span>Today's dues — works offline and syncs when connected.</span>
   </span>
-  <span class="lms-meta-sep" aria-hidden="true">·</span>
-  <span>Today's dues — works offline and syncs when connected.</span>
-  <span class="lms-meta-sep" aria-hidden="true">·</span>
 </div>
 <div id="lms-collect-root" aria-live="polite"></div>
 <details class="lms-insights" id="lms-collect-insights">

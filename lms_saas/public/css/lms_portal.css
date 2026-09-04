@@ -3288,6 +3288,7 @@ body.lms-portal-borrower .form-control:focus {
 body.lms-nav-collect .lms-collect-meta {
 	display: flex;
 	align-items: center;
+	justify-content: space-between;
 	flex-wrap: wrap;
 	gap: 0.35rem 0.6rem;
 	margin: 0 0 0.75rem;
