@@ -3,14 +3,16 @@
 {% block title %}Field Collection{% endblock %}
 
 {% block lms_content %}
-<p class="lms-secure-note" role="note">
-  Collecting for <strong>{{ lms_brand_lender_legal_name or 'Kesari' }}</strong>.
-</p>
-{# R59 board review: the in-page <h2> duplicated the topbar's <h1>; the
-   subtitle alone now leads the content so the run sheet starts ~90px
-   higher on the phone. #}
-<div class="lms-collect-head">
-  <p class="lms-muted">Today's dues — works offline and syncs when connected.</p>
+{# R59 board polish: one compact meta row replaces the three stacked
+   lines (lender note / subtitle / connectivity pill) — ~28px instead
+   of ~120px above the tabs. #}
+<div class="lms-collect-meta">
+  <span class="lms-secure-note" role="note">
+    Collecting for <strong>{{ lms_brand_lender_legal_name or 'Kesari' }}</strong>
+  </span>
+  <span class="lms-meta-sep" aria-hidden="true">·</span>
+  <span>Today's dues — works offline and syncs when connected.</span>
+  <span class="lms-meta-sep" aria-hidden="true">·</span>
 </div>
 <div id="lms-collect-root" aria-live="polite"></div>
 <details class="lms-insights" id="lms-collect-insights">

@@ -1354,10 +1354,21 @@ body.lms-nav-collect .lms-summary {
 	margin-bottom: 1rem;
 }
 body.lms-nav-collect .lms-summary-card {
-	padding: 0.75rem 1rem;
+	padding: 0.6rem 0.85rem;
 }
 body.lms-nav-collect .lms-summary-label {
-	margin-bottom: 0.25rem;
+	margin-bottom: 0.15rem;
+	font-size: 0.62rem;
+	letter-spacing: 0.05em;
+}
+body.lms-nav-collect .lms-summary-value {
+	font-size: 0.95rem;
+	white-space: nowrap;
+	/* Currency + count can still overflow a 132px card on tiny screens;
+	 * allow horizontal clipping inside the card rather than wrapping to
+	 * a second line (board: no wrapped values). */
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 .lms-summary-card {
@@ -3268,6 +3279,43 @@ body.lms-portal-borrower .form-control:focus {
 .lms-collect-head .lms-muted {
 	margin: 0;
 	font-size: 0.8rem;
+}
+
+/* R59 board polish: the page previously stacked three lines —
+ * "Collecting for …" / subtitle / connectivity pill — each in its own
+ * box. Merge them into ONE meta row: lender eyebrow · offline note ·
+ * live status pill, ~28px total instead of ~120px. Scoped to the
+ * collect page so other shells are untouched. */
+body.lms-nav-collect .lms-collect-meta {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 0.35rem 0.6rem;
+	margin: 0 0 0.75rem;
+	padding: 0;
+	font-size: 0.72rem;
+	line-height: 1.4;
+	color: var(--lms-text-muted);
+}
+body.lms-nav-collect .lms-collect-meta .lms-secure-note {
+	display: inline;
+	margin: 0;
+	padding: 0;
+	font-size: inherit;
+	line-height: inherit;
+}
+body.lms-nav-collect .lms-collect-meta .lms-secure-note strong {
+	color: var(--lms-primary);
+}
+body.lms-nav-collect .lms-collect-meta .lms-meta-sep {
+	color: var(--lms-border);
+	user-select: none;
+}
+body.lms-nav-collect .lms-collect-meta .lms-connectivity {
+	display: inline-flex;
+	margin: 0;
+	padding: 0.12rem 0.55rem;
+	font-size: 0.68rem;
 }
 
 /* R59-QA: the "Collecting for {lender}" note reads as a quiet

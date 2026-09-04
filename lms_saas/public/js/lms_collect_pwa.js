@@ -290,8 +290,10 @@ lms_collect._renderRunSheet = function (root, rows, kpis, collectedToday) {
 	// strip lives inside the Run sheet tab; History is its own tab with
 	// the 7/30/90-day window switcher. Tab choice persists per session,
 	// consistent with lms_portal.persistedTab elsewhere.
+	// R59 board polish: the connectivity pill is injected into the page's
+	// .lms-collect-meta row (in collect.html) instead of rendering as a
+	// full-width strip above the tabs.
 	var html = lms_portal.pageStart() +
-		lms_portal.connectivityBanner() +
 		lms_portal.tabNav(lms_collect._tabs, lms_collect._currentTab) +
 		'<div id="lms-collect-tab-content">' +
 		// -- Run sheet panel (default tab) --
@@ -313,6 +315,18 @@ lms_collect._renderRunSheet = function (root, rows, kpis, collectedToday) {
 		lms_portal.pageEnd();
 
 	root.innerHTML = html;
+	// R59 board polish: move the live connectivity pill into the page's
+	// .lms-collect-meta row (after the last separator) so status reads as
+	// part of one meta line instead of a stacked strip. bindConnectivity()
+	// updates it in place by id, so the relocation is transparent.
+	var metaRow = document.querySelector(".lms-collect-meta");
+	if (metaRow) {
+		var bannerHtml = lms_portal.connectivityBanner();
+		var holder = document.createElement("span");
+		holder.innerHTML = bannerHtml;
+		var pill = holder.firstChild;
+		if (pill) metaRow.appendChild(pill);
+	}
 	// R59: if a non-default tab was restored from persistence, apply its
 	// panel visibility + tab highlight now that the markup exists.
 	if (lms_collect._currentTab && lms_collect._currentTab !== "runsheet") {
