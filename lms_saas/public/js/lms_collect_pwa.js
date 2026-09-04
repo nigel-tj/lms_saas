@@ -298,9 +298,11 @@ lms_collect._renderRunSheet = function (root, rows, kpis, collectedToday) {
 		'<div id="lms-collect-tab-content">' +
 		// -- Run sheet panel (default tab) --
 		'<section class="lms-collect-panel" data-panel="runsheet">' +
+		// R59 board polish: counts live in the LABEL (e.g. "Overdue stops (72)")
+		// so the currency VALUE never overflows its card — ellipsis removed.
 		lms_portal.kpiStrip([
-			{ label: "Collected today", value: format_currency(collected.amount) + " (" + collected.count + ")", tone: "success", id: "lms-kpi-collected" },
-			{ label: "Overdue", value: format_currency(kpiOverdueAmount) + " (" + kpiOverdueCount + ")", tone: kpiOverdueCount ? "warning" : "success" },
+			{ label: "Collected today (" + collected.count + ")", value: format_currency(collected.amount), tone: "success", id: "lms-kpi-collected" },
+			{ label: "Overdue stops (" + kpiOverdueCount + ")", value: format_currency(kpiOverdueAmount), tone: kpiOverdueCount ? "warning" : "success" },
 			{ label: "Stops today", value: kpiUpcomingCount },
 			{ label: "Amount due", value: format_currency(kpiUpcomingAmount) },
 			{ label: "Offline queue", value: queueCount, tone: queueCount ? "warning" : "success" },

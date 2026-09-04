@@ -97,10 +97,13 @@ class TestRunSheetOverdueRendering(unittest.TestCase):
 
 	def test_overdue_kpi_in_strip(self):
 		"""The KPI strip gains an Overdue entry fed from the server kpis."""
+		# R59 board polish: the count moved into the label
+		# ("Overdue stops (72)") so the currency value never overflows —
+		# pin the new label shape, still sourced from kpis.
 		self.assertRegex(
 			self.src,
-			r"label:\s*\"Overdue\"",
-			"KPI strip must include an 'Overdue' entry",
+			r"label:\s*\"Overdue stops \(",
+			"KPI strip must include an 'Overdue stops' entry",
 		)
 		# It must be fed from kpis, not recomputed from rows (R35-#27:
 		# single source of truth — the server totals the scoped rows).
