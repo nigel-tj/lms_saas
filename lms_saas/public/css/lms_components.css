@@ -978,6 +978,23 @@ body.lms-themed *:focus-visible {
 }
 
 /* ------------------------------------------------------------------ */
+/* Flat inline SVG icons (lms_icons.js)                                */
+/* ------------------------------------------------------------------ */
+/* R59: the base .lms-icon rule used to live only in lms_portal.css,
+ * so desk pages (which load lms_components.css only) rendered raw
+ * inline-size SVGs — e.g. the session-expiring modal's clock glyph at
+ * its viewBox size. Keep the base rule beside the modal styles so both
+ * surfaces share it; lms_portal.css keeps only its page-specific extras.
+ * Icons inherit color via currentColor and scale via width/height. */
+.lms-icon {
+	display: inline-block;
+	vertical-align: middle;
+	flex: 0 0 auto;
+	color: inherit;
+	line-height: 0;
+}
+
+/* ------------------------------------------------------------------ */
 /* Modal                                                              */
 /* ------------------------------------------------------------------ */
 .lms-modal-root {
@@ -1261,11 +1278,17 @@ dialog.lms-modal::backdrop {
 	color: #fff;
 	flex: 0 0 auto;
 	border: 1px solid rgba(255, 255, 255, 0.25);
+	/* R59: the SVG is an inline-flex child; optical centering needs
+	 * padding zeroed (line-height: 0 kills the inline baseline gap
+	 * that pushed stroke glyphs like check-circle ~1px low). */
+	padding: 0;
+	line-height: 0;
 }
 
 .lms-modal__title-icon svg {
 	width: 18px;
 	height: 18px;
+	stroke-width: 2;
 }
 
 .lms-modal__close {
