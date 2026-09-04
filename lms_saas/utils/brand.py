@@ -623,8 +623,12 @@ def apply_portal_context(context, nav_active="loans", page_js=None):
 	context.no_header = True
 	context.no_cache = 1
 	body_class = getattr(context, "body_class", None) or ""
-	context.body_class = f"{body_class} lms-portal lms-themed".strip()
-
+	# R59: tag each portal page with its nav key (lms-nav-<key>) so
+	# per-surface density/theme overrides can be scoped in CSS without
+	# new Python per page — e.g. the collector KPI strip's compact tier.
+	context.body_class = (
+		f"{body_class} lms-portal lms-themed lms-nav-{nav_active}".strip()
+	)
 	# Prepare the standalone shell's CSS/JS stacks.
 	context.lms_css_stack = _lms_portal_css_stack()
 	context.lms_js_stack = _lms_portal_js_stack(page_js)

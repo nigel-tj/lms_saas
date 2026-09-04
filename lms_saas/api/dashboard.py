@@ -1,5 +1,5 @@
 import frappe
-from frappe.utils import add_to_date, flt, formatdate, getdate, now_datetime, today
+from frappe.utils import add_days, add_to_date, flt, formatdate, getdate, now_datetime, today
 
 from lms_saas.utils.calculations import principal_outstanding
 from lms_saas.api.labels import officer_label, branch_label
@@ -376,24 +376,48 @@ def get_branch_overview(company=None):
 
 @frappe.whitelist()
 def get_collections_overview(company=None):
-    """Collections workspace: today's collections, collector leaderboard, arrears summary."""
-    _guard()
-    today_str = today()
+    """Collections workspace: today's collections, collector leaderboard, arrears summary.
 
-    # Today's collections
+    R59 fix: Loan Repayment.posting_date is a DATETIME column. The old
+    ``posting_date == today()`` filter compared a date string against
+    datetimes, which only matches midnight — so collections recorded
+    any time after 00:00 were invisible (leaderboard empty, today_total
+    0). Compare on getdate() (>= today 00:00, < tomorrow 00:00) instead.
+    """
+    _guard()
+    today_start = getdate(today())
+    tomorrow_start = add_days(today_start, 1)
+
+    # Today's collections — posting_date is a DATETIME column, so use a
+    # list-of-lists filter (a dict literal cannot hold two "posting_date"
+    # keys; the first bound would be silently dropped).
     today_repayments = frappe.get_all(
         "Loan Repayment",
-        filters={"docstatus": 1, "posting_date": today_str},
+        filters=[
+            ["docstatus", "=", 1],
+            ["posting_date", ">=", today_start],
+            ["posting_date", "<", tomorrow_start],
+        ],
         fields=["name", "amount_paid", "owner"],
     )
     today_total = sum(flt(r.amount_paid) for r in today_repayments)
     today_count = len(today_repayments)
 
-    # Collector leaderboard
+    # Collector leaderboard — resolve the owner email to a display name so
+    # the chart doesn't render raw emails (R59 UX: the collector should
+    # recognise colleagues at a glance).
     collector_totals = {}
     for r in today_repayments:
         collector_totals[r.owner] = collector_totals.get(r.owner, 0) + flt(r.amount_paid)
     leaderboard = sorted(collector_totals.items(), key=lambda x: x[1], reverse=True)[:5]
+    name_cache = {}
+    leaderboard_rows = []
+    for owner, amount in leaderboard:
+        if owner not in name_cache:
+            full_name = frappe.db.get_value("User", owner, "full_name") or owner
+            # First name only — bar labels stay short.
+            name_cache[owner] = (full_name or owner).split(" ")[0]
+        leaderboard_rows.append({"collector": name_cache[owner], "amount": amount})
 
     # Arrears summary by bucket
     loans = frappe.get_all(
@@ -417,7 +441,7 @@ def get_collections_overview(company=None):
     return {
         "today_total": today_total,
         "today_count": today_count,
-        "leaderboard": [{"collector": c, "amount": a} for c, a in leaderboard],
+        "leaderboard": leaderboard_rows,
         "arrears": arrears,
     }
 

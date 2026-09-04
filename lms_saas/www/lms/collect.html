@@ -6,8 +6,10 @@
 <p class="lms-secure-note" role="note">
   Collecting for <strong>{{ lms_brand_lender_legal_name or 'Kesari' }}</strong>.
 </p>
+{# R59 board review: the in-page <h2> duplicated the topbar's <h1>; the
+   subtitle alone now leads the content so the run sheet starts ~90px
+   higher on the phone. #}
 <div class="lms-collect-head">
-  <h2 class="lms-page-heading">Field Collection</h2>
   <p class="lms-muted">Today's dues — works offline and syncs when connected.</p>
 </div>
 <div id="lms-collect-root" aria-live="polite"></div>

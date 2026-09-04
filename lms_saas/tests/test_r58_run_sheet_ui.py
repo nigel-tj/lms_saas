@@ -47,18 +47,26 @@ class TestRunSheetOverdueRendering(unittest.TestCase):
 			self.src,
 			"_loadRunSheet must read the per-bucket KPI payload (#80) and hand it to the renderer",
 		)
+		# R59: the renderer also receives the collector's own "collected
+		# today" totals — the strip leads with that card, so it must be
+		# fed from the same payload the server computed, not recomputed.
 		self.assertIn(
-			"_renderRunSheet(root, rows, kpis)",
+			"r.message.collected_today",
+			self.src,
+			"_loadRunSheet must read the collected-today payload (R59) and hand it to the renderer",
+		)
+		self.assertIn(
+			"_renderRunSheet(root, rows, kpis, collectedToday)",
 			self.src,
 			"renderer must receive kpis so the strip and lists cannot disagree",
 		)
 
 	def test_renderer_accepts_kpis_parameter(self):
-		"""_renderRunSheet signature takes (root, rows, kpis)."""
+		"""_renderRunSheet signature takes (root, rows, kpis, collectedToday)."""
 		self.assertRegex(
 			self.src,
-			r"_renderRunSheet\s*=\s*function\s*\(\s*root\s*,\s*rows\s*,\s*kpis\s*\)",
-			"_renderRunSheet must accept (root, rows, kpis)",
+			r"_renderRunSheet\s*=\s*function\s*\(\s*root\s*,\s*rows\s*,\s*kpis\s*,\s*collectedToday\s*\)",
+			"_renderRunSheet must accept (root, rows, kpis, collectedToday)",
 		)
 
 	def test_overdue_list_rendered_above_upcoming(self):
@@ -154,7 +162,7 @@ class TestRunSheetOverdueRendering(unittest.TestCase):
 		self.assertTrue(call_sites, "renderer call sites must exist")
 		for args in call_sites:
 			self.assertEqual(
-				3,
+				4,
 				len([a for a in args.split(",") if a.strip()]),
-				f"_renderRunSheet called without (root, rows, kpis): _renderRunSheet({args})",
+				f"_renderRunSheet called without (root, rows, kpis, collectedToday): _renderRunSheet({args})",
 			)

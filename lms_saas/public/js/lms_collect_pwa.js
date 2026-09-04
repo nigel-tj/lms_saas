@@ -18,6 +18,10 @@ lms_collect.init = function () {
 	}
 	var root = document.getElementById("lms-collect-root");
 	if (!root) return;
+	// R59: restore the last active tab (Run sheet | My collections) so a
+	// refresh lands where the collector left off — same behaviour as the
+	// officer/manager/setup portals.
+	lms_collect._currentTab = lms_portal.persistedTab("collect", lms_collect._currentTab);
 	root.innerHTML = lms_portal.loading("Loading run sheet…");
 	lms_collect._registerServiceWorker();
 	lms_collect._loadRunSheet(root);
@@ -39,7 +43,10 @@ lms_collect._loadRunSheet = function (root) {
 			// from the same scoped rows the page renders — the strip and the
 			// lists cannot disagree (R35-#27).
 			var kpis = (r.message && r.message.kpis) || null;
-			lms_collect._renderRunSheet(root, rows, kpis);
+			// R59: what this collector banked today — feeds the new
+			// "Collected today" lead KPI card.
+			var collectedToday = (r.message && r.message.collected_today) || null;
+			lms_collect._renderRunSheet(root, rows, kpis, collectedToday);
 		},
 		error: function () {
 			root.innerHTML = lms_portal.error("Could not load run sheet.", function () {
@@ -202,8 +209,9 @@ lms_collect._runSheetRowHtml = function (row, queued, isOverdue) {
 	);
 };
 
-lms_collect._renderRunSheet = function (root, rows, kpis) {
+lms_collect._renderRunSheet = function (root, rows, kpis, collectedToday) {
 	kpis = kpis || null;
+	collectedToday = collectedToday || null;
 	var queueCount = lms_collect._offlineQueueCount();
 	var queued = lms_collect._queuedLoanSet();
 
@@ -219,6 +227,15 @@ lms_collect._renderRunSheet = function (root, rows, kpis) {
 	});
 
 	var listBody = "";
+
+	// R59: search over 70+ stops — a field collector must find a borrower
+	// by name or loan number without scrolling. Client-side filter over
+	// the already-loaded rows; re-render per keystroke is fine at this n.
+	var searchControls =
+		'<div class="lms-collect-search">' +
+		'<input type="text" class="lms-input" id="lms-collect-search" ' +
+		'placeholder="Search borrower or loan #…" autocomplete="off">' +
+		'</div>';
 
 	// Overdue first — the riskiest stops lead the page.
 	listBody += '<h3 class="lms-section-title lms-overdue-heading">Overdue</h3>';
@@ -246,30 +263,66 @@ lms_collect._renderRunSheet = function (root, rows, kpis) {
 
 	var syncControls =
 		'<div class="lms-collect-sync">' +
-		'<button type="button" class="lms-btn lms-btn--secondary" id="lms-sync-offline">Sync offline queue' +
+		'<button type="button" class="lms-btn lms-btn--ghost lms-btn--sm" id="lms-sync-offline">' +
+		(window.lms_icons ? lms_icons.icon("refresh", { size: 14 }) : "") +
+		'Sync offline queue' +
 		(queueCount > 0 ? ' <span class="lms-badge lms-badge--watch">' + queueCount + "</span>" : "") +
 		"</button></div>";
 
 	// R58 KPI strip: Stops/Amount describe the UPCOMING stops; Overdue is
 	// its own headline number fed straight from the server's kpis payload
 	// (never recounted here — R35-#27 single source of truth).
+	// R59: Collected today leads the strip — the first thing a collector
+	// wants to know is "what did I bank today", not what is still owed.
 	var kpiOverdueCount = kpis && kpis.overdue ? (kpis.overdue.count || 0) : 0;
 	var kpiOverdueAmount = kpis && kpis.overdue ? (kpis.overdue.amount || 0) : 0;
 	var kpiUpcomingCount = kpis && kpis.upcoming ? (kpis.upcoming.count || 0) : upcomingRows.length;
 	var kpiUpcomingAmount = kpis && kpis.upcoming ? (kpis.upcoming.amount || 0) : 0;
+	var collected = collectedToday || { amount: 0, count: 0 };
 
+	var historyPanel =
+		'<section class="lms-collect-history" id="lms-collect-history" hidden>' +
+		'<div class="lms-collect-history__body" id="lms-collect-history-body"></div>' +
+		'</section>';
+
+	// R59-FIX: use the SAME tab navigation as every other portal dashboard
+	// (officer/manager/setup) instead of a one-off toggle button. The KPI
+	// strip lives inside the Run sheet tab; History is its own tab with
+	// the 7/30/90-day window switcher. Tab choice persists per session,
+	// consistent with lms_portal.persistedTab elsewhere.
 	var html = lms_portal.pageStart() +
 		lms_portal.connectivityBanner() +
+		lms_portal.tabNav(lms_collect._tabs, lms_collect._currentTab) +
+		'<div id="lms-collect-tab-content">' +
+		// -- Run sheet panel (default tab) --
+		'<section class="lms-collect-panel" data-panel="runsheet">' +
 		lms_portal.kpiStrip([
+			{ label: "Collected today", value: format_currency(collected.amount) + " (" + collected.count + ")", tone: "success", id: "lms-kpi-collected" },
 			{ label: "Overdue", value: format_currency(kpiOverdueAmount) + " (" + kpiOverdueCount + ")", tone: kpiOverdueCount ? "warning" : "success" },
 			{ label: "Stops today", value: kpiUpcomingCount },
 			{ label: "Amount due", value: format_currency(kpiUpcomingAmount) },
 			{ label: "Offline queue", value: queueCount, tone: queueCount ? "warning" : "success" },
 		]) +
-		lms_portal.panel({ title: "Run sheet", body: listBody + syncControls }) +
+		// R59 board review: no panel title — the active tab label directly
+		// above already says "Run sheet"; a second heading wasted ~55px.
+		lms_portal.panel({ body: searchControls + listBody + syncControls }) +
+		'</section>' +
+		// -- History panel (lazy-loaded on first view) --
+		historyPanel +
+		'</div>' +
 		lms_portal.pageEnd();
 
 	root.innerHTML = html;
+	// R59: if a non-default tab was restored from persistence, apply its
+	// panel visibility + tab highlight now that the markup exists.
+	if (lms_collect._currentTab && lms_collect._currentTab !== "runsheet") {
+		root.querySelectorAll(".lms-tab").forEach(function (b) {
+			var active = b.getAttribute("data-tab") === lms_collect._currentTab;
+			b.classList.toggle("is-active", active);
+			b.setAttribute("aria-selected", active ? "true" : "false");
+		});
+		lms_collect._switchTab(lms_collect._currentTab);
+	}
 	if (typeof lms_portal.bindConnectivity === "function") {
 		lms_portal.bindConnectivity();
 	}
@@ -305,6 +358,172 @@ lms_collect._renderRunSheet = function (root, rows, kpis) {
 		btn.addEventListener("click", function () {
 			var loan = btn.getAttribute("data-loan");
 			lms_collect._revealPii(loan, btn, root);
+		});
+	});
+
+	// R59: run-sheet search — hide non-matching rows as the collector
+	// types; show an inline count so an empty result reads as "no match",
+	// not a broken page.
+	var searchInput = document.getElementById("lms-collect-search");
+	if (searchInput) {
+		searchInput.addEventListener("input", function () {
+			var q = (searchInput.value || "").trim().toLowerCase();
+			root.querySelectorAll(".lms-queue-list").forEach(function (list) {
+				var visible = 0;
+				list.querySelectorAll(".lms-queue-list__item").forEach(function (li) {
+					var hay = (li.textContent || "").toLowerCase();
+					var show = !q || hay.indexOf(q) !== -1;
+					li.style.display = show ? "" : "none";
+					if (show) visible += 1;
+				});
+				list.hidden = q !== "" && visible === 0;
+			});
+			var emptyMsg = root.querySelector("#lms-collect-no-match");
+			if (q) {
+				if (!emptyMsg) {
+					emptyMsg = document.createElement("p");
+					emptyMsg.id = "lms-collect-no-match";
+					emptyMsg.className = "lms-muted";
+					searchInput.parentNode.appendChild(emptyMsg);
+				}
+				var anyVisible = [...root.querySelectorAll(".lms-queue-list__item")]
+					.some(function (li) { return li.style.display !== "none"; });
+				emptyMsg.textContent = anyVisible ? "" : "No stops match \"" + searchInput.value + "\".";
+				emptyMsg.hidden = anyVisible;
+			} else if (emptyMsg) {
+				emptyMsg.hidden = true;
+			}
+		});
+	}
+
+	// R59: tab navigation — Run sheet | History, wired through
+	// lms_portal.bindTabs like the officer/manager portals. Switching to
+	// History lazy-loads (or re-uses) the collection history.
+	root.querySelectorAll(".lms-tab").forEach(function (btn) {
+		btn.addEventListener("click", function () {
+			var tabId = btn.getAttribute("data-tab");
+			root.querySelectorAll(".lms-tab").forEach(function (b) {
+				b.classList.remove("is-active");
+				b.setAttribute("aria-selected", "false");
+			});
+			btn.classList.add("is-active");
+			btn.setAttribute("aria-selected", "true");
+			lms_collect._switchTab(tabId);
+		});
+	});
+
+	// R59: history toggle — lazy-load the collector's past collections on
+	// first open; subsequent toggles reuse the loaded data.
+	var historyToggle = document.getElementById("lms-history-toggle");
+	if (historyToggle) {
+		historyToggle.addEventListener("click", function () {
+			lms_collect._toggleHistory();
+		});
+	}
+};
+
+lms_collect._tabs = [
+	{ id: "runsheet", label: "Run sheet", icon: "clipboard" },
+	{ id: "history", label: "My collections", icon: "receipt" },
+];
+
+lms_collect._currentTab = "runsheet";
+
+lms_collect._switchTab = function (tabId) {
+	lms_collect._currentTab = tabId;
+	lms_portal.saveActiveTab("collect", tabId);
+	var runsheet = document.querySelector('[data-panel="runsheet"]');
+	var history = document.getElementById("lms-collect-history");
+	if (!runsheet || !history) return;
+	var showHistory = tabId === "history";
+	// Keep both in the DOM; toggle visibility like the other portals'
+	// tab-content swap, but without re-rendering the run sheet (state
+	// like the search query survives the round-trip).
+	runsheet.hidden = showHistory;
+	history.hidden = !showHistory;
+	if (showHistory) {
+		var state = lms_collect._historyState;
+		if (!state.loaded) {
+			lms_collect._loadHistory(state.days);
+		}
+	}
+};
+
+lms_collect._historyState = { loaded: false, open: false, days: 30 };
+
+lms_collect._loadHistory = function (days) {
+	var state = lms_collect._historyState;
+	var body = document.getElementById("lms-collect-history-body");
+	if (!body) return;
+	body.innerHTML = lms_portal.loading("Loading history…");
+	lms_portal.safeCall({
+		method: "lms_saas.api.field_collection.get_collection_history",
+		args: { days: days },
+		callback: function (r) {
+			var data = (r && r.message) || {};
+			state.loaded = true;
+			state.days = days;
+			lms_collect._renderHistory(body, data);
+		},
+		error: function () {
+			body.innerHTML = lms_portal.error("Could not load history.", function () {
+				lms_collect._loadHistory(state.days);
+			});
+		},
+	});
+};
+
+lms_collect._renderHistory = function (body, data) {
+	var days = data.days || 30;
+	var windows = [7, 30, 90];
+	var tabs = windows.map(function (w) {
+		var active = w === days ? " is-active" : "";
+		return '<button type="button" class="lms-collect-history__tab' + active + '" data-days="' + w + '">' + w + 'd</button>';
+	}).join("");
+
+	var summary =
+		'<div class="lms-collect-history__summary">' +
+		'<div><span class="lms-collect-history__amount">' + format_currency(data.total || 0) + '</span>' +
+		'<span class="lms-collect-history__meta">collected in ' + lms_portal.escape(String(days)) + ' days · ' + (data.count || 0) + ' stops</span></div>' +
+		'</div>';
+
+	var rowsHtml = "";
+	var items = data.items || [];
+	if (!items.length) {
+		rowsHtml = '<p class="lms-muted lms-collect-history__empty">No collections in this window.</p>';
+	} else {
+		// Group by date — day headers keep a month of stops scannable.
+		var currentDay = null;
+		rowsHtml += '<ul class="lms-list lms-queue-list lms-collect-history__list">';
+		items.forEach(function (it) {
+			if (it.date !== currentDay) {
+				currentDay = it.date;
+				rowsHtml += '<li class="lms-collect-history__day">' + lms_portal.formatDate(it.date) + '</li>';
+			}
+			rowsHtml +=
+				'<li class="lms-queue-list__item lms-collect-history__row">' +
+				'<div class="lms-queue-list__main">' +
+				'<span class="lms-queue-list__name">' + lms_portal.escape(it.borrower || "—") + '</span>' +
+				'<span class="lms-queue-list__sub">' + lms_portal.escape(it.loan || "") + (it.mode ? " · " + lms_portal.escape(it.mode) : "") + '</span>' +
+				'</div>' +
+				'<div class="lms-queue-list__amount">' +
+				'<a class="lms-collect-history__receipt" href="/api/method/lms_saas.api.field_collection.generate_collection_receipt?repayment_name=' + encodeURIComponent(it.repayment || "") + '" target="_blank" rel="noopener">' + (window.lms_icons ? lms_icons.icon("download", { size: 13 }) : "") + ' Receipt</a>' +
+				'</div>' +
+				'<div class="lms-queue-list__amount">' +
+				'<span class="lms-queue-list__amount-value">' + format_currency(it.amount) + '</span>' +
+				'</div>' +
+				'</li>';
+		});
+		rowsHtml += "</ul>";
+	}
+
+	body.innerHTML =
+		'<div class="lms-collect-history__tabs">' + tabs + "</div>" +
+		summary + rowsHtml;
+
+	body.querySelectorAll(".lms-collect-history__tab").forEach(function (tab) {
+		tab.addEventListener("click", function () {
+			lms_collect._loadHistory(parseInt(tab.getAttribute("data-days"), 10) || 30);
 		});
 	});
 };
@@ -610,6 +829,10 @@ lms_collect._showReceiptPrompt = function (repaymentName) {
 lms_collect._queueOffline = function (item) {
 	try {
 		var q = JSON.parse(localStorage.getItem(lms_collect.DB_NAME) || "[]");
+		// R59: stamp the queue entry at collection time. Without this the
+		// repayment posted at sync time — daily KPIs and "Collected today"
+		// attributed an 11:00 collection to whenever signal returned.
+		item.collected_at = new Date().toISOString();
 		q.push(item);
 		localStorage.setItem(lms_collect.DB_NAME, JSON.stringify(q));
 	} catch (e) {}
@@ -642,11 +865,18 @@ lms_collect._syncOffline = function (root) {
 		callback: function (r) {
 			var results = (r.message && r.message.results) || [];
 			var failed = results.filter(function (x) { return !x.ok; });
+			var succeeded = results.filter(function (x) { return x.ok; });
 			if (failed.length) {
-				// Keep only failed items in queue
-				var failedLoans = failed.map(function (x) { return x.loan; });
+				// R59: keep only the FAILED entries. Match on the queue
+				// item identity (loan + amount + collected_at) rather than
+				// loan alone — two stops for the same loan must not both
+				// survive, or the succeeded one re-posts next sync.
+				var failedKeys = {};
+				failed.forEach(function (f) {
+					failedKeys[f.loan + "|" + f.amount] = true;
+				});
 				var remaining = q.filter(function (item) {
-					return failedLoans.indexOf(item.loan) !== -1;
+					return failedKeys[item.loan + "|" + item.amount];
 				});
 				localStorage.setItem(lms_collect.DB_NAME, JSON.stringify(remaining));
 				lms_collect._showSyncErrors(failed);
@@ -656,6 +886,13 @@ lms_collect._syncOffline = function (root) {
 					message: lms_copy.tSync("collector.synced", "Synced {when}", { when: results.length + " items" }),
 					indicator: "green"
 				});
+				// R59: offline collections previously never got a receipt
+				// prompt — the first synced repayment with a reference
+				// gets the same prompt as the online path.
+				var firstOk = succeeded.find(function (x) { return x.repayment; });
+				if (firstOk && firstOk.repayment) {
+					lms_collect._showReceiptPrompt(firstOk.repayment);
+				}
 			}
 			lms_collect._loadRunSheet(root);
 		},

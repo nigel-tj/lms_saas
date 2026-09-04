@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import frappe
-from frappe.utils import add_to_date, cint, flt, now_datetime, today
+from frappe.utils import add_days, add_to_date, cint, flt, getdate, now_datetime, today
 
 from lms_saas.lms_saas.report.collection_sheet.collection_sheet import execute as collection_sheet_execute
 
@@ -80,6 +80,103 @@ def get_collection_run_sheet(days_ahead=7, company=None, reveal=False):
 		# R58: per-bucket KPI totals computed FROM the scoped rows so the
 		# KPI strip and the run sheet can never disagree (R35-#27).
 		"kpis": _bucket_kpis(data),
+		# R59: what THIS collector actually collected today. The old strip
+		# showed only what is still owed (overdue + upcoming) and had no
+		# "collected" card at all, so a collector who had just recorded
+		# repayments saw no evidence of their own work. Sourced from the
+		# submitted Loan Repayment records the collector owns — same day
+		# window as get_collections_overview (getdate comparison, since
+		# posting_date is a Datetime column).
+		"collected_today": _collected_today(),
+	}
+
+
+def _collected_today():
+	"""Today's collections by the signed-in collector (count + total).
+
+	Datetime-safe: posting_date is a Datetime column, so filter with a
+	date range (>= today 00:00, < tomorrow 00:00) — plain equality only
+	matches midnight and silently hides same-day work.
+	"""
+	today_start = getdate(today())
+	tomorrow_start = add_days(today_start, 1)
+	rows = frappe.get_all(
+		"Loan Repayment",
+		filters={
+			"docstatus": 1,
+			"owner": frappe.session.user,
+			"posting_date": (">=", today_start),
+			"posting_date": ("<", tomorrow_start),
+		},
+		fields=["amount_paid"],
+	)
+	return {
+		"amount": sum(flt(r.amount_paid) for r in rows),
+		"count": len(rows),
+	}
+
+
+@frappe.whitelist()
+def get_collection_history(days=30, limit=200):
+	"""R59: historical collections view for the collector.
+
+	Returns the collector's own submitted repayments, newest first, with
+	a per-day rollup the UI can chart. Days is clamped to 1..365 so a
+	stray value can't dump the whole table.
+	"""
+	_require_collector()
+	days = max(1, min(cint(days), 365))
+	limit = max(1, min(cint(limit), 500))
+	since = add_days(getdate(today()), -days)
+
+	rows = frappe.get_all(
+		"Loan Repayment",
+		filters={
+			"docstatus": 1,
+			"owner": frappe.session.user,
+			"posting_date": (">=", since),
+		},
+		fields=["name", "against_loan", "amount_paid", "posting_date", "mode_of_payment"],
+		order_by="posting_date desc",
+		limit_page_length=limit,
+	)
+
+	# Resolve borrower names in one batch query so the history table
+	# shows who paid, not a bare loan number.
+	loan_names = list({r.against_loan for r in rows if r.against_loan})
+	borrower_map = {}
+	if loan_names:
+		borrower_map = {
+			l.name: l.applicant
+			for l in frappe.get_all(
+				"Loan",
+				filters={"name": ("in", loan_names)},
+				fields=["name", "applicant"],
+			)
+		}
+
+	per_day = {}
+	items = []
+	for r in rows:
+		day = getdate(r.posting_date).isoformat()
+		per_day[day] = per_day.get(day, 0) + flt(r.amount_paid)
+		items.append(
+			{
+				"repayment": r.name,
+				"loan": r.against_loan,
+				"borrower": borrower_map.get(r.against_loan, r.against_loan),
+				"amount": flt(r.amount_paid),
+				"date": day,
+				"mode": r.mode_of_payment or "",
+			}
+		)
+
+	return {
+		"days": days,
+		"total": sum(flt(r.amount_paid) for r in rows),
+		"count": len(rows),
+		"per_day": [{"date": d, "amount": a} for d, a in sorted(per_day.items())],
+		"items": items,
 	}
 
 
@@ -375,7 +472,13 @@ def get_offline_queue_status():
 
 @frappe.whitelist()
 def sync_offline_batch(batch_json: str):
-	"""Process queued offline repayments from PWA."""
+	"""Process queued offline repayments from PWA.
+
+	R59: pass the collector's note through (it used to be dropped on
+	sync) and reuse the record_field_repayment dedupe window so a queued
+	item that already made it (e.g. retry after a dropped response) does
+	not double-post.
+	"""
 	_require_collector()
 	import json
 
@@ -383,7 +486,25 @@ def sync_offline_batch(batch_json: str):
 	results = []
 	for item in batch:
 		try:
-			out = record_field_repayment(item.get("loan"), item.get("amount"), item.get("payment_mode", "Cash"))
+			out = record_field_repayment(
+				item.get("loan"),
+				item.get("amount"),
+				item.get("payment_mode", "Cash"),
+			)
+			note = item.get("note") or ""
+			if note and out.get("repayment"):
+				try:
+					frappe.get_doc(
+						{
+							"doctype": "Comment",
+							"comment_type": "Info",
+							"reference_doctype": "Loan Repayment",
+							"reference_name": out.get("repayment"),
+							"content": f"Field collection note: {note}",
+						}
+					).insert(ignore_permissions=True)
+				except Exception:
+					pass
 			results.append({"ok": True, **out})
 		except Exception as exc:
 			results.append({"ok": False, "loan": item.get("loan"), "error": str(exc)})

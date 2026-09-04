@@ -402,9 +402,10 @@ body.lms-portal {
 	display: flex;
 	align-items: center;
 	gap: 0.5rem;
-	padding: 0.5rem 0.85rem;
-	margin-bottom: 0.85rem;
-	border-radius: var(--lms-radius-sm);
+	padding: 0.3rem 0.7rem;
+	margin-bottom: 0.5rem;
+	width: fit-content;
+	border-radius: 999px;
 	font-size: var(--lms-fs-sm);
 	font-weight: 500;
 	border: 1px solid var(--lms-border);
@@ -1184,7 +1185,7 @@ body.lms-portal {
 	display: flex;
 	flex-wrap: wrap;
 	gap: 0.25rem;
-	margin: 0 0 1.5rem;
+	margin: 0 0 0.75rem;
 	padding: 0;
 	border-bottom: 1px solid var(--lms-border);
 	align-items: flex-end;
@@ -1194,7 +1195,8 @@ body.lms-portal {
 	display: inline-flex;
 	align-items: center;
 	gap: 0.5rem;
-	padding: 0.75rem 1.15rem;
+	padding: 0.5rem 0.95rem;
+	min-height: 44px;
 	margin-bottom: -1px;
 	background: transparent;
 	border: none;
@@ -1337,6 +1339,25 @@ body.lms-portal {
 	grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
 	gap: 1.125rem;
 	margin-bottom: 2rem;
+}
+
+/* R59 density fix (board review): 5 KPI cards at minmax(170px) wrap to
+ * two rows on the collector page — a whole second row for one number.
+ * Compact tier scoped to the collector surface only: minmax 145px +
+ * tighter gap/padding keeps all five cards on ONE row without touching
+ * other portals' strips. Cards are non-interactive, so no 44px floor. */
+body.lms-nav-collect .lms-summary {
+	/* 5 cards must fit one row: 5×minmax + 4×gap ≤ strip width.
+	 * 5×132px + 4×12px = 708px — fits the ~749px content column. */
+	grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+	gap: 0.75rem;
+	margin-bottom: 1rem;
+}
+body.lms-nav-collect .lms-summary-card {
+	padding: 0.75rem 1rem;
+}
+body.lms-nav-collect .lms-summary-label {
+	margin-bottom: 0.25rem;
 }
 
 .lms-summary-card {
@@ -2652,18 +2673,21 @@ body.lms-portal-borrower .form-control:focus {
 	column-gap: 1rem;
 	row-gap: 0.25rem;
 	align-items: center;
-	padding: 0.85rem 0.25rem;
+	padding: 0.85rem 0.75rem;
 	border-bottom: 1px solid var(--lms-border);
+	border-radius: var(--lms-radius-sm);
 	transition: background 0.12s ease;
 }
 .lms-queue-list__item:last-child {
-	border-bottom: none;
+	border-bottom-color: transparent;
 }
 .lms-queue-list__item:hover {
 	background: var(--lms-surface-alt, #f8fafc);
-	border-radius: var(--lms-radius-sm);
-	padding-left: 0.75rem;
-	padding-right: 0.75rem;
+}
+/* R59-QA: overdue rows get a subtle danger tint on hover so the riskiest
+ * stops read as such before the collector commits to a tap. */
+.lms-queue-list__item.is-overdue:hover {
+	background: color-mix(in oklab, var(--lms-danger, #dc2626) 4%, var(--lms-surface));
 }
 .lms-queue-list__main {
 	min-width: 0;
@@ -2713,9 +2737,67 @@ body.lms-portal-borrower .form-control:focus {
 }
 .lms-queue-list__action {
 	justify-self: end;
+	display: flex;
+	align-items: center;
+	gap: 0.4rem;
 }
 .lms-queue-list__action .lms-btn {
 	white-space: nowrap;
+}
+
+/* R59-QA: sticky section headings inside the long overdue list — the
+ * collector always knows which bucket they are working in when they
+ * scroll 70+ stops. */
+.lms-section-title {
+	position: sticky;
+	top: 0;
+	z-index: 3;
+}
+.lms-overdue-heading {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	margin: 0 0 0.5rem;
+	padding: 0.55rem 0.75rem;
+	font-size: 0.85rem;
+	font-weight: 700;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+	color: var(--lms-danger, #b3261e);
+	background: color-mix(in oklab, var(--lms-danger, #dc2626) 7%, var(--lms-surface));
+	border: 1px solid color-mix(in oklab, var(--lms-danger, #dc2626) 18%, transparent);
+	border-radius: var(--lms-radius-sm);
+}
+.lms-overdue-heading::before {
+	content: "";
+	width: 0.5rem;
+	height: 0.5rem;
+	border-radius: 50%;
+	background: var(--lms-danger, #dc2626);
+	flex-shrink: 0;
+}
+.lms-upcoming-heading {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	margin: 1.25rem 0 0.5rem;
+	padding: 0.55rem 0.75rem;
+	font-size: 0.85rem;
+	font-weight: 700;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+	color: color-mix(in oklab, var(--lms-text) 75%, var(--lms-primary));
+	background: color-mix(in oklab, var(--lms-primary) 6%, var(--lms-surface));
+	border: 1px solid color-mix(in oklab, var(--lms-primary) 14%, transparent);
+	border-radius: var(--lms-radius-sm);
+}
+.lms-upcoming-heading::before {
+	content: "";
+	width: 0.5rem;
+	height: 0.5rem;
+	border-radius: 50%;
+	background: var(--lms-primary);
+	flex-shrink: 0;
 }
 
 /* R44-F1: Work queue panel — single panel containing two sub-headings
@@ -2995,10 +3077,124 @@ body.lms-portal-borrower .form-control:focus {
 	.lms-tasks-card__priority { grid-area: priority; }
 	.lms-tasks-card__due { grid-area: due; text-align: right; }
 }
+/* R59-QA: sync row sits flush right, separated from the list by a
+ * hairline — reads as a footer action, not a stray button. */
 .lms-collect-sync {
+	display: flex;
+	justify-content: flex-end;
 	margin-top: 1rem;
 	padding-top: 1rem;
 	border-top: 1px solid var(--lms-border);
+}
+
+/* R59: collector history panel + toolbar toggle */
+.lms-collect-toolbar {
+	display: flex;
+	justify-content: flex-start;
+	margin-bottom: 0.9rem;
+}
+
+/* R59: the collector page now uses the portal-standard tab nav; panels
+ * swap visibility via [hidden]. No extra chrome needed beyond keeping
+ * the history panel styled like a panel. */
+.lms-collect-panel[hidden],
+.lms-collect-history[hidden] {
+	display: none;
+}
+
+/* R59: run-sheet search strip — 44px input (a11y lead: the one chrome
+ * control that was below the touch-target floor rises to it). */
+.lms-collect-search {
+	margin-bottom: 0.75rem;
+}
+.lms-collect-search .lms-input {
+	width: 100%;
+	min-height: 44px;
+}
+.lms-collect-history {
+	margin-bottom: 1.25rem;
+	padding: 1.25rem 1.5rem;
+	background: var(--lms-surface);
+	border: 1px solid var(--lms-border);
+	border-radius: var(--lms-radius-panel);
+	box-shadow: var(--lms-shadow-panel);
+}
+.lms-collect-history__tabs {
+	display: inline-flex;
+	gap: 0.25rem;
+	padding: 0.2rem;
+	background: var(--lms-surface-alt, #f1f5f9);
+	border-radius: 999px;
+	margin-bottom: 1rem;
+}
+.lms-collect-history__tab {
+	border: none;
+	background: transparent;
+	color: var(--lms-text-muted);
+	font-size: 0.8rem;
+	font-weight: 600;
+	padding: 0.3rem 0.85rem;
+	border-radius: 999px;
+	cursor: pointer;
+	transition: background 0.12s ease, color 0.12s ease;
+}
+.lms-collect-history__tab:hover {
+	color: var(--lms-text);
+}
+.lms-collect-history__tab.is-active {
+	background: var(--lms-surface);
+	color: var(--lms-primary);
+	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+.lms-collect-history__summary {
+	display: flex;
+	align-items: baseline;
+	gap: 0.75rem;
+	margin-bottom: 1rem;
+	padding-bottom: 1rem;
+	border-bottom: 1px solid var(--lms-border);
+}
+.lms-collect-history__amount {
+	font-size: 1.6rem;
+	font-weight: 700;
+	color: var(--lms-success, #15803d);
+	font-variant-numeric: tabular-nums;
+	letter-spacing: -0.01em;
+}
+.lms-collect-history__meta {
+	font-size: 0.85rem;
+	color: var(--lms-text-muted);
+}
+.lms-collect-history__day {
+	list-style: none;
+	padding: 0.6rem 0.75rem 0.25rem;
+	font-size: 0.72rem;
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+	color: var(--lms-text-muted);
+}
+.lms-collect-history__row {
+	border-bottom: 1px solid var(--lms-border);
+}
+.lms-collect-history__row:last-child {
+	border-bottom: none;
+}
+.lms-collect-history__receipt {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.25rem;
+	font-size: 0.78rem;
+	font-weight: 600;
+	color: var(--lms-primary);
+	text-decoration: none;
+	white-space: nowrap;
+}
+.lms-collect-history__receipt:hover {
+	text-decoration: underline;
+}
+.lms-collect-history__empty {
+	margin: 0.5rem 0 0;
 }
 
 /* Modal styles removed — canonical definition lives in lms_components.css.
@@ -3071,6 +3267,28 @@ body.lms-portal-borrower .form-control:focus {
 }
 .lms-collect-head .lms-muted {
 	margin: 0;
+	font-size: 0.8rem;
+}
+
+/* R59-QA: the "Collecting for {lender}" note reads as a quiet
+ * eyebrow line above the subtitle — the board verdict was MERGE:
+ * an unboxed eyebrow costs ~17px vs the old tinted pill's ~41px. */
+p.lms-secure-note {
+	display: block;
+	width: auto;
+	margin: 0 0 0.35rem;
+	padding: 0;
+	font-size: 0.78rem;
+	font-weight: 500;
+	line-height: 1.4;
+	color: var(--lms-text-muted);
+	background: transparent;
+	border: none;
+	position: relative;
+}
+p.lms-secure-note strong {
+	color: var(--lms-primary);
+	font-weight: 600;
 }
 
 /* Secondary insights (collapsed by default via <details>) */

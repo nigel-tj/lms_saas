@@ -110,8 +110,12 @@ body.lms-desk-enhanced.lms-nav-screen .layout-main-section {
 	border: 1px solid var(--lms-border);
 	border-radius: var(--lms-radius-panel);
 	box-shadow: var(--lms-shadow-panel);
-	padding: 1.5rem 1.75rem;
-	overflow: hidden;
+	padding: 1.25rem 1.5rem;
+	/* R59-QA: overflow-y must stay visible so sticky section headings
+	 * inside long lists (collector run sheet) can pin while scrolling.
+	 * Horizontal overflow is still clipped. */
+	overflow-x: hidden;
+	overflow-y: visible;
 }
 
 /* Workspace canvas uses Frappe .layout-main-section card — avoid nested panel */
