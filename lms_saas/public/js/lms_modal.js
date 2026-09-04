@@ -71,7 +71,18 @@
 		var actionsHtml = actions
 			? '<div class="lms-modal__actions">' + actions + "</div>"
 			: "";
-		return header + (opts.body || "") + actionsHtml;
+		// R58 QA: wrap the caller's body in .lms-modal__body so every
+		// LMSModal gets the same padding + scroll behaviour as
+		// lms_portal.modal. Callers used to pass raw <p>/<div> markup
+		// that rendered flush against the modal edge (the "Collection
+		// successful" text sat glued to the border). A body that is
+		// already a .lms-form is left unwrapped — the form owns its own
+		// modal padding via lms_form.css.
+		var bodyHtml = opts.body || "";
+		if (bodyHtml && bodyHtml.indexOf('class="lms-form"') === -1 && bodyHtml.indexOf("class='lms-form'") === -1) {
+			bodyHtml = '<div class="lms-modal__body">' + bodyHtml + "</div>";
+		}
+		return header + bodyHtml + actionsHtml;
 	}
 
 	function focusFirst(dlg) {

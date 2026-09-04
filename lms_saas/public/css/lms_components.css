@@ -1026,8 +1026,8 @@ dialog.lms-modal::backdrop {
 
 /* Brand accent stripe across the top of the modal — a 3px gradient bar
  * gives the dialog a subtle visual identity and helps separate header
- * from body without adding extra DOM. The header itself uses the same
- * gradient so this stripe is now redundant — kept off to avoid double
+ * from body without adding extra DOM. The header is now a flat primary
+ * surface so this stripe is redundant — kept off to avoid double
  * colour bands. (Re-enable if the header is ever reverted to a flat
  * surface.) */
 /* .lms-modal::before { content: ""; display: block; height: 3px;
@@ -1077,7 +1077,7 @@ dialog.lms-modal::backdrop {
 	max-width: 1200px;
 }
 
-.lms-modal--xxl .lms-modal-body {
+.lms-modal--xxl .lms-modal__body {
 	padding: 1.5rem 2rem;
 }
 
@@ -1194,7 +1194,10 @@ dialog.lms-modal::backdrop {
 	padding: 1rem 1.25rem;
 	margin: 0;
 	border-bottom: 1px solid var(--lms-border);
-	background: linear-gradient(135deg, var(--lms-primary) 0%, var(--lms-accent, var(--lms-primary)) 100%);
+	/* Solid primary — the 135° primary→accent gradient read as a cheap
+	 * "shine" and made the header the loudest element on the screen.
+	 * One flat brand colour keeps every modal consistent (R58 QA). */
+	background: var(--lms-primary);
 	color: #fff;
 	min-height: 60px;
 }
